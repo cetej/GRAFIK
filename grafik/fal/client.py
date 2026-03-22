@@ -6,8 +6,12 @@ import os
 import tempfile
 from pathlib import Path
 
+from dotenv import load_dotenv
 import fal_client
 from PIL import Image
+
+load_dotenv()
+load_dotenv("key.env")
 
 from grafik.core.layer import Layer
 from grafik.core.project import LayerProject

@@ -12,20 +12,35 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from grafik.api.models import (
+    BlendModeRequest,
     CreateProjectRequest,
+    CropRequest,
     DecomposeRequest,
+    FlipRequest,
+    HistoryResponse,
     LayerResponse,
+    MaskRequest,
     OpacityRequest,
     ProjectListItem,
     ProjectResponse,
+    RecolorRequest,
+    ScaleRequest,
     TransformRequest,
+    WorkflowRequest,
+    WorkflowStepResponse,
 )
 from grafik.core.composer import compose, compose_and_save
 from grafik.core.project import LayerProject
 
-load_dotenv()
+from grafik.core.history import History
 
-app = FastAPI(title="GRAFIK API", version="0.1.0")
+load_dotenv()
+load_dotenv("key.env")
+
+app = FastAPI(title="GRAFIK API", version="0.2.0")
+
+# In-memory history per project (stateless API, but history lives in session)
+_histories: dict[str, History] = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +72,27 @@ def _find_project(project_id: str) -> Path:
 def _load_project(project_id: str) -> tuple[LayerProject, Path]:
     path = _find_project(project_id)
     return LayerProject.load(path), path
+
+
+def _get_history(project_id: str, project_dir: Path) -> History:
+    if project_id not in _histories:
+        hist_path = project_dir / "history.json"
+        _histories[project_id] = History.load_from_file(hist_path)
+    return _histories[project_id]
+
+
+def _snapshot(project_id: str, project: LayerProject, project_dir: Path) -> None:
+    h = _get_history(project_id, project_dir)
+    h.push(project.model_dump_json())
+    h.save_to_file(project_dir / "history.json")
+
+
+def _layer_response(l) -> LayerResponse:
+    return LayerResponse(
+        id=l.id, name=l.name, z_order=l.z_order, visible=l.visible,
+        opacity=l.opacity, blend_mode=l.blend_mode, x=l.x, y=l.y,
+        width=l.width, height=l.height, source=l.source, tags=l.tags,
+    )
 
 
 # --- Projects ---
@@ -294,3 +330,173 @@ def export_png(project_id: str) -> Response:
         media_type="image/png",
         headers={"Content-Disposition": f'attachment; filename="{project.name}_composite.png"'},
     )
+
+
+@app.post("/api/projects/{project_id}/export/layers")
+def export_layers_png(project_id: str) -> dict:
+    from grafik.export.png import export_layers
+    project, path = _load_project(project_id)
+    paths = export_layers(project, path)
+    return {"exported": [str(p) for p in paths]}
+
+
+# --- Recolor ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/recolor")
+def recolor_layer(project_id: str, layer_id: str, req: RecolorRequest) -> LayerResponse:
+    from grafik.ops.recolor import recolor
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    img = layer.load_image(path)
+    result = recolor(img, req.hue_shift, req.saturation_scale, req.lightness_shift)
+    layer.save_image(result, path)
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+# --- Blend mode ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/blend_mode")
+def set_blend_mode(project_id: str, layer_id: str, req: BlendModeRequest) -> LayerResponse:
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    layer.blend_mode = req.blend_mode
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+# --- Flip ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/flip")
+def flip_layer(project_id: str, layer_id: str, req: FlipRequest) -> LayerResponse:
+    from grafik.ops.transform import flip_horizontal, flip_vertical
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    img = layer.load_image(path)
+    if req.direction == "vertical":
+        result = flip_vertical(img)
+    else:
+        result = flip_horizontal(img)
+    layer.save_image(result, path)
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+# --- Scale ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/scale")
+def scale_layer(project_id: str, layer_id: str, req: ScaleRequest) -> LayerResponse:
+    from grafik.ops.transform import scale
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    img = layer.load_image(path)
+    result = scale(img, req.factor)
+    layer.save_image(result, path)
+    layer.width = result.width
+    layer.height = result.height
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+# --- Mask operations ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/mask")
+def mask_layer(project_id: str, layer_id: str, req: MaskRequest) -> LayerResponse:
+    from grafik.ops.mask import feather_edges, threshold_alpha, set_opacity
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    img = layer.load_image(path)
+    if req.operation == "feather":
+        result = feather_edges(img, req.radius)
+    elif req.operation == "threshold":
+        result = threshold_alpha(img, req.threshold)
+    elif req.operation == "set_opacity":
+        result = set_opacity(img, req.opacity)
+    else:
+        raise HTTPException(400, f"Unknown mask operation: {req.operation}")
+    layer.save_image(result, path)
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+# --- History (undo/redo) ---
+
+
+@app.get("/api/projects/{project_id}/history")
+def get_history(project_id: str) -> HistoryResponse:
+    _, path = _load_project(project_id)
+    h = _get_history(project_id, path)
+    return HistoryResponse(undo_count=h.undo_count, redo_count=h.redo_count)
+
+
+@app.post("/api/projects/{project_id}/undo")
+def undo(project_id: str) -> dict:
+    project, path = _load_project(project_id)
+    h = _get_history(project_id, path)
+    state = h.undo()
+    if state is None:
+        raise HTTPException(400, "Nothing to undo")
+    # Restore project.json from snapshot
+    (path / "project.json").write_text(state, encoding="utf-8")
+    h.save_to_file(path / "history.json")
+    return {"undone": True, "undo_remaining": h.undo_count, "redo_available": h.redo_count}
+
+
+@app.post("/api/projects/{project_id}/redo")
+def redo(project_id: str) -> dict:
+    project, path = _load_project(project_id)
+    h = _get_history(project_id, path)
+    state = h.redo()
+    if state is None:
+        raise HTTPException(400, "Nothing to redo")
+    (path / "project.json").write_text(state, encoding="utf-8")
+    h.save_to_file(path / "history.json")
+    return {"redone": True, "undo_available": h.undo_count, "redo_remaining": h.redo_count}
+
+
+# --- Workflows ---
+
+
+@app.post("/api/projects/{project_id}/workflows/run")
+def run_workflow(project_id: str, req: WorkflowRequest) -> list[WorkflowStepResponse]:
+    from grafik.workflows import WORKFLOWS
+    project, path = _load_project(project_id)
+
+    wf_class = WORKFLOWS.get(req.workflow)
+    if not wf_class:
+        raise HTTPException(400, f"Unknown workflow: {req.workflow}. Available: {list(WORKFLOWS.keys())}")
+
+    wf = wf_class(project, path)
+    params = {**req.params}
+    if req.image_url:
+        params["image_url"] = req.image_url
+    if req.num_layers:
+        params["num_layers"] = req.num_layers
+
+    results = wf.run(**params)
+    _snapshot(project_id, project, path)
+
+    return [
+        WorkflowStepResponse(name=r.name, success=r.success, data=r.data, error=r.error)
+        for r in results
+    ]

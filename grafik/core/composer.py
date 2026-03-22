@@ -72,14 +72,17 @@ def _apply_opacity(img: Image.Image, opacity: float) -> Image.Image:
 
 def _blend_layer(canvas: Image.Image, img: Image.Image, layer: Layer) -> None:
     """Paste layer onto canvas using blend mode."""
-    # For MVP, only NORMAL blend mode — others will be added in Phase 2
+    # Position the layer image on a full-size temp canvas
+    temp = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    temp.paste(img, (layer.x, layer.y))
+
     if layer.blend_mode == BlendMode.NORMAL:
-        # Create a temp canvas same size, paste at offset, alpha_composite
-        temp = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-        temp.paste(img, (layer.x, layer.y))
         canvas.alpha_composite(temp)
     else:
-        # Fallback to normal for now
-        temp = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-        temp.paste(img, (layer.x, layer.y))
-        canvas.alpha_composite(temp)
+        from grafik.ops.blend import BLEND_FUNCTIONS
+        blend_fn = BLEND_FUNCTIONS.get(layer.blend_mode.value)
+        if blend_fn:
+            result = blend_fn(canvas, temp)
+            canvas.paste(result)
+        else:
+            canvas.alpha_composite(temp)

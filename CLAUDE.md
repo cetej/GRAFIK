@@ -28,19 +28,21 @@ GRAFIK/
 - [x] UI: Streamlit — 3-sloupcový layout (vrstvy | náhled | inspector)
 - [x] Ověřeno: pip install, importy, kompozice, API start
 
-### Fáze 2 — Operace + Workflows (TODO)
-- [ ] `grafik/ops/recolor.py` — hue/sat/lum shift
-- [ ] `grafik/ops/transform.py` — resize, rotate, translate
-- [ ] `grafik/ops/blend.py` — blend modes (multiply, screen, overlay, soft_light)
-- [ ] `grafik/ops/mask.py` — alpha mask editace
-- [ ] `grafik/ops/replace.py` — náhrada obsahu vrstvy
-- [ ] `grafik/core/history.py` — undo/redo (JSON snapshot stack, max 20)
-- [ ] `grafik/workflows/base.py` — WorkflowBase pipeline runner
-- [ ] `grafik/workflows/map_localization.py` — dekompozice mapy → swap textových vrstev → CZ
-- [ ] `grafik/workflows/hero_edit.py` — separace subject/background → swap → composite
-- [ ] `grafik/export/png.py` — composite + individual layers
-- [ ] `grafik/export/psd.py` — PSD export (psd-tools)
-- [ ] UI: inspector panel (recolor sliders, transform), workflow panel, undo/redo
+### Fáze 2 — Operace + Workflows (HOTOVO)
+- [x] `grafik/ops/recolor.py` — hue/sat/lum shift, grayscale, invert
+- [x] `grafik/ops/transform.py` — resize, scale, rotate, flip, crop
+- [x] `grafik/ops/blend.py` — blend modes (multiply, screen, overlay, soft_light) via numpy
+- [x] `grafik/ops/mask.py` — alpha mask: feather, threshold, set_opacity, apply_mask, extract
+- [x] `grafik/ops/replace.py` — náhrada obsahu vrstvy (cover/contain/stretch/none)
+- [x] `grafik/core/history.py` — undo/redo (JSON snapshot stack, max 20, persist to file)
+- [x] `grafik/core/composer.py` — blend modes integrated (NORMAL + 4 advanced)
+- [x] `grafik/workflows/base.py` — WorkflowBase pipeline runner
+- [x] `grafik/workflows/map_localization.py` — dekompozice mapy → identifikace textu → swap → composite
+- [x] `grafik/workflows/hero_edit.py` — separace subject/background → swap → composite
+- [x] `grafik/export/png.py` — composite + individual layers + export_all
+- [x] `grafik/export/psd.py` — PSD export (psd-tools, optional dependency)
+- [x] API: 28 routes — recolor, blend_mode, flip, scale, mask, undo/redo, workflows/run, export/layers
+- [x] UI: inspector (recolor sliders, blend mode, transform, flip, scale, mask ops), workflow panel, undo/redo
 
 ### Fáze 3 — Pokročilé (TODO)
 - [ ] T2L (text-to-layers) mód v fal klientu
@@ -63,7 +65,7 @@ GRAFIK/
 
 ## Servery
 
-- **API**: `uvicorn grafik.api.app:app --port 8100` nebo `grafik serve`
+- **API**: `uvicorn grafik.api.app:app --port 8200` nebo `grafik serve`
 - **UI**: `streamlit run ui/app.py --server.port 8501` nebo `grafik ui`
 
 ## Použití jako knihovna
@@ -82,17 +84,15 @@ composite.save("output.png")
 
 ## Resume prompt
 
-> GRAFIK — Session 2: Implementace Fáze 2 (ops + workflows).
+> GRAFIK — Session 3: Implementace Fáze 3 (pokročilé funkce).
 >
-> Fáze 1 MVP je kompletní a ověřená. Package `grafik` nainstalovaný, core/fal/api/cli/ui fungují.
+> Fáze 1 (MVP) + Fáze 2 (ops, workflows, export) jsou kompletní a ověřené.
+> Package `grafik` v0.2.0 — 28 API routes, 5 ops modulů, 2 workflows, undo/redo, Streamlit UI.
 >
-> **Co implementovat:**
-> 1. `grafik/ops/` — recolor, transform, blend, mask, replace (Pillow operace nad vrstvami)
-> 2. `grafik/core/history.py` — undo/redo stack
-> 3. `grafik/workflows/base.py` + `map_localization.py` + `hero_edit.py`
-> 4. `grafik/export/` — PNG batched, PSD (psd-tools)
-> 5. Nové API endpointy pro operace a workflows
-> 6. UI rozšíření: inspector (recolor/transform), workflow panel, undo/redo
->
-> Vzor pro API: `grafik/api/app.py` (stateless, load/save per request)
-> Vzor pro UI: `ui/app.py` (httpx → FastAPI, st.session_state)
+> **Co implementovat (Fáze 3):**
+> 1. T2L (text-to-layers) mód v fal klientu
+> 2. Rekurzivní dekompozice (rozložit vrstvu dál)
+> 3. Mask painting (streamlit-drawable-canvas)
+> 4. fal.ai cost tracking
+> 5. Batch workflow (složka obrázků)
+> 6. Integrace do NG-ROBOT

@@ -75,3 +75,44 @@ class ProjectListItem(BaseModel):
     name: str
     path: str
     layer_count: int
+
+
+class MaskRequest(BaseModel):
+    operation: str = "feather"  # feather, threshold, set_opacity
+    radius: int = 5
+    threshold: int = 128
+    opacity: float = 1.0
+
+
+class FlipRequest(BaseModel):
+    direction: str = "horizontal"  # horizontal, vertical
+
+
+class ScaleRequest(BaseModel):
+    factor: float = 1.0
+
+
+class CropRequest(BaseModel):
+    left: int = 0
+    top: int = 0
+    right: int = 0
+    bottom: int = 0
+
+
+class WorkflowRequest(BaseModel):
+    workflow: str  # map_localization, hero_edit
+    image_url: str = ""
+    num_layers: int = Field(default=4, ge=1, le=10)
+    params: dict = Field(default_factory=dict)
+
+
+class WorkflowStepResponse(BaseModel):
+    name: str
+    success: bool
+    data: dict = Field(default_factory=dict)
+    error: str = ""
+
+
+class HistoryResponse(BaseModel):
+    undo_count: int
+    redo_count: int
