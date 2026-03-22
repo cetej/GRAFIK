@@ -11,17 +11,20 @@ from grafik.core.project import LayerProject
 
 
 def compose(project: LayerProject, project_dir: Path | None = None) -> Image.Image:
-    """Flatten all visible layers into a composite RGBA image.
+    """Flatten all visible layers into a composite RGBA image."""
+    w = project.canvas_width
+    h = project.canvas_height
 
-    Args:
-        project: The layer project.
-        project_dir: Path to the .grafik directory. Required to load layer PNGs.
+    # Auto-detect canvas size from layers if not set
+    if not w or not h:
+        for layer in project.layers:
+            lw = (layer.width or 0) + layer.x
+            lh = (layer.height or 0) + layer.y
+            w = max(w, lw)
+            h = max(h, lh)
+    if not w or not h:
+        w, h = 1920, 1080
 
-    Returns:
-        Composite RGBA PIL Image.
-    """
-    w = project.canvas_width or 1920
-    h = project.canvas_height or 1080
     canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
 
     for layer in project.visible_layers():
@@ -36,10 +39,11 @@ def compose(project: LayerProject, project_dir: Path | None = None) -> Image.Ima
         if layer.opacity < 1.0:
             img = _apply_opacity(img, layer.opacity)
 
-        # Resize if dimensions specified and different from original
-        if layer.width and layer.height:
-            if (layer.width, layer.height) != img.size:
-                img = img.resize((layer.width, layer.height), Image.LANCZOS)
+        # Resize if layer dimensions differ from image on disk
+        target_w = layer.width or img.width
+        target_h = layer.height or img.height
+        if (target_w, target_h) != img.size:
+            img = img.resize((target_w, target_h), Image.LANCZOS)
 
         # Rotation
         if layer.rotation:

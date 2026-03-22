@@ -181,6 +181,42 @@ def decompose(project_id: str, req: DecomposeRequest) -> list[LayerResponse]:
     ]
 
 
+@app.post("/api/projects/{project_id}/decompose/file")
+async def decompose_file(
+    project_id: str,
+    file: UploadFile = File(...),
+    num_layers: int = 4,
+) -> list[LayerResponse]:
+    """Upload a file and decompose it into layers in one step."""
+    from grafik.fal.client import FalClient
+    from grafik.fal.upload import upload_image
+    from PIL import Image
+
+    project, path = _load_project(project_id)
+
+    # Read uploaded image
+    img_data = await file.read()
+    img = Image.open(BytesIO(img_data)).convert("RGBA")
+
+    # Upload to fal CDN
+    image_url = upload_image(img)
+
+    # Auto-set canvas
+    if not project.canvas_width or not project.canvas_height:
+        project.canvas_width = img.width
+        project.canvas_height = img.height
+
+    # Decompose
+    client = FalClient()
+    layers = client.decompose(
+        image_url, num_layers,
+        project=project, project_dir=path,
+    )
+    project.source_image_url = image_url
+    project.save(path)
+    return [_layer_response(l) for l in layers]
+
+
 # --- Layers ---
 
 
@@ -198,7 +234,7 @@ def list_layers(project_id: str) -> list[LayerResponse]:
 
 
 @app.get("/api/projects/{project_id}/layers/{layer_id}/png")
-def get_layer_png(project_id: str, layer_id: str) -> Response:
+def get_layer_png(project_id: str, layer_id: str, checker: bool = False) -> Response:
     project, path = _load_project(project_id)
     layer = project.get_layer(layer_id)
     if not layer:
@@ -207,9 +243,29 @@ def get_layer_png(project_id: str, layer_id: str) -> Response:
         img = layer.load_image(path)
     except FileNotFoundError:
         raise HTTPException(404, "Layer PNG not found on disk")
+
+    if checker:
+        img = _add_checker_bg(img)
+
     buf = BytesIO()
     img.save(buf, "PNG")
     return Response(content=buf.getvalue(), media_type="image/png")
+
+
+def _add_checker_bg(img: Image.Image, cell: int = 16) -> Image.Image:
+    """Render RGBA image on a checkerboard background to visualize transparency."""
+    import numpy as np
+    w, h = img.size
+    # Build checker pattern with numpy
+    rows = np.arange(h) // cell
+    cols = np.arange(w) // cell
+    grid = (rows[:, None] + cols[None, :]) % 2
+    dark = np.array([220, 220, 220, 255], dtype=np.uint8)
+    light = np.array([245, 245, 245, 255], dtype=np.uint8)
+    checker_arr = np.where(grid[:, :, None] == 0, dark, light)
+    checker = Image.fromarray(checker_arr, "RGBA")
+    checker.alpha_composite(img)
+    return checker
 
 
 @app.post("/api/projects/{project_id}/layers")
@@ -227,6 +283,10 @@ async def add_layer(project_id: str, file: UploadFile = File(...)) -> LayerRespo
     )
     layer.save_image(img, path)
     project.add_layer(layer)
+    # Auto-set canvas size from first image if not set
+    if not project.canvas_width or not project.canvas_height:
+        project.canvas_width = img.width
+        project.canvas_height = img.height
     project.save(path)
 
     return LayerResponse(

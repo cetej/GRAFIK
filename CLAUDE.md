@@ -65,7 +65,7 @@ GRAFIK/
 
 ## Servery
 
-- **API**: `uvicorn grafik.api.app:app --port 8200` nebo `grafik serve`
+- **API**: `uvicorn grafik.api.app:app --port 8300` nebo `grafik serve`
 - **UI**: `streamlit run ui/app.py --server.port 8501` nebo `grafik ui`
 
 ## Použití jako knihovna

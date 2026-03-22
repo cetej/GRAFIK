@@ -1,4 +1,4 @@
-"""GRAFIK — Streamlit UI for layered image editing."""
+"""GRAFIK — layer decomposition UI."""
 
 from __future__ import annotations
 
@@ -10,59 +10,8 @@ import streamlit as st
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-API_BASE = "http://localhost:8200"
-TIMEOUT = httpx.Timeout(120.0)
-
-# Checkerboard CSS for transparent layer backgrounds
-CHECKER_CSS = """
-<style>
-.layer-card {
-    background-color: #1e1e1e;
-    border-radius: 8px;
-    padding: 8px;
-    margin-bottom: 8px;
-    border: 2px solid transparent;
-    transition: border-color 0.2s;
-}
-.layer-card.selected {
-    border-color: #ff4b4b;
-}
-.layer-card:hover {
-    border-color: #666;
-}
-.checker-bg {
-    background-image:
-        linear-gradient(45deg, #333 25%, transparent 25%),
-        linear-gradient(-45deg, #333 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, #333 75%),
-        linear-gradient(-45deg, transparent 75%, #333 75%);
-    background-size: 16px 16px;
-    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-    border-radius: 4px;
-    padding: 4px;
-    display: flex;
-    justify-content: center;
-}
-.composite-area {
-    background-image:
-        linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
-        linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
-        linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
-    background-size: 20px 20px;
-    background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-    border-radius: 8px;
-    padding: 8px;
-    background-color: #1a1a1a;
-}
-div[data-testid="stHorizontalBlock"] {
-    align-items: stretch;
-}
-section[data-testid="stSidebar"] {
-    min-width: 320px;
-}
-</style>
-"""
+API_BASE = "http://localhost:8300"
+TIMEOUT = httpx.Timeout(180.0)
 
 
 def _api(method: str, path: str, **kwargs) -> httpx.Response | None:
@@ -71,176 +20,212 @@ def _api(method: str, path: str, **kwargs) -> httpx.Response | None:
         resp.raise_for_status()
         return resp
     except httpx.ConnectError:
-        st.error("Nelze se pripojit k GRAFIK API. Spust: `grafik serve`")
+        st.error("API nebezi. Spust: `python -m uvicorn grafik.api.app:app --port 8300`")
         return None
     except httpx.HTTPStatusError as e:
-        st.error(f"API chyba: {e.response.status_code} — {e.response.text}")
+        st.error(f"Chyba: {e.response.text}")
         return None
+
+
+def _ensure_project() -> str | None:
+    """Get or create a working project. Returns project ID."""
+    if "project_id" in st.session_state and st.session_state.project_id:
+        return st.session_state.project_id
+    # Auto-create
+    resp = _api("POST", "/api/projects", json={"name": "grafik-session"})
+    if resp:
+        pid = resp.json()["id"]
+        st.session_state.project_id = pid
+        return pid
+    return None
 
 
 def main():
-    st.set_page_config(page_title="GRAFIK", page_icon="layers", layout="wide")
-    st.markdown(CHECKER_CSS, unsafe_allow_html=True)
+    st.set_page_config(page_title="GRAFIK", layout="wide", page_icon="layers")
 
     # Session state
     if "project_id" not in st.session_state:
         st.session_state.project_id = None
     if "selected_layer" not in st.session_state:
         st.session_state.selected_layer = None
+    if "has_layers" not in st.session_state:
+        st.session_state.has_layers = False
+
+    # Check for existing project with layers
+    if st.session_state.project_id:
+        resp = _api("GET", f"/api/projects/{st.session_state.project_id}/layers")
+        if resp and resp.json():
+            st.session_state.has_layers = True
 
     # ============================================================
-    # SIDEBAR — project, decompose, workflows, export
+    # STEP 1: No layers yet — show upload/decompose UI
     # ============================================================
-    with st.sidebar:
-        st.title("GRAFIK")
+    if not st.session_state.has_layers:
+        _show_upload_screen()
+        return
 
-        # --- Project picker ---
-        resp = _api("GET", "/api/projects")
-        projects = resp.json() if resp else []
+    # ============================================================
+    # STEP 2: Has layers — show results
+    # ============================================================
+    _show_layer_editor()
 
-        if projects:
-            options = {p["id"]: f'{p["name"]} ({p["layer_count"]} vrstev)' for p in projects}
-            selected = st.selectbox(
-                "Projekt",
-                list(options.keys()),
-                format_func=lambda x: options[x],
-                index=0 if not st.session_state.project_id else
-                    list(options.keys()).index(st.session_state.project_id)
-                    if st.session_state.project_id in options else 0,
-            )
-            if selected != st.session_state.project_id:
-                st.session_state.project_id = selected
-                st.session_state.selected_layer = None
-                st.rerun()
 
-        # --- New project ---
-        with st.expander("+ Novy projekt"):
-            new_name = st.text_input("Nazev", value="untitled")
-            c1, c2 = st.columns(2)
-            new_w = c1.number_input("Sirka", value=1920, step=100)
-            new_h = c2.number_input("Vyska", value=1080, step=100)
-            if st.button("Vytvorit", use_container_width=True):
-                resp = _api("POST", "/api/projects", json={
-                    "name": new_name, "canvas_width": int(new_w), "canvas_height": int(new_h)
-                })
-                if resp:
-                    st.session_state.project_id = resp.json()["id"]
-                    st.rerun()
+def _show_upload_screen():
+    """Simple screen: upload image, pick layer count, decompose."""
+    st.title("GRAFIK")
+    st.markdown("Nahraj obrazek a rozloz ho na vrstvy.")
 
-        if not st.session_state.project_id:
-            st.info("Vyber nebo vytvor projekt.")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        uploaded = st.file_uploader(
+            "Vyber obrazek",
+            type=["png", "jpg", "jpeg", "webp"],
+            label_visibility="collapsed",
+        )
+        image_url = st.text_input("Nebo vloz URL obrazku", placeholder="https://...")
+
+        if uploaded:
+            st.image(uploaded, caption="Nahled", use_container_width=True)
+
+    with col2:
+        st.markdown("### Nastaveni")
+        num_layers = st.slider("Pocet vrstev", 2, 10, 4)
+        st.caption("Vice vrstev = jemnejsi rozklad, ale trvá dele a stoji vic.")
+
+        decompose_clicked = st.button(
+            "ROZLOZIT NA VRSTVY",
+            type="primary",
+            use_container_width=True,
+            disabled=not (uploaded or image_url),
+        )
+
+    if decompose_clicked:
+        pid = _ensure_project()
+        if not pid:
             return
 
-        pid = st.session_state.project_id
-        st.divider()
-
-        # --- Decompose ---
-        st.subheader("Dekompozice")
-        image_url = st.text_input("URL obrazku")
-        uploaded = st.file_uploader("Nebo nahrat soubor", type=["png", "jpg", "jpeg", "webp"])
-        num_layers = st.slider("Pocet vrstev", 2, 10, 4)
-        if st.button("Rozlozit na vrstvy", type="primary", use_container_width=True):
+        with st.spinner("Rozkladam obrazek na vrstvy... (muze trvat 30-60s)"):
             if uploaded:
-                _api("POST", f"/api/projects/{pid}/layers",
-                     files={"file": (uploaded.name, uploaded.getvalue(), uploaded.type)})
-                st.rerun()
+                # Upload file to project, then decompose via URL
+                resp_upload = _api(
+                    "POST", f"/api/projects/{pid}/layers",
+                    files={"file": (uploaded.name, uploaded.getvalue(), uploaded.type)},
+                )
+                if not resp_upload:
+                    return
+                # Need to upload to fal CDN for decompose
+                # Use the decompose_file approach — upload via fal, then decompose
+                resp_decompose = _api(
+                    "POST", f"/api/projects/{pid}/decompose/file",
+                    files={"file": (uploaded.name, uploaded.getvalue(), uploaded.type)},
+                    params={"num_layers": num_layers},
+                )
+                if resp_decompose:
+                    st.session_state.has_layers = True
+                    st.rerun()
+                else:
+                    st.error("Dekompozice selhala.")
             elif image_url:
-                with st.spinner("Rozkladam obrazek..."):
-                    resp = _api("POST", f"/api/projects/{pid}/decompose",
-                                json={"image_url": image_url, "num_layers": num_layers})
-                    if resp:
-                        st.success(f"Vytvoreno {len(resp.json())} vrstev!")
+                resp = _api(
+                    "POST", f"/api/projects/{pid}/decompose",
+                    json={"image_url": image_url, "num_layers": num_layers},
+                )
+                if resp:
+                    st.session_state.has_layers = True
+                    st.rerun()
+
+    # Show existing projects to load
+    st.divider()
+    with st.expander("Nacist existujici projekt"):
+        resp = _api("GET", "/api/projects")
+        if resp:
+            projects = resp.json()
+            projects_with_layers = [p for p in projects if p["layer_count"] > 0]
+            if projects_with_layers:
+                for p in projects_with_layers:
+                    if st.button(f'{p["name"]} ({p["layer_count"]} vrstev)', key=f'load_{p["id"]}',
+                                 use_container_width=True):
+                        st.session_state.project_id = p["id"]
+                        st.session_state.has_layers = True
                         st.rerun()
             else:
-                st.warning("Zadej URL nebo nahraj soubor.")
+                st.caption("Zadne projekty s vrstvami.")
 
-        st.divider()
 
-        # --- Undo / Redo ---
-        hist_resp = _api("GET", f"/api/projects/{pid}/history")
-        hist = hist_resp.json() if hist_resp else {"undo_count": 0, "redo_count": 0}
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button(f"Zpet ({hist['undo_count']})", use_container_width=True,
-                         disabled=hist["undo_count"] == 0):
-                _api("POST", f"/api/projects/{pid}/undo")
-                st.rerun()
-        with c2:
-            if st.button(f"Vpred ({hist['redo_count']})", use_container_width=True,
-                         disabled=hist["redo_count"] == 0):
-                _api("POST", f"/api/projects/{pid}/redo")
-                st.rerun()
-
-        st.divider()
-
-        # --- Export ---
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("Export PNG", use_container_width=True):
-                resp = _api("POST", f"/api/projects/{pid}/export/png")
-                if resp:
-                    st.download_button("Ulozit", data=resp.content,
-                                       file_name="composite.png", mime="image/png")
-        with c2:
-            if st.button("Export vrstev", use_container_width=True):
-                resp = _api("POST", f"/api/projects/{pid}/export/layers")
-                if resp:
-                    st.success(f"{len(resp.json().get('exported', []))} PNG")
-
-        st.divider()
-
-        # --- Workflow ---
-        with st.expander("Workflow"):
-            wf_type = st.selectbox("Typ", ["map_localization", "hero_edit"])
-            wf_url = st.text_input("URL (workflow)", key="wf_url")
-            wf_n = st.slider("Vrstvy", 2, 10, 4, key="wf_n")
-            if st.button("Spustit", use_container_width=True):
-                if wf_url:
-                    with st.spinner(f"Workflow {wf_type}..."):
-                        resp = _api("POST", f"/api/projects/{pid}/workflows/run",
-                                    json={"workflow": wf_type, "image_url": wf_url, "num_layers": wf_n})
-                        if resp:
-                            for s in resp.json():
-                                st.write(f"{'OK' if s['success'] else 'FAIL'}: {s['name']}")
-                            st.rerun()
-
-    # ============================================================
-    # MAIN AREA
-    # ============================================================
+def _show_layer_editor():
+    """Main editor: composite + layer grid + inspector."""
     pid = st.session_state.project_id
-    if not pid:
-        return
 
     resp = _api("GET", f"/api/projects/{pid}/layers")
     if not resp:
         return
     layers = resp.json()
-
     if not layers:
-        st.info("Projekt nema zadne vrstvy. Pouzij dekompozici v postrannim panelu.")
+        st.session_state.has_layers = False
+        st.rerun()
         return
 
-    # --- Top: Composite preview ---
-    st.subheader("Kompozice")
+    # --- Top bar ---
+    top_left, top_right = st.columns([3, 1])
+    with top_left:
+        st.title("GRAFIK")
+    with top_right:
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            # Undo/redo
+            hist_resp = _api("GET", f"/api/projects/{pid}/history")
+            hist = hist_resp.json() if hist_resp else {"undo_count": 0, "redo_count": 0}
+            if st.button(f"Zpet ({hist['undo_count']})", use_container_width=True,
+                         disabled=hist["undo_count"] == 0):
+                _api("POST", f"/api/projects/{pid}/undo")
+                st.rerun()
+        with col_b:
+            if st.button(f"Vpred ({hist['redo_count']})", use_container_width=True,
+                         disabled=hist["redo_count"] == 0):
+                _api("POST", f"/api/projects/{pid}/redo")
+                st.rerun()
+        with col_c:
+            if st.button("Novy", use_container_width=True):
+                st.session_state.project_id = None
+                st.session_state.has_layers = False
+                st.session_state.selected_layer = None
+                st.rerun()
+
+    # --- Composite ---
+    st.subheader("Vysledek (kompozice)")
     resp_comp = _api("GET", f"/api/projects/{pid}/composite")
     if resp_comp:
-        st.image(resp_comp.content, use_container_width=True, caption="Vysledna kompozice vsech viditelnych vrstev")
+        # Export button next to composite
+        col_img, col_export = st.columns([4, 1])
+        with col_img:
+            st.image(resp_comp.content, use_container_width=True)
+        with col_export:
+            resp_dl = _api("POST", f"/api/projects/{pid}/export/png")
+            if resp_dl:
+                st.download_button(
+                    "Stahnout PNG", data=resp_dl.content,
+                    file_name="composite.png", mime="image/png",
+                    use_container_width=True,
+                )
+            if st.button("Export vrstev", use_container_width=True):
+                resp_el = _api("POST", f"/api/projects/{pid}/export/layers")
+                if resp_el:
+                    st.success(f"{len(resp_el.json().get('exported', []))} PNG exportovano")
 
     st.divider()
 
-    # ============================================================
-    # LAYER GRID — each layer as a card with thumbnail
-    # ============================================================
+    # --- Layer grid ---
     st.subheader(f"Vrstvy ({len(layers)})")
+    st.caption("Kazda vrstva je cast obrazku s pruhlednosti. Klikni 'Upravit' pro editaci.")
 
-    # Load all layer thumbnails
+    # Load thumbnails on checker bg
     layer_images = {}
     for layer in layers:
-        resp_l = _api("GET", f"/api/projects/{pid}/layers/{layer['id']}/png")
+        resp_l = _api("GET", f"/api/projects/{pid}/layers/{layer['id']}/png?checker=true")
         if resp_l:
             layer_images[layer["id"]] = resp_l.content
 
-    # Grid: 4 columns
     n_cols = min(len(layers), 4)
     cols = st.columns(n_cols)
 
@@ -249,35 +234,34 @@ def main():
         is_selected = st.session_state.selected_layer == lid
 
         with cols[i % n_cols]:
-            # Layer thumbnail
+            # Thumbnail
             if lid in layer_images:
                 st.image(layer_images[lid], use_container_width=True)
 
-            # Layer info
-            vis_label = "VISIBLE" if layer["visible"] else "HIDDEN"
-            blend = layer.get("blend_mode", "normal")
+            # Info
+            vis = "Viditelna" if layer["visible"] else "Skryta"
             opacity_pct = int(layer["opacity"] * 100)
-            st.caption(
-                f"**{layer['name']}** | z={layer['z_order']}\n\n"
-                f"{vis_label} | {blend} | {opacity_pct}%\n\n"
-                f"{layer.get('width', '?')} x {layer.get('height', '?')} px"
-            )
+            alpha_info = f"{vis} | {opacity_pct}%"
+            if layer.get("blend_mode", "normal") != "normal":
+                alpha_info += f' | {layer["blend_mode"]}'
 
-            # Action buttons
+            st.caption(f'**{layer["name"]}**  \n{layer.get("width", "?")} x {layer.get("height", "?")} px  \n{alpha_info}')
+
+            # Buttons
             c1, c2 = st.columns(2)
             with c1:
                 btn_type = "primary" if is_selected else "secondary"
                 if st.button("Upravit", key=f"edit_{lid}", use_container_width=True, type=btn_type):
-                    st.session_state.selected_layer = lid
+                    st.session_state.selected_layer = lid if not is_selected else None
                     st.rerun()
             with c2:
-                vis_btn = "Skryt" if layer["visible"] else "Zobrazit"
-                if st.button(vis_btn, key=f"vis_{lid}", use_container_width=True):
+                vis_label = "Skryt" if layer["visible"] else "Zobrazit"
+                if st.button(vis_label, key=f"vis_{lid}", use_container_width=True):
                     _api("POST", f"/api/projects/{pid}/layers/{lid}/visibility")
                     st.rerun()
 
     # ============================================================
-    # INSPECTOR — edit selected layer
+    # INSPECTOR — only if a layer is selected
     # ============================================================
     sel = st.session_state.selected_layer
     if not sel:
@@ -290,27 +274,24 @@ def main():
     st.divider()
     st.subheader(f"Uprava: {layer['name']}")
 
-    # Show selected layer preview + controls side by side
     col_preview, col_controls = st.columns([1, 2])
 
     with col_preview:
         if sel in layer_images:
-            st.image(layer_images[sel], use_container_width=True, caption=f"{layer['name']} (nahled)")
+            st.image(layer_images[sel], use_container_width=True)
 
     with col_controls:
-        tab_basic, tab_recolor, tab_mask = st.tabs(["Zakladni", "Recolor", "Maska"])
+        tab_basic, tab_recolor, tab_mask = st.tabs(["Zakladni", "Barvy", "Maska"])
 
-        # --- Tab: Basic ---
         with tab_basic:
             c1, c2 = st.columns(2)
             with c1:
                 new_opacity = st.slider("Pruhlednost", 0.0, 1.0, float(layer["opacity"]),
                                         key=f"op_{sel}")
-                if new_opacity != layer["opacity"]:
-                    if st.button("Ulozit pruhlednost", key=f"save_op_{sel}"):
-                        _api("POST", f"/api/projects/{pid}/layers/{sel}/opacity",
-                             json={"opacity": new_opacity})
-                        st.rerun()
+                if abs(new_opacity - layer["opacity"]) > 0.01:
+                    _api("POST", f"/api/projects/{pid}/layers/{sel}/opacity",
+                         json={"opacity": new_opacity})
+                    st.rerun()
 
                 blend_modes = ["normal", "multiply", "screen", "overlay", "soft_light"]
                 cur_blend = layer.get("blend_mode", "normal")
@@ -318,20 +299,20 @@ def main():
                                          index=blend_modes.index(cur_blend) if cur_blend in blend_modes else 0,
                                          key=f"bl_{sel}")
                 if new_blend != cur_blend:
-                    if st.button("Ulozit blend", key=f"save_bl_{sel}"):
-                        _api("POST", f"/api/projects/{pid}/layers/{sel}/blend_mode",
-                             json={"blend_mode": new_blend})
-                        st.rerun()
+                    _api("POST", f"/api/projects/{pid}/layers/{sel}/blend_mode",
+                         json={"blend_mode": new_blend})
+                    st.rerun()
 
             with c2:
                 new_x = st.number_input("X", value=layer["x"], key=f"x_{sel}")
                 new_y = st.number_input("Y", value=layer["y"], key=f"y_{sel}")
-                if st.button("Ulozit pozici", key=f"save_pos_{sel}"):
-                    _api("POST", f"/api/projects/{pid}/layers/{sel}/transform",
-                         json={"x": int(new_x), "y": int(new_y)})
-                    st.rerun()
+                if int(new_x) != layer["x"] or int(new_y) != layer["y"]:
+                    if st.button("Posunout", key=f"mv_{sel}"):
+                        _api("POST", f"/api/projects/{pid}/layers/{sel}/transform",
+                             json={"x": int(new_x), "y": int(new_y)})
+                        st.rerun()
 
-                fc1, fc2, fc3 = st.columns(3)
+                fc1, fc2 = st.columns(2)
                 with fc1:
                     if st.button("Flip H", key=f"fh_{sel}", use_container_width=True):
                         _api("POST", f"/api/projects/{pid}/layers/{sel}/flip",
@@ -342,46 +323,36 @@ def main():
                         _api("POST", f"/api/projects/{pid}/layers/{sel}/flip",
                              json={"direction": "vertical"})
                         st.rerun()
-                with fc3:
-                    scale_val = st.number_input("Scale", value=1.0, step=0.1, min_value=0.1,
-                                                max_value=5.0, key=f"sc_{sel}")
-                    if scale_val != 1.0:
-                        if st.button("Scale", key=f"do_sc_{sel}", use_container_width=True):
-                            _api("POST", f"/api/projects/{pid}/layers/{sel}/scale",
-                                 json={"factor": scale_val})
-                            st.rerun()
 
-        # --- Tab: Recolor ---
         with tab_recolor:
-            hue = st.slider("Hue shift", -180.0, 180.0, 0.0, key=f"hue_{sel}")
-            sat = st.slider("Saturation", 0.0, 2.0, 1.0, step=0.1, key=f"sat_{sel}")
-            light = st.slider("Lightness", -0.5, 0.5, 0.0, step=0.05, key=f"lgt_{sel}")
+            hue = st.slider("Odstin (hue)", -180.0, 180.0, 0.0, key=f"hue_{sel}")
+            sat = st.slider("Sytost", 0.0, 2.0, 1.0, step=0.1, key=f"sat_{sel}")
+            light = st.slider("Svetlost", -0.5, 0.5, 0.0, step=0.05, key=f"lgt_{sel}")
             if hue != 0.0 or sat != 1.0 or light != 0.0:
-                if st.button("Aplikovat recolor", key=f"do_rec_{sel}", use_container_width=True,
-                             type="primary"):
+                if st.button("Aplikovat", key=f"rec_{sel}", type="primary", use_container_width=True):
                     _api("POST", f"/api/projects/{pid}/layers/{sel}/recolor",
                          json={"hue_shift": hue, "saturation_scale": sat, "lightness_shift": light})
                     st.rerun()
 
-        # --- Tab: Mask ---
         with tab_mask:
-            mask_op = st.selectbox("Operace", ["feather", "threshold", "set_opacity"],
-                                   key=f"mop_{sel}")
+            mask_op = st.radio("Operace", ["Rozmazat okraje", "Ostry prah", "Zmenit pruhlednost"],
+                               key=f"mop_{sel}", horizontal=True)
             mask_params = {}
-            if mask_op == "feather":
-                mask_params["radius"] = st.slider("Radius", 1, 50, 5, key=f"mr_{sel}")
-            elif mask_op == "threshold":
-                mask_params["threshold"] = st.slider("Threshold", 0, 255, 128, key=f"mt_{sel}")
-            elif mask_op == "set_opacity":
-                mask_params["opacity"] = st.slider("Opacity", 0.0, 1.0, 1.0, key=f"mo_{sel}")
-            if st.button("Aplikovat masku", key=f"do_mask_{sel}", use_container_width=True):
-                _api("POST", f"/api/projects/{pid}/layers/{sel}/mask",
-                     json={"operation": mask_op, **mask_params})
+            if mask_op == "Rozmazat okraje":
+                mask_params = {"operation": "feather",
+                               "radius": st.slider("Polomer", 1, 50, 5, key=f"mr_{sel}")}
+            elif mask_op == "Ostry prah":
+                mask_params = {"operation": "threshold",
+                               "threshold": st.slider("Prah", 0, 255, 128, key=f"mt_{sel}")}
+            else:
+                mask_params = {"operation": "set_opacity",
+                               "opacity": st.slider("Pruhlednost masky", 0.0, 1.0, 1.0, key=f"mo_{sel}")}
+            if st.button("Aplikovat masku", key=f"mask_{sel}", use_container_width=True):
+                _api("POST", f"/api/projects/{pid}/layers/{sel}/mask", json=mask_params)
                 st.rerun()
 
-    # Delete at the bottom
-    st.divider()
-    if st.button("Smazat vrstvu", key=f"del_{sel}", type="secondary"):
+    # Delete at the very bottom
+    if st.button("Smazat tuto vrstvu", key=f"del_{sel}"):
         _api("DELETE", f"/api/projects/{pid}/layers/{sel}")
         st.session_state.selected_layer = None
         st.rerun()
