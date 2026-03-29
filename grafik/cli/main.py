@@ -110,7 +110,7 @@ def serve(
     """Start the FastAPI server."""
     import uvicorn
     typer.echo(f"Starting GRAFIK API on port {port}...")
-    uvicorn.run("grafik.api.app:app", host="0.0.0.0", port=port, reload=reload)
+    uvicorn.run("grafik.api.app:app", host="127.0.0.1", port=port, reload=reload)
 
 
 @app.command()

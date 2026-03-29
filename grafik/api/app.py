@@ -44,8 +44,8 @@ _histories: dict[str, History] = {}
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=["http://localhost:8300", "http://localhost:8501", "http://127.0.0.1:8300", "http://127.0.0.1:8501"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
 
