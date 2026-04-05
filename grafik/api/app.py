@@ -18,6 +18,8 @@ from grafik.api.models import (
     DecomposeRequest,
     FlipRequest,
     HistoryResponse,
+    HitTestRequest,
+    HitTestResponse,
     LayerResponse,
     MaskRequest,
     OpacityRequest,
@@ -398,6 +400,37 @@ def export_layers_png(project_id: str) -> dict:
     project, path = _load_project(project_id)
     paths = export_layers(project, path)
     return {"exported": [str(p) for p in paths]}
+
+
+@app.post("/api/projects/{project_id}/hittest")
+def hittest(project_id: str, req: HitTestRequest) -> HitTestResponse:
+    """Find topmost visible layer at (x, y) by checking alpha > 0.
+
+    Iterates layers top-to-bottom (highest z_order first).
+    Returns the first layer where the pixel at (x, y) has alpha > 0.
+    """
+    from PIL import Image
+
+    project, proj_dir = _load_project(project_id)
+    # Check layers from top to bottom
+    for layer in sorted(project.visible_layers(), key=lambda l: l.z_order, reverse=True):
+        img = layer.load_image(proj_dir)
+        if img is None:
+            continue
+        # Convert (x, y) from canvas coords to layer-local coords
+        lx = req.x - layer.x
+        ly = req.y - layer.y
+        if 0 <= lx < img.width and 0 <= ly < img.height:
+            pixel = img.getpixel((lx, ly))
+            # RGBA — check alpha channel
+            alpha = pixel[3] if len(pixel) == 4 else 255
+            if alpha > 0:
+                return HitTestResponse(
+                    layer_id=layer.id,
+                    layer_name=layer.name,
+                    z_order=layer.z_order,
+                )
+    return HitTestResponse()
 
 
 # --- Recolor ---

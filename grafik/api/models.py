@@ -116,3 +116,14 @@ class WorkflowStepResponse(BaseModel):
 class HistoryResponse(BaseModel):
     undo_count: int
     redo_count: int
+
+
+class HitTestRequest(BaseModel):
+    x: int
+    y: int
+
+
+class HitTestResponse(BaseModel):
+    layer_id: str | None = None
+    layer_name: str | None = None
+    z_order: int | None = None
