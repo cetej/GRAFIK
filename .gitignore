@@ -21,3 +21,5 @@ projects/*.grafik/
 *.jpg
 *.jpeg
 !ui/**/*.png
+.claude/memory/
+.claude/settings.local.json
