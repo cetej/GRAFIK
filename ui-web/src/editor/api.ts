@@ -45,6 +45,118 @@ export interface LayerResponse {
   rotation: number;
   source: string;
   tags: string[];
+  motion: LayerMotionDto | null;
+}
+
+// --- M3: motion / video (per-layer trajectory, camera intent, async clip jobs) ---
+
+export interface TrajectoryPointDto {
+  x: number;
+  y: number;
+}
+
+export interface LayerMotionDto {
+  trajectory: TrajectoryPointDto[];
+  static: boolean;
+  description: string;
+}
+
+/**
+ * Body for POST /api/projects/{id}/layers/{layerId}/motion. Fields are optional server-side, but
+ * the frontend always sends the FULL current motion state (see persistMotion in EditorApp) to
+ * sidestep any ambiguity about merge-vs-replace semantics on partial payloads.
+ */
+export interface LayerMotionRequestBody {
+  trajectory?: TrajectoryPointDto[];
+  static?: boolean;
+  description?: string;
+}
+
+export type CameraMove =
+  | 'none'
+  | 'pan_left'
+  | 'pan_right'
+  | 'tilt_up'
+  | 'tilt_down'
+  | 'zoom_in'
+  | 'zoom_out'
+  | 'custom';
+
+export interface CameraSpecDto {
+  move: CameraMove;
+  magnitude: number;
+  prompt: string;
+}
+
+export interface MotionSpecDto {
+  camera: CameraSpecDto;
+  duration: string;
+  layer_motions: Record<string, LayerMotionDto>;
+}
+
+export type MotionWanted = 'move' | 'still';
+export type VerifyVerdict = 'yes' | 'weak' | 'no';
+
+export interface ElementVerdictDto {
+  layer_id: string;
+  layer_name: string;
+  wanted: MotionWanted;
+  in_motion: number;
+  out_motion: number;
+  ratio: number;
+  verdict: VerifyVerdict;
+}
+
+export interface ClipVerificationDto {
+  verified_at: string;
+  frame_size: number[];
+  frames_sampled: number;
+  global_motion: number;
+  elements: ElementVerdictDto[];
+  summary: string;
+}
+
+export type ClipStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface ClipRecordDto {
+  id: string;
+  created_at: string;
+  provider_id: string;
+  endpoint: string;
+  status: ClipStatus;
+  request_id: string;
+  path: string;
+  prompt: string;
+  motion: MotionSpecDto | null;
+  cost_note: string;
+  error: string;
+  verification: ClipVerificationDto | null;
+}
+
+/** Body for POST /api/projects/{id}/video/compile — a cheap preview call (no fal.ai network I/O). */
+export interface CompileMotionRequestBody {
+  motion: MotionSpecDto;
+  provider: string;
+}
+
+export interface CompileMotionResponse {
+  prompt: string;
+  provider: string;
+  endpoint: string;
+  duration: string;
+  est_cost_usd: number | null;
+  price_note: string;
+  payload_preview: Record<string, unknown>;
+}
+
+/**
+ * Body for POST /api/projects/{id}/video/jobs. `prompt_override`, when non-empty, is used verbatim
+ * instead of the server-compiled prompt (still persisted onto the resulting ClipRecord.prompt).
+ */
+export interface SubmitVideoJobRequestBody {
+  motion: MotionSpecDto;
+  provider: string;
+  prompt_override?: string;
 }
 
 /** Body for POST /api/projects/{id}/layers/{layerId}/transform. All fields optional — only sent fields are applied server-side. */
@@ -75,6 +187,14 @@ export interface ProviderInfo {
   capabilities: ProviderCapabilities;
   price_note: string;
   has_impl: boolean;
+  /** Name of the fal.ai payload field the composite image URL is sent under (drifts per endpoint — e.g. "image_url" vs "start_image_url"). */
+  image_field: string;
+  /** Endpoint-specific fal.ai payload fields merged into every video job build (e.g. forcing generate_audio: false). */
+  payload_defaults: Record<string, unknown>;
+  /** Valid values for the video job's `duration` field on this provider. */
+  duration_choices: string[];
+  /** Secondary-sourced, unverified $/s rate. Null when no price could be found. */
+  est_cost_usd_per_second: number | null;
 }
 
 /** Body for POST /api/projects/{id}/layers/{layerId}/ai-edit. mask_b64 is a base64 PNG (no data: prefix), canvas-sized, white = editable area. */
@@ -292,4 +412,63 @@ export function redoProject(projectId: string): Promise<UndoRedoResponse> {
 
 export function getHistory(projectId: string): Promise<HistoryResponse> {
   return request<HistoryResponse>(`/api/projects/${projectId}/history`);
+}
+
+// --- M3: motion / video ---
+
+export function saveLayerMotion(
+  projectId: string,
+  layerId: string,
+  body: LayerMotionRequestBody,
+): Promise<LayerResponse> {
+  return request<LayerResponse>(`/api/projects/${projectId}/layers/${layerId}/motion`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export function clearLayerMotion(projectId: string, layerId: string): Promise<LayerResponse> {
+  return request<LayerResponse>(`/api/projects/${projectId}/layers/${layerId}/motion`, {
+    method: 'DELETE',
+  });
+}
+
+export function compileMotion(projectId: string, body: CompileMotionRequestBody): Promise<CompileMotionResponse> {
+  return request<CompileMotionResponse>(`/api/projects/${projectId}/video/compile`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export function submitVideoJob(projectId: string, body: SubmitVideoJobRequestBody): Promise<ClipRecordDto> {
+  return request<ClipRecordDto>(`/api/projects/${projectId}/video/jobs`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export function listVideoJobs(projectId: string): Promise<ClipRecordDto[]> {
+  return request<ClipRecordDto[]>(`/api/projects/${projectId}/video/jobs`);
+}
+
+/** GET, not POST — the server polls fal.ai for the job's current status as a side effect of this read. */
+export function refreshVideoJob(projectId: string, clipId: string): Promise<ClipRecordDto> {
+  return request<ClipRecordDto>(`/api/projects/${projectId}/video/jobs/${clipId}`);
+}
+
+export function verifyClip(projectId: string, clipId: string): Promise<ClipRecordDto> {
+  return request<ClipRecordDto>(`/api/projects/${projectId}/clips/${clipId}/verify`, {
+    method: 'POST',
+  });
+}
+
+/** Direct <video>-able URL for a completed clip's mp4. `version` is a client-side cache-buster, same role as layerPngUrl's. */
+export function clipVideoUrl(projectId: string, clipId: string, version?: number): string {
+  const params = new URLSearchParams();
+  if (version !== undefined) params.set('v', String(version));
+  const query = params.toString();
+  return `${API_BASE}/api/projects/${projectId}/clips/${clipId}/video${query ? `?${query}` : ''}`;
 }

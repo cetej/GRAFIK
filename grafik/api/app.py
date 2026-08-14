@@ -16,6 +16,8 @@ from grafik.api.models import (
     AiEditRequest,
     AiEditResponse,
     BlendModeRequest,
+    CompileVideoRequest,
+    CompileVideoResponse,
     CreateProjectRequest,
     CropRequest,
     DecomposeRequest,
@@ -42,7 +44,7 @@ from grafik.api.models import (
     WorkflowStepResponse,
 )
 from grafik.core.composer import compose, compose_and_save
-from grafik.core.motion import ClipRecord
+from grafik.core.motion import ClipRecord, LayerMotion
 from grafik.core.project import LayerProject
 
 from grafik.core.history import History
@@ -105,7 +107,7 @@ def _layer_response(l) -> LayerResponse:
         id=l.id, name=l.name, z_order=l.z_order, visible=l.visible,
         opacity=l.opacity, blend_mode=l.blend_mode, x=l.x, y=l.y,
         width=l.width, height=l.height, rotation=l.rotation,
-        source=l.source, tags=l.tags,
+        source=l.source, tags=l.tags, motion=l.motion,
     )
 
 
@@ -129,6 +131,10 @@ def list_providers_route(kind: str | None = None) -> list[ProviderListItem]:
             capabilities=e.info.capabilities,
             price_note=e.info.price_note,
             has_impl=e.impl is not None,
+            image_field=e.info.image_field,
+            payload_defaults=e.info.payload_defaults,
+            duration_choices=e.info.duration_choices,
+            est_cost_usd_per_second=e.info.est_cost_usd_per_second,
         )
         for e in list_providers(kind)
     ]
@@ -394,6 +400,33 @@ def reorder_layer(project_id: str, layer_id: str, req: ReorderRequest) -> list[L
     _snapshot(project_id, project, path)
     project.save(path)
     return [_layer_response(l) for l in project.layers]
+
+
+# --- Motion (M3, per-layer trajectory persistence -- ideal-state criterion #6) ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/motion")
+def set_layer_motion(project_id: str, layer_id: str, req: LayerMotion) -> LayerResponse:
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    layer.motion = req
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+@app.delete("/api/projects/{project_id}/layers/{layer_id}/motion")
+def clear_layer_motion(project_id: str, layer_id: str) -> LayerResponse:
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    layer.motion = None
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
 
 
 # --- Composite ---
@@ -929,13 +962,55 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
 # --- Video jobs (async, task 1.7, architecture A4) ---
 
 
+@app.post("/api/projects/{project_id}/video/compile")
+def compile_video_route(project_id: str, req: CompileVideoRequest) -> CompileVideoResponse:
+    """Preview a MotionSpec's compiled prompt + provider payload without
+    submitting a job (ideal-state criterion #7) -- lets the UI show the
+    prompt and an approximate cost before spending money. `payload_preview`
+    uses the placeholder "<composite>" in place of a real uploaded image URL.
+    """
+    from grafik.motion.compiler import build_video_payload, compile_motion_prompt
+    from grafik.providers.registry import get_provider
+
+    project, _ = _load_project(project_id)
+    try:
+        entry = get_provider(req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    if entry.info.kind != "video":
+        raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'video'")
+
+    prompt = compile_motion_prompt(project, req.motion)
+    try:
+        payload_preview = build_video_payload(entry, "<composite>", prompt, req.motion.duration)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+    est_cost_usd = None
+    if entry.info.est_cost_usd_per_second is not None:
+        try:
+            est_cost_usd = entry.info.est_cost_usd_per_second * float(req.motion.duration)
+        except ValueError:
+            est_cost_usd = None
+
+    return CompileVideoResponse(
+        prompt=prompt,
+        provider=req.provider,
+        endpoint=entry.info.endpoint,
+        duration=req.motion.duration,
+        est_cost_usd=est_cost_usd,
+        price_note=entry.info.price_note,
+        payload_preview=payload_preview,
+    )
+
+
 @app.post("/api/projects/{project_id}/video/jobs")
 def submit_video_job_route(project_id: str, req: VideoJobRequest) -> ClipRecord:
     from grafik.motion.jobs import submit_video_job
 
     project, path = _load_project(project_id)
     try:
-        return submit_video_job(project, path, req.motion, req.provider)
+        return submit_video_job(project, path, req.motion, req.provider, req.prompt_override)
     except KeyError:
         raise HTTPException(404, f"Unknown provider: {req.provider}")
     except ValueError as exc:
@@ -972,3 +1047,26 @@ def get_clip_video(project_id: str, clip_id: str) -> Response:
     if not video_path.exists():
         raise HTTPException(404, "Clip video file not found on disk")
     return Response(content=video_path.read_bytes(), media_type="video/mp4")
+
+
+@app.post("/api/projects/{project_id}/clips/{clip_id}/verify")
+def verify_clip_route(project_id: str, clip_id: str) -> ClipRecord:
+    """Pixel-diff verify one completed clip against its per-layer motion
+    intent (ideal-state criterion #8) and persist the result onto its
+    ClipRecord.
+    """
+    from grafik.motion.verify import verify_clip
+
+    project, path = _load_project(project_id)
+    clip = next((c for c in project.clips if c.id == clip_id), None)
+    if clip is None:
+        raise HTTPException(404, f"Clip {clip_id} not found")
+    if clip.status != "completed" or not clip.path:
+        raise HTTPException(400, f"Clip {clip_id} is not completed yet (status={clip.status})")
+    video_path = path / clip.path
+    if not video_path.exists():
+        raise HTTPException(400, "Clip video file not found on disk")
+
+    clip.verification = verify_clip(project, path, clip)
+    project.save(path)
+    return clip

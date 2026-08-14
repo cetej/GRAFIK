@@ -52,6 +52,14 @@ class ProviderInfo(BaseModel):
             "schema carries no pricing data."
         ),
     )
+    # M3 (video jobs): per-provider payload shape, consumed by
+    # grafik.motion.compiler.build_video_payload. Only "video" kind entries
+    # use these meaningfully today, but they live on the shared model rather
+    # than a video-only subclass to keep the registry a single flat dict.
+    image_field: str = "image_url"
+    payload_defaults: dict = Field(default_factory=dict)
+    duration_choices: list[str] = Field(default_factory=lambda: ["5", "10"])
+    est_cost_usd_per_second: float | None = None
 
 
 class ImageEditProvider:

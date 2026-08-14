@@ -45,6 +45,28 @@ def api(tmp_path, monkeypatch):
     projects_dir.mkdir()
     project_dir = projects_dir / "decompose-test.grafik"
     shutil.copytree(REAL_PROJECT_DIR, project_dir)
+    # REAL_PROJECT_DIR is a shared, live directory -- manual/E2E use against it
+    # (outside this test run) can leave a real history.json behind, which
+    # would otherwise get copied in and poison undo_count for this test.
+    (project_dir / "history.json").unlink(missing_ok=True)
+    # Same shared-live-dir hazard, geometry edition: manual/E2E sessions can
+    # move, scale, flip, or re-show layers in the real project (it happened —
+    # M2 E2E drift broke the inpaint-behind tests). The tests below assume the
+    # M2 baseline (Layers 0/2/3 visible, canvas-aligned at (0,0) in native PNG
+    # size, no rotation, everything else hidden), so pin exactly that in the
+    # scratch copy instead of trusting whatever state disk happens to be in.
+    baseline_visible = {LAYER_0_ID, LAYER_2_ID, LAYER_3_ID}
+    project = LayerProject.load(project_dir)
+    for layer in project.layers:
+        layer.visible = layer.id in baseline_visible
+        if layer.id in baseline_visible:
+            img = layer.load_image(project_dir)
+            layer.x = 0
+            layer.y = 0
+            layer.width = img.width
+            layer.height = img.height
+            layer.rotation = 0.0
+    project.save(project_dir)
     project_id = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))["id"]
 
     monkeypatch.setattr(app_module, "PROJECTS_DIR", projects_dir)
@@ -93,7 +115,7 @@ def test_providers_filter_by_kind(api):
     resp = client.get("/api/providers", params={"kind": "video"})
     assert resp.status_code == 200, resp.text
     ids = {i["id"] for i in resp.json()}
-    assert ids == {"kling-26-pro", "seedance-25", "kling-15-pro"}
+    assert ids == {"kling-26-pro", "wan-26", "seedance-25", "kling-15-pro"}
     assert all(i["kind"] == "video" for i in resp.json())
 
 

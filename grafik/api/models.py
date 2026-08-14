@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from grafik.core.layer import BlendMode
-from grafik.core.motion import MotionSpec
+from grafik.core.motion import LayerMotion, MotionSpec
 from grafik.providers.base import Capabilities, ProviderKind
 
 
@@ -61,6 +61,7 @@ class LayerResponse(BaseModel):
     rotation: float = 0.0
     source: str
     tags: list[str]
+    motion: LayerMotion | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -176,6 +177,10 @@ class ProviderListItem(BaseModel):
     capabilities: Capabilities
     price_note: str = ""
     has_impl: bool
+    image_field: str = "image_url"
+    payload_defaults: dict = Field(default_factory=dict)
+    duration_choices: list[str] = Field(default_factory=lambda: ["5", "10"])
+    est_cost_usd_per_second: float | None = None
 
 
 class SegmentRequest(BaseModel):
@@ -192,3 +197,21 @@ class SegmentResponse(BaseModel):
 class VideoJobRequest(BaseModel):
     motion: MotionSpec = Field(default_factory=MotionSpec)
     provider: str = "kling-26-pro"
+    # Non-empty (after stripping) -> used INSTEAD of the compiled prompt, e.g.
+    # a user hand-edited the /video/compile preview. See submit_video_job.
+    prompt_override: str = ""
+
+
+class CompileVideoRequest(BaseModel):
+    motion: MotionSpec
+    provider: str = "kling-26-pro"
+
+
+class CompileVideoResponse(BaseModel):
+    prompt: str
+    provider: str
+    endpoint: str
+    duration: str
+    est_cost_usd: float | None
+    price_note: str
+    payload_preview: dict

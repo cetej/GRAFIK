@@ -105,6 +105,34 @@ REGISTRY: dict[str, RegistryEntry] = {
                 "~$0.07/s without audio, ~$0.14/s with audio "
                 "(unverified/secondary source, see docs/capabilities/kling-versions.md)"
             ),
+            image_field="start_image_url",
+            payload_defaults={"generate_audio": False},
+            duration_choices=["5", "10"],
+            est_cost_usd_per_second=0.07,
+        ),
+    ),
+    "wan-26": RegistryEntry(
+        info=ProviderInfo(
+            id="wan-26",
+            endpoint="wan/v2.6/image-to-video",
+            kind="video",
+            capabilities=Capabilities(
+                supports_camera_prompt=True,
+                verified_at=VERIFIED_AT,
+                notes=(
+                    "Prompt-based only, no mask/camera fields. Endpoint slug "
+                    "is WITHOUT the fal-ai/ prefix (unlike most other fal "
+                    "entries here) — see docs/capabilities/model-landscape-2026-08.md."
+                ),
+            ),
+            price_note=(
+                "720p $0.10/s, 1080p $0.15/s (fal.ai model page, fetch "
+                "2026-08-14 — secondary source, not in the OpenAPI schema)"
+            ),
+            image_field="image_url",
+            payload_defaults={"resolution": "720p", "enable_prompt_expansion": False},
+            duration_choices=["5", "10", "15"],
+            est_cost_usd_per_second=0.10,
         ),
     ),
     "seedance-25": RegistryEntry(
@@ -121,6 +149,9 @@ REGISTRY: dict[str, RegistryEntry] = {
                 ),
             ),
             price_note=_UNVERIFIED_PRICE,
+            payload_defaults={"generate_audio": False, "resolution": "720p"},
+            duration_choices=["auto", "4", "5", "6", "8", "10"],
+            est_cost_usd_per_second=None,
         ),
     ),
     "kling-15-pro": RegistryEntry(

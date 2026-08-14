@@ -25,6 +25,7 @@ EXPECTED_IDS = {
     "flux-fill",
     "gpt-image-2-edit",
     "kling-26-pro",
+    "wan-26",
     "seedance-25",
     "kling-15-pro",
     "sam-3",
@@ -35,6 +36,7 @@ EXPECTED_KIND = {
     "flux-fill": "image_edit",
     "gpt-image-2-edit": "image_edit",
     "kling-26-pro": "video",
+    "wan-26": "video",
     "seedance-25": "video",
     "kling-15-pro": "video",
     "sam-3": "segment",
@@ -138,6 +140,45 @@ class TestCapabilityTruths:
 
 
 # --------------------------------------------------------------------------
+# Video payload fields (M3: build_video_payload consumes these per-provider)
+# --------------------------------------------------------------------------
+
+
+class TestVideoPayloadFields:
+    def test_kling_26_pro_payload_fields(self):
+        info = get_provider("kling-26-pro").info
+        assert info.image_field == "start_image_url"
+        assert info.payload_defaults == {"generate_audio": False}
+        assert info.duration_choices == ["5", "10"]
+        assert info.est_cost_usd_per_second == pytest.approx(0.07)
+
+    def test_wan_26_payload_fields(self):
+        info = get_provider("wan-26").info
+        assert info.endpoint == "wan/v2.6/image-to-video"
+        assert not info.endpoint.startswith("fal-ai/")
+        assert info.image_field == "image_url"
+        assert info.payload_defaults == {"resolution": "720p", "enable_prompt_expansion": False}
+        assert info.duration_choices == ["5", "10", "15"]
+        assert info.est_cost_usd_per_second == pytest.approx(0.10)
+
+    def test_seedance_25_payload_fields(self):
+        info = get_provider("seedance-25").info
+        assert info.image_field == "image_url"  # default -- not overridden
+        assert info.payload_defaults == {"generate_audio": False, "resolution": "720p"}
+        assert info.duration_choices == ["auto", "4", "5", "6", "8", "10"]
+        assert info.est_cost_usd_per_second is None
+
+    def test_kling_15_pro_uses_defaults(self):
+        """Legacy entry -- contract says "beze zmeny" (unchanged): every M3
+        field just keeps the ProviderInfo model default."""
+        info = get_provider("kling-15-pro").info
+        assert info.image_field == "image_url"
+        assert info.payload_defaults == {}
+        assert info.duration_choices == ["5", "10"]
+        assert info.est_cost_usd_per_second is None
+
+
+# --------------------------------------------------------------------------
 # get_provider / list_providers
 # --------------------------------------------------------------------------
 
@@ -148,7 +189,7 @@ class TestRegistryLookup:
 
     def test_filter_by_kind_video(self):
         video = list_providers(kind="video")
-        assert {e.info.id for e in video} == {"kling-26-pro", "seedance-25", "kling-15-pro"}
+        assert {e.info.id for e in video} == {"kling-26-pro", "wan-26", "seedance-25", "kling-15-pro"}
 
     def test_filter_by_kind_image_edit(self):
         image_edit = list_providers(kind="image_edit")

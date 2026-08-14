@@ -28,7 +28,7 @@ from grafik.core.composer import compose
 from grafik.core.motion import ClipRecord, MotionSpec
 from grafik.core.project import LayerProject
 from grafik.motion.compiler import build_video_payload, compile_motion_prompt
-from grafik.providers.registry import get_provider
+from grafik.providers.registry import RegistryEntry, get_provider
 
 
 def _upload(path: Path) -> str:
@@ -62,11 +62,32 @@ def _download(url: str) -> bytes:
     return resp.content
 
 
+def _cost_note(entry: RegistryEntry, duration: str) -> str:
+    """Cheap one-line cost estimate for a ClipRecord, e.g.
+    "~$0.50 (5 s × $0.10/s, 720p; orientační, sekundární zdroj)". Empty
+    string when the provider's per-second rate isn't known (RegistryEntry.
+    info.est_cost_usd_per_second, e.g. seedance-25) or duration isn't
+    numeric (e.g. seedance-25's "auto") -- never a guess presented as fact.
+    """
+    per_second = entry.info.est_cost_usd_per_second
+    if per_second is None:
+        return ""
+    try:
+        seconds = float(duration)
+    except ValueError:
+        return ""
+    total = per_second * seconds
+    resolution = entry.info.payload_defaults.get("resolution")
+    suffix = f", {resolution}" if resolution else ""
+    return f"~${total:.2f} ({duration} s × ${per_second:.2f}/s{suffix}; orientační, sekundární zdroj)"
+
+
 def submit_video_job(
     project: LayerProject,
     project_dir: Path,
     spec: MotionSpec,
     provider_id: str,
+    prompt_override: str = "",
 ) -> ClipRecord:
     """Composite the project, submit an async I2V job, persist a "running"
     ClipRecord, and return immediately (no polling here -- see module docstring).
@@ -79,6 +100,9 @@ def submit_video_job(
             to a text prompt by grafik.motion.compiler (A3 amendment -- no
             current fal I2V endpoint accepts a structured mask/camera payload).
         provider_id: registry id of a "video"-kind provider (e.g. "kling-26-pro").
+        prompt_override: if non-empty (after stripping), used INSTEAD of the
+            compiled prompt -- lets a user hand-edit the /video/compile
+            preview before submitting. Saved verbatim onto ClipRecord.prompt.
 
     Returns:
         The new ClipRecord (status="running", request_id set), already
@@ -86,7 +110,8 @@ def submit_video_job(
 
     Raises:
         KeyError: provider_id is not a registered provider (grafik.providers.registry.get_provider).
-        ValueError: provider_id names a provider that is not kind "video".
+        ValueError: provider_id names a provider that is not kind "video", or
+            spec.duration is not one of the provider's duration_choices.
     """
     entry = get_provider(provider_id)
     if entry.info.kind != "video":
@@ -98,8 +123,8 @@ def submit_video_job(
         composite.save(tmp_png, "PNG")
         image_url = _upload(tmp_png)
 
-    prompt = compile_motion_prompt(project, spec)
-    payload = build_video_payload(entry.info.endpoint, image_url, prompt, spec.duration)
+    prompt = prompt_override.strip() or compile_motion_prompt(project, spec)
+    payload = build_video_payload(entry, image_url, prompt, spec.duration)
     request_id = _submit(entry.info.endpoint, payload)
 
     record = ClipRecord(
@@ -109,6 +134,7 @@ def submit_video_job(
         request_id=request_id,
         prompt=prompt,
         motion=spec,
+        cost_note=_cost_note(entry, spec.duration),
     )
     project.clips.append(record)
     project.save(project_dir)

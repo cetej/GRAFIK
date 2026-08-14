@@ -63,6 +63,32 @@ class MotionSpec(BaseModel):
     layer_motions: dict[str, LayerMotion] = Field(default_factory=dict)
 
 
+class ElementVerdict(BaseModel):
+    """Pixel-diff verdict for one layer's intended motion within a clip
+    (grafik.motion.verify.verify_clip) -- ideal-state criterion #8, "hybalo
+    se to, co melo".
+    """
+
+    layer_id: str
+    layer_name: str
+    wanted: str  # "move" | "still"
+    in_motion: float
+    out_motion: float
+    ratio: float
+    verdict: str  # "yes" | "weak" | "no"
+
+
+class ClipVerification(BaseModel):
+    """Result of grafik.motion.verify.verify_clip for one ClipRecord."""
+
+    verified_at: str  # ISO UTC timestamp
+    frame_size: list[int]
+    frames_sampled: int
+    global_motion: float
+    elements: list[ElementVerdict] = Field(default_factory=list)
+    summary: str  # human-readable summary (Czech)
+
+
 class ClipRecord(BaseModel):
     """A single video generation job/result, attached to a LayerProject."""
 
@@ -77,3 +103,4 @@ class ClipRecord(BaseModel):
     motion: MotionSpec | None = None
     cost_note: str = ""
     error: str = ""
+    verification: ClipVerification | None = None

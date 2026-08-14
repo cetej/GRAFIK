@@ -100,3 +100,13 @@ Discovery (WebSearch, ne schema — použito jen k dohledání kandidátních en
 - "fal.ai kling "advanced_camera_control" OR "camera_control" schema horizontal vertical pan tilt roll zoom"
 - "fal.ai kling-video v1 pro image-to-video camera control"
 - "fal.ai kling video pricing per second 1.6 2.1 2.6 3.0 image-to-video"
+
+## Addendum 2026-08-14 (M3) — jména image polí a rizikové defaulty
+
+Re-fetch `v2.6/pro/image-to-video` (stejná metodika) při stavbě payload builderu odhalil, co sweep výše nezaznamenal (sledoval jen existenci mask/kamera polí):
+
+- **`v2.6/pro/image-to-video` bere `start_image_url` (REQUIRED)** — NE `image_url` jako v1.x. Jméno image pole driftuje mezi verzemi; do capability zápisů patří i jména povinných polí.
+- **`generate_audio` má default `true`** (≈2× cena) — payload ho musí explicitně vypnout, pokud audio nechceme.
+- Duration enum "5"|"10" (default "5").
+
+Registry (`grafik/providers/registry.py`) od M3 nese `image_field`, `payload_defaults` a `duration_choices` per endpoint. Viz též `docs/LEARNINGS.md` („fal I2V: jméno image pole driftuje…") a analogický addendum v `model-landscape-2026-08.md` (Wan 2.6, Seedance 2.5).

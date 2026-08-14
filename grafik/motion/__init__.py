@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from grafik.motion.compiler import build_video_payload, compile_motion_prompt, estimate_direction
 from grafik.motion.jobs import refresh_video_job, submit_video_job
+from grafik.motion.verify import layer_mask_on_canvas, sample_frames, verify_clip
 
 __all__ = [
     "compile_motion_prompt",
@@ -20,4 +21,7 @@ __all__ = [
     "build_video_payload",
     "submit_video_job",
     "refresh_video_job",
+    "sample_frames",
+    "layer_mask_on_canvas",
+    "verify_clip",
 ]

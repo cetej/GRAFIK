@@ -204,3 +204,12 @@ Discovery (WebSearch, jen k dohledání kandidátních ID, ne jako zdroj pravdy 
 - "fal.ai wan-motion endpoint OR fal-ai/qwen-image-layered api"
 
 **Poznámka k Recraft:** nebyl dohledán žádný dedikovaný Recraft V3 inpaint/edit endpoint (jen `fal-ai/recraft/v3/text-to-image`), proto vynechán z hlavní tabulky — pokud GRAFIK Recraft potřebuje, doporučeno ověřit přímo na fal.ai/models před spoléháním na tento nález.
+
+## Addendum 2026-08-14 (M3) — payload detaily video endpointů pro registry
+
+Re-fetch při stavbě payload builderu (stejná curl metodika; viz analogický addendum v `kling-versions.md`):
+
+- **`wan/v2.6/image-to-video`**: `image_url` + `prompt` REQUIRED; `duration` enum "5"|"10"|"15" (default "5"); **`resolution` enum 720p|1080p default `1080p`** → pro levný běh posílat `"720p"`; **`enable_prompt_expansion` default `true`** → posílat `false` (kompilovaný MotionSpec prompt má být autoritativní, expanze ho přepisuje). Cena (fal model page, 2026-08-14, sekundární): 720p $0.10/s, 1080p $0.15/s.
+- **`bytedance/seedance-2.5/image-to-video`**: `image_url` + `prompt` REQUIRED; `duration` enum "auto","4".."30" (default "auto"); `resolution` 480p|720p default 720p; **`generate_audio` default `true`** → posílat `false`.
+
+Registry od M3 nese `image_field`, `payload_defaults`, `duration_choices`, `est_cost_usd_per_second` per endpoint.

@@ -127,6 +127,13 @@
 .editor-section-layers {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   flex: 1;
+  min-height: 0;
+}
+
+.editor-section-clips {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex: 1;
+  min-height: 0;
 }
 
 .editor-section h2 {
@@ -244,7 +251,10 @@
   min-width: 0;
 }
 
-.editor-inspector {
+/* Outer scroll/width/border container for the right column — MotionPanel stacked above
+   InspectorPanel. Both panels themselves are plain flex-column blocks (no width/scroll of
+   their own) so there is exactly one border and one scrollbar for the whole column. */
+.editor-right-column {
   width: 300px;
   flex-shrink: 0;
   background: #16171c;
@@ -254,10 +264,21 @@
   flex-direction: column;
 }
 
-.editor-inspector h2 {
+.editor-inspector,
+.editor-motion-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-inspector h2,
+.editor-motion-panel h2 {
   font-size: 14px;
   margin: 0;
   padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.editor-motion-panel {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -398,4 +419,163 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* --- M3: motion panel controls --- */
+
+.motion-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #e7e7ea;
+}
+
+.motion-slider-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b7b7bf;
+}
+
+.motion-slider-label input[type='range'] {
+  flex: 1;
+}
+
+/* --- M3: clip cards (ClipsPanel) --- */
+
+.clip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  margin: 6px 0;
+  border-radius: 6px;
+  background: #1f2027;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+}
+
+.clip-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clip-provider {
+  color: #cfe0ff;
+}
+
+.clip-time {
+  color: #8a8a92;
+  font-size: 11px;
+  margin-left: auto;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.status-chip.status-running,
+.status-chip.status-pending {
+  background: #2a3f6b;
+  color: #cfe0ff;
+}
+
+.status-chip.status-completed {
+  background: #1f4a2e;
+  color: #8ee7a8;
+}
+
+.status-chip.status-failed {
+  background: #4a1f1f;
+  color: #ffb3b3;
+}
+
+.status-chip .spinner {
+  width: 8px;
+  height: 8px;
+  border-width: 1.5px;
+}
+
+.clip-prompt {
+  margin: 0;
+  color: #b7b7bf;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.clip-prompt.expanded {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.clip-error {
+  margin: 0;
+  color: #ffb3b3;
+}
+
+.clip-verification {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.verdict-chip {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.verdict-chip.verdict-yes {
+  background: #1f4a2e;
+  color: #8ee7a8;
+}
+
+.verdict-chip.verdict-weak {
+  background: #4a3d1f;
+  color: #ffd98e;
+}
+
+.verdict-chip.verdict-no {
+  background: #4a1f1f;
+  color: #ffb3b3;
+}
+
+.clip-card video {
+  border-radius: 4px;
+  background: #000;
+}
+
+.clip-retry-btn {
+  align-self: flex-start;
+  background: #2a3f6b;
+  border: 1px solid #4a7dff;
+  color: #cfe0ff;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.clip-retry-btn:hover:not(:disabled) {
+  background: #34497a;
+}
+
+.clip-retry-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }

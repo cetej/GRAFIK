@@ -29,6 +29,7 @@ const TOOLS: { id: Tool; label: string; title: string }[] = [
   { id: 'select', label: 'Select', title: 'Select / move / transform layers' },
   { id: 'brush', label: 'Brush', title: 'Paint a mask for AI edit' },
   { id: 'segment', label: 'Segment', title: 'Segment mode — canvas dragging disabled' },
+  { id: 'motion', label: 'Motion', title: 'Trajektorie pohybu prvků + kamera' },
 ];
 
 const NUM_LAYER_OPTIONS = [2, 3, 4, 5, 6, 7, 8];

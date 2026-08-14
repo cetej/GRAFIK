@@ -44,6 +44,10 @@ def api(tmp_path, monkeypatch):
     projects_dir.mkdir()
     project_dir = projects_dir / "decompose-test.grafik"
     shutil.copytree(REAL_PROJECT_DIR, project_dir)
+    # REAL_PROJECT_DIR is a shared, live directory -- manual/E2E use against it
+    # (outside this test run) can leave a real history.json behind, which
+    # would otherwise get copied in and poison undo_count for this test.
+    (project_dir / "history.json").unlink(missing_ok=True)
     project_id = json.loads((project_dir / "project.json").read_text(encoding="utf-8"))["id"]
 
     monkeypatch.setattr(app_module, "PROJECTS_DIR", projects_dir)

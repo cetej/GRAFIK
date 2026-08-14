@@ -19,6 +19,8 @@ import json
 import shutil
 from pathlib import Path
 
+import pytest
+
 from grafik.core.layer import Layer
 from grafik.core.motion import (
     CameraMove,
@@ -30,6 +32,7 @@ from grafik.core.motion import (
 )
 from grafik.core.project import LayerProject
 from grafik.motion.compiler import build_video_payload, compile_motion_prompt, estimate_direction
+from grafik.providers.registry import get_provider
 
 # Real, pre-existing v1 project on disk. READ-ONLY in every test below —
 # never write into this directory; copy it into tmp_path first.
@@ -209,14 +212,29 @@ def test_estimate_direction_basic():
 
 
 def test_build_video_payload_shape():
+    # M3: the payload shape is provider-specific (RegistryEntry.info.image_field
+    # / payload_defaults) -- kling-26-pro uses start_image_url + generate_audio=False.
+    entry = get_provider("kling-26-pro")
     payload = build_video_payload(
-        endpoint="fal-ai/kling-video/v2.6/pro/image-to-video",
+        entry=entry,
         image_url="https://example.com/in.png",
         prompt="Bird moves right.",
         duration="5",
     )
     assert payload == {
         "prompt": "Bird moves right.",
-        "image_url": "https://example.com/in.png",
+        "start_image_url": "https://example.com/in.png",
         "duration": "5",
+        "generate_audio": False,
     }
+
+
+def test_build_video_payload_unknown_duration_raises():
+    entry = get_provider("kling-26-pro")
+    with pytest.raises(ValueError):
+        build_video_payload(
+            entry=entry,
+            image_url="https://example.com/in.png",
+            prompt="Bird moves right.",
+            duration="999",
+        )

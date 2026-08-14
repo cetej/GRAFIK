@@ -20,16 +20,31 @@ import {
   undoProject,
   redoProject,
   getHistory,
+  saveLayerMotion,
+  clearLayerMotion,
+  compileMotion,
+  submitVideoJob,
+  listVideoJobs,
+  refreshVideoJob,
+  verifyClip,
   ApiError,
   type ProjectListItem,
   type ProjectResponse,
   type LayerResponse,
   type TransformRequestBody,
   type ProviderInfo,
+  type LayerMotionDto,
+  type CameraMove,
+  type MotionSpecDto,
+  type CompileMotionResponse,
+  type ClipRecordDto,
 } from './api';
 import Toolbar from './Toolbar';
 import InspectorPanel from './InspectorPanel';
 import LayersPanel from './LayersPanel';
+import MotionPanel from './MotionPanel';
+import ClipsPanel from './ClipsPanel';
+import TrajectoryOverlay from './TrajectoryOverlay';
 import { useBrush } from './useBrush';
 import type { Tool, BusyState, CanvasPoint } from './types';
 import './EditorApp.css';
@@ -54,6 +69,7 @@ declare global {
       selectedLayerId: string | null;
       projectId: string | null;
       busy: string | null;
+      tool: Tool;
     };
     __brushCanvas?: HTMLCanvasElement | null;
   }
@@ -67,6 +83,14 @@ function describeError(err: unknown): string {
   if (err instanceof ApiError) return `${err.message} (HTTP ${err.status || '?'})`;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+const EMPTY_MOTION: LayerMotionDto = { trajectory: [], static: false, description: '' };
+
+/** True once a LayerMotion has drifted back to its all-defaults shape — persistMotion below
+ * deletes the record in that case instead of storing a no-op object. */
+function isEmptyMotion(m: LayerMotionDto): boolean {
+  return m.trajectory.length === 0 && !m.static && m.description.trim() === '';
 }
 
 export default function EditorApp() {
@@ -99,6 +123,22 @@ export default function EditorApp() {
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [segmentText, setSegmentText] = useState('');
   const [segmentStatus, setSegmentStatus] = useState<string | null>(null);
+
+  // --- M3 additions: motion/camera UI state, compile preview, video jobs ---
+  const [videoProviders, setVideoProviders] = useState<ProviderInfo[]>([]);
+  const [videoProvidersError, setVideoProvidersError] = useState<string | null>(null);
+  const [videoProviderId, setVideoProviderId] = useState<string | null>(null);
+  const [clipDuration, setClipDuration] = useState('5');
+  const [cameraMove, setCameraMove] = useState<CameraMove>('none');
+  const [cameraMagnitude, setCameraMagnitude] = useState(0.5);
+  const [cameraPrompt, setCameraPrompt] = useState('');
+  const [compiling, setCompiling] = useState(false);
+  const [compileResult, setCompileResult] = useState<CompileMotionResponse | null>(null);
+  const [compilePromptDraft, setCompilePromptDraft] = useState('');
+  const [clips, setClips] = useState<ClipRecordDto[]>([]);
+  const [clipVideoVersions, setClipVideoVersions] = useState<Record<string, number>>({});
+  const clipsRef = useRef<ClipRecordDto[]>([]);
+  const busyRef = useRef<BusyState | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -169,6 +209,89 @@ export default function EditorApp() {
       return (usable ?? providers[0]).id;
     });
   }, [providers]);
+
+  // Load the video-job provider list once on mount (separate kind from the AI-edit list above).
+  useEffect(() => {
+    let cancelled = false;
+    listProviders('video')
+      .then((list) => {
+        if (cancelled) return;
+        setVideoProviders(list);
+        setVideoProvidersError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setVideoProvidersError(describeError(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Default the video provider select to wan-26 (best price/quality per the M3 contract) once
+  // providers load, without clobbering a choice the user already made.
+  useEffect(() => {
+    if (videoProviders.length === 0) return;
+    setVideoProviderId((prev) => {
+      if (prev && videoProviders.some((p) => p.id === prev)) return prev;
+      const preferred = videoProviders.find((p) => p.id === 'wan-26');
+      return (preferred ?? videoProviders[0]).id;
+    });
+  }, [videoProviders]);
+
+  // Keep the selected duration valid for whichever provider is currently chosen.
+  useEffect(() => {
+    const provider = videoProviders.find((p) => p.id === videoProviderId);
+    if (!provider) return;
+    setClipDuration((prev) => (provider.duration_choices.includes(prev) ? prev : (provider.duration_choices[0] ?? '5')));
+  }, [videoProviderId, videoProviders]);
+
+  useEffect(() => {
+    clipsRef.current = clips;
+  }, [clips]);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
+  // Poll running clips every 15s (only while a project is loaded and nothing else is busy), and
+  // auto-verify any clip that just finished. Reads clipsRef/busyRef instead of closing over
+  // `clips`/`busy` directly so a single long-lived interval (recreated only on project switch)
+  // never acts on stale data.
+  useEffect(() => {
+    const projectId = selectedProjectId;
+    if (!projectId) return;
+    const interval = setInterval(() => {
+      if (busyRef.current) return;
+      const running = clipsRef.current.filter((c) => c.status === 'running' || c.status === 'pending');
+      for (const clip of running) {
+        refreshVideoJob(projectId, clip.id)
+          .then((updated) => {
+            setClips((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+            if (updated.status === 'completed') {
+              bumpClipVideoVersion(updated.id);
+              if (!updated.verification) {
+                setSaveStatus(`Verifikuji klip ${updated.id}…`);
+                verifyClip(projectId, updated.id)
+                  .then((verified) => {
+                    setClips((prev) => prev.map((c) => (c.id === verified.id ? verified : c)));
+                    setSaveStatus(`Klip ${verified.id} zverifikován.`);
+                  })
+                  .catch((err: unknown) => {
+                    setSaveStatus(`Verifikace klipu ${updated.id} selhala: ${describeError(err)}`);
+                  });
+              }
+            } else if (updated.status === 'failed') {
+              setSaveStatus(`Klip ${updated.id} selhal: ${updated.error || 'neznámá chyba'}`);
+            }
+          })
+          .catch((err: unknown) => {
+            setSaveStatus(`Poll klipu ${clip.id} selhal: ${describeError(err)}`);
+          });
+      }
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [selectedProjectId]);
 
   // Fit the canvas area (viewport minus sidebar/status strip) with a resize observer.
   useEffect(() => {
@@ -271,8 +394,9 @@ export default function EditorApp() {
       selectedLayerId,
       projectId: selectedProjectId,
       busy: busy?.op ?? null,
+      tool,
     };
-  }, [fitScale, offsetX, offsetY, canvasWidth, canvasHeight, selectedLayerId, selectedProjectId, busy]);
+  }, [fitScale, offsetX, offsetY, canvasWidth, canvasHeight, selectedLayerId, selectedProjectId, busy, tool]);
 
   useEffect(() => {
     window.__brushCanvas = brush.canvas;
@@ -298,12 +422,22 @@ export default function EditorApp() {
     setPngVersions({});
     setHistory(null);
     setTool('select');
+    setClips([]);
+    setClipVideoVersions({});
+    setCompileResult(null);
+    setCompilePromptDraft('');
     setProjectLoading(true);
     try {
-      const [proj, layerList, hist] = await Promise.all([getProject(id), listLayers(id), getHistory(id)]);
+      const [proj, layerList, hist, clipList] = await Promise.all([
+        getProject(id),
+        listLayers(id),
+        getHistory(id),
+        listVideoJobs(id),
+      ]);
       setProject(proj);
       setLayers(sortByZAsc(layerList.map((l) => ({ ...l }))));
       setHistory(hist);
+      setClips(clipList);
     } catch (err) {
       setBanner(`Failed to load project: ${describeError(err)}`);
     } finally {
@@ -335,6 +469,10 @@ export default function EditorApp() {
     });
   }
 
+  function bumpClipVideoVersion(clipId: string) {
+    setClipVideoVersions((prev) => ({ ...prev, [clipId]: (prev[clipId] ?? 0) + 1 }));
+  }
+
   /** Shared by ai-edit and inpaint-behind: both return one updated LayerResponse. */
   function applyLayerUpdate(updated: LayerResponse) {
     setLayers((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
@@ -356,6 +494,76 @@ export default function EditorApp() {
         setSaveStatus(`Save failed: ${label} of layer "${layer.name}".`);
         void reloadLayers(projectId);
       });
+  }
+
+  /**
+   * Persists a layer's full motion state — same optimistic-update-then-persist shape as
+   * commitTransform. Always sends the FULL LayerMotion (trajectory + static + description), not a
+   * partial patch, since the /motion route rebuilds the record from what it's sent. When the
+   * result would be all-defaults, deletes the record instead of storing a no-op LayerMotion.
+   */
+  function persistMotion(layer: EditorLayer, nextMotion: LayerMotionDto, label: string) {
+    const projectId = selectedProjectId;
+    if (!projectId) return;
+    const empty = isEmptyMotion(nextMotion);
+    setLayers((prev) => prev.map((l) => (l.id === layer.id ? { ...l, motion: empty ? null : nextMotion } : l)));
+    setSaveStatus(`Saving ${label}...`);
+    const call = empty ? clearLayerMotion(projectId, layer.id) : saveLayerMotion(projectId, layer.id, nextMotion);
+    call
+      .then((updated) => {
+        setLayers((prev) => prev.map((l) => (l.id === layer.id ? updated : l)));
+        setSaveStatus(`Saved ${label}.`);
+        void refreshHistory(projectId);
+      })
+      .catch((err: unknown) => {
+        setBanner(`Failed to save motion: ${describeError(err)}`);
+        setSaveStatus(`Save failed: ${label}.`);
+        void reloadLayers(projectId);
+      });
+  }
+
+  function handleSetMotionStatic(layer: EditorLayer, value: boolean) {
+    const current = layer.motion ?? EMPTY_MOTION;
+    persistMotion(layer, { ...current, static: value }, 'motion (static)');
+  }
+
+  function handleCommitMotionDescription(layer: EditorLayer, description: string) {
+    const current = layer.motion ?? EMPTY_MOTION;
+    if (current.description === description) return;
+    persistMotion(layer, { ...current, description }, 'motion (description)');
+  }
+
+  function handleClearTrajectory(layer: EditorLayer) {
+    const current = layer.motion ?? EMPTY_MOTION;
+    if (current.trajectory.length === 0) return;
+    persistMotion(layer, { ...current, trajectory: [] }, 'trajektorie');
+  }
+
+  function handleAddTrajectoryPoint(layer: EditorLayer, pt: CanvasPoint) {
+    const current = layer.motion ?? EMPTY_MOTION;
+    const x = Math.max(0, Math.min(canvasWidth, Math.round(pt.x)));
+    const y = Math.max(0, Math.min(canvasHeight, Math.round(pt.y)));
+    persistMotion(layer, { ...current, trajectory: [...current.trajectory, { x, y }] }, 'trajektorie');
+  }
+
+  /** dragmove: local-only state update (no persist) — see TrajectoryOverlay. */
+  function handleTrajectoryPointDragMove(layer: EditorLayer, index: number, pt: CanvasPoint) {
+    setLayers((prev) =>
+      prev.map((l) => {
+        if (l.id !== layer.id || !l.motion) return l;
+        const trajectory = l.motion.trajectory.map((p, i) => (i === index ? pt : p));
+        return { ...l, motion: { ...l.motion, trajectory } };
+      }),
+    );
+  }
+
+  /** dragend: persist whatever handleTrajectoryPointDragMove landed on. Re-reads `layers` (not the
+   * `layer` param) since several dragmove updates may have landed on layers/setState since the
+   * overlay's closure was created. */
+  function handleTrajectoryPointDragEnd(layer: EditorLayer) {
+    const current = layers.find((l) => l.id === layer.id);
+    if (!current?.motion) return;
+    persistMotion(current, current.motion, 'trajektorie');
   }
 
   function handleDragEnd(layer: EditorLayer) {
@@ -573,6 +781,77 @@ export default function EditorApp() {
     }
   }
 
+  /** layer_motions = every layer that currently has a non-null motion; camera+duration from UI state. */
+  function buildMotionSpec(): MotionSpecDto {
+    const layerMotions: Record<string, LayerMotionDto> = {};
+    for (const l of layers) {
+      if (l.motion) layerMotions[l.id] = l.motion;
+    }
+    return {
+      camera: { move: cameraMove, magnitude: cameraMagnitude, prompt: cameraPrompt },
+      duration: clipDuration,
+      layer_motions: layerMotions,
+    };
+  }
+
+  /** Cheap preview call (server just builds a prompt string + cost math, no fal.ai I/O) — not
+   * behind the busy gate, which is reserved for paid/long operations per the M3 contract. */
+  async function handleCompileMotion() {
+    const projectId = selectedProjectId;
+    if (!projectId || !videoProviderId) return;
+    setCompiling(true);
+    try {
+      const spec = buildMotionSpec();
+      const result = await compileMotion(projectId, { motion: spec, provider: videoProviderId });
+      setCompileResult(result);
+      setCompilePromptDraft(result.prompt);
+      setSaveStatus('Náhled promptu připraven.');
+    } catch (err) {
+      setBanner(`Compile failed: ${describeError(err)}`);
+    } finally {
+      setCompiling(false);
+    }
+  }
+
+  async function handleSubmitVideoJob() {
+    const projectId = selectedProjectId;
+    if (!projectId || !videoProviderId || !compilePromptDraft.trim()) return;
+    setBusy({ op: 'Generuji klip… bude pokračovat na pozadí' });
+    try {
+      const spec = buildMotionSpec();
+      // Send the draft as an explicit override unless it's still exactly what the last compile
+      // produced — in that case leave it out so the server derives the prompt fresh from `spec`
+      // (matters if camera/trajectory changed since the last "Náhled promptu" click).
+      const unedited = compileResult != null && compilePromptDraft.trim() === compileResult.prompt.trim();
+      const override = unedited ? '' : compilePromptDraft.trim();
+      const clip = await submitVideoJob(projectId, { motion: spec, provider: videoProviderId, prompt_override: override });
+      setClips((prev) => [clip, ...prev]);
+      setCompileResult(null);
+      setCompilePromptDraft('');
+      setSaveStatus(`Klip odeslán ke generování (${clip.provider_id}).`);
+    } catch (err) {
+      setBanner(`Video job submit failed: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Restores camera/duration/provider + a prefilled prompt draft from an old clip so the user can
+   * tweak and resubmit. Does not touch per-layer motions (those stay whatever they currently are)
+   * and does not submit anything itself. */
+  function handleRetryClip(clip: ClipRecordDto) {
+    if (clip.motion) {
+      setCameraMove(clip.motion.camera.move);
+      setCameraMagnitude(clip.motion.camera.magnitude);
+      setCameraPrompt(clip.motion.camera.prompt);
+      setClipDuration(clip.motion.duration);
+    }
+    setVideoProviderId(clip.provider_id);
+    setCompileResult(null);
+    setCompilePromptDraft(clip.prompt);
+    setTool('motion');
+  }
+
   function getCanvasPoint(): CanvasPoint | null {
     const stage = stageRef.current;
     if (!stage) return null;
@@ -586,6 +865,15 @@ export default function EditorApp() {
     if (tool === 'brush') {
       const pt = getCanvasPoint();
       if (pt) brush.beginStroke(pt);
+      return;
+    }
+    if (tool === 'motion') {
+      // Layers listen (and can be clicked to select) in motion mode too — only a click that
+      // reaches the empty Stage background, with a layer already selected, adds a point.
+      if (e.target === stageRef.current && selectedLayer) {
+        const pt = getCanvasPoint();
+        if (pt) handleAddTrajectoryPoint(selectedLayer, pt);
+      }
       return;
     }
     // Layers don't listen outside the select tool, so every segment-tool click
@@ -608,7 +896,11 @@ export default function EditorApp() {
 
   const sortedForList = useMemo(() => [...layers].sort((a, b) => b.z_order - a.z_order), [layers]);
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) ?? null;
+  // draggable/Transformer stay select-only (unchanged); listening also opens up in motion mode so
+  // a layer can still be clicked to select it there (see handleStageMouseDown).
   const interactive = tool === 'select' && !busy;
+  const layersListenable = (tool === 'select' || tool === 'motion') && !busy;
+  const runningClipsCount = clips.filter((c) => c.status === 'running' || c.status === 'pending').length;
 
   return (
     <div className="editor-root">
@@ -670,6 +962,15 @@ export default function EditorApp() {
               onDelete={(layer) => void handleDeleteLayer(layer)}
             />
           )}
+          {selectedProjectId && (
+            <ClipsPanel
+              projectId={selectedProjectId}
+              clips={clips}
+              videoVersions={clipVideoVersions}
+              busy={!!busy}
+              onRetry={handleRetryClip}
+            />
+          )}
         </aside>
 
         <div className="editor-canvas-area" ref={containerRef}>
@@ -719,7 +1020,7 @@ export default function EditorApp() {
                       rotation={layer.rotation}
                       opacity={layer.opacity}
                       visible={layer.visible}
-                      listening={layer.visible && interactive}
+                      listening={layer.visible && layersListenable}
                       draggable={layer.visible && interactive}
                       onClick={() => setSelectedLayerId(layer.id)}
                       onTap={() => setSelectedLayerId(layer.id)}
@@ -739,6 +1040,18 @@ export default function EditorApp() {
                     listening={false}
                   />
                 )}
+                {tool === 'motion' && canvasWidth > 0 && canvasHeight > 0 && (
+                  <TrajectoryOverlay
+                    layers={layers}
+                    selectedLayerId={selectedLayerId}
+                    fitScale={fitScale}
+                    canvasWidth={canvasWidth}
+                    canvasHeight={canvasHeight}
+                    busy={!!busy}
+                    onPointDragMove={handleTrajectoryPointDragMove}
+                    onPointDragEnd={handleTrajectoryPointDragEnd}
+                  />
+                )}
                 <Transformer ref={transformerRef} resizeEnabled rotateEnabled />
               </Layer>
             </Stage>
@@ -746,26 +1059,53 @@ export default function EditorApp() {
         </div>
 
         {selectedProjectId && (
-          <InspectorPanel
-            selectedLayer={selectedLayer}
-            busy={!!busy}
-            providers={providers}
-            providersError={providersError}
-            aiEditPrompt={aiEditPrompt}
-            onAiEditPromptChange={setAiEditPrompt}
-            aiEditProviderId={aiEditProviderId}
-            onAiEditProviderChange={setAiEditProviderId}
-            onRunAiEdit={() => void handleRunAiEdit()}
-            brushStrokeCount={brush.strokeCount}
-            onClearBrush={brush.clear}
-            inpaintPrompt={inpaintPrompt}
-            onInpaintPromptChange={setInpaintPrompt}
-            onRunInpaintBehind={() => void handleRunInpaintBehind()}
-            segmentText={segmentText}
-            onSegmentTextChange={setSegmentText}
-            onRunSegment={() => void handleRunSegment()}
-            segmentStatus={segmentStatus}
-          />
+          <div className="editor-right-column">
+            <MotionPanel
+              selectedLayer={selectedLayer}
+              busy={!!busy}
+              onSetStatic={handleSetMotionStatic}
+              onCommitDescription={handleCommitMotionDescription}
+              onClearTrajectory={handleClearTrajectory}
+              cameraMove={cameraMove}
+              onCameraMoveChange={setCameraMove}
+              cameraMagnitude={cameraMagnitude}
+              onCameraMagnitudeChange={setCameraMagnitude}
+              cameraPrompt={cameraPrompt}
+              onCameraPromptChange={setCameraPrompt}
+              videoProviders={videoProviders}
+              videoProvidersError={videoProvidersError}
+              videoProviderId={videoProviderId}
+              onVideoProviderChange={setVideoProviderId}
+              clipDuration={clipDuration}
+              onClipDurationChange={setClipDuration}
+              compiling={compiling}
+              compileResult={compileResult}
+              onCompile={() => void handleCompileMotion()}
+              compilePromptDraft={compilePromptDraft}
+              onCompilePromptDraftChange={setCompilePromptDraft}
+              onSubmit={() => void handleSubmitVideoJob()}
+            />
+            <InspectorPanel
+              selectedLayer={selectedLayer}
+              busy={!!busy}
+              providers={providers}
+              providersError={providersError}
+              aiEditPrompt={aiEditPrompt}
+              onAiEditPromptChange={setAiEditPrompt}
+              aiEditProviderId={aiEditProviderId}
+              onAiEditProviderChange={setAiEditProviderId}
+              onRunAiEdit={() => void handleRunAiEdit()}
+              brushStrokeCount={brush.strokeCount}
+              onClearBrush={brush.clear}
+              inpaintPrompt={inpaintPrompt}
+              onInpaintPromptChange={setInpaintPrompt}
+              onRunInpaintBehind={() => void handleRunInpaintBehind()}
+              segmentText={segmentText}
+              onSegmentTextChange={setSegmentText}
+              onRunSegment={() => void handleRunSegment()}
+              segmentStatus={segmentStatus}
+            />
+          </div>
         )}
       </div>
 
@@ -776,6 +1116,7 @@ export default function EditorApp() {
         </span>
         <span>Project: {project ? project.name : '—'}</span>
         <span>Layer: {selectedLayer ? selectedLayer.name : '—'}</span>
+        {runningClipsCount > 0 && <span>Klipy: {runningClipsCount} běží</span>}
         <span className="spacer" />
         <span className="status-op">
           {busy ? (

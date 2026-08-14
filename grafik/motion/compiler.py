@@ -2,19 +2,27 @@
 
 Compiles per-layer trajectory/static/description plus global camera intent
 into one structured English prompt for prompt-only I2V providers (current
-fal schemas — kling v2.6/v3 pro, seedance-2.5 — accept {prompt, image_url,
-duration}; nothing mask-shaped exists on a verified endpoint today). See
-docs/plans/2026-08-14-phase1-gate.md (A3 amendment) for why this replaced
-the originally-planned Kling dynamic_masks payload mapper.
+fal schemas accept {prompt, image_url, duration} plus a handful of
+provider-specific extras — nothing mask-shaped exists on a verified endpoint
+today). See docs/plans/2026-08-14-phase1-gate.md (A3 amendment) for why this
+replaced the originally-planned Kling dynamic_masks payload mapper.
+build_video_payload maps the provider-specific field name/extras (image_field,
+payload_defaults) from grafik.providers.registry.RegistryEntry -- see
+docs/capabilities/model-landscape-2026-08.md for the raw-OpenAPI field survey
+behind those values.
 """
 
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
 
 from grafik.core.layer import Layer
 from grafik.core.motion import CameraMove, CameraSpec, LayerMotion, MotionSpec, TrajectoryPoint
 from grafik.core.project import LayerProject
+
+if TYPE_CHECKING:
+    from grafik.providers.registry import RegistryEntry
 
 # 8-way compass words for the first->last trajectory vector, in image/canvas
 # coordinates (y grows downward). Index 0 = right (0 deg), then +45 deg steps.
@@ -130,13 +138,27 @@ def compile_motion_prompt(project: LayerProject, spec: MotionSpec) -> str:
     return ". ".join(sentences) + "."
 
 
-def build_video_payload(endpoint: str, image_url: str, prompt: str, duration: str) -> dict:
-    """Minimal prompt-based I2V payload.
+def build_video_payload(entry: RegistryEntry, image_url: str, prompt: str, duration: str) -> dict:
+    """Build the fal.ai arguments dict for one video provider.
 
-    Current fal I2V schemas (kling v2.6/pro, seedance-2.5) accept exactly
-    these three fields — no mask/camera fields exist on any verified I2V
-    endpoint today (docs/capabilities/kling-versions.md). `endpoint` is
-    accepted for call-site symmetry (the caller already routes on it) but
-    does not change the payload shape — do NOT add mask/camera fields here.
+    The image field NAME and any extra fixed arguments are provider-specific
+    (entry.info.image_field / payload_defaults) -- e.g. Kling 2.6 pro wants
+    `start_image_url` + `generate_audio: false`, Wan 2.6 wants `image_url` +
+    `resolution`/`enable_prompt_expansion` overrides (see
+    docs/capabilities/model-landscape-2026-08.md). No mask/camera fields are
+    ever added here -- those don't exist on any verified I2V endpoint today.
+
+    Raises:
+        ValueError: `duration` is not one of entry.info.duration_choices.
     """
-    return {"prompt": prompt, "image_url": image_url, "duration": duration}
+    if duration not in entry.info.duration_choices:
+        raise ValueError(
+            f"Duration {duration!r} not supported by provider {entry.info.id!r}; "
+            f"choices: {entry.info.duration_choices}"
+        )
+    return {
+        "prompt": prompt,
+        entry.info.image_field: image_url,
+        "duration": duration,
+        **entry.info.payload_defaults,
+    }

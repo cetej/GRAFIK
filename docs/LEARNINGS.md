@@ -1,5 +1,14 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-14 — fal I2V: jméno image pole driftuje mezi verzemi, defaulty umí zdvojnásobit cenu
+
+**Kontext:** M3 příprava. Raw OpenAPI fetch (metodika viz níže „jediný zdroj pravdy") odhalil, že `fal-ai/kling-video/v2.6/pro/image-to-video` bere **`start_image_url`** (REQUIRED), zatímco v1.5/v1.6 i Wan/Seedance berou `image_url`. Sdílený `build_video_payload` z fáze 1 posílal `image_url` všem → na Kling 2.6 by submit spadl na validaci (latentní bug, nikdy nevolán naostro — mock testy tvar payloadu vůči schématu neověřují). Navíc rizikové defaulty: Kling 2.6 pro a Seedance 2.5 mají `generate_audio` **default True** (≈2× cena), Wan 2.6 má `resolution` default **1080p** ($0.15/s místo $0.10/s) a `enable_prompt_expansion` default True (model přepisuje náš prompt — proti smyslu kompilovaného MotionSpec promptu).
+
+**Poučení:**
+1. Payload builder pro video musí být **per-endpoint mapovaný z registry** (image_field + payload_defaults + duration_choices), ne sdílený tvar. Capability sweep má zaznamenávat i jména povinných polí a defaulty, ne jen existenci featur.
+2. Schema defaulty jsou součást capability dat — default, který tiše zdvojnásobí cenu nebo přepíše prompt, je stejně důležitý jako existence pole.
+3. Mock testy payload tvaru neodhalí drift vůči reálnému schématu — při přidání video providera vždy znovu fetchnout raw OpenAPI a diffnout povinná pole.
+
 ## 2026-08-14 — Hit-test musí sdílet transformační model s rendererem
 
 **Kontext:** M2 E2E — serverová route `/hittest` predikovala „Layer 1", reálný klik v editoru vybral „Layer 0". Server testuje alfu v nativních pixelech PNG (`lx = x - layer.x`), klient renderuje protažené na `layer.width/height` (a decompose může uložit width/height ≠ rozměry PNG). Dvě „správné" odpovědi na tentýž bod.

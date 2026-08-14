@@ -1,6 +1,6 @@
 /** Shared UI-only types for the editor (not part of the API contract, see api.ts). */
 
-export type Tool = 'select' | 'brush' | 'segment';
+export type Tool = 'select' | 'brush' | 'segment' | 'motion';
 
 export interface BusyState {
   op: string;
