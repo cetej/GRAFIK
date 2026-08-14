@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from grafik.core.layer import BlendMode
+from grafik.core.motion import MotionSpec
 
 
 class CreateProjectRequest(BaseModel):
@@ -56,6 +57,7 @@ class LayerResponse(BaseModel):
     y: int
     width: int | None
     height: int | None
+    rotation: float = 0.0
     source: str
     tags: list[str]
 
@@ -127,3 +129,35 @@ class HitTestResponse(BaseModel):
     layer_id: str | None = None
     layer_name: str | None = None
     z_order: int | None = None
+
+
+# --- Task 1.7: per-element AI edit, segmentation, video jobs ---
+
+
+class AiEditRequest(BaseModel):
+    prompt: str
+    provider: str = "qwen-inpaint"
+    dilate_px: int = Field(default=4, ge=0)
+    feather_px: int = Field(default=2, ge=0)
+
+
+class AiEditResponse(BaseModel):
+    layer: LayerResponse
+    provider: str
+    elapsed_s: float
+
+
+class SegmentRequest(BaseModel):
+    text: str
+    provider: str = "sam-3"
+    create_layers: bool = True
+
+
+class SegmentResponse(BaseModel):
+    layers: list[LayerResponse] = Field(default_factory=list)
+    mask_count: int = 0
+
+
+class VideoJobRequest(BaseModel):
+    motion: MotionSpec = Field(default_factory=MotionSpec)
+    provider: str = "kling-26-pro"

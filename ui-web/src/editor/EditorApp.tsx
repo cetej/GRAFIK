@@ -16,16 +16,7 @@ import {
 } from './api';
 import './EditorApp.css';
 
-/**
- * LayerResponse has no `rotation` field (see api.ts doc comment) even though
- * the backend persists one. We track it client-side only: it starts at 0 for
- * every freshly-loaded layer and is updated locally after a successful
- * transform. A page reload cannot recover a previously-saved rotation from
- * the API — this is a backend DTO gap, not something fixable from ui-web/.
- */
-interface EditorLayer extends LayerResponse {
-  rotation: number;
-}
+type EditorLayer = LayerResponse;
 
 const CANVAS_PADDING = 32;
 
@@ -185,7 +176,7 @@ export default function EditorApp() {
     try {
       const [proj, layerList] = await Promise.all([getProject(id), listLayers(id)]);
       setProject(proj);
-      setLayers(sortByZAsc(layerList.map((l) => ({ ...l, rotation: 0 }))));
+      setLayers(sortByZAsc(layerList.map((l) => ({ ...l }))));
     } catch (err) {
       setBanner(`Failed to load project: ${describeError(err)}`);
     } finally {
@@ -196,7 +187,7 @@ export default function EditorApp() {
   async function reloadLayers(projectId: string) {
     try {
       const layerList = await listLayers(projectId);
-      setLayers(sortByZAsc(layerList.map((l) => ({ ...l, rotation: 0 }))));
+      setLayers(sortByZAsc(layerList.map((l) => ({ ...l }))));
     } catch (err) {
       setBanner(`Failed to reload layers: ${describeError(err)}`);
     }

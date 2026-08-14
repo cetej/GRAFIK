@@ -8,12 +8,6 @@
  *    `layers` array (only `layer_count`). Actual layer data comes from the
  *    separate GET /api/projects/{id}/layers route (`listLayers` below) — the
  *    two are combined by the caller.
- * 2. LayerResponse (returned by /layers, /transform, /visibility, ...) has no
- *    `rotation` field, even though the underlying Layer model and
- *    TransformRequest do. Rotation set via `saveTransform` is persisted
- *    server-side (grafik/core/layer.py has `rotation: float`) but can never be
- *    read back through this API — the UI layer tracks it client-side only
- *    (see EditorLayer in EditorApp.tsx).
  */
 
 const API_BASE: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8300';
@@ -48,6 +42,7 @@ export interface LayerResponse {
   y: number;
   width: number | null;
   height: number | null;
+  rotation: number;
   source: string;
   tags: string[];
 }

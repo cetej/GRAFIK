@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-14 — RTK hook maskuje pytest výstup
+
+`python -m pytest` přes Bash s RTK hookem hlásí „No tests collected", i když testy proběhly. Obejít: `rtk proxy python -m pytest tests/... -q` — ukáže reálný výstup. Platí pro celou session i subagenty.
+
 ## 2026-08-14 — fal.ai schema: jediný zdroj pravdy je syrový OpenAPI JSON
 
 **Kontext:** Plánovací research (unified editor, 2026-08-14) tvrdil, že Kling 1.6 Pro má `dynamic_masks` + `advanced_camera_control`. Task 1.4 to vyvrátil raw fetchem: motion brush existuje jen na `v1/standard` a `v1.5/pro`, kamerová kontrola na žádném image-to-video endpointu (jen `v1/standard/text-to-video`). Detail: `docs/capabilities/kling-versions.md`.

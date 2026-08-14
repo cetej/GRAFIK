@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from grafik.api.models import (
+    AiEditRequest,
+    AiEditResponse,
     BlendModeRequest,
     CreateProjectRequest,
     CropRequest,
@@ -27,11 +29,15 @@ from grafik.api.models import (
     ProjectResponse,
     RecolorRequest,
     ScaleRequest,
+    SegmentRequest,
+    SegmentResponse,
     TransformRequest,
+    VideoJobRequest,
     WorkflowRequest,
     WorkflowStepResponse,
 )
 from grafik.core.composer import compose, compose_and_save
+from grafik.core.motion import ClipRecord
 from grafik.core.project import LayerProject
 
 from grafik.core.history import History
@@ -93,7 +99,8 @@ def _layer_response(l) -> LayerResponse:
     return LayerResponse(
         id=l.id, name=l.name, z_order=l.z_order, visible=l.visible,
         opacity=l.opacity, blend_mode=l.blend_mode, x=l.x, y=l.y,
-        width=l.width, height=l.height, source=l.source, tags=l.tags,
+        width=l.width, height=l.height, rotation=l.rotation,
+        source=l.source, tags=l.tags,
     )
 
 
@@ -174,11 +181,7 @@ def decompose(project_id: str, req: DecomposeRequest) -> list[LayerResponse]:
     project.source_image_url = req.image_url
     project.save(path)
     return [
-        LayerResponse(
-            id=l.id, name=l.name, z_order=l.z_order, visible=l.visible,
-            opacity=l.opacity, blend_mode=l.blend_mode, x=l.x, y=l.y,
-            width=l.width, height=l.height, source=l.source, tags=l.tags,
-        )
+        _layer_response(l)
         for l in layers
     ]
 
@@ -226,11 +229,7 @@ async def decompose_file(
 def list_layers(project_id: str) -> list[LayerResponse]:
     project, _ = _load_project(project_id)
     return [
-        LayerResponse(
-            id=l.id, name=l.name, z_order=l.z_order, visible=l.visible,
-            opacity=l.opacity, blend_mode=l.blend_mode, x=l.x, y=l.y,
-            width=l.width, height=l.height, source=l.source, tags=l.tags,
-        )
+        _layer_response(l)
         for l in project.layers
     ]
 
@@ -291,11 +290,7 @@ async def add_layer(project_id: str, file: UploadFile = File(...)) -> LayerRespo
         project.canvas_height = img.height
     project.save(path)
 
-    return LayerResponse(
-        id=layer.id, name=layer.name, z_order=layer.z_order, visible=layer.visible,
-        opacity=layer.opacity, blend_mode=layer.blend_mode, x=layer.x, y=layer.y,
-        width=layer.width, height=layer.height, source=layer.source, tags=layer.tags,
-    )
+    return _layer_response(layer)
 
 
 @app.delete("/api/projects/{project_id}/layers/{layer_id}")
@@ -323,11 +318,7 @@ def toggle_visibility(project_id: str, layer_id: str) -> LayerResponse:
         raise HTTPException(404, f"Layer {layer_id} not found")
     layer.visible = not layer.visible
     project.save(path)
-    return LayerResponse(
-        id=layer.id, name=layer.name, z_order=layer.z_order, visible=layer.visible,
-        opacity=layer.opacity, blend_mode=layer.blend_mode, x=layer.x, y=layer.y,
-        width=layer.width, height=layer.height, source=layer.source, tags=layer.tags,
-    )
+    return _layer_response(layer)
 
 
 @app.post("/api/projects/{project_id}/layers/{layer_id}/opacity")
@@ -338,11 +329,7 @@ def set_opacity(project_id: str, layer_id: str, req: OpacityRequest) -> LayerRes
         raise HTTPException(404, f"Layer {layer_id} not found")
     layer.opacity = req.opacity
     project.save(path)
-    return LayerResponse(
-        id=layer.id, name=layer.name, z_order=layer.z_order, visible=layer.visible,
-        opacity=layer.opacity, blend_mode=layer.blend_mode, x=layer.x, y=layer.y,
-        width=layer.width, height=layer.height, source=layer.source, tags=layer.tags,
-    )
+    return _layer_response(layer)
 
 
 @app.post("/api/projects/{project_id}/layers/{layer_id}/transform")
@@ -362,11 +349,7 @@ def transform_layer(project_id: str, layer_id: str, req: TransformRequest) -> La
     if req.rotation is not None:
         layer.rotation = req.rotation
     project.save(path)
-    return LayerResponse(
-        id=layer.id, name=layer.name, z_order=layer.z_order, visible=layer.visible,
-        opacity=layer.opacity, blend_mode=layer.blend_mode, x=layer.x, y=layer.y,
-        width=layer.width, height=layer.height, source=layer.source, tags=layer.tags,
-    )
+    return _layer_response(layer)
 
 
 # --- Composite ---
@@ -593,3 +576,195 @@ def run_workflow(project_id: str, req: WorkflowRequest) -> list[WorkflowStepResp
         WorkflowStepResponse(name=r.name, success=r.success, data=r.data, error=r.error)
         for r in results
     ]
+
+
+# --- AI edit (per-element, task 1.7) ---
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/ai-edit")
+def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditResponse:
+    """Prompt-edit one layer inside its own (thresholded, feathered) alpha mask.
+
+    The mask is the layer's own alpha (>127 = editable), pasted into a
+    canvas-size black frame at (layer.x, layer.y) -- layers in this repo are
+    canvas-sized already (decompose output), but this also positions
+    smaller/offset layers correctly. The provider edits the full composite
+    inside that mask (mandatory paste-back happens inside the provider, e.g.
+    QwenInpaintProvider); the result is cropped back to the layer's own box
+    and its alpha replaced by a freshly dilated+feathered copy of the mask
+    (dilate_px/feather_px from the request), so the edit REPLACES the
+    layer's content in place (ideal-state: "vysledek nahradi obsah vrstvy")
+    without resizing or repositioning the layer.
+    """
+    import time
+
+    from PIL import Image, ImageFilter
+
+    from grafik.providers.registry import get_provider
+
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+
+    try:
+        entry = get_provider(req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    if not entry.info.capabilities.supports_mask:
+        raise HTTPException(
+            400, f"Provider {req.provider!r} does not support mask-based edit (supports_mask=False)"
+        )
+    if entry.impl is None:
+        raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
+
+    layer_img = layer.load_image(path)  # RGBA, layer-local size
+    hard_mask_local = layer_img.split()[-1].point(lambda a: 255 if a > 127 else 0)
+
+    composite = compose(project, path)
+    hard_mask_canvas = Image.new("L", composite.size, 0)
+    hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
+
+    provider = entry.impl()
+    start = time.monotonic()
+    edited = provider.edit(composite, hard_mask_canvas, req.prompt)
+    elapsed = time.monotonic() - start
+
+    feathered_canvas = hard_mask_canvas
+    if req.dilate_px > 0:
+        feathered_canvas = feathered_canvas.filter(ImageFilter.MaxFilter(2 * req.dilate_px + 1))
+    if req.feather_px > 0:
+        feathered_canvas = feathered_canvas.filter(ImageFilter.GaussianBlur(req.feather_px))
+
+    box = (layer.x, layer.y, layer.x + layer_img.width, layer.y + layer_img.height)
+    new_rgb_local = edited.crop(box)
+    new_alpha_local = feathered_canvas.crop(box)
+    new_layer_img = Image.merge("RGBA", (*new_rgb_local.split(), new_alpha_local))
+
+    layer.save_image(new_layer_img, path)
+    _snapshot(project_id, project, path)
+    project.save(path)
+
+    return AiEditResponse(layer=_layer_response(layer), provider=req.provider, elapsed_s=elapsed)
+
+
+# --- Segmentation (SAM 3, task 1.7) ---
+
+
+def _segment_remote(image, text: str, endpoint: str) -> list:
+    """All network I/O for one text-prompted segmentation call: upload the
+    image, call the fal segmentation endpoint, download each returned mask.
+    Isolated in this one function so tests can monkeypatch
+    grafik.api.app._segment_remote and exercise the /segment route fully
+    offline -- mirrors QwenInpaintProvider._run_remote.
+
+    Returns a list of "L"-mode (grayscale) PIL masks, one per detection.
+    """
+    import fal_client
+
+    from grafik.fal.upload import download_url, upload_image
+
+    image_url = upload_image(image)
+    result = fal_client.subscribe(
+        endpoint, arguments={"image_url": image_url, "prompt": text}, with_logs=False
+    )
+    masks = []
+    for m in result.get("masks", []) or []:
+        url = m.get("url") if isinstance(m, dict) else m
+        if url:
+            masks.append(download_url(url).convert("L"))
+    return masks
+
+
+@app.post("/api/projects/{project_id}/segment")
+def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
+    """Text-prompted segmentation (SAM 3) over the composite. Each returned
+    mask (capped at 8) optionally becomes a new tagged layer: the composite's
+    RGB masked by that detection's alpha. Registry entry sam-3 has no
+    concrete impl class (unlike qwen-inpaint) -- this route calls its fal
+    endpoint directly via _segment_remote instead of a provider.segment().
+    """
+    from PIL import Image
+
+    from grafik.core.layer import Layer
+    from grafik.providers.registry import get_provider
+
+    project, path = _load_project(project_id)
+
+    try:
+        entry = get_provider(req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    if entry.info.kind != "segment":
+        raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'segment'")
+
+    composite = compose(project, path)
+    masks = _segment_remote(composite, req.text, entry.info.endpoint)
+    mask_count = len(masks)  # informational: how many SAM found, even if capped below
+    masks = masks[:8]
+
+    if not req.create_layers:
+        return SegmentResponse(mask_count=mask_count)
+
+    created: list[LayerResponse] = []
+    rgb = composite.convert("RGB")
+    for mask in masks:
+        if mask.size != rgb.size:
+            mask = mask.resize(rgb.size, Image.LANCZOS)
+        r, g, b = rgb.split()
+        layer_img = Image.merge("RGBA", (r, g, b, mask))
+        layer = Layer(name=f"sam: {req.text}", source="sam", tags=["sam"])
+        layer.save_image(layer_img, path)
+        project.add_layer(layer)
+        created.append(_layer_response(layer))
+
+    project.save(path)
+    return SegmentResponse(layers=created, mask_count=mask_count)
+
+
+# --- Video jobs (async, task 1.7, architecture A4) ---
+
+
+@app.post("/api/projects/{project_id}/video/jobs")
+def submit_video_job_route(project_id: str, req: VideoJobRequest) -> ClipRecord:
+    from grafik.motion.jobs import submit_video_job
+
+    project, path = _load_project(project_id)
+    try:
+        return submit_video_job(project, path, req.motion, req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.get("/api/projects/{project_id}/video/jobs")
+def list_video_jobs(project_id: str) -> list[ClipRecord]:
+    project, _ = _load_project(project_id)
+    return project.clips
+
+
+@app.get("/api/projects/{project_id}/video/jobs/{clip_id}")
+def get_video_job(project_id: str, clip_id: str) -> ClipRecord:
+    from grafik.motion.jobs import refresh_video_job
+
+    project, path = _load_project(project_id)
+    try:
+        return refresh_video_job(project, path, clip_id)
+    except ValueError:
+        raise HTTPException(404, f"Clip {clip_id} not found")
+
+
+@app.get("/api/projects/{project_id}/clips/{clip_id}/video")
+def get_clip_video(project_id: str, clip_id: str) -> Response:
+    """Serve a completed clip's mp4 file from disk."""
+    project, path = _load_project(project_id)
+    clip = next((c for c in project.clips if c.id == clip_id), None)
+    if clip is None:
+        raise HTTPException(404, f"Clip {clip_id} not found")
+    if clip.status != "completed" or not clip.path:
+        raise HTTPException(400, f"Clip {clip_id} is not completed yet (status={clip.status})")
+    video_path = path / clip.path
+    if not video_path.exists():
+        raise HTTPException(404, "Clip video file not found on disk")
+    return Response(content=video_path.read_bytes(), media_type="video/mp4")
