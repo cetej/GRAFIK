@@ -378,6 +378,7 @@ def transform_layer(project_id: str, layer_id: str, req: TransformRequest) -> La
         layer.height = req.height
     if req.rotation is not None:
         layer.rotation = req.rotation
+    _snapshot(project_id, project, path)
     project.save(path)
     return _layer_response(layer)
 

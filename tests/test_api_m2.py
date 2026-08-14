@@ -279,3 +279,28 @@ def test_reorder_unknown_layer_404(api):
     client, _, project_id = api
     resp = client.post(f"/api/projects/{project_id}/layers/does-not-exist/reorder", json={"z_order": 0})
     assert resp.status_code == 404
+
+
+def test_transform_snapshots_for_undo(api):
+    """Regression (E2E finding, 2026-08-14): /transform was the only mutating
+    route without _snapshot(), so moves/scales were invisible to undo/redo."""
+    client, _, project_id = api
+
+    r1 = client.post(
+        f"/api/projects/{project_id}/layers/{LAYER_3_ID}/transform", json={"x": 100, "y": 50}
+    )
+    assert r1.status_code == 200, r1.text
+    r2 = client.post(
+        f"/api/projects/{project_id}/layers/{LAYER_3_ID}/transform", json={"x": 200, "y": 90}
+    )
+    assert r2.status_code == 200, r2.text
+
+    hist = client.get(f"/api/projects/{project_id}/history").json()
+    assert hist["undo_count"] == 1
+
+    undo = client.post(f"/api/projects/{project_id}/undo")
+    assert undo.status_code == 200, undo.text
+
+    layers = client.get(f"/api/projects/{project_id}/layers").json()
+    l3 = next(l for l in layers if l["id"] == LAYER_3_ID)
+    assert (l3["x"], l3["y"]) == (100, 50)
