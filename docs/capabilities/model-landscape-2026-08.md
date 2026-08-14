@@ -7,11 +7,11 @@
 
 ## TOP-LINE ODPOVĚĎ
 
-**Ano, Kling `v1/standard/image-to-video` + `v1.5/pro/image-to-video` zůstávají JEDINÉ endpointy z celého sweepu (78 endpointů, 10 video-rodin) s pravým per-element mask+trajectory motion control (`dynamic_masks`).** Žádný z 32 dalších prověřených image-to-video endpointů (Wan 2.2/2.5/2.6/Pro, Seedance 1.0/2.0, Veo 2/3/3.1, MiniMax Hailuo 02/2.3, Luma Ray 2, LTX, Pixverse v4.5/v5/v5.5, Vidu Q1/Q2, Hunyuan v1/v1.5) nemá `dynamic_masks`, `static_mask`, `trajectory`, `brush`, `drag`, `puppet` ani `region` pole. Nic se tedy nemění na doporučení z kling-versions.md — spíš se posiluje: i mimo Kling je motion brush u aktuálních modelů nulový.
+**Ano, Kling `v1/standard/image-to-video` + `v1.5/pro/image-to-video` zůstávají JEDINÉ endpointy z celého sweepu (78 endpointů, 10 video-rodin) s pravým per-element mask+trajectory motion control (`dynamic_masks`).** Žádný z 32 dalších prověřených image-to-video endpointů (Wan 2.2/2.5/2.6/Pro, Seedance 1.0/2.0/2.5, Veo 2/3/3.1, MiniMax Hailuo 02/2.3, Luma Ray 2, LTX, Pixverse v4.5/v5/v5.5, Vidu Q1/Q2, Hunyuan v1/v1.5) nemá `dynamic_masks`, `static_mask`, `trajectory`, `brush`, `drag`, `puppet` ani `region` pole. Nic se tedy nemění na doporučení z kling-versions.md — spíš se posiluje: i mimo Kling je motion brush u aktuálních modelů nulový.
 
 **Kamera** je fragmentovaná do dvou slabých náhrad, žádná srovnatelná s Kling `advanced_camera_control`: `camera_movement` (bohatý enum, 19 hodnot: horizontal_left, zoom_in, whip_pan, hitchcock, …) na **Pixverse v4.5** — ale zmizel z v5 i v5.5 (novější tiery), a je to globální (celý klip), ne per-region. `camera_fixed` (bool) na **Seedance 1.0** (pro/lite/pro-fast) — zmizel v Seedance 2.0. Žádný z nich nemá magnitude/directional kontrolu jako Kling `advanced_camera_control` (movement_type + movement_value -10..10).
 
-**Image edit (mask inpaint) je naopak živé a rozšířené** napříč aktuálními modely — na rozdíl od video-motion zde NENÍ jediná cesta. `mask_url`/`mask_image_url` mají: celá FLUX Fill rodina (pro, pro-finetuned, dev/lora), `fal-ai/qwen-image-edit/inpaint` (dedikovaný sub-endpoint), `fal-ai/ideogram/v3/edit`, a **jen** `fal-ai/gpt-image-1.5/edit` (ne 1.0, ne mini). Trend u nejnovějších "instrukčních" editorů (Qwen-Image-Edit-2509/2511/Plus hlavní endpoint, FLUX Kontext, Seedream 4.5/5.0, SeedEdit v3, VŠECHNY Nano-Banana/Gemini varianty, GPT-Image-1/1-mini) je ale mask úplně vynechat ve prospěch textového popisu regionu — mask inpaint přežívá jako dedikovaný/staršího-stylu sub-endpoint, ne jako hlavní vlajková loď.
+**Image edit (mask inpaint) je naopak živé a rozšířené** napříč aktuálními modely — na rozdíl od video-motion zde NENÍ jediná cesta. `mask_url`/`mask_image_url` mají: celá FLUX Fill rodina (pro, pro-finetuned, dev/lora), `fal-ai/qwen-image-edit/inpaint` (dedikovaný sub-endpoint), `fal-ai/ideogram/v3/edit`, a GPT-Image `1.5/edit` (`mask_image_url`) + `2/edit` (`mask_url`) — ne 1.0, ne mini. Trend u nejnovějších "instrukčních" editorů (Qwen-Image-Edit-2509/2511/Plus hlavní endpoint, FLUX Kontext, Seedream 4.5/5.0, SeedEdit v3, VŠECHNY Nano-Banana/Gemini varianty, GPT-Image-1/1-mini) je ale mask úplně vynechat ve prospěch textového popisu regionu — mask inpaint přežívá jako dedikovaný/staršího-stylu sub-endpoint, ne jako hlavní vlajková loď.
 
 ## Tabulka — VIDEO (image-to-video), mask-motion a kamera
 
@@ -30,6 +30,8 @@
 | `bytedance/seedance-2.0/image-to-video` | ne | **ne** (camera_fixed v 2.0 zmizel) | ano | **generate_audio** | + bitrate_mode |
 | `bytedance/seedance-2.0/fast/image-to-video` | ne | ne | ano | generate_audio | |
 | `bytedance/seedance-2.0/reference-to-video` | ne | ne | ano | generate_audio | multi-ref (image_urls, video_urls, audio_urls) |
+| `bytedance/seedance-2.5/image-to-video` | ne | ne | ano | generate_audio | **ADDENDUM** — nejnovější tier, + end_image_url, resolution; žádná mask/camera pole |
+| `bytedance/seedance-2.5/reference-to-video` | ne | ne | ano | generate_audio | **ADDENDUM** — multi-ref jako 2.0; `/fast` varianta pro 2.5 neexistuje (404) |
 | `fal-ai/veo2/image-to-video` | ne | ne | ano | ne | minimální (prompt, image_url, duration) |
 | `fal-ai/veo3/image-to-video`, `fal-ai/veo3/fast/image-to-video`, `fal-ai/veo3.1/image-to-video` | ne | ne | ano | **generate_audio** | resolution, safety_tolerance |
 | `fal-ai/veo3.1/fast/first-last-frame-to-video` | ne | ne | ano | generate_audio | first_frame_url + last_frame_url (tail-frame ekvivalent) |
@@ -71,9 +73,10 @@
 | `fal-ai/gpt-image-1/edit-image` | ne | image_urls | GPT-Image 1.0 — bez mask |
 | **`fal-ai/gpt-image-1.5/edit`** | **ANO** `mask_image_url` | image_urls | jen 1.5, verzí-specifické |
 | `fal-ai/gpt-image-1-mini/edit` | ne | image_urls | mini tier bez mask |
+| **`fal-ai/gpt-image-2/edit`** | **ANO** `mask_url` | image_urls | **ADDENDUM** — nejnovější GPT-Image drží mask (pozor: 1.5 má `mask_image_url`, 2 má `mask_url` — schema drift mezi verzemi); gen endpoint `fal-ai/gpt-image-2` bez mask; `gpt-image-2-mini/edit` neexistuje (404) |
 | `fal-ai/inpaint` (legacy SD/SDXL) | ANO `mask_url` | — | starší technologie (model_name param), ne 2025/2026 flagship, jen pro úplnost |
 
-**Shrnutí image edit:** 9 z ~24 prověřených edit-endpointů má mask inpaint. Rozdělení je čisté podle designu: "instrukční" hlavní modely (Qwen main, Kontext, Seedream, SeedEdit, Nano-Banana/Gemini vše, GPT-Image 1/mini) mask nemají; mask žije na dedikovaných "fill"/"inpaint" sub-endpointech nebo verzově-gated (GPT-Image jen 1.5).
+**Shrnutí image edit:** 10 z ~26 prověřených edit-endpointů má mask inpaint. Rozdělení je čisté podle designu: "instrukční" hlavní modely (Qwen main, Kontext, Seedream, SeedEdit, Nano-Banana/Gemini vše, GPT-Image 1/mini) mask nemají; mask žije na dedikovaných "fill"/"inpaint" sub-endpointech nebo verzově-gated (GPT-Image: 1.5 a 2 ano, 1.0 a mini ne — 2.0 trend „mask vynechat" vyvrací, mask u OpenAI edit endpointu drží).
 
 ## Segmentace a decompose — re-ověřeno
 
@@ -93,13 +96,21 @@ Doporučené hodnoty pro `grafik/providers/` registry (`supports_mask`, `support
 
 **`supports_camera_prompt=True`** (textový fallback popis kamery v `prompt` poli): prakticky všechny video endpointy mají `prompt` string → lze nastavit `True` plošně jako univerzální fallback vrstvu (přesně A3 fallback z plánu). Toto je jediná kamerová cesta funkční napříč celým katalogem mimo Kling v1/text-to-video.
 
-**`supports_mask=True`** (image edit inpaint): `fal-ai/flux-pro/v1/fill`, `fal-ai/flux-pro/v1/fill-finetuned`, `fal-ai/flux-lora-fill`, `fal-ai/flux-kontext-lora/inpaint`, `fal-ai/flux-general/inpainting`, `fal-ai/qwen-image-edit/inpaint`, `fal-ai/ideogram/v3/edit`, `fal-ai/gpt-image-1.5/edit`. GRAFIK už pravděpodobně registruje Qwen-Image-Edit a FLUX Fill (viz CLAUDE.md `ops/`) — doporučeno mapovat konkrétně na tyto **dedikované** endpoint ID, ne na obecné "qwen-image-edit"/"flux" jméno, protože hlavní tiery (2509/2511/Plus/Kontext) mask nemají.
+**`supports_mask=True`** (image edit inpaint): `fal-ai/flux-pro/v1/fill`, `fal-ai/flux-pro/v1/fill-finetuned`, `fal-ai/flux-lora-fill`, `fal-ai/flux-kontext-lora/inpaint`, `fal-ai/flux-general/inpainting`, `fal-ai/qwen-image-edit/inpaint`, `fal-ai/ideogram/v3/edit`, `fal-ai/gpt-image-1.5/edit`, `fal-ai/gpt-image-2/edit` (ADDENDUM). GRAFIK už pravděpodobně registruje Qwen-Image-Edit a FLUX Fill (viz CLAUDE.md `ops/`) — doporučeno mapovat konkrétně na tyto **dedikované** endpoint ID, ne na obecné "qwen-image-edit"/"flux" jméno, protože hlavní tiery (2509/2511/Plus/Kontext) mask nemají.
 
 **`supports_mask=False`** (instrukční edit, textový popis regionu místo pixel masky): `fal-ai/qwen-image-edit-2509/-2511/-plus/-plus-lora`, `fal-ai/flux-pro/kontext`, Seedream v4.5/v5-lite, SeedEdit v3, celá Nano-Banana/Gemini rodina, `fal-ai/gpt-image-1/edit-image`, `fal-ai/gpt-image-1-mini/edit`, `fal-ai/ideogram/v3/replace-background`.
 
 **Segmentace pro A1 (SAM 3 jako cesta k prvkům):** registrovat `fal-ai/sam-3/image` (masks) nebo `fal-ai/sam-3/image-rle` (kompaktnější) — oba potvrzeny živé.
 
 **Nezměněno:** `fal-ai/qwen-image-layered` (dekompozice) funguje beze změny, žádný dopad na A1/provider layer z tohoto sweepu.
+
+## ADDENDUM 2026-08-14 (pozdější ověření) — neúplnost discovery
+
+Uživatel upozornil na chybějící **Seedance 2.5** a **GPT-Image 2** — obojí na fal.ai EXISTUJE a bylo doplněno výše (raw OpenAPI ověření, stejná metoda):
+- `bytedance/seedance-2.5/image-to-video` + `/reference-to-video` — žádná mask/camera pole (závěr o motion se nemění).
+- `fal-ai/gpt-image-2` (gen) + **`fal-ai/gpt-image-2/edit` s `mask_url`** — nový mask-inpaint kandidát pro provider registry.
+
+**Poučení o metodě:** discovery přes fal search stránky je neúplná (stránkování, rate limit 429 při sweepu, nová vydání průběžně) — sweep je datovaný snapshot, NE vyčerpávající katalog. Capability map v `grafik/providers/` proto musí nést `verified_at` per endpoint a ověření se musí dát levně přehrát (existence = 1 GET; `null`/404 = neexistuje). Jména modelů známá uživateli jsou cenný nezávislý vstup do discovery.
 
 ## Reprodukovatelnost — fetchnuté schema URL (2026-08-14, toto kolo)
 
