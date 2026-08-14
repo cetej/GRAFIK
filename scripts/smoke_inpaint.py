@@ -58,6 +58,8 @@ LAYER_ORDER = [
 TARGET_LAYER = "7d30fcc59fa3"
 
 CANVAS_W, CANVAS_H = 544, 736
+_NATIVE_SIZE = (CANVAS_W, CANVAS_H)  # source layer PNG resolution; CANVAS_W/H may be
+                                      # overridden at runtime via --long-edge
 
 ENDPOINT = "fal-ai/qwen-image-edit/inpaint"
 
@@ -90,19 +92,32 @@ def flatten_to_rgb(rgba: Image.Image) -> Image.Image:
 def build_masks() -> tuple[Image.Image, Image.Image, Image.Image, list[int] | None]:
     """Simulate the production mask path for Layer 3.
 
+    Default (CANVAS_W/H == native 544x736): downscale 50% then upscale back to
+    native res, bilinear both ways (production-path resolution-loss simulation).
+
+    --long-edge mode (CANVAS_W/H overridden to a larger target): the native
+    low-res alpha is upscaled directly (single BILINEAR step) to the target
+    canvas resolution. dilate/feather kernel sizes are NOT scaled up with
+    resolution -- same MaxFilter(9)/GaussianBlur(2) as production, on purpose.
+
     Returns (binary_pre_dilate, dilated_hard_binary, feathered_soft, alpha_bbox).
     """
     layer_img = Image.open(LAYERS_DIR / f"{TARGET_LAYER}.png").convert("RGBA")
     alpha = layer_img.split()[3]
-    assert alpha.size == (CANVAS_W, CANVAS_H), f"unexpected layer size {alpha.size}"
+    assert alpha.size == _NATIVE_SIZE, f"unexpected layer size {alpha.size}"
 
     alpha_arr = np.array(alpha)
     ys, xs = np.where(alpha_arr > 12)
     bbox = [int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())] if len(xs) else None
 
-    # Production-path simulation: downscale 50% then upscale back, bilinear both ways
-    small = alpha.resize((CANVAS_W // 2, CANVAS_H // 2), Image.BILINEAR)
-    up = small.resize((CANVAS_W, CANVAS_H), Image.BILINEAR)
+    if (CANVAS_W, CANVAS_H) == _NATIVE_SIZE:
+        # Production-path simulation: downscale 50% then upscale back, bilinear both ways
+        small = alpha.resize((CANVAS_W // 2, CANVAS_H // 2), Image.BILINEAR)
+        up = small.resize((CANVAS_W, CANVAS_H), Image.BILINEAR)
+    else:
+        # --long-edge mode: native low-res alpha upscaled directly to the target
+        # canvas resolution (single BILINEAR step, no intermediate downscale).
+        up = alpha.resize((CANVAS_W, CANVAS_H), Image.BILINEAR)
 
     # Threshold -> hard binary (kept as a copy per spec)
     binary = up.point(lambda x: 255 if x >= 128 else 0)
@@ -139,19 +154,46 @@ def call_inpaint(image_url: str, mask_url: str, enable_safety_checker: bool) -> 
 
 
 def main() -> None:
+    global CANVAS_W, CANVAS_H
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", help="skip the network call")
+    parser.add_argument(
+        "--long-edge",
+        type=int,
+        default=None,
+        help=(
+            "upscale composite+mask to this long-edge size in px (LANCZOS for "
+            "image content, BILINEAR for mask), preserving aspect ratio. "
+            "Default None = existing 544x736 behavior, unchanged."
+        ),
+    )
     args = parser.parse_args()
+
+    out_dir = OUT_DIR
+    if args.long_edge:
+        orig_w, orig_h = CANVAS_W, CANVAS_H
+        if orig_w >= orig_h:
+            new_w = args.long_edge
+            new_h = round(args.long_edge * orig_h / orig_w)
+        else:
+            new_h = args.long_edge
+            new_w = round(args.long_edge * orig_w / orig_h)
+        new_w += new_w % 2  # round up to even
+        new_h += new_h % 2
+        CANVAS_W, CANVAS_H = new_w, new_h
+        out_dir = OUT_DIR / "4k"
+        out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Composite input
     composite_rgba = composite_layers()
     input_rgb = flatten_to_rgb(composite_rgba)
-    input_path = OUT_DIR / "inpaint_input.png"
+    input_path = out_dir / "inpaint_input.png"
     input_rgb.save(input_path, "PNG")
 
     # 2. Masks
     binary, dilated, feathered, bbox = build_masks()
-    mask_path = OUT_DIR / "inpaint_mask.png"
+    mask_path = out_dir / "inpaint_mask.png"
     dilated.convert("RGB").save(mask_path, "PNG")  # hard binary version sent to API
 
     mask_stats = {
@@ -208,7 +250,7 @@ def main() -> None:
         else:
             result_img = result_img_raw
 
-    result_path = OUT_DIR / "inpaint_result_raw.png"
+    result_path = out_dir / "inpaint_result_raw.png"
     result_img.save(result_path, "PNG")
 
     # 3. Metrics — raw diff outside mask
@@ -232,7 +274,7 @@ def main() -> None:
         np.float64
     ) * feather_norm
     final_img = Image.fromarray(np.clip(final_arr_f, 0, 255).astype(np.uint8), mode="RGB")
-    final_path = OUT_DIR / "inpaint_final.png"
+    final_path = out_dir / "inpaint_final.png"
     final_img.save(final_path, "PNG")
 
     final_arr = np.array(final_img, dtype=np.int16)
@@ -247,7 +289,7 @@ def main() -> None:
     # Diff heatmap (raw result vs input, amplified x4)
     heat = np.clip(diff_raw.astype(np.float64) * 4, 0, 255).astype(np.uint8)
     heat_img = Image.fromarray(heat, mode="RGB")
-    heatmap_path = OUT_DIR / "inpaint_diff_heatmap.png"
+    heatmap_path = out_dir / "inpaint_diff_heatmap.png"
     heat_img.save(heatmap_path, "PNG")
 
     # 5. Seam check: boundary ring = dilate(dilated,+4px) AND NOT erode(dilated,-4px)
@@ -264,6 +306,8 @@ def main() -> None:
     metrics = {
         "endpoint": ENDPOINT,
         "dry_run": args.dry_run,
+        "long_edge_arg": args.long_edge,
+        "canvas_size_wh": [CANVAS_W, CANVAS_H],
         "prompt": PROMPT,
         "negative_prompt": NEGATIVE_PROMPT,
         "call_log": call_log,
