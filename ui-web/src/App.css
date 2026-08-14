@@ -80,3 +80,37 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+.view-switch {
+  position: fixed;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  gap: 4px;
+  background: rgba(18, 19, 24, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 4px;
+  backdrop-filter: blur(4px);
+}
+
+.view-switch button {
+  background: transparent;
+  border: none;
+  color: #b7b7bf;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.view-switch button:hover {
+  color: #e7e7ea;
+}
+
+.view-switch button.active {
+  background: #2a2b33;
+  color: #e7e7ea;
+}
