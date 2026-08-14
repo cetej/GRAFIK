@@ -56,6 +56,74 @@ export interface TransformRequestBody {
   rotation?: number;
 }
 
+export type ProviderKind = 'image_edit' | 'video' | 'segment';
+
+export interface ProviderCapabilities {
+  supports_mask: boolean;
+  supports_dynamic_masks: boolean;
+  supports_camera_params: boolean;
+  supports_camera_preset: boolean;
+  supports_camera_prompt: boolean;
+  verified_at: string;
+  notes: string;
+}
+
+export interface ProviderInfo {
+  id: string;
+  endpoint: string;
+  kind: ProviderKind;
+  capabilities: ProviderCapabilities;
+  price_note: string;
+  has_impl: boolean;
+}
+
+/** Body for POST /api/projects/{id}/layers/{layerId}/ai-edit. mask_b64 is a base64 PNG (no data: prefix), canvas-sized, white = editable area. */
+export interface AiEditRequestBody {
+  prompt: string;
+  provider: string;
+  dilate_px?: number;
+  feather_px?: number;
+  mask_b64?: string;
+}
+
+export interface AiEditResponse {
+  layer: LayerResponse;
+  provider: string;
+  elapsed_s: number;
+}
+
+/** Body for POST /api/projects/{id}/layers/{layerId}/inpaint-behind. */
+export interface InpaintBehindRequestBody {
+  prompt?: string;
+  provider?: string;
+}
+
+export interface InpaintBehindResponse {
+  /** The CHANGED background layer, not the target layer named in the URL. */
+  layer: LayerResponse;
+  provider: string;
+  elapsed_s: number;
+}
+
+export interface SegmentResponse {
+  layers: LayerResponse[];
+  mask_count: number;
+}
+
+export interface HistoryResponse {
+  undo_count: number;
+  redo_count: number;
+}
+
+export interface UndoRedoResponse {
+  undone?: boolean;
+  redone?: boolean;
+}
+
+export interface DeleteLayerResponse {
+  deleted: string;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -66,6 +134,19 @@ export class ApiError extends Error {
   }
 }
 
+/** Extracts a `{detail}` message from a non-ok JSON error response, falling back to the status line, then throws. */
+async function throwForError(res: Response, path: string): Promise<never> {
+  let detail = '';
+  try {
+    const body: unknown = await res.json();
+    const maybeDetail = (body as { detail?: unknown } | null)?.detail;
+    detail = typeof maybeDetail === 'string' ? maybeDetail : JSON.stringify(body);
+  } catch {
+    // Response body wasn't JSON — fall back to the status text below.
+  }
+  throw new ApiError(detail || `${res.status} ${res.statusText} (${path})`, res.status);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
@@ -73,19 +154,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch (err) {
     throw new ApiError(`Network error calling ${path}: ${err instanceof Error ? err.message : String(err)}`, 0);
   }
-  if (!res.ok) {
-    let detail = '';
-    try {
-      const body: unknown = await res.json();
-      const maybeDetail = (body as { detail?: unknown } | null)?.detail;
-      detail = typeof maybeDetail === 'string' ? maybeDetail : JSON.stringify(body);
-    } catch {
-      // Response body wasn't JSON — fall back to the status text below.
-    }
-    throw new ApiError(detail || `${res.status} ${res.statusText} (${path})`, res.status);
-  }
+  if (!res.ok) await throwForError(res, path);
   return (await res.json()) as T;
 }
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 export function listProjects(): Promise<ProjectListItem[]> {
   return request<ProjectListItem[]>('/api/projects');
@@ -99,10 +172,18 @@ export function listLayers(projectId: string): Promise<LayerResponse[]> {
   return request<LayerResponse[]>(`/api/projects/${projectId}/layers`);
 }
 
-/** Direct <img>-able URL for a layer's RGBA PNG. `checker` overlays a checkerboard so transparency is visible. */
-export function layerPngUrl(projectId: string, layerId: string, checker = false): string {
-  const query = checker ? '?checker=true' : '';
-  return `${API_BASE}/api/projects/${projectId}/layers/${layerId}/png${query}`;
+/**
+ * Direct <img>-able URL for a layer's RGBA PNG. `checker` overlays a checkerboard so
+ * transparency is visible. `version` is a client-side cache-buster (see pngVersions in
+ * EditorApp) — bump it after a mutation so the <img> actually re-fetches instead of
+ * reusing a cached response for the same URL.
+ */
+export function layerPngUrl(projectId: string, layerId: string, checker = false, version?: number): string {
+  const params = new URLSearchParams();
+  if (checker) params.set('checker', 'true');
+  if (version !== undefined) params.set('v', String(version));
+  const query = params.toString();
+  return `${API_BASE}/api/projects/${projectId}/layers/${layerId}/png${query ? `?${query}` : ''}`;
 }
 
 export function saveTransform(
@@ -122,4 +203,93 @@ export function toggleVisibility(projectId: string, layerId: string): Promise<La
   return request<LayerResponse>(`/api/projects/${projectId}/layers/${layerId}/visibility`, {
     method: 'POST',
   });
+}
+
+export function listProviders(kind?: ProviderKind): Promise<ProviderInfo[]> {
+  const query = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+  return request<ProviderInfo[]>(`/api/providers${query}`);
+}
+
+export function aiEditLayer(projectId: string, layerId: string, body: AiEditRequestBody): Promise<AiEditResponse> {
+  return request<AiEditResponse>(`/api/projects/${projectId}/layers/${layerId}/ai-edit`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+export function inpaintBehind(
+  projectId: string,
+  layerId: string,
+  body: InpaintBehindRequestBody,
+): Promise<InpaintBehindResponse> {
+  return request<InpaintBehindResponse>(`/api/projects/${projectId}/layers/${layerId}/inpaint-behind`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+/** Whole updated layer list (server re-sorts by z_order internally; caller should not assume order). */
+export function reorderLayer(projectId: string, layerId: string, zOrder: number): Promise<LayerResponse[]> {
+  return request<LayerResponse[]>(`/api/projects/${projectId}/layers/${layerId}/reorder`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ z_order: zOrder }),
+  });
+}
+
+export function segmentProject(projectId: string, text: string): Promise<SegmentResponse> {
+  return request<SegmentResponse>(`/api/projects/${projectId}/segment`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ text }),
+  });
+}
+
+export function createProject(name: string): Promise<ProjectResponse> {
+  return request<ProjectResponse>('/api/projects', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name, canvas_width: 0, canvas_height: 0 }),
+  });
+}
+
+/** Multipart upload; num_layers is a QUERY param (not form/body) per the API contract. */
+export function decomposeFile(projectId: string, file: File, numLayers: number): Promise<LayerResponse[]> {
+  const form = new FormData();
+  form.append('file', file);
+  return request<LayerResponse[]>(
+    `/api/projects/${projectId}/decompose/file?num_layers=${encodeURIComponent(String(numLayers))}`,
+    { method: 'POST', body: form },
+  );
+}
+
+/** Binary PNG — caller turns the blob into an <a download> click (see handleExportPng in EditorApp). */
+export async function exportPng(projectId: string): Promise<Blob> {
+  const path = `/api/projects/${projectId}/export/png`;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { method: 'POST' });
+  } catch (err) {
+    throw new ApiError(`Network error calling ${path}: ${err instanceof Error ? err.message : String(err)}`, 0);
+  }
+  if (!res.ok) await throwForError(res, path);
+  return res.blob();
+}
+
+export function deleteLayer(projectId: string, layerId: string): Promise<DeleteLayerResponse> {
+  return request<DeleteLayerResponse>(`/api/projects/${projectId}/layers/${layerId}`, { method: 'DELETE' });
+}
+
+export function undoProject(projectId: string): Promise<UndoRedoResponse> {
+  return request<UndoRedoResponse>(`/api/projects/${projectId}/undo`, { method: 'POST' });
+}
+
+export function redoProject(projectId: string): Promise<UndoRedoResponse> {
+  return request<UndoRedoResponse>(`/api/projects/${projectId}/redo`, { method: 'POST' });
+}
+
+export function getHistory(projectId: string): Promise<HistoryResponse> {
+  return request<HistoryResponse>(`/api/projects/${projectId}/history`);
 }

@@ -32,6 +32,70 @@
   flex-shrink: 0;
 }
 
+.editor-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 14px;
+  background: #16171c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.editor-toolbar button,
+.editor-toolbar select {
+  background: #1f2027;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e7e7ea;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.editor-toolbar button:hover:not(:disabled) {
+  background: #2a2b33;
+}
+
+.editor-toolbar button:disabled,
+.editor-toolbar select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tool-btn.active {
+  background: #2a3f6b;
+  border-color: #4a7dff;
+  color: #cfe0ff;
+}
+
+.brush-controls {
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.brush-size-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b7b7bf;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
 .editor-body {
   flex: 1;
   display: flex;
@@ -131,11 +195,140 @@
   opacity: 0.3;
 }
 
+.layer-item .badge {
+  flex-shrink: 0;
+  background: #2a3f6b;
+  color: #cfe0ff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.layer-item .zorder-controls {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.layer-item .zorder-controls button,
+.layer-item .delete-btn {
+  background: transparent;
+  border: none;
+  color: #e7e7ea;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.layer-item .zorder-controls button {
+  font-size: 9px;
+}
+
+.layer-item .delete-btn {
+  font-size: 13px;
+}
+
+.layer-item .zorder-controls button:disabled,
+.layer-item .delete-btn:disabled,
+.layer-item .eye:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
 .editor-canvas-area {
   flex: 1;
   position: relative;
   background: #0e0f13;
   min-width: 0;
+}
+
+.editor-inspector {
+  width: 300px;
+  flex-shrink: 0;
+  background: #16171c;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-inspector h2 {
+  font-size: 14px;
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.inspector-section {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inspector-section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a8a92;
+  margin: 0 0 2px;
+}
+
+.inspector-section input[type='text'],
+.inspector-section select,
+.inspector-textarea {
+  background: #1f2027;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e7e7ea;
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  width: 100%;
+}
+
+.inspector-textarea {
+  resize: vertical;
+  min-height: 56px;
+}
+
+.inspector-section button {
+  align-self: flex-start;
+  background: #2a3f6b;
+  border: 1px solid #4a7dff;
+  color: #cfe0ff;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.inspector-section button:hover:not(:disabled) {
+  background: #34497a;
+}
+
+.inspector-section button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e7e7ea;
+}
+
+.inline-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.editor-hint.error {
+  color: #ff9b9b;
 }
 
 .editor-empty {
@@ -183,4 +376,26 @@
 
 .status-strip .spacer {
   flex: 1;
+}
+
+.status-op {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #4a7dff;
+  animation: editor-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes editor-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
