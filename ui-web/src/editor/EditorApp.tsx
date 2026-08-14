@@ -44,7 +44,7 @@ import InspectorPanel from './InspectorPanel';
 import LayersPanel from './LayersPanel';
 import MotionPanel from './MotionPanel';
 import ClipsPanel from './ClipsPanel';
-import TrajectoryOverlay from './TrajectoryOverlay';
+import TrajectoryOverlay, { TRAJECTORY_ANCHOR_NAME } from './TrajectoryOverlay';
 import { useBrush } from './useBrush';
 import type { Tool, BusyState, CanvasPoint } from './types';
 import './EditorApp.css';
@@ -868,11 +868,17 @@ export default function EditorApp() {
       return;
     }
     if (tool === 'motion') {
-      // Layers listen (and can be clicked to select) in motion mode too — only a click that
-      // reaches the empty Stage background, with a layer already selected, adds a point.
-      if (e.target === stageRef.current && selectedLayer) {
+      // A full-bleed background layer means canvas clicks practically never reach the empty
+      // Stage itself (M3 E2E finding), so "click on empty background" can't be the add-point
+      // gesture. Instead: with a layer selected, ANY click inside the canvas rect adds a point
+      // — except on a trajectory anchor, whose drag must not spawn extra points. Selection
+      // switches via LayersPanel (or by canvas click while nothing is selected yet).
+      if (e.target.name?.() === TRAJECTORY_ANCHOR_NAME) return;
+      if (selectedLayer) {
         const pt = getCanvasPoint();
-        if (pt) handleAddTrajectoryPoint(selectedLayer, pt);
+        if (pt && pt.x >= 0 && pt.x <= canvasWidth && pt.y >= 0 && pt.y <= canvasHeight) {
+          handleAddTrajectoryPoint(selectedLayer, pt);
+        }
       }
       return;
     }
@@ -1022,8 +1028,16 @@ export default function EditorApp() {
                       visible={layer.visible}
                       listening={layer.visible && layersListenable}
                       draggable={layer.visible && interactive}
-                      onClick={() => setSelectedLayerId(layer.id)}
-                      onTap={() => setSelectedLayerId(layer.id)}
+                      onClick={() => {
+                        // In motion mode with a selection, canvas clicks add trajectory
+                        // points (Stage mousedown) — don't let them also switch layers.
+                        if (tool === 'motion' && selectedLayerId) return;
+                        setSelectedLayerId(layer.id);
+                      }}
+                      onTap={() => {
+                        if (tool === 'motion' && selectedLayerId) return;
+                        setSelectedLayerId(layer.id);
+                      }}
                       onDragEnd={() => handleDragEnd(layer)}
                       onTransformEnd={() => handleTransformEnd(layer)}
                     />

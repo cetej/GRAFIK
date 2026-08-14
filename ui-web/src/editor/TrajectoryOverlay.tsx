@@ -5,6 +5,10 @@ import type { CanvasPoint } from './types';
 const SELECTED_COLOR = '#4a7dff';
 const OTHER_COLOR = '#888';
 
+/** Konva node name for anchor Circles — EditorApp's Stage mousedown checks it so grabbing
+ * an anchor never doubles as an add-point click. */
+export const TRAJECTORY_ANCHOR_NAME = 'trajectory-anchor';
+
 interface TrajectoryOverlayProps {
   /** All layers of the current project (only those with motion.trajectory get an Arrow drawn). */
   layers: LayerResponse[];
@@ -62,6 +66,7 @@ export default function TrajectoryOverlay(props: TrajectoryOverlayProps) {
         selectedTrajectory.map((pt, index) => (
           <Circle
             key={`anchor-${selectedLayer.id}-${index}`}
+            name={TRAJECTORY_ANCHOR_NAME}
             x={pt.x}
             y={pt.y}
             radius={6 / scale}
