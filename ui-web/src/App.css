@@ -1,0 +1,82 @@
+.spike-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.spike-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.panel {
+  position: fixed;
+  z-index: 10;
+  background: rgba(18, 19, 24, 0.82);
+  color: #e7e7ea;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  backdrop-filter: blur(4px);
+}
+
+.panel-top-left {
+  top: 12px;
+  left: 12px;
+  max-width: 480px;
+}
+
+.panel-top-left h1 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.panel-top-left p {
+  margin: 0 0 4px;
+  color: #b7b7bf;
+}
+
+.panel-top-left .status {
+  color: #ffcc66;
+  font-weight: 600;
+}
+
+.panel-top-right {
+  top: 12px;
+  right: 12px;
+  padding: 6px 12px;
+}
+
+.fps {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 700;
+  color: #7ee787;
+}
+
+.panel-results {
+  bottom: 12px;
+  right: 12px;
+  max-width: 480px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.panel-results h2 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: #b7b7bf;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.panel-results pre {
+  margin: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
