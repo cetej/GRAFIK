@@ -22,12 +22,16 @@ from grafik.api.models import (
     HistoryResponse,
     HitTestRequest,
     HitTestResponse,
+    InpaintBehindRequest,
+    InpaintBehindResponse,
     LayerResponse,
     MaskRequest,
     OpacityRequest,
     ProjectListItem,
     ProjectResponse,
+    ProviderListItem,
     RecolorRequest,
+    ReorderRequest,
     ScaleRequest,
     SegmentRequest,
     SegmentResponse,
@@ -102,6 +106,31 @@ def _layer_response(l) -> LayerResponse:
         width=l.width, height=l.height, rotation=l.rotation,
         source=l.source, tags=l.tags,
     )
+
+
+def _boxes_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """True if two (left, top, right, bottom) boxes overlap with positive area."""
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+# --- Providers ---
+
+
+@app.get("/api/providers")
+def list_providers_route(kind: str | None = None) -> list[ProviderListItem]:
+    from grafik.providers.registry import list_providers
+
+    return [
+        ProviderListItem(
+            id=e.info.id,
+            endpoint=e.info.endpoint,
+            kind=e.info.kind,
+            capabilities=e.info.capabilities,
+            price_note=e.info.price_note,
+            has_impl=e.impl is not None,
+        )
+        for e in list_providers(kind)
+    ]
 
 
 # --- Projects ---
@@ -353,6 +382,18 @@ def transform_layer(project_id: str, layer_id: str, req: TransformRequest) -> La
     return _layer_response(layer)
 
 
+@app.post("/api/projects/{project_id}/layers/{layer_id}/reorder")
+def reorder_layer(project_id: str, layer_id: str, req: ReorderRequest) -> list[LayerResponse]:
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    project.reorder(layer_id, req.z_order)
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return [_layer_response(l) for l in project.layers]
+
+
 # --- Composite ---
 
 
@@ -584,21 +625,35 @@ def run_workflow(project_id: str, req: WorkflowRequest) -> list[WorkflowStepResp
 
 @app.post("/api/projects/{project_id}/layers/{layer_id}/ai-edit")
 def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditResponse:
-    """Prompt-edit one layer inside its own (thresholded, feathered) alpha mask.
+    """Prompt-edit one layer inside a mask -- either its own alpha, or an
+    explicit brush mask from the request.
 
-    The mask is the layer's own alpha (>127 = editable), pasted into a
-    canvas-size black frame at (layer.x, layer.y) -- layers in this repo are
-    canvas-sized already (decompose output), but this also positions
-    smaller/offset layers correctly. The provider edits the full composite
-    inside that mask (mandatory paste-back happens inside the provider, e.g.
-    QwenInpaintProvider); the result is cropped back to the layer's own box
-    and its alpha replaced by a freshly dilated+feathered copy of the mask
-    (dilate_px/feather_px from the request), so the edit REPLACES the
-    layer's content in place (ideal-state: "vysledek nahradi obsah vrstvy")
-    without resizing or repositioning the layer.
+    Default (mask_b64 unset): the mask is the layer's own alpha (>127 =
+    editable), pasted into a canvas-size black frame at (layer.x, layer.y)
+    -- layers in this repo are canvas-sized already (decompose output), but
+    this also positions smaller/offset layers correctly. The result is
+    cropped back to the layer's own box and its alpha replaced outright by a
+    freshly dilated+feathered copy of the mask (dilate_px/feather_px from
+    the request), so the edit REPLACES the layer's content in place
+    (ideal-state: "vysledek nahradi obsah vrstvy") without resizing or
+    repositioning the layer.
+
+    Brush mode (mask_b64 set): the mask is a canvas-sized brush stroke drawn
+    by the user (base64 PNG, white=edit) instead of the layer's own alpha.
+    The result is MERGED into the layer's existing content instead of
+    replacing it -- new_rgb = original*(1-f) + edited*f, new_alpha =
+    max(original_alpha, feathered_mask) -- so pixels outside the feathered
+    brush stay bit-identical and the edit can only add opaque area, never
+    remove it.
+
+    Either way, the provider edits the full composite inside that mask
+    (mandatory paste-back happens inside the provider, e.g.
+    QwenInpaintProvider).
     """
+    import base64
     import time
 
+    import numpy as np
     from PIL import Image, ImageFilter
 
     from grafik.providers.registry import get_provider
@@ -620,15 +675,27 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
         raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
 
     layer_img = layer.load_image(path)  # RGBA, layer-local size
-    hard_mask_local = layer_img.split()[-1].point(lambda a: 255 if a > 127 else 0)
-
     composite = compose(project, path)
-    hard_mask_canvas = Image.new("L", composite.size, 0)
-    hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
+
+    if req.mask_b64 is None:
+        hard_mask_local = layer_img.split()[-1].point(lambda a: 255 if a > 127 else 0)
+        hard_mask_canvas = Image.new("L", composite.size, 0)
+        hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
+    else:
+        brush_mask = Image.open(BytesIO(base64.b64decode(req.mask_b64))).convert("L")
+        if brush_mask.size != composite.size:
+            raise HTTPException(
+                400,
+                f"mask_b64 size {brush_mask.size} does not match composite size {composite.size}",
+            )
+        hard_mask_canvas = brush_mask.point(lambda a: 255 if a > 127 else 0)
 
     provider = entry.impl()
     start = time.monotonic()
-    edited = provider.edit(composite, hard_mask_canvas, req.prompt)
+    try:
+        edited = provider.edit(composite, hard_mask_canvas, req.prompt)
+    except Exception as exc:
+        raise HTTPException(502, f"AI edit failed ({req.provider}): {exc}")
     elapsed = time.monotonic() - start
 
     feathered_canvas = hard_mask_canvas
@@ -640,13 +707,131 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
     box = (layer.x, layer.y, layer.x + layer_img.width, layer.y + layer_img.height)
     new_rgb_local = edited.crop(box)
     new_alpha_local = feathered_canvas.crop(box)
-    new_layer_img = Image.merge("RGBA", (*new_rgb_local.split(), new_alpha_local))
+
+    if req.mask_b64 is None:
+        new_layer_img = Image.merge("RGBA", (*new_rgb_local.split(), new_alpha_local))
+    else:
+        # Merge into the existing layer instead of replacing it: pixels
+        # where the feathered brush mask is 0 must stay bit-identical.
+        orig_rgb = np.array(layer_img.convert("RGB"), dtype=np.float64)
+        orig_alpha = np.array(layer_img.split()[-1])
+        f = np.array(new_alpha_local, dtype=np.float64)[..., None] / 255.0
+        merged_rgb = np.clip(
+            orig_rgb * (1 - f) + np.array(new_rgb_local, dtype=np.float64) * f, 0, 255
+        ).astype(np.uint8)
+        merged_alpha = np.maximum(orig_alpha, np.array(new_alpha_local))
+        new_layer_img = Image.merge(
+            "RGBA",
+            (*Image.fromarray(merged_rgb, "RGB").split(), Image.fromarray(merged_alpha, "L")),
+        )
 
     layer.save_image(new_layer_img, path)
     _snapshot(project_id, project, path)
     project.save(path)
 
     return AiEditResponse(layer=_layer_response(layer), provider=req.provider, elapsed_s=elapsed)
+
+
+# --- Inpaint behind (fill background left by a removed/edited element) ---
+
+
+DEFAULT_BEHIND_PROMPT = "seamless continuation of the surrounding background, no objects, no text"
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/inpaint-behind")
+def inpaint_behind_layer(project_id: str, layer_id: str, req: InpaintBehindRequest) -> InpaintBehindResponse:
+    """Fill in the background behind one layer (e.g. after cutting out a subject).
+
+    The target layer's own (thresholded) alpha is the edit mask; the
+    provider edits a composite of the project with the target layer removed
+    (so it never sees the element it's meant to paint over). The result is
+    merged -- same dilate+feather+merge math as ai-edit's mask_b64 path --
+    into the lowest z-order OTHER visible layer, so the hole left behind
+    becomes opaque background instead of a hard cutout.
+    """
+    import time
+
+    import numpy as np
+    from PIL import Image, ImageFilter
+
+    from grafik.providers.registry import get_provider
+
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+
+    try:
+        entry = get_provider(req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    if entry.info.kind != "image_edit":
+        raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'image_edit'")
+    if not entry.info.capabilities.supports_mask:
+        raise HTTPException(
+            400, f"Provider {req.provider!r} does not support mask-based edit (supports_mask=False)"
+        )
+    if entry.impl is None:
+        raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
+
+    bg_candidates = [l for l in project.layers if l.visible and l.id != layer_id]
+    if not bg_candidates:
+        raise HTTPException(400, "no other visible layer to inpaint into")
+    bg_layer = min(bg_candidates, key=lambda l: l.z_order)
+
+    composite = compose(project, path)
+    layer_img = layer.load_image(path)  # RGBA, layer-local size
+    hard_alpha_local = layer_img.split()[-1].point(lambda a: 255 if a > 127 else 0)
+    mask_canvas = Image.new("L", composite.size, 0)
+    mask_canvas.paste(hard_alpha_local, (layer.x, layer.y))
+
+    bg_img = bg_layer.load_image(path)
+    bg_box = (bg_layer.x, bg_layer.y, bg_layer.x + bg_img.width, bg_layer.y + bg_img.height)
+    footprint = mask_canvas.getbbox()
+    if footprint is None or not _boxes_overlap(footprint, bg_box):
+        raise HTTPException(400, "target footprint does not overlap the background layer")
+
+    # Compose the project WITHOUT the target layer -- the provider must not see
+    # the element it's meant to paint over.
+    project_copy = project.model_copy(deep=True)
+    project_copy.remove_layer(layer_id)
+    base = compose(project_copy, path)
+
+    prompt = req.prompt or DEFAULT_BEHIND_PROMPT
+    provider = entry.impl()
+    start = time.monotonic()
+    try:
+        edited = provider.edit(base, mask_canvas, prompt)
+    except Exception as exc:
+        raise HTTPException(502, f"AI edit failed ({req.provider}): {exc}")
+    elapsed = time.monotonic() - start
+
+    feathered_canvas = mask_canvas
+    if req.dilate_px > 0:
+        feathered_canvas = feathered_canvas.filter(ImageFilter.MaxFilter(2 * req.dilate_px + 1))
+    if req.feather_px > 0:
+        feathered_canvas = feathered_canvas.filter(ImageFilter.GaussianBlur(req.feather_px))
+
+    edited_crop = edited.crop(bg_box)
+    feathered_crop = feathered_canvas.crop(bg_box)
+
+    orig_rgb = np.array(bg_img.convert("RGB"), dtype=np.float64)
+    orig_alpha = np.array(bg_img.split()[-1])
+    f = np.array(feathered_crop, dtype=np.float64)[..., None] / 255.0
+    merged_rgb = np.clip(
+        orig_rgb * (1 - f) + np.array(edited_crop, dtype=np.float64) * f, 0, 255
+    ).astype(np.uint8)
+    merged_alpha = np.maximum(orig_alpha, np.array(feathered_crop))
+
+    new_bg_img = Image.merge(
+        "RGBA",
+        (*Image.fromarray(merged_rgb, "RGB").split(), Image.fromarray(merged_alpha, "L")),
+    )
+    bg_layer.save_image(new_bg_img, path)
+    _snapshot(project_id, project, path)
+    project.save(path)
+
+    return InpaintBehindResponse(layer=_layer_response(bg_layer), provider=req.provider, elapsed_s=elapsed)
 
 
 # --- Segmentation (SAM 3, task 1.7) ---
@@ -700,7 +885,10 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
         raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'segment'")
 
     composite = compose(project, path)
-    masks = _segment_remote(composite, req.text, entry.info.endpoint)
+    try:
+        masks = _segment_remote(composite, req.text, entry.info.endpoint)
+    except Exception as exc:
+        raise HTTPException(502, f"Segmentation failed ({req.provider}): {exc}")
     mask_count = len(masks)  # informational: how many SAM found, even if capped below
     masks = masks[:8]
 

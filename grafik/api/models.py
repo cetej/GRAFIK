@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from grafik.core.layer import BlendMode
 from grafik.core.motion import MotionSpec
+from grafik.providers.base import Capabilities, ProviderKind
 
 
 class CreateProjectRequest(BaseModel):
@@ -139,12 +140,42 @@ class AiEditRequest(BaseModel):
     provider: str = "qwen-inpaint"
     dilate_px: int = Field(default=4, ge=0)
     feather_px: int = Field(default=2, ge=0)
+    # Optional brush mask, base64 PNG (no data: prefix), canvas coords, white=edit.
+    # When set, the edit MERGES into the layer instead of replacing it -- see
+    # ai_edit_layer in grafik/api/app.py.
+    mask_b64: str | None = None
 
 
 class AiEditResponse(BaseModel):
     layer: LayerResponse
     provider: str
     elapsed_s: float
+
+
+class InpaintBehindRequest(BaseModel):
+    prompt: str = ""  # empty -> DEFAULT_BEHIND_PROMPT (grafik/api/app.py)
+    provider: str = "qwen-inpaint"
+    dilate_px: int = Field(default=4, ge=0)
+    feather_px: int = Field(default=2, ge=0)
+
+
+class InpaintBehindResponse(BaseModel):
+    layer: LayerResponse  # the background layer that received the fill
+    provider: str
+    elapsed_s: float
+
+
+class ReorderRequest(BaseModel):
+    z_order: int
+
+
+class ProviderListItem(BaseModel):
+    id: str
+    endpoint: str
+    kind: ProviderKind
+    capabilities: Capabilities
+    price_note: str = ""
+    has_impl: bool
 
 
 class SegmentRequest(BaseModel):
