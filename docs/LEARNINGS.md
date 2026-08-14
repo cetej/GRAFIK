@@ -12,6 +12,10 @@
 
 Claude Code host drží Windows handle na cwd worktree po celou dobu session — `git worktree remove` odregistruje, ale smazání adresáře selže „Device or resource busy", i když procesy uvnitř skončily (obsah smazat jde, zbyde prázdná skořápka). Řešení: po merge hned smazat větev + `git worktree prune`, prázdný adresář smazat odloženě (detached retry skript) nebo z jiné session. Pozor: i wrapper `run_in_background` úlohy drží handle spawn-cwd — dlouhoběžící servery spouštět `Start-Process -WorkingDirectory <hlavní checkout>`, ne z worktree.
 
+## 2026-08-14 — RTK hook blokuje víceřádkový `git commit -m`
+
+Víceřádkový commit message v `-m` přes Bash selže ještě před spuštěním: RTK PreToolUse hook přepíše příkaz a přepsaný vstup neprojde schema validací („command contains control characters that would be hidden in the approval dialog"). Obejití: zapsat message do souboru (scratchpad) a `git commit -F <soubor>`.
+
 ## 2026-08-14 — RTK hook maskuje pytest výstup
 
 `python -m pytest` přes Bash s RTK hookem hlásí „No tests collected", i když testy proběhly. Obejít: `rtk proxy python -m pytest tests/... -q` — ukáže reálný výstup. Platí pro celou session i subagenty.
