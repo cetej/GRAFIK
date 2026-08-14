@@ -20,8 +20,8 @@ Vzniklo: 2026-08-14, /brainstorm session (STOPA). Rozšíření projektu GRAFIK 
 - [ ] Stejná edit operace routuje na hostovaný i open-weight provider — eval: `provider` param v API, oba průchody
 - [ ] Export PNG odpovídá náhledu kompozice — eval: export test, pixel diff vs composite
 - [ ] Prvku lze nakreslit trajektorii pohybu na canvasu — eval: UI check + trajektorie persistovaná v project.json
-- [ ] Video request nese masku vrstvy + trajektorii (Kling dynamic_masks) — eval: inspect request payloadu
-- [ ] Pohyb kamery (pan/tilt/zoom/roll) nastavitelný per klip — eval: camera_control v payloadu
+- [ ] MotionSpec (maska+trajektorie+kamera) se kompiluje na strukturovaný prompt — eval: inspect promptu v request payloadu <!-- reformulováno 2026-08-14 po gate: Kling dynamic_masks/camera_control = mrtvá API cesta, viz 2026-08-14-phase1-gate.md -->
+- [ ] Klip prochází pixel-diff verifikací vůči masce (hýbalo se to, co mělo) — eval: verifikační report u jobu + retry nabídka
 - [ ] Vygenerovaný klip se uloží k projektu a přehraje v UI — eval: manuální check
 - [ ] Obraz i video režim fungují v jednom UI nad jedním projektem — eval: manuální E2E průchod sc-1→sc-2
 - [ ] Selhání generace (moderace/timeout) zobrazí důvod a nepoškodí projekt — eval: mock-fail test, projekt reload OK
@@ -30,7 +30,7 @@ Vzniklo: 2026-08-14, /brainstorm session (STOPA). Rozšíření projektu GRAFIK 
 ## Success criteria V1 (binární)
 
 - sc-1: obrázek → vrstvy → posun/scale prvku → per-prvek AI edit → export PNG
-- sc-2: označení prvku + trajektorie + kamera → klip přes Kling API
+- sc-2: označení prvku + trajektorie + kamera → klip přes prompt-compiled motion (Kling 2.6/3.0, Seedance 2.5, Veo 3.1, Wan 2.6) + pixel-diff verifikace
 - sc-3: sc-1 i sc-2 z jednoho UI
 
 ## Další kroky greenfield flow
