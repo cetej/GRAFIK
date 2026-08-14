@@ -9,6 +9,8 @@ from pathlib import Path
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from grafik.core.motion import LayerMotion
+
 
 class BlendMode(str, Enum):
     NORMAL = "normal"
@@ -35,6 +37,7 @@ class Layer(BaseModel):
     source: str = ""
     tags: list[str] = Field(default_factory=list)
     png_path: str = ""
+    motion: LayerMotion | None = None
 
     def load_image(self, project_dir: Path) -> Image.Image:
         """Load the RGBA PNG from disk."""

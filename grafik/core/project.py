@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from grafik.core.layer import Layer
+from grafik.core.motion import ClipRecord
 
 
 class LayerProject(BaseModel):
@@ -24,6 +25,8 @@ class LayerProject(BaseModel):
     layers: list[Layer] = Field(default_factory=list)
     source_image_url: str = ""
     metadata: dict = Field(default_factory=dict)
+    schema_version: int = 2
+    clips: list[ClipRecord] = Field(default_factory=list)
 
     @classmethod
     def new(cls, name: str, width: int = 0, height: int = 0) -> LayerProject:
@@ -45,6 +48,7 @@ class LayerProject(BaseModel):
         path.mkdir(parents=True, exist_ok=True)
         (path / "layers").mkdir(exist_ok=True)
         (path / "composites").mkdir(exist_ok=True)
+        (path / "clips").mkdir(exist_ok=True)
 
         self.updated_at = datetime.now(timezone.utc).isoformat()
         manifest = path / "project.json"
