@@ -1,6 +1,42 @@
 # LEARNINGS — GRAFIK
 
-## 2026-08-14 — fal I2V: jméno image pole driftuje mezi verzemi, defaulty umí zdvojnásobit cenu
+## 2026-08-14 — Servírování videa: FileResponse (206), a jak odlišit bug od rozbité media pipeline
+
+**Kontext:** M3 E2E — `<video>` v editoru stál na readyState 0. Route vracela mp4 přes `Response(content=…)` (200 na všechno včetně Range probe). Fix: `FileResponse` (starlette ≥0.36 umí Range → 206), commit `a732042`.
+
+**Poučení:**
+1. Binární média vždy přes `FileResponse`/streaming s Range podporou — Chromium media stack bez 206 umí odmítnout hrát, i když `fetch()` téže URL funguje.
+2. Diagnostický žebřík media problémů: (a) curl mimo prohlížeč → server OK?; (b) `fetch()` ze stránky → síť z prohlížeče OK?; (c) `blob:` URL s daty v paměti do `video.src` → pokud stall i tady a resource timing nemá pro media URL žádný záznam, je rozbitá media pipeline celé instance prohlížeče (environmentální — restart Chrome), ne aplikace. Přesně tenhle případ nastal: fetch 33 ms, blob stall, prázdný resource timing + opakované >30 s freezy rendereru.
+
+## 2026-08-14 — Pixel-diff atribuce prvku nefunguje pod globálním pohybem kamery
+
+**Kontext:** M3 E2E klip (Wan 2.6): socha se reálně hýbala (vizuální kontrola framů), ale kamera zoomovala mnohem silněji než „slowly" → global_motion 55/255, in/out ratio 0,95 → verdikt „weak".
+
+**Poučení:** In-mask vs out-mask poměr měří *atribuci*, ne pohyb — jakmile kamera hýbe vším, poměr →1 a verdikt „weak" je pravdivé přiznání ne-atribuce (žádoucí chování closed-loop, ne bug). Pro čistou atribuci prvku: generovat verifikační klip s kamerou „Žádná", nebo (M4 kandidát) kompenzovat globální pohyb (optical flow / homografie) před diffem. Modely navíc interpretují adverbia intenzity („slowly") volně — kompilovaný prompt intenzitu kamery negarantuje.
+
+## 2026-08-14 — Konva: „klik do prázdna" neexistuje na scéně s celoplošným pozadím
+
+**Kontext:** M3 motion tool — gesto „klik na prázdný Stage přidá bod trajektorie" na reálném projektu nikdy nenastalo: spodní vrstva pokrývá celé plátno, alfa hit-test pohltí každý klik (výběr vrstvy místo bodu).
+
+**Poučení:** Gesta na canvasu nesmí spoléhat na „klik mimo vrstvy", pokud scéna může mít opaque pozadí. Vzor: v režimu nástroje s aktivním výběrem interpretovat VŠECHNY kliky do plátna jako akci nástroje; změna výběru jde přes panel vrstev; overlay prvky (kotvy) chránit Konva `name` checkem v Stage handleru. Commit `01eb06a`.
+
+## 2026-08-14 — E2E přes claude-in-chrome: zoom akce a syntetické dragy
+
+1. Akce `zoom` (region screenshot) po timeoutu zanechala tab s device-metrics override (viewport 464×220 = rozměr regionu) → všechny další kliky/screenshoty mimo, `resize_window` ani Ctrl+0 to nevrátí. Oprava: nový tab (nový CDP target). Na Konva-heavy stránkách `zoom` nepoužívat.
+2. Syntetický CDP drag (mousedown/move/up v jednom ticku) nespustí Konva drag (vrstvy ani kotvy) — reálná myš ano. Drag chování ověřovat Playwrightem (editor-verify.mjs vzor z M2) nebo nechat operátorovi; klikací E2E to má zapsat jako limitaci, ne FAIL.
+3. Screenshot souřadnice ↔ CSS px: mapování se mění s viewportem (po reloadu jiné) — pro přesné kliky brát `getBoundingClientRect` přes JS, nebo klikat přes `find`→ref. Ref může po přerenderování ukazovat na odpojený uzel — před klikem vždy čerstvý `find`.
+
+## 2026-08-14 — imageio_ffmpeg.read_frames: meta first-yield, konec streamu bez výjimky
+
+`read_frames` generator: první yield je meta dict (`size` (w,h), `fps`, `duration`, …), pak syrové RGB24 bytes (w×h×3). Kratší stream než odhad `fps×duration` prostě skončí iteraci — žádná výjimka, netřeba try/except. Binárka bundlovaná ve wheelu (`site-packages/imageio_ffmpeg/binaries/`), ffmpeg na PATH není potřeba. (Empiricky ověřeno v grafik/motion/verify.py; testy test_motion_verify.py.)
+
+## 2026-08-14 — API sémantika: /motion je full-replace, /transform je partial-patch
+
+`POST /layers/{id}/motion` nahrazuje celý LayerMotion tím, co přišlo (vynechaná pole = Pydantic defaulty), zatímco `/transform` aplikuje jen poslaná pole. Klient proto u motion vždy posílá kompletní objekt (`persistMotion` v EditorApp). Past pro budoucí přispěvatele: nekopírovat transform vzor na motion (tiše by nuloval nedotčená pole).
+
+## 2026-08-14 — Sdílené live fixtures: testy si musí pinovat baseline
+
+M2 E2E posunula vrstvy ve sdíleném `projects/decompose-test.grafik` (gitignored, společný pro všechny worktrees) → 2 předexistující inpaint-behind testy spadly o den později. Fix: `api` fixture v `test_api_m2.py` po copytree pinuje geometrii/viditelnost známých vrstev (a maže `history.json`). Pravidlo: (a) testy nad živým sdíleným adresářem si baseline vynucují samy, nikdy mu nevěří; (b) živá UI práce patří do `e2e-*` projektů, ne do referenčních fixtures.
 
 **Kontext:** M3 příprava. Raw OpenAPI fetch (metodika viz níže „jediný zdroj pravdy") odhalil, že `fal-ai/kling-video/v2.6/pro/image-to-video` bere **`start_image_url`** (REQUIRED), zatímco v1.5/v1.6 i Wan/Seedance berou `image_url`. Sdílený `build_video_payload` z fáze 1 posílal `image_url` všem → na Kling 2.6 by submit spadl na validaci (latentní bug, nikdy nevolán naostro — mock testy tvar payloadu vůči schématu neověřují). Navíc rizikové defaulty: Kling 2.6 pro a Seedance 2.5 mají `generate_audio` **default True** (≈2× cena), Wan 2.6 má `resolution` default **1080p** ($0.15/s místo $0.10/s) a `enable_prompt_expansion` default True (model přepisuje náš prompt — proti smyslu kompilovaného MotionSpec promptu).
 
