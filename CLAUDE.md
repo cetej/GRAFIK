@@ -64,7 +64,8 @@ E2E důkaz: `docs/spikes/2026-08-14-m2-e2e-sc1.md` (13/13 kroků klikáním v UI
 - [x] E2E sc-1 klikáním: dekompozice → výběr klikem → posun/scale → AI edit → inpaint pozadí → export; pixel-diff export vs composite **0,0**, export vs živý náhled mean **0,72** (kritérium #5); 4 placená volání, 0 console errors
 - [x] A1 paste-back re-test na 4K (2862×3872): PASS (outside 0,024, ring 1,063) + **empirický nález: qwen inpaint vrací max ~1536 px → resize-back v provideru je load-bearing** (viz LEARNINGS)
 - Testy: 67 pytest (offline, monkeypatched) + `node ui-web/editor-verify.mjs` (potřebuje běžící servery; placené kroky jen 1×, `--skip-paid` reuse)
-- Známé limity: undo/redo vrací jen metadata (project.json), ne pixely vrstev (AI edit je pixel-nevratný — kandidát M3+); `/hittest` ignoruje width/height škálování vrstvy (task chip založen); SAM může validně vrátit 0 masek
+- Známé limity: undo/redo vrací jen metadata (project.json), ne pixely vrstev (AI edit je pixel-nevratný — kandidát M3+); SAM může validně vrátit 0 masek
+- Fix (2026-08-14): `/hittest` nyní invertuje transformační model composeru (un-translate → inverzní rotace kolem kotvy → rescale layout→nativní px) — shoduje se s klientským Konva hit-testem i při width/height ≠ rozměry PNG a rotaci; regresní testy `tests/test_api_hittest.py`
 - Další: M3 (trajektorie UI, kamera panel, prompt-compiled joby + pixel-diff verifikace klipu, přehrávač)
 
 ### Fáze 3 — Pokročilé (TODO)

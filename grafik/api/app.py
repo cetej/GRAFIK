@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from io import BytesIO
 from pathlib import Path
 
@@ -430,22 +431,35 @@ def export_layers_png(project_id: str) -> dict:
 
 @app.post("/api/projects/{project_id}/hittest")
 def hittest(project_id: str, req: HitTestRequest) -> HitTestResponse:
-    """Find topmost visible layer at (x, y) by checking alpha > 0.
+    """Find topmost visible layer at canvas (x, y) by checking alpha > 0.
 
     Iterates layers top-to-bottom (highest z_order first).
     Returns the first layer where the pixel at (x, y) has alpha > 0.
-    """
-    from PIL import Image
 
+    Shares the renderer's transform model (composer + Konva client): the
+    native PNG is stretched to layer.width/height, then rotated clockwise
+    around the (x, y) anchor. The canvas point is mapped back to native
+    pixels by inverting those steps, so the answer matches the client's
+    alpha hit-test on the rendered layer.
+    """
     project, proj_dir = _load_project(project_id)
     # Check layers from top to bottom
     for layer in sorted(project.visible_layers(), key=lambda l: l.z_order, reverse=True):
         img = layer.load_image(proj_dir)
         if img is None:
             continue
-        # Convert (x, y) from canvas coords to layer-local coords
-        lx = req.x - layer.x
-        ly = req.y - layer.y
+        # Canvas -> layout space: un-translate, then undo the clockwise
+        # rotation around the anchor (y-down coords, Konva convention).
+        dx = req.x - layer.x
+        dy = req.y - layer.y
+        if layer.rotation:
+            theta = math.radians(layer.rotation)
+            cos_t, sin_t = math.cos(theta), math.sin(theta)
+            dx, dy = dx * cos_t + dy * sin_t, -dx * sin_t + dy * cos_t
+        # Layout -> native PNG pixels: layer.width/height may differ from
+        # the PNG on disk (scaled in editor, or set by decompose).
+        lx = math.floor(dx * img.width / (layer.width or img.width))
+        ly = math.floor(dy * img.height / (layer.height or img.height))
         if 0 <= lx < img.width and 0 <= ly < img.height:
             pixel = img.getpixel((lx, ly))
             # RGBA — check alpha channel

@@ -4,7 +4,9 @@
 
 **Kontext:** M2 E2E — serverová route `/hittest` predikovala „Layer 1", reálný klik v editoru vybral „Layer 0". Server testuje alfu v nativních pixelech PNG (`lx = x - layer.x`), klient renderuje protažené na `layer.width/height` (a decompose může uložit width/height ≠ rozměry PNG). Dvě „správné" odpovědi na tentýž bod.
 
-**Poučení:** Jakákoli geometrická logika (hit-test, maska→souřadnice, budoucí trajektorie) musí explicitně říct, v jakém prostoru počítá (nativní PNG vs. layout width/height vs. canvas), a sdílet přepočet s composerem/rendererem. Pro UI výběr je autoritativní klientský Konva `drawHitFromCache`; `/transform` snapshot fix ukázal totéž z druhé strany — každá mutace stavu musí jít přes tentýž history mechanismus. Oprava /hittest: založen task chip (`task_a11cf772`).
+**Poučení:** Jakákoli geometrická logika (hit-test, maska→souřadnice, budoucí trajektorie) musí explicitně říct, v jakém prostoru počítá (nativní PNG vs. layout width/height vs. canvas), a sdílet přepočet s composerem/rendererem. Pro UI výběr je autoritativní klientský Konva `drawHitFromCache`; `/transform` snapshot fix ukázal totéž z druhé strany — každá mutace stavu musí jít přes tentýž history mechanismus.
+
+**Opraveno (2026-08-14):** `/hittest` invertuje forward model composeru v jeho pořadí: un-translate → inverzní rotace kolem kotvy (Konva cw, y-down) → rescale layout→nativní px (`math.floor`, ne `int()` — truncation k nule by pustila body těsně vlevo/nad vrstvou). Regresní testy `tests/test_api_hittest.py` mají ručně odvozenou geometrii (syntetická vrstva s levou půlkou opaque) a na starém kódu selhávaly přesně E2E symptomem (vrácen jiný layer). Pořadí operací pinuje test rotace+scale — scale-before-rotate by četl průhledný pixel.
 
 ## 2026-08-14 — Worktree session nemůže smazat vlastní adresář
 
