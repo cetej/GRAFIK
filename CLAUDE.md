@@ -55,7 +55,17 @@ Plán: `docs/plans/2026-08-14-unified-editor.md` · Gate: `docs/plans/2026-08-14
 - [x] API: `/layers/{id}/ai-edit`, `/segment` (SAM 3), `/video/jobs` (+ mock-fail test — selhání nepoškodí projekt)
 - [x] ui-web editor MVP: load projektu, Transformer + alfa hit-test, persistence transformací
 - **Pravidlo: Streamlit UI je zmrazený (bugfix-only). Nové featury jen ui-web (React).**
-- Další: M2 (mask brush, SAM segmentace v UI, per-prvek edit UI, export) → M3 (trajektorie UI, kamera panel, job status + přehrávač, klip verifikace)
+
+### Unified Editor — M2 obrazová osa komplet, sc-1 (HOTOVO, 2026-08-14)
+E2E důkaz: `docs/spikes/2026-08-14-m2-e2e-sc1.md` (13/13 kroků klikáním v UI) · 4K re-test: `docs/spikes/2026-08-14-inpaint-4k.md`
+- [x] API: `GET /api/providers` (capabilities + has_impl), `ai-edit` s volitelnou `mask_b64` (brush maska → MERGE do vrstvy; bez masky replace jako dřív), `POST /layers/{id}/inpaint-behind` (vyplnění pozadí za prvkem do nejnižší viditelné vrstvy), `POST /layers/{id}/reorder`, provider/segment faily → 502 s důvodem, `/transform` snapshotuje pro undo (E2E nález)
+- [x] Composer: rotace = Konva sémantika (cw kolem kotvy x,y, offset z rotovaných rohů)
+- [x] ui-web editor: toolbar (Select/Brush/Segment, Undo/Redo, Inpaint behind, Export PNG, New from image → dekompozice), panel vrstev (z-order ▲▼, delete, sam badge), brush tool (offscreen canvas v plném rozlišení, export jako mask_b64), inspector (AI edit prompt + provider switch dle registry, inpaint-behind, SAM segment z textu), busy/error stavy, png cache-busting po mutacích
+- [x] E2E sc-1 klikáním: dekompozice → výběr klikem → posun/scale → AI edit → inpaint pozadí → export; pixel-diff export vs composite **0,0**, export vs živý náhled mean **0,72** (kritérium #5); 4 placená volání, 0 console errors
+- [x] A1 paste-back re-test na 4K (2862×3872): PASS (outside 0,024, ring 1,063) + **empirický nález: qwen inpaint vrací max ~1536 px → resize-back v provideru je load-bearing** (viz LEARNINGS)
+- Testy: 67 pytest (offline, monkeypatched) + `node ui-web/editor-verify.mjs` (potřebuje běžící servery; placené kroky jen 1×, `--skip-paid` reuse)
+- Známé limity: undo/redo vrací jen metadata (project.json), ne pixely vrstev (AI edit je pixel-nevratný — kandidát M3+); `/hittest` ignoruje width/height škálování vrstvy (task chip založen); SAM může validně vrátit 0 masek
+- Další: M3 (trajektorie UI, kamera panel, prompt-compiled joby + pixel-diff verifikace klipu, přehrávač)
 
 ### Fáze 3 — Pokročilé (TODO)
 - [ ] T2L (text-to-layers) mód v fal klientu
@@ -102,15 +112,15 @@ composite.save("output.png")
 
 ## Resume prompt
 
-> GRAFIK Unified Editor — M2 (obrazová osa komplet, sc-1).
+> GRAFIK Unified Editor — M3 (motion osa, sc-2 v prompt-compiled podobě).
 >
-> Fáze 1 walking skeleton je HOTOVÁ a ověřená (viz sekce Unified Editor výše + `docs/plans/2026-08-14-phase1-gate.md`).
-> Klíčová fakta: motion = prompt-compiled + verifikace (Kling dynamic_masks je mrtvá cesta); inpaint vždy s paste-backem; capability data v `docs/capabilities/` (raw OpenAPI, verified_at).
+> M2 (obrazová osa, sc-1) je HOTOVÁ a ověřená E2E klikáním v UI — viz sekce „Unified Editor — M2" výše, `docs/spikes/2026-08-14-m2-e2e-sc1.md` a `docs/plans/2026-08-14-phase1-gate.md`.
+> Klíčová fakta: motion = prompt-compiled + pixel-diff verifikace (Kling dynamic_masks je mrtvá API cesta); qwen inpaint vrací max ~1536 px (resize-back povinný, viz LEARNINGS); `scripts/pixel_diff.py` existuje (reuse pro klip verifikaci); capability tvrzení jen z raw OpenAPI + empirického testu; fal tiše ignoruje neznámá pole. Testy jen přes `rtk proxy python -m pytest tests/ -q`.
 >
-> **Co implementovat (M2):**
-> 1. Mask brush tool v ui-web (offscreen canvas ~50 řádků dle plánu)
-> 2. SAM 3 segmentace z textu v UI (route `/segment` existuje)
-> 3. Per-prvek AI edit v UI (route `/layers/{id}/ai-edit` existuje; provider switch qwen/flux/gpt-image-2)
-> 4. Inpaint pozadí za vyjmutým prvkem
-> 5. Propojení na existující ops/undo-redo, export PNG = náhled (pixel diff test)
-> 6. Re-test A1 paste-back na 4K obrázku (zatím ověřeno jen na 544×736)
+> **Co implementovat (M3, ideal-state kritéria #6–#10 + video část #11):**
+> 1. TrajectoryPath tool v ui-web — bezier křivka s draggable anchory na vybraném prvku (oficiální Konva vzor), persistence do Layer.motion (MotionSpec model existuje, project.json v2)
+> 2. Camera panel (typ + velikost pohybu | volný prompt) → MotionSpec.camera
+> 3. Kompilace MotionSpec → strukturovaný prompt (grafik/motion/compiler.py existuje) + zobrazená odhadovaná cena PŘED submitem
+> 4. Job queue UI: submit → status polling → přehrávač klipu (routes `/video/jobs` + `GET /clips/{id}/video` existují; ClipRecord persistuje request_id)
+> 5. Pixel-diff verifikace klipu vůči masce prvku („hýbalo se to, co mělo") + verifikační report u jobu + retry nabídka
+> 6. Selhání jobu: čitelný důvod v UI, projekt nepoškozen (mock-fail test existuje — rozšířit o UI stav)
