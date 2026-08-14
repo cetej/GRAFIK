@@ -37,6 +37,8 @@ Rozšířit GRAFIK na sjednocený AI editor obrázků a klipů: obraz rozložen�
 
 → **Per-element motion control má jedinou potvrzenou API cestu: Kling 1.6 Pro přes fal.ai.** Ceny z fal.ai (statické, ověřitelné); oficiální kling.ai docs nefetchnutelné (HTTP 446) — fal wrapper bereme jako zdroj pravdy o schématu.
 
+> **KOREKCE 2026-08-14 (exekuce, task 1.4):** Tabulka výše je vyvrácena raw OpenAPI ověřením — `v1.6/pro` `dynamic_masks` ani kameru NEMÁ. Motion brush existuje jen na `fal-ai/kling-video/v1/standard/image-to-video` a `v1.5/pro/image-to-video`; `camera_control` na žádném I2V endpointu (jen `v1/standard/text-to-video`). Smoke test 1.2 přesměrován na v1.5/pro. Viz `docs/capabilities/kling-versions.md` a `docs/LEARNINGS.md`.
+
 ### Obrazové API
 
 - **Nano Banana Pro (Gemini API): pixel masku NEBERE** (oficiální docs: jen sémantické edity textem + až 14 ref. obrázků; $0.134/obr 1–2K, $0.24/4K, SynthID watermark). Role: generace celých obrázků / globální edity, NE per-prvek.

@@ -17,6 +17,9 @@ projects/*.grafik/
 .pytest_cache/
 .mypy_cache/
 
+scratch/
+node_modules/
+
 *.png
 *.jpg
 *.jpeg
