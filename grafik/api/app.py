@@ -10,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 
 from grafik.api.models import (
     AiEditRequest,
@@ -1035,8 +1035,14 @@ def get_video_job(project_id: str, clip_id: str) -> ClipRecord:
 
 
 @app.get("/api/projects/{project_id}/clips/{clip_id}/video")
-def get_clip_video(project_id: str, clip_id: str) -> Response:
-    """Serve a completed clip's mp4 file from disk."""
+def get_clip_video(project_id: str, clip_id: str) -> FileResponse:
+    """Serve a completed clip's mp4 file from disk.
+
+    FileResponse (not Response with the whole body) so Range requests get
+    206 partial responses — Chromium's <video> pipeline stalls at
+    readyState 0 on servers that answer every media Range probe with a
+    full 200 body (M3 E2E finding).
+    """
     project, path = _load_project(project_id)
     clip = next((c for c in project.clips if c.id == clip_id), None)
     if clip is None:
@@ -1046,7 +1052,7 @@ def get_clip_video(project_id: str, clip_id: str) -> Response:
     video_path = path / clip.path
     if not video_path.exists():
         raise HTTPException(404, "Clip video file not found on disk")
-    return Response(content=video_path.read_bytes(), media_type="video/mp4")
+    return FileResponse(video_path, media_type="video/mp4")
 
 
 @app.post("/api/projects/{project_id}/clips/{clip_id}/verify")
