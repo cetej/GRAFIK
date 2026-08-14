@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from io import BytesIO
 from pathlib import Path
 
 import fal_client
@@ -308,3 +309,18 @@ def test_video_job_wrong_kind_400(api):
         json={"motion": {}, "provider": "qwen-inpaint"},  # image_edit, not video
     )
     assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# layers/png checker background (pre-existing route, regression for missing PIL import)
+# ---------------------------------------------------------------------------
+
+
+def test_layer_png_checker(api):
+    client, _, project_id = api
+    resp = client.get(f"/api/projects/{project_id}/layers/{LAYER_3_ID}/png?checker=true")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "image/png"
+    img = Image.open(BytesIO(resp.content)).convert("RGBA")
+    # Layer 3 alone is ~11% opaque; the checker composite must yield a fully opaque image.
+    assert img.getchannel("A").getextrema() == (255, 255)

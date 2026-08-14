@@ -256,6 +256,7 @@ def get_layer_png(project_id: str, layer_id: str, checker: bool = False) -> Resp
 def _add_checker_bg(img: Image.Image, cell: int = 16) -> Image.Image:
     """Render RGBA image on a checkerboard background to visualize transparency."""
     import numpy as np
+    from PIL import Image
     w, h = img.size
     # Build checker pattern with numpy
     rows = np.arange(h) // cell
