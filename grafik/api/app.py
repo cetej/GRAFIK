@@ -1165,14 +1165,17 @@ def _ai_edit_apply(
     feather_px: int,
     crop_inpaint: bool,
     mask_b64: str | None = None,
+    mask_img=None,
 ):
     """Pure compute for a mask+prompt provider edit of one layer -- the
-    shared core of ai_edit_layer's own-alpha/brush modes, reused as-is by
-    rewrite_text_layer (M6-UX1, always own-alpha) with a text-specific
-    prompt. Builds the edit mask, calls the provider, and returns
-    (new_layer_img, elapsed_s) -- new_layer_img is the resulting RGBA layer
-    image (replace, or merge when mask_b64 is set; see ai_edit_layer's
-    docstring for the exact semantics).
+    shared core of ai_edit_layer's own-alpha/brush modes, reused by
+    rewrite_text_layer (M6-UX1) with a text-specific prompt and a
+    server-built band mask. Builds the edit mask, calls the provider, and
+    returns (new_layer_img, elapsed_s) -- new_layer_img is the resulting
+    RGBA layer image (replace, or merge when mask_b64/mask_img is set; see
+    ai_edit_layer's docstring for the exact semantics). `mask_img` is a
+    pre-built canvas-size "L" mask taking the mask_b64 role without the
+    base64 round-trip (rewrite-text builds it server-side).
 
     Does NOT save/snapshot/persist anything -- callers own that so they can
     set their own layer metadata (e.g. is_text/text_current) first.
@@ -1212,12 +1215,16 @@ def _ai_edit_apply(
         layer_img if layer_img.size == (layer_w, layer_h) else layer_img.resize((layer_w, layer_h), Image.LANCZOS)
     )
 
-    if mask_b64 is None:
+    if mask_b64 is None and mask_img is None:
         hard_mask_local = layer_layout.split()[-1].point(lambda a: 255 if a > 127 else 0)
         hard_mask_canvas = Image.new("L", composite.size, 0)
         hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
     else:
-        brush_mask = Image.open(BytesIO(base64.b64decode(mask_b64))).convert("L")
+        brush_mask = (
+            mask_img.convert("L")
+            if mask_img is not None
+            else Image.open(BytesIO(base64.b64decode(mask_b64))).convert("L")
+        )
         if brush_mask.size != composite.size:
             raise HTTPException(
                 400,
@@ -1243,7 +1250,7 @@ def _ai_edit_apply(
     new_rgb_local = edited.crop(box)
     new_alpha_local = feathered_canvas.crop(box)
 
-    if mask_b64 is None:
+    if mask_b64 is None and mask_img is None:
         new_layer_img = Image.merge("RGBA", (*new_rgb_local.split(), new_alpha_local))
     else:
         # Merge into the existing layer instead of replacing it: pixels
@@ -1314,12 +1321,26 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
 def rewrite_text_layer(project_id: str, layer_id: str, req: RewriteTextRequest) -> RewriteTextResponse:
     """Replace a text layer's wording in place (M6-UX1).
 
-    Same edit path as ai_edit_layer's default (mask_b64 unset) mode -- the
-    layer's own alpha is the mask and its content gets REPLACED, not merged
-    -- but with a prompt template that names the exact wording change
-    instead of a free-form instruction, plus is_text/text_original/
-    text_current bookkeeping so the layer is flagged as text going forward.
+    Runs ai_edit_layer's machinery with a prompt template that names the
+    exact wording change, plus is_text/text_original/text_current
+    bookkeeping so the layer is flagged as text going forward.
+
+    The edit mask is a BAND: the glyph bbox (canvas space, layout quad via
+    layer_mask_on_canvas) grown by ~40 % of the line height. The layer's own
+    alpha only covers the OLD strokes -- confining the model to them cannot
+    fit differently-shaped replacement glyphs (E2E: broken overlapping
+    letters); a rectangle also sidesteps PIL MaxFilter's O(k^2) cost for
+    large dilates. The band goes through the MERGE path, so the layer's
+    alpha becomes the band -- inside it the layer now carries the edited
+    composite (new text plus surrounding background), a documented v1
+    trade-off (multi-line text also inflates the margin, since the bbox
+    spans all lines).
     """
+    import numpy as np
+    from PIL import Image
+
+    from grafik.motion.verify import layer_mask_on_canvas
+
     project, path = _load_project(project_id)
     layer = project.get_layer(layer_id)
     if not layer:
@@ -1335,10 +1356,28 @@ def rewrite_text_layer(project_id: str, layer_id: str, req: RewriteTextRequest) 
     else:
         prompt = f'Replace the text with "{new_text}". Keep the same font style, size, color and position. Do not change anything else.'
 
+    alpha_canvas = layer_mask_on_canvas(project, path, layer)
+    alpha_arr = np.array(alpha_canvas) > 127
+    if not alpha_arr.any():
+        raise HTTPException(400, "Layer has no opaque pixels to rewrite")
+    ys, xs = np.nonzero(alpha_arr)
+    y0, y1, x0, x1 = int(ys.min()), int(ys.max()), int(xs.min()), int(xs.max())
+    margin = max(12, round(0.4 * (y1 - y0 + 1)))
+    band = Image.new("L", alpha_canvas.size, 0)
+    band.paste(
+        255,
+        (
+            max(0, x0 - margin),
+            max(0, y0 - margin),
+            min(alpha_canvas.width, x1 + 1 + margin),
+            min(alpha_canvas.height, y1 + 1 + margin),
+        ),
+    )
+
     new_layer_img, elapsed = _ai_edit_apply(
         project, path, layer, prompt, req.provider,
         dilate_px=req.dilate_px, feather_px=req.feather_px,
-        crop_inpaint=req.crop_inpaint, mask_b64=None,
+        crop_inpaint=req.crop_inpaint, mask_img=band,
     )
 
     # Metadata set BEFORE persistence so it's part of the same save/snapshot

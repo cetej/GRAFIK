@@ -396,3 +396,49 @@ def test_rewrite_text_changes_layer_pixels(api, monkeypatch):
     assert after != before
     after_img = Image.open(BytesIO(after)).convert("RGBA")
     assert after_img.getpixel((5, 5))[:3] == (250, 10, 10)
+
+
+def test_rewrite_text_uses_band_mask_and_merges(api, monkeypatch):
+    """The rewrite mask must be the glyph bbox grown by ~40 % of the line
+    height (a band), NOT the glyphs themselves -- confining the model to the
+    old strokes cannot fit differently-shaped replacement glyphs (E2E
+    2026-08-15: broken overlapping letters). Merge path: outside the band the
+    layer stays bit-identical (here: transparent)."""
+    client, projects_dir = api
+
+    a = _create_project(client, "rewrite-band", width=64, height=48)
+    project_dir = _dir_by_id(projects_dir, a["id"])
+    project = LayerProject.load(project_dir)
+    glyphs = Image.new("RGBA", (64, 48), (0, 0, 0, 0))
+    glyphs.paste((7, 7, 7, 255), (20, 18, 30, 24))  # 10x6 "glyph" blob
+    layer = Layer(name="txt")
+    layer.save_image(glyphs, project_dir)
+    project.add_layer(layer)
+    project.save(project_dir)
+
+    captured = {}
+
+    def fake_run_remote(self, image, mask, prompt, negative_prompt, enable_safety_checker):
+        captured["mask"] = mask
+        return Image.new("RGB", image.size, (250, 10, 10))
+
+    monkeypatch.setattr(QwenInpaintProvider, "_run_remote", fake_run_remote)
+
+    resp = client.post(
+        f"/api/projects/{a['id']}/layers/{layer.id}/rewrite-text",
+        json={"new_text": "New", "feather_px": 0, "dilate_px": 0},
+    )
+    assert resp.status_code == 200, resp.text
+
+    # bbox (20,18)-(29,23), line height 6 -> margin max(12, 2.4) = 12 -> band (8,6)-(41,35).
+    mask = captured["mask"]
+    assert mask.getpixel((22, 20)) == 255  # inside the old glyphs
+    assert mask.getpixel((10, 8)) == 255  # inside the band, OUTSIDE the old glyphs
+    assert mask.getpixel((2, 2)) == 0  # outside the band
+
+    after = Image.open(
+        BytesIO(client.get(f"/api/projects/{a['id']}/layers/{layer.id}/png").content)
+    ).convert("RGBA")
+    assert after.getpixel((2, 2))[3] == 0  # merge: untouched outside the band
+    assert after.getpixel((10, 8)) == (250, 10, 10, 255)  # band area adopted the edit
+    assert after.getpixel((22, 20))[:3] == (250, 10, 10)
