@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import Konva from 'konva';
 import { Stage, Layer, Image as KonvaImage, Rect, Transformer } from 'react-konva';
 import {
@@ -13,10 +13,15 @@ import {
   inpaintBehind,
   reorderLayer,
   segmentProject,
+  segmentProjectPoint,
   createProject,
   decomposeFile,
   exportPng,
   deleteLayer,
+  renameLayer,
+  renameProject,
+  duplicateProject,
+  deleteProject,
   undoProject,
   redoProject,
   getHistory,
@@ -39,7 +44,7 @@ import {
   type CompileMotionResponse,
   type ClipRecordDto,
 } from './api';
-import Toolbar from './Toolbar';
+import Toolbar, { vrstvyWord } from './Toolbar';
 import InspectorPanel from './InspectorPanel';
 import LayersPanel from './LayersPanel';
 import MotionPanel from './MotionPanel';
@@ -52,6 +57,17 @@ import './EditorApp.css';
 type EditorLayer = LayerResponse;
 
 const CANVAS_PADDING = 32;
+
+/** localStorage key for the one-time first-run gesture hint (M2.5). */
+const FIRST_RUN_HINT_KEY = 'grafik.firstRunHint.v1';
+
+/** "15. 8. 14:03" from an ISO timestamp; empty string when missing/invalid. */
+function formatDateShort(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 // Dev hook for editor-verify.mjs (Playwright): expose the Konva runtime on
 // window so the verify script can inspect nodes directly.
@@ -113,6 +129,16 @@ export default function EditorApp() {
   // --- M2 additions: tool mode, busy/sequential-ops gate, pixel cache-busting ---
   const [tool, setTool] = useState<Tool>('select');
   const [busy, setBusy] = useState<BusyState | null>(null);
+
+  // --- M2.5 additions: onboarding (drag&drop + shared file input), project
+  // management (inline rename), first-run hint ---
+  const [numLayers, setNumLayers] = useState(4);
+  const [dragActive, setDragActive] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [hintDismissed, setHintDismissed] = useState(
+    () => localStorage.getItem(FIRST_RUN_HINT_KEY) === '1',
+  );
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [pngVersions, setPngVersions] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<{ undo_count: number; redo_count: number } | null>(null);
 
@@ -326,7 +352,7 @@ export default function EditorApp() {
       };
       img.onerror = () => {
         if (cancelled) return;
-        setBanner(`Failed to load PNG for layer "${name}".`);
+        setBanner(`Nepodařilo se načíst PNG vrstvy „${name}".`);
       };
       img.src = layerPngUrl(selectedProjectId, id, false, v);
     }
@@ -439,7 +465,7 @@ export default function EditorApp() {
       setHistory(hist);
       setClips(clipList);
     } catch (err) {
-      setBanner(`Failed to load project: ${describeError(err)}`);
+      setBanner(`Načtení projektu selhalo: ${describeError(err)}`);
     } finally {
       setProjectLoading(false);
     }
@@ -452,7 +478,7 @@ export default function EditorApp() {
       setLayers(sorted);
       return sorted;
     } catch (err) {
-      setBanner(`Failed to reload layers: ${describeError(err)}`);
+      setBanner(`Nepodařilo se znovu načíst vrstvy: ${describeError(err)}`);
       return null;
     }
   }
@@ -483,15 +509,15 @@ export default function EditorApp() {
     const projectId = selectedProjectId;
     if (!projectId) return;
     setLayers((prev) => prev.map((l) => (l.id === layer.id ? { ...l, ...patch } : l)));
-    setSaveStatus(`Saving ${label} of layer "${layer.name}"...`);
+    setSaveStatus(`Ukládám: ${label} vrstvy „${layer.name}"…`);
     saveTransform(projectId, layer.id, patch)
       .then(() => {
-        setSaveStatus(`Saved ${label} of layer "${layer.name}".`);
+        setSaveStatus(`Uloženo: ${label} vrstvy „${layer.name}".`);
         void refreshHistory(projectId);
       })
       .catch((err: unknown) => {
-        setBanner(`Failed to save transform: ${describeError(err)}`);
-        setSaveStatus(`Save failed: ${label} of layer "${layer.name}".`);
+        setBanner(`Uložení transformace selhalo: ${describeError(err)}`);
+        setSaveStatus(`Uložení selhalo: ${label} vrstvy „${layer.name}".`);
         void reloadLayers(projectId);
       });
   }
@@ -507,30 +533,30 @@ export default function EditorApp() {
     if (!projectId) return;
     const empty = isEmptyMotion(nextMotion);
     setLayers((prev) => prev.map((l) => (l.id === layer.id ? { ...l, motion: empty ? null : nextMotion } : l)));
-    setSaveStatus(`Saving ${label}...`);
+    setSaveStatus(`Ukládám: ${label}…`);
     const call = empty ? clearLayerMotion(projectId, layer.id) : saveLayerMotion(projectId, layer.id, nextMotion);
     call
       .then((updated) => {
         setLayers((prev) => prev.map((l) => (l.id === layer.id ? updated : l)));
-        setSaveStatus(`Saved ${label}.`);
+        setSaveStatus(`Uloženo: ${label}.`);
         void refreshHistory(projectId);
       })
       .catch((err: unknown) => {
-        setBanner(`Failed to save motion: ${describeError(err)}`);
-        setSaveStatus(`Save failed: ${label}.`);
+        setBanner(`Uložení pohybu selhalo: ${describeError(err)}`);
+        setSaveStatus(`Uložení selhalo: ${label}.`);
         void reloadLayers(projectId);
       });
   }
 
   function handleSetMotionStatic(layer: EditorLayer, value: boolean) {
     const current = layer.motion ?? EMPTY_MOTION;
-    persistMotion(layer, { ...current, static: value }, 'motion (static)');
+    persistMotion(layer, { ...current, static: value }, 'pohyb (statický)');
   }
 
   function handleCommitMotionDescription(layer: EditorLayer, description: string) {
     const current = layer.motion ?? EMPTY_MOTION;
     if (current.description === description) return;
-    persistMotion(layer, { ...current, description }, 'motion (description)');
+    persistMotion(layer, { ...current, description }, 'pohyb (popis)');
   }
 
   function handleClearTrajectory(layer: EditorLayer) {
@@ -569,7 +595,7 @@ export default function EditorApp() {
   function handleDragEnd(layer: EditorLayer) {
     const node = imageNodeRefs.current[layer.id];
     if (!node) return;
-    commitTransform(layer, { x: Math.round(node.x()), y: Math.round(node.y()) }, 'position');
+    commitTransform(layer, { x: Math.round(node.x()), y: Math.round(node.y()) }, 'pozice');
   }
 
   function handleTransformEnd(layer: EditorLayer) {
@@ -597,7 +623,7 @@ export default function EditorApp() {
         height: newHeight,
         rotation: node.rotation(),
       },
-      'transform',
+      'transformace',
     );
   }
 
@@ -611,7 +637,7 @@ export default function EditorApp() {
         void refreshHistory(projectId);
       })
       .catch((err: unknown) => {
-        setBanner(`Failed to toggle visibility: ${describeError(err)}`);
+        setBanner(`Přepnutí viditelnosti selhalo: ${describeError(err)}`);
         setLayers((prev) => prev.map((l) => (l.id === layer.id ? { ...l, visible: prevVisible } : l)));
       });
   }
@@ -625,7 +651,7 @@ export default function EditorApp() {
       setLayers(sortByZAsc(newList.map((l) => ({ ...l }))));
       await refreshHistory(projectId);
     } catch (err) {
-      setBanner(`Failed to reorder layer: ${describeError(err)}`);
+      setBanner(`Přeřazení vrstvy selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -634,16 +660,16 @@ export default function EditorApp() {
   async function handleDeleteLayer(layer: EditorLayer) {
     const projectId = selectedProjectId;
     if (!projectId) return;
-    if (!window.confirm(`Delete layer "${layer.name || layer.id}"?`)) return;
-    setBusy({ op: `Mažu vrstvu "${layer.name}"...` });
+    if (!window.confirm(`Smazat vrstvu „${layer.name || layer.id}"?`)) return;
+    setBusy({ op: `Mažu vrstvu „${layer.name}"…` });
     try {
       await deleteLayer(projectId, layer.id);
       if (selectedLayerId === layer.id) setSelectedLayerId(null);
       await reloadLayers(projectId);
       await refreshHistory(projectId);
-      setSaveStatus(`Deleted layer "${layer.name}".`);
+      setSaveStatus(`Vrstva „${layer.name}" smazána.`);
     } catch (err) {
-      setBanner(`Failed to delete layer: ${describeError(err)}`);
+      setBanner(`Smazání vrstvy selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -652,15 +678,15 @@ export default function EditorApp() {
   async function handleUndo() {
     const projectId = selectedProjectId;
     if (!projectId) return;
-    setBusy({ op: 'Undo...' });
+    setBusy({ op: 'Beru zpět…' });
     try {
       await undoProject(projectId);
       const newLayers = await reloadLayers(projectId);
       if (newLayers) bumpAllPngVersions(newLayers);
       await refreshHistory(projectId);
-      setSaveStatus('Undo done.');
+      setSaveStatus('Vráceno zpět.');
     } catch (err) {
-      setBanner(`Undo failed: ${describeError(err)}`);
+      setBanner(`Zpět selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -669,15 +695,15 @@ export default function EditorApp() {
   async function handleRedo() {
     const projectId = selectedProjectId;
     if (!projectId) return;
-    setBusy({ op: 'Redo...' });
+    setBusy({ op: 'Provádím znovu…' });
     try {
       await redoProject(projectId);
       const newLayers = await reloadLayers(projectId);
       if (newLayers) bumpAllPngVersions(newLayers);
       await refreshHistory(projectId);
-      setSaveStatus('Redo done.');
+      setSaveStatus('Provedeno znovu.');
     } catch (err) {
-      setBanner(`Redo failed: ${describeError(err)}`);
+      setBanner(`Znovu selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -688,7 +714,7 @@ export default function EditorApp() {
     const layer = selectedLayer;
     const prompt = aiEditPrompt.trim();
     if (!projectId || !layer || !aiEditProviderId || !prompt) return;
-    setBusy({ op: 'AI edit běží… může trvat desítky sekund' });
+    setBusy({ op: 'AI úprava běží… může trvat desítky sekund' });
     try {
       const maskB64 = brush.isEmpty ? null : brush.exportMaskB64();
       const resp = await aiEditLayer(projectId, layer.id, {
@@ -697,10 +723,10 @@ export default function EditorApp() {
         ...(maskB64 ? { mask_b64: maskB64 } : {}),
       });
       applyLayerUpdate(resp.layer);
-      setSaveStatus(`AI edit hotov (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
+      setSaveStatus(`AI úprava hotova (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
       await refreshHistory(projectId);
     } catch (err) {
-      setBanner(`AI edit failed: ${describeError(err)}`);
+      setBanner(`AI úprava selhala: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -715,10 +741,10 @@ export default function EditorApp() {
       const prompt = inpaintPrompt.trim();
       const resp = await inpaintBehind(projectId, layer.id, prompt ? { prompt } : {});
       applyLayerUpdate(resp.layer);
-      setSaveStatus(`Inpaint behind hotov (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
+      setSaveStatus(`Pozadí vyplněno (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
       await refreshHistory(projectId);
     } catch (err) {
-      setBanner(`Inpaint behind failed: ${describeError(err)}`);
+      setBanner(`Vyplnění pozadí selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -737,7 +763,7 @@ export default function EditorApp() {
       setSaveStatus(msg);
       await refreshHistory(projectId);
     } catch (err) {
-      setBanner(`Segment failed: ${describeError(err)}`);
+      setBanner(`Segmentace selhala: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -759,26 +785,165 @@ export default function EditorApp() {
       URL.revokeObjectURL(url);
       setSaveStatus('Export uložen.');
     } catch (err) {
-      setBanner(`Export failed: ${describeError(err)}`);
+      setBanner(`Export selhal: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
   }
 
-  async function handleCreateFromImage(file: File, numLayers: number) {
-    setBusy({ op: 'Dekompozice běží…' });
+  async function handleCreateFromImage(file: File, layerCount: number) {
+    setBusy({ op: `Dekompozice na ${layerCount} ${vrstvyWord(layerCount)} běží…` });
     try {
       const name = file.name.replace(/\.[^./]+$/, '') || 'untitled';
       const proj = await createProject(name);
-      await decomposeFile(proj.id, file, numLayers);
+      await decomposeFile(proj.id, file, layerCount);
       const list = await listProjects();
       setProjects(list);
       await handleSelectProject(proj.id);
     } catch (err) {
-      setBanner(`New from image failed: ${describeError(err)}`);
+      setBanner(`Nový projekt z obrázku selhal: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
+  }
+
+  async function refreshProjects() {
+    try {
+      setProjects(await listProjects());
+      setProjectsError(null);
+    } catch (err) {
+      setProjectsError(describeError(err));
+    }
+  }
+
+  async function handleDeleteProject(p: ProjectListItem) {
+    if (busy) return;
+    if (!window.confirm(`Smazat projekt „${p.name}"? Tuto akci nelze vrátit.`)) return;
+    setBusy({ op: `Mažu projekt „${p.name}"…` });
+    try {
+      await deleteProject(p.id);
+      if (selectedProjectId === p.id) {
+        setSelectedProjectId(null);
+        setProject(null);
+        setLayers([]);
+        setSelectedLayerId(null);
+        setClips([]);
+        setHistory(null);
+      }
+      await refreshProjects();
+      setSaveStatus(`Projekt „${p.name}" smazán.`);
+    } catch (err) {
+      setBanner(`Smazání projektu selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDuplicateProject(p: ProjectListItem) {
+    if (busy) return;
+    setBusy({ op: `Duplikuji projekt „${p.name}"…` });
+    try {
+      const copy = await duplicateProject(p.id);
+      await refreshProjects();
+      setSaveStatus(`Projekt zduplikován jako „${copy.name}".`);
+    } catch (err) {
+      setBanner(`Duplikace projektu selhala: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function handleCommitProjectRename(p: ProjectListItem, name: string) {
+    setEditingProjectId(null);
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === p.name) return;
+    setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, name: trimmed } : x)));
+    setSaveStatus(`Přejmenovávám projekt na „${trimmed}"…`);
+    renameProject(p.id, trimmed)
+      .then((updated) => {
+        setProject((prev) => (prev && prev.id === p.id ? { ...prev, name: updated.name } : prev));
+        setSaveStatus(`Projekt přejmenován na „${updated.name}".`);
+        void refreshProjects();
+      })
+      .catch((err: unknown) => {
+        setBanner(`Přejmenování projektu selhalo: ${describeError(err)}`);
+        void refreshProjects();
+      });
+  }
+
+  function handleRenameLayer(layer: EditorLayer, name: string) {
+    const projectId = selectedProjectId;
+    if (!projectId) return;
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === layer.name) return;
+    setLayers((prev) => prev.map((l) => (l.id === layer.id ? { ...l, name: trimmed } : l)));
+    setSaveStatus(`Přejmenovávám vrstvu na „${trimmed}"…`);
+    renameLayer(projectId, layer.id, trimmed)
+      .then((updated) => {
+        setLayers((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+        setSaveStatus(`Vrstva přejmenována na „${updated.name}".`);
+        void refreshHistory(projectId);
+      })
+      .catch((err: unknown) => {
+        setBanner(`Přejmenování vrstvy selhalo: ${describeError(err)}`);
+        void reloadLayers(projectId);
+      });
+  }
+
+  /** Segment-tool canvas click → one paid SAM point call (~$0.005) → new layer, selected. */
+  async function handleSegmentPointClick(pt: CanvasPoint) {
+    const projectId = selectedProjectId;
+    if (!projectId) return;
+    const x = Math.round(pt.x);
+    const y = Math.round(pt.y);
+    setBusy({ op: `Segmentuji prvek na (${x}, ${y})…` });
+    try {
+      const resp = await segmentProjectPoint(projectId, x, y);
+      await reloadLayers(projectId);
+      const created = resp.layers[0];
+      if (created) setSelectedLayerId(created.id);
+      const msg = created
+        ? `Vytvořena vrstva „${created.name}" z kliknutí.`
+        : 'SAM v místě kliknutí nic nenašel.';
+      setSegmentStatus(msg);
+      setSaveStatus(msg);
+    } catch (err) {
+      setBanner(`Segmentace kliknutím selhala: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // --- M2.5 drag&drop: an image dropped anywhere on the canvas area starts a
+  // brand-new project + decomposition (same path as the file picker). ---
+
+  function handleCanvasDragOver(e: DragEvent<HTMLDivElement>) {
+    if (busy) return;
+    if (Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+      setDragActive(true);
+    }
+  }
+
+  function handleCanvasDragLeave(e: DragEvent<HTMLDivElement>) {
+    // dragleave also fires when entering a child — only clear when actually
+    // leaving the container.
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setDragActive(false);
+    }
+  }
+
+  function handleCanvasDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragActive(false);
+    if (busy) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setBanner('Přetažený soubor není obrázek.');
+      return;
+    }
+    void handleCreateFromImage(file, numLayers);
   }
 
   /** layer_motions = every layer that currently has a non-null motion; camera+duration from UI state. */
@@ -807,7 +972,7 @@ export default function EditorApp() {
       setCompilePromptDraft(result.prompt);
       setSaveStatus('Náhled promptu připraven.');
     } catch (err) {
-      setBanner(`Compile failed: ${describeError(err)}`);
+      setBanner(`Kompilace promptu selhala: ${describeError(err)}`);
     } finally {
       setCompiling(false);
     }
@@ -830,7 +995,7 @@ export default function EditorApp() {
       setCompilePromptDraft('');
       setSaveStatus(`Klip odeslán ke generování (${clip.provider_id}).`);
     } catch (err) {
-      setBanner(`Video job submit failed: ${describeError(err)}`);
+      setBanner(`Odeslání video úlohy selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -882,9 +1047,19 @@ export default function EditorApp() {
       }
       return;
     }
-    // Layers don't listen outside the select tool, so every segment-tool click
-    // hits the Stage background — only treat that as "deselect" in select mode,
-    // so a selection made before switching to Segment survives the round trip.
+    if (tool === 'segment') {
+      // Layers don't listen in segment mode, so every canvas click lands on
+      // the Stage — treat each one inside the canvas rect as a SAM point
+      // prompt (same "every click is the tool's action" pattern as motion,
+      // see the M3 full-bleed-background finding).
+      const pt = getCanvasPoint();
+      if (pt && pt.x >= 0 && pt.x <= canvasWidth && pt.y >= 0 && pt.y <= canvasHeight) {
+        void handleSegmentPointClick(pt);
+      }
+      return;
+    }
+    // Every other Stage-background click: only treat as "deselect" in select
+    // mode, so a selection made before switching tools survives the round trip.
     if (tool === 'select' && e.target === stageRef.current) {
       setSelectedLayerId(null);
     }
@@ -913,7 +1088,7 @@ export default function EditorApp() {
       {banner && (
         <div className="editor-banner">
           <span>{banner}</span>
-          <button onClick={() => setBanner(null)}>Close</button>
+          <button onClick={() => setBanner(null)}>Zavřít</button>
         </div>
       )}
 
@@ -929,29 +1104,97 @@ export default function EditorApp() {
         onInpaintBehind={() => void handleRunInpaintBehind()}
         canExport={!!project}
         onExportPng={() => void handleExportPng()}
-        onNewFromImage={(file, n) => void handleCreateFromImage(file, n)}
+        numLayers={numLayers}
+        onNumLayersChange={setNumLayers}
+        onNewFromImageClick={() => fileInputRef.current?.click()}
         brushSize={brush.brushSize}
         onBrushSizeChange={brush.setBrushSize}
         brushStrokeCount={brush.strokeCount}
         onBrushClear={brush.clear}
       />
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden-file-input"
+        onChange={(e) => {
+          const file = e.target.files?.[0] ?? null;
+          e.target.value = '';
+          if (file) void handleCreateFromImage(file, numLayers);
+        }}
+      />
+
       <div className="editor-body">
         <aside className="editor-sidebar">
           <h1>GRAFIK Editor</h1>
           <div className="editor-section">
-            <h2>Projects</h2>
-            {projectsError && <p className="editor-hint">Error: {projectsError}</p>}
-            {projects.length === 0 && !projectsError && <p className="editor-hint">No projects.</p>}
+            <h2>Projekty</h2>
+            {projectsError && <p className="editor-hint error">Chyba: {projectsError}</p>}
+            {projects.length === 0 && !projectsError && (
+              <p className="editor-hint">Zatím žádné projekty — nahrajte obrázek.</p>
+            )}
             {projects.map((p) => (
               <div
                 key={p.id}
                 className={`project-item${p.id === selectedProjectId ? ' selected' : ''}`}
                 onClick={() => void handleSelectProject(p.id)}
               >
-                <span className="name">{p.name}</span>
-                <span className="meta">
-                  {p.layer_count} layers
+                {editingProjectId === p.id ? (
+                  <input
+                    className="rename-input"
+                    autoFocus
+                    defaultValue={p.name}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCommitProjectRename(p, (e.target as HTMLInputElement).value);
+                      if (e.key === 'Escape') setEditingProjectId(null);
+                    }}
+                    onBlur={(e) => handleCommitProjectRename(p, e.target.value)}
+                  />
+                ) : (
+                  <span className="name" title={`${p.name} — ${p.layer_count} ${vrstvyWord(p.layer_count)}`}>
+                    {p.name}
+                  </span>
+                )}
+                <span className="meta">{formatDateShort(p.updated_at)}</span>
+                <span className="project-actions">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    disabled={!!busy}
+                    title="Přejmenovat projekt"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingProjectId(p.id);
+                    }}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    disabled={!!busy}
+                    title="Duplikovat projekt"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDuplicateProject(p);
+                    }}
+                  >
+                    ⧉
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    disabled={!!busy}
+                    title="Smazat projekt"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDeleteProject(p);
+                    }}
+                  >
+                    🗑
+                  </button>
                 </span>
               </div>
             ))}
@@ -966,6 +1209,7 @@ export default function EditorApp() {
               onToggleVisibility={handleToggleVisibility}
               onReorder={(layer, dir) => void handleReorder(layer, dir)}
               onDelete={(layer) => void handleDeleteLayer(layer)}
+              onRename={handleRenameLayer}
             />
           )}
           {selectedProjectId && (
@@ -979,8 +1223,59 @@ export default function EditorApp() {
           )}
         </aside>
 
-        <div className="editor-canvas-area" ref={containerRef}>
-          {!selectedProjectId && <div className="editor-empty">Select a project on the left.</div>}
+        <div
+          className="editor-canvas-area"
+          ref={containerRef}
+          onDragOver={handleCanvasDragOver}
+          onDragLeave={handleCanvasDragLeave}
+          onDrop={handleCanvasDrop}
+        >
+          {!selectedProjectId && (
+            <div className="editor-empty-state">
+              <div className="empty-icon" aria-hidden="true">
+                🖼️
+              </div>
+              <h3>Začněte obrázkem</h3>
+              <p>
+                Přetáhněte obrázek sem — rozloží se na {numLayers} {vrstvyWord(numLayers)}, které pak
+                upravujete jednotlivě.
+              </p>
+              <button
+                type="button"
+                className="primary-btn"
+                disabled={!!busy}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Nahrát nový obrázek
+              </button>
+              <p className="editor-hint">…nebo vyberte existující projekt vlevo.</p>
+            </div>
+          )}
+          {selectedProjectId && !hintDismissed && !projectLoading && (
+            <div className="first-run-hint">
+              <span>
+                Kliknutím na prvek v obraze se vybere vrstva · tažením ji posunete · rohy mění velikost a
+                rotaci
+              </span>
+              <button
+                type="button"
+                title="Zavřít nápovědu"
+                onClick={() => {
+                  localStorage.setItem(FIRST_RUN_HINT_KEY, '1');
+                  setHintDismissed(true);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+          {dragActive && (
+            <div className="drop-overlay">
+              <span>
+                Pusťte obrázek — rozloží se na {numLayers} {vrstvyWord(numLayers)} (nový projekt)
+              </span>
+            </div>
+          )}
           {selectedProjectId && (
             <Stage
               ref={stageRef}
@@ -1126,10 +1421,10 @@ export default function EditorApp() {
       <div className="status-strip">
         <span>
           <span className={`dot ${apiOnline === null ? 'checking' : apiOnline ? 'online' : 'offline'}`} />
-          API {apiOnline === null ? 'checking...' : apiOnline ? 'online' : 'offline'}
+          API {apiOnline === null ? 'ověřuji…' : apiOnline ? 'online' : 'offline'}
         </span>
-        <span>Project: {project ? project.name : '—'}</span>
-        <span>Layer: {selectedLayer ? selectedLayer.name : '—'}</span>
+        <span>Projekt: {project ? project.name : '—'}</span>
+        <span>Vrstva: {selectedLayer ? selectedLayer.name : '—'}</span>
         {runningClipsCount > 0 && <span>Klipy: {runningClipsCount} běží</span>}
         <span className="spacer" />
         <span className="status-op">
@@ -1139,7 +1434,7 @@ export default function EditorApp() {
               {busy.op}
             </>
           ) : (
-            (saveStatus ?? 'Ready')
+            (saveStatus ?? 'Připraveno')
           )}
         </span>
       </div>

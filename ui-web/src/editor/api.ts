@@ -19,6 +19,8 @@ export interface ProjectListItem {
   name: string;
   path: string;
   layer_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ProjectResponse {
@@ -364,6 +366,39 @@ export function segmentProject(projectId: string, text: string): Promise<Segment
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({ text }),
+  });
+}
+
+export function renameProject(id: string, name: string): Promise<ProjectResponse> {
+  return request<ProjectResponse>(`/api/projects/${id}`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name }),
+  });
+}
+
+export function duplicateProject(id: string): Promise<ProjectResponse> {
+  return request<ProjectResponse>(`/api/projects/${id}/duplicate`, { method: 'POST' });
+}
+
+export function deleteProject(id: string): Promise<{ deleted: string }> {
+  return request<{ deleted: string }>(`/api/projects/${id}`, { method: 'DELETE' });
+}
+
+export function renameLayer(projectId: string, layerId: string, name: string): Promise<LayerResponse> {
+  return request<LayerResponse>(`/api/projects/${projectId}/layers/${layerId}/rename`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ name }),
+  });
+}
+
+/** Point-prompted SAM segmentation: one canvas click = one foreground point (canvas px == composite px). */
+export function segmentProjectPoint(projectId: string, x: number, y: number): Promise<SegmentResponse> {
+  return request<SegmentResponse>(`/api/projects/${projectId}/segment`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ points: [{ x, y, label: 1 }] }),
   });
 }
 

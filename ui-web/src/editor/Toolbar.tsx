@@ -1,4 +1,3 @@
-import { useRef, useState } from 'react';
 import type { Tool } from './types';
 
 interface ToolbarProps {
@@ -17,7 +16,11 @@ interface ToolbarProps {
   canExport: boolean;
   onExportPng: () => void;
 
-  onNewFromImage: (file: File, numLayers: number) => void;
+  /** Decompose target layer count lives in EditorApp (shared with canvas drag&drop). */
+  numLayers: number;
+  onNumLayersChange: (n: number) => void;
+  /** Opens the shared hidden file input owned by EditorApp. */
+  onNewFromImageClick: () => void;
 
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
@@ -26,13 +29,18 @@ interface ToolbarProps {
 }
 
 const TOOLS: { id: Tool; label: string; title: string }[] = [
-  { id: 'select', label: 'Select', title: 'Select / move / transform layers' },
-  { id: 'brush', label: 'Brush', title: 'Paint a mask for AI edit' },
-  { id: 'segment', label: 'Segment', title: 'Segment mode — canvas dragging disabled' },
-  { id: 'motion', label: 'Motion', title: 'Trajektorie pohybu prvků + kamera' },
+  { id: 'select', label: 'Výběr', title: 'Výběr, posun a transformace vrstev' },
+  { id: 'brush', label: 'Štětec', title: 'Malování masky pro AI úpravu' },
+  { id: 'segment', label: 'Segmentace', title: 'Kliknutím na prvek v obraze vznikne nová vrstva (SAM)' },
+  { id: 'motion', label: 'Pohyb', title: 'Trajektorie pohybu prvků + kamera' },
 ];
 
 const NUM_LAYER_OPTIONS = [2, 3, 4, 5, 6, 7, 8];
+
+/** Czech plural for "vrstva" after a numeral: 2-4 vrstvy, 5+ vrstev. */
+export function vrstvyWord(n: number): string {
+  return n >= 2 && n <= 4 ? 'vrstvy' : 'vrstev';
+}
 
 export default function Toolbar(props: ToolbarProps) {
   const {
@@ -47,19 +55,18 @@ export default function Toolbar(props: ToolbarProps) {
     onInpaintBehind,
     canExport,
     onExportPng,
-    onNewFromImage,
+    numLayers,
+    onNumLayersChange,
+    onNewFromImageClick,
     brushSize,
     onBrushSizeChange,
     brushStrokeCount,
     onBrushClear,
   } = props;
 
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [numLayers, setNumLayers] = useState(4);
-
   return (
     <div className="editor-toolbar">
-      <div className="toolbar-group" role="group" aria-label="Tools">
+      <div className="toolbar-group" role="group" aria-label="Nástroje">
         {TOOLS.map((t) => (
           <button
             key={t.id}
@@ -77,7 +84,7 @@ export default function Toolbar(props: ToolbarProps) {
       {tool === 'brush' && (
         <div className="toolbar-group brush-controls">
           <label className="brush-size-label">
-            Size
+            Velikost
             <input
               type="range"
               min={4}
@@ -88,8 +95,13 @@ export default function Toolbar(props: ToolbarProps) {
             />
             <span>{brushSize}px</span>
           </label>
-          <button type="button" disabled={busy || brushStrokeCount === 0} onClick={onBrushClear}>
-            Clear ({brushStrokeCount})
+          <button
+            type="button"
+            disabled={busy || brushStrokeCount === 0}
+            onClick={onBrushClear}
+            title="Smaže nakreslenou masku"
+          >
+            Smazat ({brushStrokeCount})
           </button>
         </div>
       )}
@@ -97,52 +109,54 @@ export default function Toolbar(props: ToolbarProps) {
       <div className="toolbar-spacer" />
 
       <div className="toolbar-group">
-        <button type="button" disabled={busy || !canUndo} onClick={onUndo} title="Undo">
-          Undo
+        <button type="button" disabled={busy || !canUndo} onClick={onUndo} title="Vrátí poslední akci zpět">
+          Zpět
         </button>
-        <button type="button" disabled={busy || !canRedo} onClick={onRedo} title="Redo">
-          Redo
+        <button type="button" disabled={busy || !canRedo} onClick={onRedo} title="Provede vrácenou akci znovu">
+          Znovu
         </button>
         <button
           type="button"
           disabled={busy || !canInpaintBehind}
           onClick={onInpaintBehind}
-          title="Inpaint the background behind the selected layer"
+          title="Vyplní pozadí za vybranou vrstvou (AI inpaint)"
         >
-          Inpaint behind
+          Vyplnit pozadí
         </button>
-        <button type="button" disabled={busy || !canExport} onClick={onExportPng} title="Export composite as PNG">
+        <button
+          type="button"
+          disabled={busy || !canExport}
+          onClick={onExportPng}
+          title="Uloží kompozit jako PNG"
+        >
           Export PNG
         </button>
       </div>
 
       <div className="toolbar-group">
-        <select
-          value={numLayers}
+        <label className="toolbar-label" title="Na kolik vrstev se nahraný obrázek rozloží">
+          Rozložit na
+          <select
+            value={numLayers}
+            disabled={busy}
+            onChange={(e) => onNumLayersChange(Number(e.target.value))}
+          >
+            {NUM_LAYER_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n} {vrstvyWord(n)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="primary-btn"
           disabled={busy}
-          onChange={(e) => setNumLayers(Number(e.target.value))}
-          title="Number of layers to decompose into"
+          onClick={onNewFromImageClick}
+          title="Nahraje obrázek a rozloží ho na vrstvy (nový projekt)"
         >
-          {NUM_LAYER_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {n} layers
-            </option>
-          ))}
-        </select>
-        <button type="button" disabled={busy} onClick={() => fileInputRef.current?.click()}>
-          New from image
+          Nový z obrázku
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden-file-input"
-          onChange={(e) => {
-            const file = e.target.files?.[0] ?? null;
-            e.target.value = '';
-            if (file) onNewFromImage(file, numLayers);
-          }}
-        />
       </div>
     </div>
   );

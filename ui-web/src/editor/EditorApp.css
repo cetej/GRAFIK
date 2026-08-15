@@ -579,3 +579,157 @@
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+/* --- M2.5: onboarding, project management, first-run hint --- */
+
+button.primary-btn {
+  background: #2a3f6b;
+  border: 1px solid #4a7dff;
+  color: #cfe0ff;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.primary-btn:hover:not(:disabled) {
+  background: #34497a;
+}
+
+button.primary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toolbar-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #b7b7bf;
+}
+
+.editor-empty-state {
+  position: absolute;
+  inset: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #b7b7bf;
+  text-align: center;
+  padding: 24px;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+}
+
+.editor-empty-state h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #e7e7ea;
+}
+
+.editor-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 380px;
+}
+
+.editor-empty-state .primary-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.empty-icon {
+  font-size: 42px;
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(42, 63, 107, 0.35);
+  border: 2px dashed #4a7dff;
+  border-radius: 12px;
+  color: #cfe0ff;
+  font-size: 15px;
+  pointer-events: none;
+}
+
+.first-run-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1f2027;
+  border: 1px solid #4a7dff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #cfe0ff;
+  max-width: 80%;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.first-run-hint button {
+  background: transparent;
+  border: none;
+  color: #cfe0ff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.project-item .project-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.project-item:hover .project-actions,
+.project-item.selected .project-actions {
+  opacity: 1;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: #e7e7ea;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.icon-btn:hover:not(:disabled) {
+  color: #cfe0ff;
+}
+
+.icon-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  background: #0e0f13;
+  border: 1px solid #4a7dff;
+  color: #e7e7ea;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-family: inherit;
+}

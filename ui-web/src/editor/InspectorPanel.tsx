@@ -49,14 +49,14 @@ export default function InspectorPanel(props: InspectorPanelProps) {
 
   return (
     <aside className="editor-inspector">
-      <h2>Inspector</h2>
+      <h2>Inspektor</h2>
 
       <div className="inspector-section">
-        <h3>AI edit</h3>
-        {!selectedLayer && <p className="editor-hint">Select a layer first.</p>}
+        <h3>AI úprava</h3>
+        {!selectedLayer && <p className="editor-hint">Nejdřív vyberte vrstvu.</p>}
         <textarea
           className="inspector-textarea"
-          placeholder="Describe the edit..."
+          placeholder="Popište úpravu…"
           value={aiEditPrompt}
           disabled={busy}
           onChange={(e) => onAiEditPromptChange(e.target.value)}
@@ -66,7 +66,7 @@ export default function InspectorPanel(props: InspectorPanelProps) {
           disabled={busy || providers.length === 0}
           onChange={(e) => onAiEditProviderChange(e.target.value)}
         >
-          {providers.length === 0 && <option value="">(no providers)</option>}
+          {providers.length === 0 && <option value="">(žádní provideři)</option>}
           {providers.map((p) => (
             <option
               key={p.id}
@@ -75,16 +75,22 @@ export default function InspectorPanel(props: InspectorPanelProps) {
               title={p.capabilities.notes}
             >
               {p.id}
-              {!p.has_impl ? ' (no impl)' : !p.capabilities.supports_mask ? ' (no mask support)' : ''}
+              {!p.has_impl ? ' (bez implementace)' : !p.capabilities.supports_mask ? ' (bez podpory masky)' : ''}
             </option>
           ))}
         </select>
-        {providersError && <p className="editor-hint error">Providers: {providersError}</p>}
+        {providersError && <p className="editor-hint error">Provideři: {providersError}</p>}
         <p className="editor-hint">
           {brushStrokeCount > 0 ? (
             <>
-              Brush maska aktivní ({brushStrokeCount} tahů){' '}
-              <button type="button" className="inline-btn" disabled={busy} onClick={onClearBrush} title="Clear brush mask">
+              Maska štětcem aktivní ({brushStrokeCount} tahů){' '}
+              <button
+                type="button"
+                className="inline-btn"
+                disabled={busy}
+                onClick={onClearBrush}
+                title="Smazat masku štětcem"
+              >
                 ×
               </button>
             </>
@@ -97,37 +103,40 @@ export default function InspectorPanel(props: InspectorPanelProps) {
           disabled={busy || !selectedLayer || !aiEditPrompt.trim() || !aiEditProviderId}
           onClick={onRunAiEdit}
         >
-          Run
+          Spustit
         </button>
       </div>
 
       <div className="inspector-section">
-        <h3>Inpaint behind</h3>
+        <h3>Vyplnit pozadí</h3>
         <input
           type="text"
-          placeholder="(optional prompt)"
+          placeholder="(volitelný prompt)"
           value={inpaintPrompt}
           disabled={busy}
           onChange={(e) => onInpaintPromptChange(e.target.value)}
         />
         <p className="editor-hint">Vyplní pozadí za vybraným prvkem.</p>
         <button type="button" disabled={busy || !selectedLayer} onClick={onRunInpaintBehind}>
-          Run
+          Spustit
         </button>
       </div>
 
       <div className="inspector-section">
-        <h3>Segment (SAM)</h3>
+        <h3>Segmentace textem</h3>
         <input
           type="text"
-          placeholder="pojmenuj prvek"
+          placeholder="popište prvek (např. socha)"
           value={segmentText}
           disabled={busy}
           onChange={(e) => onSegmentTextChange(e.target.value)}
         />
         <button type="button" disabled={busy || !segmentText.trim()} onClick={onRunSegment}>
-          Segment
+          Segmentovat
         </button>
+        <p className="editor-hint">
+          Tip: nástroj Segmentace v horní liště — kliknutím na prvek přímo v obraze.
+        </p>
         {segmentStatus && <p className="editor-hint">{segmentStatus}</p>}
       </div>
     </aside>

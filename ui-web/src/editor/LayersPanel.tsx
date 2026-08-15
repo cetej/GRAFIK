@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LayerResponse } from './api';
 
 interface LayersPanelProps {
@@ -10,14 +11,22 @@ interface LayersPanelProps {
   onToggleVisibility: (layer: LayerResponse) => void;
   onReorder: (layer: LayerResponse, direction: 1 | -1) => void;
   onDelete: (layer: LayerResponse) => void;
+  onRename: (layer: LayerResponse, name: string) => void;
 }
 
 export default function LayersPanel(props: LayersPanelProps) {
-  const { layers, selectedLayerId, busy, loading, onSelect, onToggleVisibility, onReorder, onDelete } = props;
+  const { layers, selectedLayerId, busy, loading, onSelect, onToggleVisibility, onReorder, onDelete, onRename } =
+    props;
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  function commitRename(layer: LayerResponse, value: string) {
+    setEditingId(null);
+    onRename(layer, value);
+  }
 
   return (
     <div className="editor-section editor-section-layers">
-      <h2>Layers{loading ? ' (loading...)' : ''}</h2>
+      <h2>Vrstvy{loading ? ' (načítám…)' : ''}</h2>
       {layers.map((layer, index) => (
         <div
           key={layer.id}
@@ -32,11 +41,34 @@ export default function LayersPanel(props: LayersPanelProps) {
               e.stopPropagation();
               onToggleVisibility(layer);
             }}
-            title={layer.visible ? 'Hide layer' : 'Show layer'}
+            title={layer.visible ? 'Skrýt vrstvu' : 'Zobrazit vrstvu'}
           >
             👁
           </button>
-          <span className="name">{layer.name || layer.id}</span>
+          {editingId === layer.id ? (
+            <input
+              className="rename-input"
+              autoFocus
+              defaultValue={layer.name}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename(layer, (e.target as HTMLInputElement).value);
+                if (e.key === 'Escape') setEditingId(null);
+              }}
+              onBlur={(e) => commitRename(layer, e.target.value)}
+            />
+          ) : (
+            <span
+              className="name"
+              title="Dvojklikem přejmenujete vrstvu"
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                if (!busy) setEditingId(layer.id);
+              }}
+            >
+              {layer.name || layer.id}
+            </span>
+          )}
           {layer.tags.includes('sam') && <span className="badge">SAM</span>}
           <span className="zorder-controls">
             <button
@@ -46,7 +78,7 @@ export default function LayersPanel(props: LayersPanelProps) {
                 e.stopPropagation();
                 onReorder(layer, 1);
               }}
-              title="Move up"
+              title="Posunout výš"
             >
               ▲
             </button>
@@ -57,7 +89,7 @@ export default function LayersPanel(props: LayersPanelProps) {
                 e.stopPropagation();
                 onReorder(layer, -1);
               }}
-              title="Move down"
+              title="Posunout níž"
             >
               ▼
             </button>
@@ -70,7 +102,7 @@ export default function LayersPanel(props: LayersPanelProps) {
               e.stopPropagation();
               onDelete(layer);
             }}
-            title="Delete layer"
+            title="Smazat vrstvu"
           >
             🗑
           </button>
