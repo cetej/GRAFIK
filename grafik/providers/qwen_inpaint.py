@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import fal_client
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -110,11 +109,13 @@ class QwenInpaintProvider(ImageEditProvider):
         to the endpoint, download the result. Isolated in this one method so
         tests can monkeypatch it and exercise edit() fully offline.
         """
+        from grafik.fal.client import tracked_subscribe
+
         image_url = upload_image(image)
         mask_url = upload_image(mask)
-        result = fal_client.subscribe(
+        result = tracked_subscribe(
             self.ENDPOINT,
-            arguments={
+            {
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "image_url": image_url,
@@ -123,6 +124,8 @@ class QwenInpaintProvider(ImageEditProvider):
                 "enable_safety_checker": enable_safety_checker,
                 "output_format": "png",
             },
+            kind="image_edit",
+            mp=image.width * image.height / 1e6,
             with_logs=False,
         )
         img_info = result["images"][0]

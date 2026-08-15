@@ -214,6 +214,58 @@ class SegmentResponse(BaseModel):
     mask_count: int = 0
 
 
+# --- M4: soft-delete/trash, cost tracking, image generation, layer decompose ---
+
+
+class TrashItemResponse(BaseModel):
+    entry: str  # directory name inside projects/.trash
+    id: str = ""
+    name: str = ""
+    layer_count: int = 0
+    deleted_at: str = ""
+
+
+class CostEntryModel(BaseModel):
+    """One paid call as recorded in .grafik/costs.jsonl (grafik.core.costs)."""
+
+    ts: str
+    endpoint: str
+    kind: str
+    mp: float | None = None
+    seconds: float | None = None
+    calls: int = 1
+    est_usd: float | None = None
+    note: str = ""
+
+
+class CostsSummaryResponse(BaseModel):
+    """Shared by GET /projects/{id}/costs and GET /costs/session."""
+
+    entries: list[CostEntryModel]
+    total_usd: float
+    count: int
+
+
+class GenerateImageRequest(BaseModel):
+    prompt: str
+    provider: str = "nb-pro"
+    aspect_ratio: str = "1:1"
+
+
+class GenerateImageResponse(BaseModel):
+    image_b64: str  # PNG, no data: prefix
+    width: int
+    height: int
+    provider: str
+    # The paid-call entry (session-recorded only — no project exists yet). The
+    # UI passes it back via POST /projects/{id}/costs when adopting the image.
+    cost: CostEntryModel
+
+
+class DecomposeLayerRequest(BaseModel):
+    num_layers: int = Field(default=4, ge=2, le=10)
+
+
 class VideoJobRequest(BaseModel):
     motion: MotionSpec = Field(default_factory=MotionSpec)
     provider: str = "kling-26-pro"

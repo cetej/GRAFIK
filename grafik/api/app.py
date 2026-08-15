@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 import math
+import re
+import shutil
+import uuid
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -18,10 +22,15 @@ from grafik.api.models import (
     BlendModeRequest,
     CompileVideoRequest,
     CompileVideoResponse,
+    CostEntryModel,
+    CostsSummaryResponse,
     CreateProjectRequest,
     CropRequest,
+    DecomposeLayerRequest,
     DecomposeRequest,
     FlipRequest,
+    GenerateImageRequest,
+    GenerateImageResponse,
     HistoryResponse,
     HitTestRequest,
     HitTestResponse,
@@ -40,11 +49,21 @@ from grafik.api.models import (
     SegmentRequest,
     SegmentResponse,
     TransformRequest,
+    TrashItemResponse,
     VideoJobRequest,
     WorkflowRequest,
     WorkflowStepResponse,
 )
 from grafik.core.composer import compose, compose_and_save
+from grafik.core.costs import (
+    LEDGER_FILENAME,
+    append_entry,
+    read_ledger,
+    record_paid_call,
+    session_entries,
+    set_active_project_dir,
+    total_usd,
+)
 from grafik.core.motion import ClipRecord, LayerMotion
 from grafik.core.project import LayerProject
 
@@ -66,11 +85,86 @@ app.add_middleware(
 )
 
 PROJECTS_DIR = Path("projects")
+LOGS_DIR = Path("logs")
+TRASH_DIRNAME = ".trash"
+TRASH_RETENTION_DAYS = 30
+_TRASH_TS_FORMAT = "%Y%m%d-%H%M%S"
 
 
 def _projects_dir() -> Path:
     PROJECTS_DIR.mkdir(exist_ok=True)
     return PROJECTS_DIR
+
+
+def _trash_dir() -> Path:
+    d = _projects_dir() / TRASH_DIRNAME
+    d.mkdir(exist_ok=True)
+    return d
+
+
+def _log_destructive(op: str, **fields) -> None:
+    """Append one destructive-operation record to logs/destructive.jsonl —
+    M2.5 incident lesson: without an audit trail a data loss can be neither
+    investigated nor ruled out."""
+    LOGS_DIR.mkdir(exist_ok=True)
+    entry = {"ts": datetime.now(timezone.utc).isoformat(), "op": op, **fields}
+    with (LOGS_DIR / "destructive.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def _parse_trash_ts(entry_name: str) -> datetime | None:
+    m = re.match(r"^(\d{8}-\d{6})-", entry_name)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(m.group(1), _TRASH_TS_FORMAT).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _trash_entry_meta(entry_dir: Path) -> TrashItemResponse:
+    """Listing metadata for one trash entry; tolerates a broken manifest."""
+    meta = TrashItemResponse(entry=entry_dir.name, name=entry_dir.name)
+    manifest = entry_dir / "project.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        meta.id = data.get("id", "")
+        meta.name = data.get("name", entry_dir.name)
+        meta.layer_count = len(data.get("layers", []))
+    except (OSError, json.JSONDecodeError):
+        pass
+    ts = _parse_trash_ts(entry_dir.name)
+    if ts is None:
+        ts = datetime.fromtimestamp(entry_dir.stat().st_mtime, tz=timezone.utc)
+    meta.deleted_at = ts.isoformat()
+    return meta
+
+
+def _purge_old_trash() -> list[str]:
+    """Delete trash entries older than TRASH_RETENTION_DAYS; returns their names."""
+    purged: list[str] = []
+    now = datetime.now(timezone.utc)
+    for entry_dir in _trash_dir().iterdir():
+        if not entry_dir.is_dir():
+            continue
+        ts = _parse_trash_ts(entry_dir.name)
+        if ts is None:
+            ts = datetime.fromtimestamp(entry_dir.stat().st_mtime, tz=timezone.utc)
+        age_days = (now - ts).total_seconds() / 86400
+        if age_days > TRASH_RETENTION_DAYS:
+            shutil.rmtree(entry_dir)
+            _log_destructive("trash-autopurge", entry=entry_dir.name, age_days=round(age_days, 1))
+            purged.append(entry_dir.name)
+    return purged
+
+
+def _trash_entry_dir(entry: str) -> Path:
+    """Resolve one trash entry safely (no path traversal outside .trash)."""
+    trash = _trash_dir()
+    candidate = trash / entry
+    if candidate.resolve().parent != trash.resolve() or not candidate.is_dir():
+        raise HTTPException(404, f"Trash entry {entry!r} not found")
+    return candidate
 
 
 def _find_project(project_id: str) -> Path:
@@ -87,6 +181,10 @@ def _find_project(project_id: str) -> Path:
 
 def _load_project(project_id: str) -> tuple[LayerProject, Path]:
     path = _find_project(project_id)
+    # Cost attribution (M4): any paid call later in this request lands in this
+    # project's costs.jsonl. FastAPI gives every request its own context copy,
+    # so the binding never leaks across requests (grafik.core.costs).
+    set_active_project_dir(path)
     return LayerProject.load(path), path
 
 
@@ -225,11 +323,26 @@ def rename_project(project_id: str, req: RenameRequest) -> ProjectResponse:
 
 @app.delete("/api/projects/{project_id}")
 def delete_project(project_id: str) -> dict:
-    import shutil
+    """Soft-delete (M4, reaction to the M2.5 openart data-loss incident):
+    move the .grafik directory into projects/.trash instead of rmtree.
+    history.json and costs.jsonl live inside the directory, so they travel
+    along and a restore brings them back."""
     path = _find_project(project_id)
-    shutil.rmtree(path)
+    try:
+        name = json.loads((path / "project.json").read_text(encoding="utf-8")).get("name", path.stem)
+    except (OSError, json.JSONDecodeError):
+        name = path.stem
+    ts = datetime.now(timezone.utc).strftime(_TRASH_TS_FORMAT)
+    trash = _trash_dir()
+    entry = f"{ts}-{path.name}"
+    n = 2
+    while (trash / entry).exists():
+        entry = f"{ts}-{path.stem}-{n}.grafik"
+        n += 1
+    shutil.move(str(path), str(trash / entry))
     _histories.pop(project_id, None)
-    return {"deleted": project_id}
+    _log_destructive("project-delete", project_id=project_id, name=name, trash_entry=entry)
+    return {"deleted": project_id, "trash_entry": entry}
 
 
 @app.post("/api/projects/{project_id}/duplicate")
@@ -249,6 +362,9 @@ def duplicate_project(project_id: str) -> ProjectResponse:
     # would restore it and leave two directories with the same id, so the
     # copy starts with no history.
     (dst / "history.json").unlink(missing_ok=True)
+    # Same reasoning for the cost ledger: entries record the SOURCE project's
+    # spend -- the copy starts with a clean costs.jsonl.
+    (dst / LEDGER_FILENAME).unlink(missing_ok=True)
 
     copy = LayerProject.load(dst)
     copy.id = uuid.uuid4().hex[:12]
@@ -263,6 +379,163 @@ def duplicate_project(project_id: str) -> ProjectResponse:
         layer_count=len(copy.layers),
         created_at=copy.created_at,
         updated_at=copy.updated_at,
+    )
+
+
+# --- Trash (M4 soft-delete) ---
+
+
+@app.get("/api/trash")
+def list_trash() -> list[TrashItemResponse]:
+    """Trash entries, newest first. Auto-purges entries older than
+    TRASH_RETENTION_DAYS as a side effect — the trash is only ever read
+    through here, so the purge needs no scheduler."""
+    _purge_old_trash()
+    items = [_trash_entry_meta(p) for p in _trash_dir().iterdir() if p.is_dir()]
+    items.sort(key=lambda i: i.deleted_at, reverse=True)
+    return items
+
+
+@app.post("/api/trash/{entry}/restore")
+def restore_trash(entry: str) -> ProjectResponse:
+    src = _trash_entry_dir(entry)
+    orig_name = re.sub(r"^\d{8}-\d{6}-", "", src.name) or src.name
+    if not orig_name.endswith(".grafik"):
+        orig_name += ".grafik"
+    stem = orig_name[: -len(".grafik")]
+    dst = _projects_dir() / orig_name
+    n = 2
+    while dst.exists():
+        dst = _projects_dir() / f"{stem}-{n}.grafik"
+        n += 1
+    shutil.move(str(src), str(dst))
+
+    project = LayerProject.load(dst)
+    # Openart-incident defense: if another project already claims this id
+    # (e.g. restored twice via an outside copy), the restored one gets a
+    # fresh id instead of shadowing the existing project.
+    for p in _projects_dir().iterdir():
+        if p == dst or not (p.is_dir() and p.suffix == ".grafik"):
+            continue
+        manifest = p / "project.json"
+        if manifest.exists():
+            if json.loads(manifest.read_text(encoding="utf-8")).get("id") == project.id:
+                project.id = uuid.uuid4().hex[:12]
+                project.save(dst)
+                break
+    _log_destructive("trash-restore", entry=entry, restored_to=dst.name, project_id=project.id)
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        canvas_width=project.canvas_width,
+        canvas_height=project.canvas_height,
+        layer_count=len(project.layers),
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+    )
+
+
+@app.delete("/api/trash")
+def empty_trash() -> dict:
+    """Permanently delete every trash entry (the UI confirms first)."""
+    purged = []
+    for entry_dir in _trash_dir().iterdir():
+        if entry_dir.is_dir():
+            shutil.rmtree(entry_dir)
+            purged.append(entry_dir.name)
+    if purged:
+        _log_destructive("trash-empty", entries=purged)
+    return {"purged": len(purged)}
+
+
+# --- Costs (M4 cost tracking) ---
+
+
+@app.get("/api/costs/session")
+def get_session_costs() -> CostsSummaryResponse:
+    """Every paid call recorded by THIS API process since it started."""
+    entries = session_entries()
+    return CostsSummaryResponse(
+        entries=[CostEntryModel.model_validate(e) for e in entries],
+        total_usd=total_usd(entries),
+        count=len(entries),
+    )
+
+
+@app.get("/api/projects/{project_id}/costs")
+def get_project_costs(project_id: str) -> CostsSummaryResponse:
+    _, path = _load_project(project_id)
+    entries = read_ledger(path)
+    return CostsSummaryResponse(
+        entries=[CostEntryModel.model_validate(e) for e in entries],
+        total_usd=total_usd(entries),
+        count=len(entries),
+    )
+
+
+@app.post("/api/projects/{project_id}/costs")
+def attach_project_cost(project_id: str, entry: CostEntryModel) -> CostsSummaryResponse:
+    """Append one already-recorded entry to a project's ledger — used when
+    adopting a generated image whose paid call happened before the project
+    existed (GenerateImageResponse.cost)."""
+    _, path = _load_project(project_id)
+    append_entry(path, entry.model_dump())
+    entries = read_ledger(path)
+    return CostsSummaryResponse(
+        entries=[CostEntryModel.model_validate(e) for e in entries],
+        total_usd=total_usd(entries),
+        count=len(entries),
+    )
+
+
+# --- Image generation (M4, NB Pro) ---
+
+
+@app.post("/api/generate-image")
+def generate_image(req: GenerateImageRequest) -> GenerateImageResponse:
+    """Text→image via an image_gen provider (NB Pro). Returns the PNG inline
+    (base64) — no project exists yet; the UI adopts it through the standard
+    create-project + decompose flow and attaches `cost` to the new ledger."""
+    import base64
+
+    from grafik.providers.nbpro import ASPECT_RATIOS, GeminiKeyMissing
+    from grafik.providers.registry import get_provider
+
+    try:
+        entry = get_provider(req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    if entry.info.kind != "image_gen":
+        raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'image_gen'")
+    if entry.impl is None:
+        raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
+    if req.aspect_ratio not in ASPECT_RATIOS:
+        raise HTTPException(400, f"aspect_ratio must be one of {list(ASPECT_RATIOS)}")
+    if not req.prompt.strip():
+        raise HTTPException(400, "Prompt nesmí být prázdný")
+
+    provider = entry.impl()
+    try:
+        img = provider.generate(req.prompt, aspect_ratio=req.aspect_ratio)
+    except GeminiKeyMissing as exc:
+        raise HTTPException(503, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f"Generování obrázku selhalo ({req.provider}): {exc}")
+
+    cost = record_paid_call(
+        entry.info.endpoint,
+        "image_gen",
+        calls=1,
+        note=f"generate {img.width}x{img.height}",
+    )
+    buf = BytesIO()
+    img.save(buf, "PNG")
+    return GenerateImageResponse(
+        image_b64=base64.b64encode(buf.getvalue()).decode("ascii"),
+        width=img.width,
+        height=img.height,
+        provider=req.provider,
+        cost=CostEntryModel.model_validate(cost),
     )
 
 
@@ -329,6 +602,60 @@ async def decompose_file(
     project.source_image_url = image_url
     project.save(path)
     return [_layer_response(l) for l in layers]
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/decompose")
+def decompose_layer(project_id: str, layer_id: str, req: DecomposeLayerRequest) -> list[LayerResponse]:
+    """Recursive decomposition (M4): run I2L over ONE layer's pixel data and
+    replace that layer with the resulting sub-layers.
+
+    Geometry: I2L output layers are full-frame relative to their input, so
+    every sub-layer inherits the original layer's exact quad (x, y, width,
+    height, rotation) — same native-resolution-vs-layout boundary as
+    FalClient.decompose (M2.5 fix): pixel data stays native, the composer
+    resizes at compose time. The original layer's PNG stays on disk, so undo
+    (metadata snapshot) restores it fully."""
+    from grafik.fal.client import FalClient
+    from grafik.fal.upload import upload_image
+
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    try:
+        layer_img = layer.load_image(path)
+    except FileNotFoundError:
+        raise HTTPException(404, "Layer PNG not found on disk")
+
+    client = FalClient()
+    try:
+        image_url = upload_image(layer_img)
+        subs = client.decompose(image_url, req.num_layers, project=None, project_dir=path)
+    except Exception as exc:
+        raise HTTPException(502, f"Dekompozice vrstvy selhala: {exc}")
+    if not subs:
+        raise HTTPException(502, "Dekompozice vrstvy nevrátila žádné vrstvy")
+
+    for i, sub in enumerate(subs):
+        sub.name = f"{layer.name} / {i + 1}"
+        sub.x = layer.x
+        sub.y = layer.y
+        sub.rotation = layer.rotation
+        if layer.width:
+            sub.width = layer.width
+        if layer.height:
+            sub.height = layer.height
+        sub.tags = ["decomposed", "sub"]
+
+    # Splice the sub-layers into the original's z position, bottom-first.
+    idx = project.layers.index(layer)
+    project.layers[idx : idx + 1] = subs
+    for i, l in enumerate(project.layers):
+        l.z_order = i
+
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return [_layer_response(s) for s in subs]
 
 
 # --- Layers ---
@@ -990,15 +1317,20 @@ def _segment_remote(image, text: str, endpoint: str, points: list | None = None)
 
     Returns a list of "L"-mode (grayscale) PIL masks, one per detection.
     """
-    import fal_client
-
+    from grafik.fal.client import tracked_subscribe
     from grafik.fal.upload import download_url, upload_image
 
     image_url = upload_image(image)
     arguments: dict = {"image_url": image_url, "prompt": text}
     if points:
         arguments["point_prompts"] = [{"x": p.x, "y": p.y, "label": p.label} for p in points]
-    result = fal_client.subscribe(endpoint, arguments=arguments, with_logs=False)
+    result = tracked_subscribe(
+        endpoint,
+        arguments,
+        kind="segment",
+        note=f"text={text!r}" if text else "point_prompts",
+        with_logs=False,
+    )
     masks = []
     for m in result.get("masks", []) or []:
         url = m.get("url") if isinstance(m, dict) else m

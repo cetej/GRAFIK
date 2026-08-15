@@ -25,6 +25,7 @@ import fal_client
 import httpx
 
 from grafik.core.composer import compose
+from grafik.core.costs import record_paid_call
 from grafik.core.motion import ClipRecord, MotionSpec
 from grafik.core.project import LayerProject
 from grafik.motion.compiler import build_video_payload, compile_motion_prompt
@@ -126,6 +127,21 @@ def submit_video_job(
     prompt = prompt_override.strip() or compile_motion_prompt(project, spec)
     payload = build_video_payload(entry, image_url, prompt, spec.duration)
     request_id = _submit(entry.info.endpoint, payload)
+
+    # Cost ledger (M4): async jobs never pass through tracked_subscribe, so the
+    # commitment is recorded here at submit time. Non-numeric durations (e.g.
+    # seedance "auto") record seconds=None -> est_usd=None, never a guess.
+    try:
+        seconds: float | None = float(spec.duration)
+    except ValueError:
+        seconds = None
+    record_paid_call(
+        entry.info.endpoint,
+        "video",
+        seconds=seconds,
+        note=f"submit {provider_id}, duration={spec.duration}",
+        project_dir=project_dir,
+    )
 
     record = ClipRecord(
         provider_id=provider_id,

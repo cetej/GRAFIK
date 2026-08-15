@@ -17,9 +17,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from grafik.providers.base import Capabilities, ProviderInfo
+from grafik.providers.flux_fill import FluxFillProvider
+from grafik.providers.nbpro import ENDPOINT as NBPRO_ENDPOINT
+from grafik.providers.nbpro import NanoBananaProProvider
 from grafik.providers.qwen_inpaint import QwenInpaintProvider
 
 VERIFIED_AT = "2026-08-14"
+# M4 sweep: flux-fill raw OpenAPI + ceny z fal model pages / ai.google.dev.
+VERIFIED_M4 = "2026-08-15"
 
 _UNVERIFIED_PRICE = "unverified/secondary — not in fal.ai OpenAPI schema, not confirmed in this sweep"
 
@@ -48,7 +53,8 @@ REGISTRY: dict[str, RegistryEntry] = {
                     "endpoint output drifts globally outside the mask."
                 ),
             ),
-            price_note=_UNVERIFIED_PRICE,
+            price_note='"$0.03 per megapixel" (fal model page, fetch 2026-08-15 — sekundární zdroj)',
+            est_cost_usd_per_mp=0.03,
         ),
         impl=QwenInpaintProvider,
     ),
@@ -59,14 +65,21 @@ REGISTRY: dict[str, RegistryEntry] = {
             kind="image_edit",
             capabilities=Capabilities(
                 supports_mask=True,
-                verified_at=VERIFIED_AT,
+                verified_at=VERIFIED_M4,
                 notes=(
                     "Dedicated FLUX.1 [pro] Fill inpaint endpoint — distinct "
-                    "from fal-ai/flux-pro/kontext, which has no mask input."
+                    "from fal-ai/flux-pro/kontext, which has no mask input. "
+                    "Raw OpenAPI (2026-08-15): required prompt + image_url + "
+                    "mask_url; mask must match input dimensions; output_format "
+                    'default jpeg (impl sends png); safety_tolerance default "2"; '
+                    "no image_size field — output follows input, resize-back "
+                    "guard in impl."
                 ),
             ),
-            price_note=_UNVERIFIED_PRICE,
+            price_note='"$0.05 per megapixel" (fal model page, fetch 2026-08-15 — sekundární zdroj)',
+            est_cost_usd_per_mp=0.05,
         ),
+        impl=FluxFillProvider,
     ),
     "gpt-image-2-edit": RegistryEntry(
         info=ProviderInfo(
@@ -184,8 +197,50 @@ REGISTRY: dict[str, RegistryEntry] = {
                     "(+ scores, boxes)."
                 ),
             ),
-            price_note=_UNVERIFIED_PRICE,
+            price_note='"$0.005 per request" (fal model page, fetch 2026-08-15 — sekundární zdroj)',
+            est_cost_usd_per_call=0.005,
         ),
+    ),
+    # --- decompose (I2L) — capability + cost metadata for FalClient ---------
+    "qwen-i2l": RegistryEntry(
+        info=ProviderInfo(
+            id="qwen-i2l",
+            endpoint="fal-ai/qwen-image-layered",
+            kind="decompose",
+            capabilities=Capabilities(
+                verified_at=VERIFIED_M4,
+                notes=(
+                    "Image→RGBA layers (I2L). Vrstvy chodí v nativním rozlišení "
+                    "~0.4 MP — layout se škáluje na canvas ve FalClient.decompose "
+                    "(fix 2026-08-15). Entry existuje kvůli capability mapě a "
+                    "cost ledgeru; volá se přes FalClient, ne přes impl třídu."
+                ),
+            ),
+            price_note='"$0.05 per image" (fal model page, fetch 2026-08-15 — sekundární zdroj)',
+            est_cost_usd_per_call=0.05,
+        ),
+    ),
+    # --- image_gen --------------------------------------------------------
+    "nb-pro": RegistryEntry(
+        info=ProviderInfo(
+            id="nb-pro",
+            endpoint=NBPRO_ENDPOINT,  # google/nano-banana-pro-preview — Gemini API, ne fal
+            kind="image_gen",
+            capabilities=Capabilities(
+                verified_at=VERIFIED_M4,
+                notes=(
+                    "Nano Banana Pro (gemini-3-pro-image) přes Google Gemini API — "
+                    "generace VSTUPNÍHO obrázku (generate→decompose). NEBERE pixel "
+                    "masku (jen globální/sémantické edity) a vkládá SynthID "
+                    "watermark → role: vstup, ne per-prvek edit. Klíč: "
+                    "GEMINI_API_KEY/GOOGLE_API_KEY/GOOGLE_GEMINI_API_KEY, "
+                    "read-only fallback na NG-ROBOT .env."
+                ),
+            ),
+            price_note='"$0.134 per 1K/2K image", "$0.24 per 4K image" (ai.google.dev/gemini-api/docs/pricing, fetch 2026-08-15)',
+            est_cost_usd_per_call=0.134,
+        ),
+        impl=NanoBananaProProvider,
     ),
 }
 

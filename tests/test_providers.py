@@ -29,6 +29,9 @@ EXPECTED_IDS = {
     "seedance-25",
     "kling-15-pro",
     "sam-3",
+    # M4
+    "qwen-i2l",
+    "nb-pro",
 }
 
 EXPECTED_KIND = {
@@ -40,7 +43,12 @@ EXPECTED_KIND = {
     "seedance-25": "video",
     "kling-15-pro": "video",
     "sam-3": "segment",
+    "qwen-i2l": "decompose",
+    "nb-pro": "image_gen",
 }
+
+# M4: entries with a concrete impl class (everything else must stay impl=None).
+EXPECTED_WITH_IMPL = {"qwen-inpaint", "flux-fill", "nb-pro"}
 
 
 # --------------------------------------------------------------------------
@@ -69,12 +77,13 @@ class TestRegistryIntegrity:
 
     def test_kind_is_restricted_to_known_values(self):
         for entry in REGISTRY.values():
-            assert entry.info.kind in {"image_edit", "video", "segment"}
+            assert entry.info.kind in {"image_edit", "video", "segment", "image_gen", "decompose"}
 
     def test_verified_at_set(self):
+        # Two sweep dates: 2026-08-14 (M3) and 2026-08-15 (M4 additions).
         for pid, entry in REGISTRY.items():
             assert entry.info.capabilities.verified_at, f"{pid} missing verified_at"
-            assert entry.info.capabilities.verified_at == "2026-08-14"
+            assert entry.info.capabilities.verified_at in {"2026-08-14", "2026-08-15"}, pid
 
     def test_endpoints_nonempty(self):
         for pid, entry in REGISTRY.items():
@@ -90,9 +99,13 @@ class TestRegistryIntegrity:
         entry = get_provider("qwen-inpaint")
         assert entry.impl is QwenInpaintProvider
 
-    def test_other_entries_have_no_impl_yet(self):
-        for pid in EXPECTED_IDS - {"qwen-inpaint"}:
-            assert get_provider(pid).impl is None
+    def test_impl_flags_match_expected_set(self):
+        for pid in EXPECTED_IDS:
+            entry = get_provider(pid)
+            if pid in EXPECTED_WITH_IMPL:
+                assert entry.impl is not None, pid
+            else:
+                assert entry.impl is None, pid
 
 
 # --------------------------------------------------------------------------

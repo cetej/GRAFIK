@@ -13,9 +13,35 @@ from PIL import Image
 load_dotenv()
 load_dotenv("key.env")
 
+from grafik.core.costs import record_paid_call
 from grafik.core.layer import Layer
 from grafik.core.project import LayerProject
 from grafik.fal.upload import upload_file, download_url
+
+
+def tracked_subscribe(
+    endpoint: str,
+    arguments: dict,
+    *,
+    kind: str,
+    mp: float | None = None,
+    seconds: float | None = None,
+    calls: int = 1,
+    note: str = "",
+    project_dir: Path | None = None,
+    with_logs: bool = False,
+) -> dict:
+    """The single fal.ai paid-call gateway (M4 cost tracking): every
+    subscribe-style call routes through here so ledger recording lives in one
+    place, not per-callsite. Recording happens only after a successful
+    response (fal bills successful runs). Attribution: explicit `project_dir`
+    wins, else the request-scoped context set by the API's _load_project
+    (grafik.core.costs)."""
+    result = fal_client.subscribe(endpoint, arguments=arguments, with_logs=with_logs)
+    record_paid_call(
+        endpoint, kind, mp=mp, seconds=seconds, calls=calls, note=note, project_dir=project_dir
+    )
+    return result
 
 
 class FalClient:
@@ -50,12 +76,15 @@ class FalClient:
             already has a canvas, the layer layout (width/height) is
             stretched onto it and the composer resizes at compose time.
         """
-        result = fal_client.subscribe(
+        result = tracked_subscribe(
             self.MODEL_I2L,
-            arguments={
+            {
                 "image_url": image_url,
                 "num_layers": num_layers,
             },
+            kind="decompose",
+            note=f"i2l num_layers={num_layers}",
+            project_dir=project_dir,
         )
 
         layers: list[Layer] = []

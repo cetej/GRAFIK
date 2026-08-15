@@ -66,7 +66,7 @@ def _mock_fal(monkeypatch, layer_count=2, fal_size=FAL_NATIVE):
     full-frame RGBA images at the model's native resolution -- deliberately
     NOT the size of the input/uploaded image."""
 
-    def fake_subscribe(model, arguments):
+    def fake_subscribe(model, arguments, with_logs=False):
         return {"layers": [{"url": f"https://fake/layer{i}.png"} for i in range(layer_count)]}
 
     monkeypatch.setattr("fal_client.subscribe", fake_subscribe)

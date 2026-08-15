@@ -106,7 +106,8 @@ def test_providers_list_has_impl_flags(api):
     assert items["qwen-inpaint"]["has_impl"] is True
     assert items["qwen-inpaint"]["kind"] == "image_edit"
     assert items["qwen-inpaint"]["endpoint"] == "fal-ai/qwen-image-edit/inpaint"
-    assert items["flux-fill"]["has_impl"] is False
+    # M4: flux-fill got a concrete impl (FluxFillProvider)
+    assert items["flux-fill"]["has_impl"] is True
     assert items["kling-26-pro"]["has_impl"] is False
 
 

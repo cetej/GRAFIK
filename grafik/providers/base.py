@@ -17,7 +17,7 @@ from typing import Any, Literal
 from PIL import Image
 from pydantic import BaseModel, Field
 
-ProviderKind = Literal["image_edit", "video", "segment"]
+ProviderKind = Literal["image_edit", "video", "segment", "image_gen", "decompose"]
 
 
 class Capabilities(BaseModel):
@@ -60,6 +60,13 @@ class ProviderInfo(BaseModel):
     payload_defaults: dict = Field(default_factory=dict)
     duration_choices: list[str] = Field(default_factory=lambda: ["5", "10"])
     est_cost_usd_per_second: float | None = None
+    # M4 (cost tracking): per-MP / per-call rate estimates for non-video
+    # endpoints — same secondary-source trust level as price_note (fal model
+    # pages / ai.google.dev, fetch dates in each entry's price_note).
+    # grafik.core.costs.estimate_usd picks whichever field matches the units
+    # the call site measured.
+    est_cost_usd_per_mp: float | None = None
+    est_cost_usd_per_call: float | None = None
 
 
 class ImageEditProvider:
@@ -87,4 +94,15 @@ class SegmentProvider:
     """Text/point/box-prompted segmentation provider (e.g. sam-3)."""
 
     def segment(self, image: Image.Image, text: str) -> list[Image.Image]:
+        raise NotImplementedError
+
+
+class ImageGenProvider:
+    """Text→image generation provider (e.g. nb-pro).
+
+    Produces the INPUT image for a project (generate → decompose). Not a
+    per-element editor — NB Pro accepts no pixel mask, only global/semantic
+    instructions, and embeds a SynthID watermark (M4)."""
+
+    def generate(self, prompt: str, **kw: Any) -> Image.Image:
         raise NotImplementedError
