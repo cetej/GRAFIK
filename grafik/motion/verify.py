@@ -71,6 +71,19 @@ _MIN_BG_FRACTION = 0.20
 # pixels are fully covered; anything below this (bilinear edge blend) is
 # excluded from every statistic, so the border does not read as "motion".
 _VALID_COVERAGE = 250.0
+# Dense sampling for the alignment chain (re-measured on the real M3 sc-2
+# clip, 2026-08-15): a prompt-compiled "zoom_in 0.25" came back as a ~3.5x
+# push-in, so 5 samples put a >1.3x scale step between neighbours -- outside
+# any estimator's comfort zone. 13 samples keep consecutive steps ~1.1x.
+_VERIFY_SAMPLE_COUNT = 13
+# Feature-based step estimation (ORB + RANSAC affine). ECC alone failed on
+# the real clip: it is a local optimizer, and from an identity seed on a big
+# zoom it settled into a near-identity minimum (residual 54.2 vs raw 55.4,
+# correlation ~0.4-0.57). Keypoint matching has no convergence basin, and
+# RANSAC additionally rejects matches on moving elements as outliers.
+_ORB_FEATURES = 2000
+_MIN_RANSAC_INLIERS = 8
+_RANSAC_REPROJ_THRESHOLD = 3.0
 
 _VERDICT_PHRASES = {
     ("move", "yes"): "hýbal se, jak měl",
@@ -197,28 +210,55 @@ def _align_to_first(gray: list[np.ndarray], bg_mask: np.ndarray) -> tuple[list[n
     Returns (aligned frames for k>0, per-frame validity masks, count of frames
     actually compensated).
 
-    findTransformECC yields the warp mapping TEMPLATE (frame 0) coordinates to
-    INPUT (frame k) coordinates, so frame k is pulled back with WARP_INVERSE_MAP
+    findTransformECC yields the warp mapping TEMPLATE coordinates to INPUT
+    (frame k) coordinates, so frame k is pulled back with WARP_INVERSE_MAP
     -- the alignment direction used by OpenCV's own ECC sample.
 
-    A frame that cannot be registered (cv2.error "NaN encountered" on
-    texture-less footage, non-convergence, or a non-finite warp) is passed
-    through UNCHANGED with full validity and is not counted: verification
-    degrades to the pre-M5 raw diff for that frame instead of failing.
+    Estimation strategy (each piece re-measured on the real M3 sc-2 clip,
+    2026-08-15 -- a prompt-compiled zoom_in 0.25 that the model rendered as a
+    ~3.5x push-in with the statue re-posing, the crowd walking and the scene
+    brightening by +24/255):
+
+    1. CHAINED steps between CONSECUTIVE sampled frames (small motions),
+       composed into a frame-0 warp -- a single direct fit vs. frame 0 has to
+       swallow the whole cumulative transform at once, which is exactly where
+       the first implementation died (near-identity local minimum, residual
+       54.2 vs raw 55.4).
+    2. Each step is estimated FEATURE-FIRST: ORB keypoints on the background
+       (bg_mask), cross-checked Hamming matches, RANSAC affine
+       (cv2.estimateAffine2D). Keypoint matching has no convergence basin, so
+       arbitrary step sizes are fine, and RANSAC rejects matches on moving
+       elements as outliers. ECC then REFINES the feature estimate when it
+       converges (subpixel); on feature-poor footage (synthetic noise has no
+       ORB corners) ECC seeded at identity is the sole estimator, which is
+       the regime the synthetic tests exercise.
+    3. The composed warp is refined by one direct-to-frame-0 ECC pass seeded
+       with it (catches accumulation drift; a failed refinement keeps the
+       composed warp).
+    4. Luminance: generative clips drift exposure (+24/255 here), which a
+       geometric warp cannot remove and which would read as global "motion".
+       Each successfully aligned frame gets a constant offset subtracted --
+       the median background difference vs. frame 0 -- before diffing.
+       Uncompensated frames are left untouched (raw M3 semantics).
+
+    A frame whose consecutive link fails breaks the chain; it and later
+    frames fall back to a direct frame-0 fit (features, then ECC). A frame
+    with no usable warp at all is passed through UNCHANGED with full validity
+    and is not counted: verification degrades to the pre-M5 raw diff for that
+    frame instead of failing.
     """
     height, width = gray[0].shape
-    template = gray[0].astype(np.float32)
+    frames32 = [g.astype(np.float32) for g in gray]
+    frames8 = [np.clip(g, 0, 255).astype(np.uint8) for g in gray]
+    bg_bool = bg_mask > 0
     coverage_probe = np.full((height, width), 255.0, dtype=np.float32)
     full_valid = np.ones((height, width), dtype=bool)
 
-    aligned: list[np.ndarray] = []
-    valids: list[np.ndarray] = []
-    compensated = 0
+    orb = cv2.ORB_create(nfeatures=_ORB_FEATURES)
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
-    for frame in gray[1:]:
-        source = frame.astype(np.float32)
-        warp = np.eye(2, 3, dtype=np.float32)
-        ok = True
+    def ecc(template: np.ndarray, source: np.ndarray, init: np.ndarray) -> np.ndarray | None:
+        warp = init.copy()
         try:
             _cc, warp = cv2.findTransformECC(
                 templateImage=template,
@@ -229,20 +269,75 @@ def _align_to_first(gray: list[np.ndarray], bg_mask: np.ndarray) -> tuple[list[n
                 inputMask=bg_mask,
                 gaussFiltSize=_ECC_GAUSS_FILT_SIZE,
             )
-            ok = bool(np.isfinite(warp).all())
         except cv2.error:
-            ok = False
+            return None
+        return warp if bool(np.isfinite(warp).all()) else None
 
-        if not ok:
-            aligned.append(frame)
+    def feature_fit(i_from: int, i_to: int) -> np.ndarray | None:
+        """RANSAC affine mapping frame i_from coords -> frame i_to coords."""
+        kp1, des1 = orb.detectAndCompute(frames8[i_from], bg_mask)
+        kp2, des2 = orb.detectAndCompute(frames8[i_to], bg_mask)
+        if des1 is None or des2 is None:
+            return None
+        matches = matcher.match(des1, des2)
+        if len(matches) < _MIN_RANSAC_INLIERS:
+            return None
+        src = np.float32([kp1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+        dst = np.float32([kp2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+        warp, inliers = cv2.estimateAffine2D(
+            src, dst, method=cv2.RANSAC, ransacReprojThreshold=_RANSAC_REPROJ_THRESHOLD
+        )
+        if warp is None or inliers is None or int(inliers.sum()) < _MIN_RANSAC_INLIERS:
+            return None
+        return warp.astype(np.float32) if bool(np.isfinite(warp).all()) else None
+
+    identity = np.eye(2, 3, dtype=np.float32)
+
+    def fit_step(i_from: int, i_to: int) -> np.ndarray | None:
+        """Feature-first estimate with ECC refinement (see docstring, point 2)."""
+        seed = feature_fit(i_from, i_to)
+        refined = ecc(frames32[i_from], frames32[i_to], seed if seed is not None else identity)
+        return refined if refined is not None else seed
+
+    aligned: list[np.ndarray] = []
+    valids: list[np.ndarray] = []
+    compensated = 0
+
+    # 3x3 homogeneous matrix mapping frame-0 coords -> frame-(k-1) coords;
+    # None once a consecutive link failed (composition would be wrong).
+    cumulative: np.ndarray | None = np.eye(3, dtype=np.float64)
+
+    for k in range(1, len(frames32)):
+        source = frames32[k]
+
+        step = fit_step(k - 1, k)
+        if step is None or cumulative is None:
+            cumulative = None
+            warp = fit_step(0, k)  # direct fallback once the chain is broken
+        else:
+            cumulative = np.vstack([step.astype(np.float64), [0.0, 0.0, 1.0]]) @ cumulative
+            composed = cumulative[:2].astype(np.float32)
+            warp = ecc(frames32[0], source, composed)
+            if warp is None:
+                warp = composed
+
+        if warp is None:
+            aligned.append(gray[k])
             valids.append(full_valid)
             continue
 
         flags = cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP
         warped = cv2.warpAffine(source, warp, (width, height), flags=flags)
         coverage = cv2.warpAffine(coverage_probe, warp, (width, height), flags=flags)
+        valid = coverage > _VALID_COVERAGE
+        # Luminance drift compensation (docstring point 4) -- constant offset
+        # fitted on the background, applied to the whole frame so the element
+        # statistic is not biased either way.
+        drift_sel = bg_bool & valid
+        if drift_sel.any():
+            warped = warped - float(np.median(warped[drift_sel]) - np.median(frames32[0][drift_sel]))
         aligned.append(warped.astype(np.float64))
-        valids.append(coverage > _VALID_COVERAGE)
+        valids.append(valid)
         compensated += 1
 
     return aligned, valids, compensated
@@ -326,7 +421,10 @@ def verify_clip(project: LayerProject, project_dir: Path, clip: ClipRecord) -> C
     pixel-exact mapping -- good enough for a "did roughly the right thing
     move" signal, not a precise measurement.
     """
-    frames = sample_frames(project_dir / clip.path)
+    # Dense sampling (13, see _VERIFY_SAMPLE_COUNT): the alignment chain needs
+    # small steps between neighbouring samples; the diff statistics simply use
+    # every sampled frame.
+    frames = sample_frames(project_dir / clip.path, count=_VERIFY_SAMPLE_COUNT)
 
     if len(frames) < 2:
         return ClipVerification(

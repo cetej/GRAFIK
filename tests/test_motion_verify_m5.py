@@ -366,3 +366,50 @@ def test_missing_mask_file_falls_back_to_current(tmp_path, monkeypatch):
 
     assert result.mask_source == "current"
     assert result.elements[0].in_motion == pytest.approx(50.0, abs=0.5)
+
+
+# ---------------------------------------------------------------------------
+# 6. Large zoom -- the feature-based (ORB + RANSAC) alignment path
+# ---------------------------------------------------------------------------
+# The smooth-octave _background() has no ORB corners, so every test above
+# exercises the ECC-only regime. Real footage (M3 sc-2 re-measurement,
+# 2026-08-15) needs the feature path: a prompt-compiled zoom_in 0.25 came back
+# as a ~3.5x push-in plus a +24/255 exposure drift, where identity-seeded ECC
+# settles into a near-identity local minimum. This scene rebuilds that regime
+# synthetically: corner-rich block mosaic, 1.0 -> 1.6 zoom, brightness drift.
+
+
+def _blocky_background() -> np.ndarray:
+    """Nearest-neighbour upscaled coarse noise -- sharp block corners for ORB."""
+    rng = np.random.default_rng(7)
+    coarse = (rng.random((32, 32)) * 200 + 30).astype(np.float32)
+    return cv2.resize(coarse, (CANVAS, CANVAS), interpolation=cv2.INTER_NEAREST)
+
+
+def test_large_zoom_uses_feature_alignment(tmp_path, monkeypatch):
+    project, project_dir, layer = _scene_project(tmp_path)
+
+    frames = []
+    n = 6
+    for k in range(n):
+        img = _blocky_background()
+        x0 = SQUARE_ORIGIN[0] + 10 * k
+        y0 = SQUARE_ORIGIN[1]
+        patch = np.zeros((CANVAS, CANVAS), dtype=np.float32)
+        patch[y0:y0 + SQUARE, x0:x0 + SQUARE] = 1.0
+        patch = cv2.GaussianBlur(patch, (0, 0), 1.5)
+        img = np.clip(img * (1.0 - patch) + 235.0 * patch, 0, 255)
+        img = _apply_camera(img, 1.0 + 0.12 * k)  # 1.0 -> 1.6: far beyond ECC's basin
+        img = np.clip(img + 4.0 * k, 0, 255)  # generative-style exposure drift
+        frames.append(Image.fromarray(img.astype(np.uint8), mode="L").convert("RGB"))
+
+    result = _verify(monkeypatch, project, project_dir, _clip(layer.id, static=False), frames)
+
+    assert result.camera_compensated is True
+    assert result.compensated_frames == n - 1
+    assert result.residual_global_motion is not None
+    # Alignment + luminance offset must strip most of the zoom+drift signal.
+    assert result.residual_global_motion < result.global_motion / 2
+    element = result.elements[0]
+    assert element.verdict == "yes"
+    assert element.ratio >= 1.2
