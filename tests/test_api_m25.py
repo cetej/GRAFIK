@@ -232,6 +232,19 @@ def test_segment_points_only_passes_points_and_names_layer(api, monkeypatch):
     assert [(p.x, p.y, p.label) for p in seen["points"]] == [(10, 12, 1)]
 
 
+def test_decompose_file_not_an_image_400(api):
+    """Corrupt/non-image upload -> readable 400 (unhandled 500s bypass
+    CORSMiddleware and surface as bare "Failed to fetch" in the browser)."""
+    client, _ = api
+    a = _create_project(client)
+    resp = client.post(
+        f"/api/projects/{a['id']}/decompose/file",
+        files={"file": ("junk.png", b"\x01\x02\x03\x04", "image/png")},
+    )
+    assert resp.status_code == 400
+    assert "obráz" in resp.json()["detail"]
+
+
 def test_segment_without_text_and_points_400(api):
     client, _ = api
     a = _create_project(client)

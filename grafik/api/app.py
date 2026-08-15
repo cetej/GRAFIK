@@ -294,9 +294,15 @@ async def decompose_file(
 
     project, path = _load_project(project_id)
 
-    # Read uploaded image
+    # Read uploaded image. A file that is not a decodable image must come back
+    # as a readable 400, not an unhandled 500 -- unhandled exceptions bypass
+    # CORSMiddleware, so the browser would only see "Failed to fetch"
+    # (E2E finding, M2.5 drag&drop).
     img_data = await file.read()
-    img = Image.open(BytesIO(img_data)).convert("RGBA")
+    try:
+        img = Image.open(BytesIO(img_data)).convert("RGBA")
+    except Exception as exc:
+        raise HTTPException(400, f"Soubor nejde přečíst jako obrázek: {exc}")
 
     # Upload to fal CDN
     image_url = upload_image(img)
