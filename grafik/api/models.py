@@ -62,6 +62,10 @@ class LayerResponse(BaseModel):
     source: str
     tags: list[str]
     motion: LayerMotion | None = None
+    is_text: bool = False
+    text_score: float | None = None
+    text_original: str | None = None
+    text_current: str | None = None
 
 
 class ProjectResponse(BaseModel):
@@ -323,3 +327,32 @@ class CompileVideoResponse(BaseModel):
     est_cost_usd: float | None
     price_note: str
     payload_preview: dict
+
+
+# --- M6-UX1: text layers (detection + rewrite) ---
+
+
+class DetectTextRequest(BaseModel):
+    threshold: float = Field(default=0.35, ge=0.0, le=1.0)
+    provider: str = "sam-3"
+
+
+class DetectTextResponse(BaseModel):
+    layers: list[LayerResponse]
+    mask_count: int = 0
+
+
+class RewriteTextRequest(BaseModel):
+    new_text: str
+    original_text: str | None = None
+    provider: str = "qwen-inpaint"
+    dilate_px: int = Field(default=4, ge=0)
+    feather_px: int = Field(default=2, ge=0)
+    crop_inpaint: bool = True
+
+
+class RewriteTextResponse(BaseModel):
+    layer: LayerResponse
+    provider: str
+    elapsed_s: float
+    prompt: str

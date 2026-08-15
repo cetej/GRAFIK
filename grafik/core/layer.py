@@ -38,6 +38,13 @@ class Layer(BaseModel):
     tags: list[str] = Field(default_factory=list)
     png_path: str = ""
     motion: LayerMotion | None = None
+    # M6-UX1: text-layer detection/rewrite bookkeeping (see grafik/api/app.py
+    # detect_text_project / rewrite_text_layer). All default to "not text yet"
+    # so existing project.json files load unchanged.
+    is_text: bool = False
+    text_score: float | None = None  # detection debug: fraction of the layer's opaque px covered by SAM "text" masks
+    text_original: str | None = None  # original wording when known (user-supplied)
+    text_current: str | None = None  # last rewritten wording
 
     def load_image(self, project_dir: Path) -> Image.Image:
         """Load the RGBA PNG from disk."""

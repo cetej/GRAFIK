@@ -28,6 +28,8 @@ from grafik.api.models import (
     CropRequest,
     DecomposeLayerRequest,
     DecomposeRequest,
+    DetectTextRequest,
+    DetectTextResponse,
     FlipRequest,
     GenerateImageRequest,
     GenerateImageResponse,
@@ -45,6 +47,8 @@ from grafik.api.models import (
     RecolorRequest,
     RenameRequest,
     ReorderRequest,
+    RewriteTextRequest,
+    RewriteTextResponse,
     ScaleRequest,
     SegmentRequest,
     SegmentResponse,
@@ -207,6 +211,8 @@ def _layer_response(l) -> LayerResponse:
         opacity=l.opacity, blend_mode=l.blend_mode, x=l.x, y=l.y,
         width=l.width, height=l.height, rotation=l.rotation,
         source=l.source, tags=l.tags, motion=l.motion,
+        is_text=l.is_text, text_score=l.text_score,
+        text_original=l.text_original, text_current=l.text_current,
     )
 
 
@@ -954,6 +960,35 @@ def hittest(project_id: str, req: HitTestRequest) -> HitTestResponse:
     return HitTestResponse()
 
 
+@app.get("/api/projects/{project_id}/thumbnail")
+def get_project_thumbnail(project_id: str) -> Response:
+    """Cached <=256x256 PNG thumbnail for the project list/picker (M6-UX1).
+
+    Cached at project_dir/thumb.png, reused while it's newer than
+    project.json and regenerated from compose() otherwise -- a
+    whole-directory copy/move (duplicate, trash) carries the cache file
+    along for free, no special-casing needed there.
+    """
+    from PIL import Image
+
+    project, path = _load_project(project_id)
+    if project.canvas_width <= 0 or project.canvas_height <= 0 or not project.layers:
+        raise HTTPException(404, "No thumbnail available")
+
+    manifest = path / "project.json"
+    thumb_path = path / "thumb.png"
+    if not thumb_path.exists() or thumb_path.stat().st_mtime < manifest.stat().st_mtime:
+        composite = compose(project, path)
+        composite.thumbnail((256, 256), Image.LANCZOS)
+        composite.save(thumb_path, "PNG")
+
+    return Response(
+        content=thumb_path.read_bytes(),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 # --- Recolor ---
 
 
@@ -1119,6 +1154,116 @@ def run_workflow(project_id: str, req: WorkflowRequest) -> list[WorkflowStepResp
 # --- AI edit (per-element, task 1.7) ---
 
 
+def _ai_edit_apply(
+    project: LayerProject,
+    path: Path,
+    layer,
+    prompt: str,
+    provider_id: str,
+    *,
+    dilate_px: int,
+    feather_px: int,
+    crop_inpaint: bool,
+    mask_b64: str | None = None,
+):
+    """Pure compute for a mask+prompt provider edit of one layer -- the
+    shared core of ai_edit_layer's own-alpha/brush modes, reused as-is by
+    rewrite_text_layer (M6-UX1, always own-alpha) with a text-specific
+    prompt. Builds the edit mask, calls the provider, and returns
+    (new_layer_img, elapsed_s) -- new_layer_img is the resulting RGBA layer
+    image (replace, or merge when mask_b64 is set; see ai_edit_layer's
+    docstring for the exact semantics).
+
+    Does NOT save/snapshot/persist anything -- callers own that so they can
+    set their own layer metadata (e.g. is_text/text_current) first.
+    """
+    import base64
+    import time
+
+    import numpy as np
+    from PIL import Image, ImageFilter
+
+    from grafik.providers.registry import get_provider
+
+    try:
+        entry = get_provider(provider_id)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {provider_id}")
+    if not entry.info.capabilities.supports_mask:
+        raise HTTPException(
+            400, f"Provider {provider_id!r} does not support mask-based edit (supports_mask=False)"
+        )
+    if entry.impl is None:
+        raise HTTPException(400, f"Provider {provider_id!r} has no implementation available yet")
+
+    layer_img = layer.load_image(path)  # RGBA, NATIVE resolution (may differ from layout)
+    composite = compose(project, path)
+
+    # Layout-vs-native boundary (M4 fix, same lesson as /hittest): decompose
+    # stores native-resolution pixels (~0.4 MP) with layout width/height
+    # stretched onto the canvas. Every canvas-space step below — mask
+    # placement AND crop-back box — must use the LAYOUT quad, not the PNG's
+    # native size, or the mask lands in the wrong place and the crop writes
+    # back a misaligned fragment. Rotation is not handled here (pre-existing
+    # limitation; decomposed layers start at rotation 0).
+    layer_w = layer.width or layer_img.width
+    layer_h = layer.height or layer_img.height
+    layer_layout = (
+        layer_img if layer_img.size == (layer_w, layer_h) else layer_img.resize((layer_w, layer_h), Image.LANCZOS)
+    )
+
+    if mask_b64 is None:
+        hard_mask_local = layer_layout.split()[-1].point(lambda a: 255 if a > 127 else 0)
+        hard_mask_canvas = Image.new("L", composite.size, 0)
+        hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
+    else:
+        brush_mask = Image.open(BytesIO(base64.b64decode(mask_b64))).convert("L")
+        if brush_mask.size != composite.size:
+            raise HTTPException(
+                400,
+                f"mask_b64 size {brush_mask.size} does not match composite size {composite.size}",
+            )
+        hard_mask_canvas = brush_mask.point(lambda a: 255 if a > 127 else 0)
+
+    provider = entry.impl()
+    start = time.monotonic()
+    try:
+        edited = provider.edit(composite, hard_mask_canvas, prompt, crop_inpaint=crop_inpaint)
+    except Exception as exc:
+        raise HTTPException(502, f"AI edit failed ({provider_id}): {exc}")
+    elapsed = time.monotonic() - start
+
+    feathered_canvas = hard_mask_canvas
+    if dilate_px > 0:
+        feathered_canvas = feathered_canvas.filter(ImageFilter.MaxFilter(2 * dilate_px + 1))
+    if feather_px > 0:
+        feathered_canvas = feathered_canvas.filter(ImageFilter.GaussianBlur(feather_px))
+
+    box = (layer.x, layer.y, layer.x + layer_w, layer.y + layer_h)
+    new_rgb_local = edited.crop(box)
+    new_alpha_local = feathered_canvas.crop(box)
+
+    if mask_b64 is None:
+        new_layer_img = Image.merge("RGBA", (*new_rgb_local.split(), new_alpha_local))
+    else:
+        # Merge into the existing layer instead of replacing it: pixels
+        # where the feathered brush mask is 0 must stay bit-identical.
+        # Merge math runs at LAYOUT resolution (layer_layout, not layer_img).
+        orig_rgb = np.array(layer_layout.convert("RGB"), dtype=np.float64)
+        orig_alpha = np.array(layer_layout.split()[-1])
+        f = np.array(new_alpha_local, dtype=np.float64)[..., None] / 255.0
+        merged_rgb = np.clip(
+            orig_rgb * (1 - f) + np.array(new_rgb_local, dtype=np.float64) * f, 0, 255
+        ).astype(np.uint8)
+        merged_alpha = np.maximum(orig_alpha, np.array(new_alpha_local))
+        new_layer_img = Image.merge(
+            "RGBA",
+            (*Image.fromarray(merged_rgb, "RGB").split(), Image.fromarray(merged_alpha, "L")),
+        )
+
+    return new_layer_img, elapsed
+
+
 @app.post("/api/projects/{project_id}/layers/{layer_id}/ai-edit")
 def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditResponse:
     """Prompt-edit one layer inside a mask -- either its own alpha, or an
@@ -1144,102 +1289,72 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
 
     Either way, the provider edits the full composite inside that mask
     (mandatory paste-back happens inside the provider, e.g.
-    QwenInpaintProvider).
+    QwenInpaintProvider). The actual compute lives in _ai_edit_apply, shared
+    with rewrite_text_layer (M6-UX1).
     """
-    import base64
-    import time
-
-    import numpy as np
-    from PIL import Image, ImageFilter
-
-    from grafik.providers.registry import get_provider
-
     project, path = _load_project(project_id)
     layer = project.get_layer(layer_id)
     if not layer:
         raise HTTPException(404, f"Layer {layer_id} not found")
 
-    try:
-        entry = get_provider(req.provider)
-    except KeyError:
-        raise HTTPException(404, f"Unknown provider: {req.provider}")
-    if not entry.info.capabilities.supports_mask:
-        raise HTTPException(
-            400, f"Provider {req.provider!r} does not support mask-based edit (supports_mask=False)"
-        )
-    if entry.impl is None:
-        raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
-
-    layer_img = layer.load_image(path)  # RGBA, NATIVE resolution (may differ from layout)
-    composite = compose(project, path)
-
-    # Layout-vs-native boundary (M4 fix, same lesson as /hittest): decompose
-    # stores native-resolution pixels (~0.4 MP) with layout width/height
-    # stretched onto the canvas. Every canvas-space step below — mask
-    # placement AND crop-back box — must use the LAYOUT quad, not the PNG's
-    # native size, or the mask lands in the wrong place and the crop writes
-    # back a misaligned fragment. Rotation is not handled here (pre-existing
-    # limitation; decomposed layers start at rotation 0).
-    layer_w = layer.width or layer_img.width
-    layer_h = layer.height or layer_img.height
-    layer_layout = (
-        layer_img if layer_img.size == (layer_w, layer_h) else layer_img.resize((layer_w, layer_h), Image.LANCZOS)
+    new_layer_img, elapsed = _ai_edit_apply(
+        project, path, layer, req.prompt, req.provider,
+        dilate_px=req.dilate_px, feather_px=req.feather_px,
+        crop_inpaint=req.crop_inpaint, mask_b64=req.mask_b64,
     )
-
-    if req.mask_b64 is None:
-        hard_mask_local = layer_layout.split()[-1].point(lambda a: 255 if a > 127 else 0)
-        hard_mask_canvas = Image.new("L", composite.size, 0)
-        hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
-    else:
-        brush_mask = Image.open(BytesIO(base64.b64decode(req.mask_b64))).convert("L")
-        if brush_mask.size != composite.size:
-            raise HTTPException(
-                400,
-                f"mask_b64 size {brush_mask.size} does not match composite size {composite.size}",
-            )
-        hard_mask_canvas = brush_mask.point(lambda a: 255 if a > 127 else 0)
-
-    provider = entry.impl()
-    start = time.monotonic()
-    try:
-        edited = provider.edit(composite, hard_mask_canvas, req.prompt, crop_inpaint=req.crop_inpaint)
-    except Exception as exc:
-        raise HTTPException(502, f"AI edit failed ({req.provider}): {exc}")
-    elapsed = time.monotonic() - start
-
-    feathered_canvas = hard_mask_canvas
-    if req.dilate_px > 0:
-        feathered_canvas = feathered_canvas.filter(ImageFilter.MaxFilter(2 * req.dilate_px + 1))
-    if req.feather_px > 0:
-        feathered_canvas = feathered_canvas.filter(ImageFilter.GaussianBlur(req.feather_px))
-
-    box = (layer.x, layer.y, layer.x + layer_w, layer.y + layer_h)
-    new_rgb_local = edited.crop(box)
-    new_alpha_local = feathered_canvas.crop(box)
-
-    if req.mask_b64 is None:
-        new_layer_img = Image.merge("RGBA", (*new_rgb_local.split(), new_alpha_local))
-    else:
-        # Merge into the existing layer instead of replacing it: pixels
-        # where the feathered brush mask is 0 must stay bit-identical.
-        # Merge math runs at LAYOUT resolution (layer_layout, not layer_img).
-        orig_rgb = np.array(layer_layout.convert("RGB"), dtype=np.float64)
-        orig_alpha = np.array(layer_layout.split()[-1])
-        f = np.array(new_alpha_local, dtype=np.float64)[..., None] / 255.0
-        merged_rgb = np.clip(
-            orig_rgb * (1 - f) + np.array(new_rgb_local, dtype=np.float64) * f, 0, 255
-        ).astype(np.uint8)
-        merged_alpha = np.maximum(orig_alpha, np.array(new_alpha_local))
-        new_layer_img = Image.merge(
-            "RGBA",
-            (*Image.fromarray(merged_rgb, "RGB").split(), Image.fromarray(merged_alpha, "L")),
-        )
 
     layer.save_image(new_layer_img, path)
     _snapshot(project_id, project, path)
     project.save(path)
 
     return AiEditResponse(layer=_layer_response(layer), provider=req.provider, elapsed_s=elapsed)
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/rewrite-text")
+def rewrite_text_layer(project_id: str, layer_id: str, req: RewriteTextRequest) -> RewriteTextResponse:
+    """Replace a text layer's wording in place (M6-UX1).
+
+    Same edit path as ai_edit_layer's default (mask_b64 unset) mode -- the
+    layer's own alpha is the mask and its content gets REPLACED, not merged
+    -- but with a prompt template that names the exact wording change
+    instead of a free-form instruction, plus is_text/text_original/
+    text_current bookkeeping so the layer is flagged as text going forward.
+    """
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+
+    new_text = req.new_text.strip()
+    if not new_text:
+        raise HTTPException(400, "new_text must not be empty")
+
+    orig = (req.original_text or layer.text_current or layer.text_original or "").strip()
+    if orig:
+        prompt = f'Replace the text "{orig}" with "{new_text}". Keep the same font style, size, color and position. Do not change anything else.'
+    else:
+        prompt = f'Replace the text with "{new_text}". Keep the same font style, size, color and position. Do not change anything else.'
+
+    new_layer_img, elapsed = _ai_edit_apply(
+        project, path, layer, prompt, req.provider,
+        dilate_px=req.dilate_px, feather_px=req.feather_px,
+        crop_inpaint=req.crop_inpaint, mask_b64=None,
+    )
+
+    # Metadata set BEFORE persistence so it's part of the same save/snapshot
+    # as the pixel change.
+    layer.is_text = True
+    if req.original_text and req.original_text.strip():
+        layer.text_original = req.original_text.strip()
+    layer.text_current = new_text
+
+    layer.save_image(new_layer_img, path)
+    _snapshot(project_id, project, path)
+    project.save(path)
+
+    return RewriteTextResponse(
+        layer=_layer_response(layer), provider=req.provider, elapsed_s=elapsed, prompt=prompt
+    )
 
 
 # --- Inpaint behind (fill background left by a removed/edited element) ---
@@ -1499,6 +1614,69 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
 
     project.save(path)
     return SegmentResponse(layers=created, mask_count=mask_count)
+
+
+# --- Text layers (M6-UX1): detection + rewrite ---
+
+
+# Empirical (2026-08-15, M6-UX1 probe): the SAM-3 concept "text" returns 0
+# masks even on a large high-contrast headline; "letters" hits the glyphs
+# ("words" only catches individual lines, "writing"/"white text" nothing).
+DETECT_TEXT_PROMPT = "letters"
+
+
+@app.post("/api/projects/{project_id}/detect-text")
+def detect_text_project(project_id: str, req: DetectTextRequest) -> DetectTextResponse:
+    """Text-concept SAM segmentation over the composite: flags which layers
+    are (likely) text by how much of each layer's own opaque footprint the
+    union of detected text masks covers. No points/boxes, no layer creation
+    -- a metadata-only pass over the EXISTING layers (including hidden
+    ones), undo-able like any other metadata mutation (_snapshot). SAM
+    validly returning 0 masks is not an error -- every layer just scores 0.
+    """
+    import numpy as np
+    from PIL import Image
+
+    from grafik.motion.verify import layer_mask_on_canvas
+    from grafik.providers.registry import get_provider
+
+    project, path = _load_project(project_id)
+
+    try:
+        entry = get_provider(req.provider)
+    except KeyError:
+        raise HTTPException(404, f"Unknown provider: {req.provider}")
+    if entry.info.kind != "segment":
+        raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'segment'")
+
+    composite = compose(project, path)
+    try:
+        masks = _segment_remote(composite, DETECT_TEXT_PROMPT, entry.info.endpoint)
+    except Exception as exc:
+        raise HTTPException(502, f"Text detection failed ({req.provider}): {exc}")
+    mask_count = len(masks)
+
+    union = np.zeros((composite.height, composite.width), dtype=bool)
+    for mask in masks:
+        if mask.size != composite.size:
+            mask = mask.resize(composite.size, Image.LANCZOS)
+        union |= np.array(mask) > 127
+
+    for layer in project.layers:
+        alpha = layer_mask_on_canvas(project, path, layer)
+        alpha_bool = np.array(alpha) > 127
+        opaque = int(alpha_bool.sum())
+        if mask_count == 0 or opaque == 0:
+            score = 0.0
+        else:
+            score = float((union & alpha_bool).sum() / opaque)
+        layer.text_score = round(score, 4)
+        layer.is_text = score >= req.threshold
+
+    _snapshot(project_id, project, path)
+    project.save(path)
+
+    return DetectTextResponse(layers=[_layer_response(l) for l in project.layers], mask_count=mask_count)
 
 
 # --- Video jobs (async, task 1.7, architecture A4) ---
