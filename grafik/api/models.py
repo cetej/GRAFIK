@@ -79,6 +79,14 @@ class ProjectListItem(BaseModel):
     name: str
     path: str
     layer_count: int
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class RenameRequest(BaseModel):
+    """Shared by project rename (PATCH /projects/{id}) and layer rename."""
+
+    name: str
 
 
 class MaskRequest(BaseModel):
@@ -183,8 +191,20 @@ class ProviderListItem(BaseModel):
     est_cost_usd_per_second: float | None = None
 
 
+class SegmentPoint(BaseModel):
+    """One SAM point prompt in composite/canvas pixel space (upload preserves
+    dimensions, so canvas px == uploaded-image px). Shape verified against the
+    raw fal OpenAPI schema for fal-ai/sam-3/image (PointPrompt: x, y, label)."""
+
+    x: int
+    y: int
+    label: int = Field(default=1, ge=0, le=1)  # 1 foreground, 0 background
+
+
 class SegmentRequest(BaseModel):
-    text: str
+    # At least one of text/points must be non-empty -- validated in the route.
+    text: str = ""
+    points: list[SegmentPoint] = Field(default_factory=list)
     provider: str = "sam-3"
     create_layers: bool = True
 

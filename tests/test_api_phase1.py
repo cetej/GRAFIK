@@ -154,7 +154,7 @@ def test_segment_creates_capped_tagged_layers(api, monkeypatch):
     client, project_dir, project_id = api
     import grafik.api.app as app_module
 
-    def fake_segment_remote(image, text, endpoint):
+    def fake_segment_remote(image, text, endpoint, points=None):
         return [Image.new("L", image.size, 255) for _ in range(10)]  # more than the 8 cap
 
     monkeypatch.setattr(app_module, "_segment_remote", fake_segment_remote)
@@ -178,7 +178,9 @@ def test_segment_create_layers_false_returns_count_only(api, monkeypatch):
     import grafik.api.app as app_module
 
     monkeypatch.setattr(
-        app_module, "_segment_remote", lambda image, text, endpoint: [Image.new("L", image.size, 255)] * 3
+        app_module,
+        "_segment_remote",
+        lambda image, text, endpoint, points=None: [Image.new("L", image.size, 255)] * 3,
     )
 
     before_count = len(LayerProject.load(project_dir).layers)

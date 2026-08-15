@@ -34,6 +34,7 @@ from grafik.api.models import (
     ProjectResponse,
     ProviderListItem,
     RecolorRequest,
+    RenameRequest,
     ReorderRequest,
     ScaleRequest,
     SegmentRequest,
@@ -60,7 +61,7 @@ _histories: dict[str, History] = {}
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:8300", "http://localhost:8501", "http://127.0.0.1:8300", "http://127.0.0.1:8501", "http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -156,7 +157,11 @@ def list_projects() -> list[ProjectListItem]:
                     name=data.get("name", p.stem),
                     path=str(p),
                     layer_count=len(data.get("layers", [])),
+                    created_at=data.get("created_at", ""),
+                    updated_at=data.get("updated_at", ""),
                 ))
+    # Most recently touched first; ISO-8601 UTC strings sort lexicographically.
+    result.sort(key=lambda r: r.updated_at, reverse=True)
     return result
 
 
@@ -191,12 +196,66 @@ def get_project(project_id: str) -> ProjectResponse:
     )
 
 
+@app.patch("/api/projects/{project_id}")
+def rename_project(project_id: str, req: RenameRequest) -> ProjectResponse:
+    project, path = _load_project(project_id)
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "Project name must not be empty")
+    project.name = name
+    project.save(path)
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        canvas_width=project.canvas_width,
+        canvas_height=project.canvas_height,
+        layer_count=len(project.layers),
+        created_at=project.created_at,
+        updated_at=project.updated_at,
+    )
+
+
 @app.delete("/api/projects/{project_id}")
 def delete_project(project_id: str) -> dict:
     import shutil
     path = _find_project(project_id)
     shutil.rmtree(path)
+    _histories.pop(project_id, None)
     return {"deleted": project_id}
+
+
+@app.post("/api/projects/{project_id}/duplicate")
+def duplicate_project(project_id: str) -> ProjectResponse:
+    import shutil
+    import uuid
+    from datetime import datetime, timezone
+
+    src = _find_project(project_id)
+    dst = src.with_name(f"{src.stem}-kopie.grafik")
+    n = 2
+    while dst.exists():
+        dst = src.with_name(f"{src.stem}-kopie-{n}.grafik")
+        n += 1
+    shutil.copytree(src, dst)
+    # Undo snapshots embed the SOURCE project id -- an undo inside the copy
+    # would restore it and leave two directories with the same id, so the
+    # copy starts with no history.
+    (dst / "history.json").unlink(missing_ok=True)
+
+    copy = LayerProject.load(dst)
+    copy.id = uuid.uuid4().hex[:12]
+    copy.name = f"{copy.name} (kopie)"
+    copy.created_at = datetime.now(timezone.utc).isoformat()
+    copy.save(dst)
+    return ProjectResponse(
+        id=copy.id,
+        name=copy.name,
+        canvas_width=copy.canvas_width,
+        canvas_height=copy.canvas_height,
+        layer_count=len(copy.layers),
+        created_at=copy.created_at,
+        updated_at=copy.updated_at,
+    )
 
 
 # --- Decompose ---
@@ -385,6 +444,21 @@ def transform_layer(project_id: str, layer_id: str, req: TransformRequest) -> La
         layer.height = req.height
     if req.rotation is not None:
         layer.rotation = req.rotation
+    _snapshot(project_id, project, path)
+    project.save(path)
+    return _layer_response(layer)
+
+
+@app.post("/api/projects/{project_id}/layers/{layer_id}/rename")
+def rename_layer(project_id: str, layer_id: str, req: RenameRequest) -> LayerResponse:
+    project, path = _load_project(project_id)
+    layer = project.get_layer(layer_id)
+    if not layer:
+        raise HTTPException(404, f"Layer {layer_id} not found")
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "Layer name must not be empty")
+    layer.name = name
     _snapshot(project_id, project, path)
     project.save(path)
     return _layer_response(layer)
@@ -885,12 +959,19 @@ def inpaint_behind_layer(project_id: str, layer_id: str, req: InpaintBehindReque
 # --- Segmentation (SAM 3, task 1.7) ---
 
 
-def _segment_remote(image, text: str, endpoint: str) -> list:
-    """All network I/O for one text-prompted segmentation call: upload the
-    image, call the fal segmentation endpoint, download each returned mask.
-    Isolated in this one function so tests can monkeypatch
+def _segment_remote(image, text: str, endpoint: str, points: list | None = None) -> list:
+    """All network I/O for one text- or point-prompted segmentation call:
+    upload the image, call the fal segmentation endpoint, download each
+    returned mask. Isolated in this one function so tests can monkeypatch
     grafik.api.app._segment_remote and exercise the /segment route fully
     offline -- mirrors QwenInpaintProvider._run_remote.
+
+    `points` are SegmentPoint models in uploaded-image pixel space. The
+    payload shape (point_prompts: [{x, y, label}]) comes from the raw fal
+    OpenAPI schema for fal-ai/sam-3/image. Caveat from that schema: `prompt`
+    declares default "wheel", so point-only calls deliberately send no prompt
+    key and rely on point_prompts driving the result -- behavior notes in
+    docs/capabilities/sam3-point.md.
 
     Returns a list of "L"-mode (grayscale) PIL masks, one per detection.
     """
@@ -899,9 +980,12 @@ def _segment_remote(image, text: str, endpoint: str) -> list:
     from grafik.fal.upload import download_url, upload_image
 
     image_url = upload_image(image)
-    result = fal_client.subscribe(
-        endpoint, arguments={"image_url": image_url, "prompt": text}, with_logs=False
-    )
+    arguments: dict = {"image_url": image_url}
+    if text:
+        arguments["prompt"] = text
+    if points:
+        arguments["point_prompts"] = [{"x": p.x, "y": p.y, "label": p.label} for p in points]
+    result = fal_client.subscribe(endpoint, arguments=arguments, with_logs=False)
     masks = []
     for m in result.get("masks", []) or []:
         url = m.get("url") if isinstance(m, dict) else m
@@ -912,11 +996,11 @@ def _segment_remote(image, text: str, endpoint: str) -> list:
 
 @app.post("/api/projects/{project_id}/segment")
 def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
-    """Text-prompted segmentation (SAM 3) over the composite. Each returned
-    mask (capped at 8) optionally becomes a new tagged layer: the composite's
-    RGB masked by that detection's alpha. Registry entry sam-3 has no
-    concrete impl class (unlike qwen-inpaint) -- this route calls its fal
-    endpoint directly via _segment_remote instead of a provider.segment().
+    """Text- or point-prompted segmentation (SAM 3) over the composite. Each
+    returned mask (capped at 8) optionally becomes a new tagged layer: the
+    composite's RGB masked by that detection's alpha. Registry entry sam-3
+    has no concrete impl class (unlike qwen-inpaint) -- this route calls its
+    fal endpoint directly via _segment_remote instead of a provider.segment().
     """
     from PIL import Image
 
@@ -924,6 +1008,10 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
     from grafik.providers.registry import get_provider
 
     project, path = _load_project(project_id)
+
+    text = req.text.strip()
+    if not text and not req.points:
+        raise HTTPException(400, "Provide text or points for segmentation")
 
     try:
         entry = get_provider(req.provider)
@@ -934,7 +1022,7 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
 
     composite = compose(project, path)
     try:
-        masks = _segment_remote(composite, req.text, entry.info.endpoint)
+        masks = _segment_remote(composite, text, entry.info.endpoint, points=req.points)
     except Exception as exc:
         raise HTTPException(502, f"Segmentation failed ({req.provider}): {exc}")
     mask_count = len(masks)  # informational: how many SAM found, even if capped below
@@ -943,6 +1031,12 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
     if not req.create_layers:
         return SegmentResponse(mask_count=mask_count)
 
+    if text:
+        layer_name = f"sam: {text}"
+    else:
+        p0 = req.points[0]
+        layer_name = f"sam: bod ({p0.x},{p0.y})"
+
     created: list[LayerResponse] = []
     rgb = composite.convert("RGB")
     for mask in masks:
@@ -950,7 +1044,7 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
             mask = mask.resize(rgb.size, Image.LANCZOS)
         r, g, b = rgb.split()
         layer_img = Image.merge("RGBA", (r, g, b, mask))
-        layer = Layer(name=f"sam: {req.text}", source="sam", tags=["sam"])
+        layer = Layer(name=layer_name, source="sam", tags=["sam"])
         layer.save_image(layer_img, path)
         project.add_layer(layer)
         created.append(_layer_response(layer))
