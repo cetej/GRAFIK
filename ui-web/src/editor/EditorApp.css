@@ -103,13 +103,14 @@
 }
 
 .editor-sidebar {
-  width: 280px;
+  width: 320px;
   flex-shrink: 0;
   background: #16171c;
   border-right: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .editor-sidebar h1 {
@@ -201,27 +202,16 @@
   overflow-y: auto;
 }
 
-/* Vrstvy/Klipy grow to fill remaining sidebar height and scroll internally — the flex-grow role
-   the old .editor-section-layers/.editor-section-clips played. */
+/* Vrstvy/Klipy wrappers — natural height, the sidebar itself scrolls. (M6-UX1 E2E fix: the
+   original flex-grow split squeezed both cards to ~0 px once thumbnail rows made Projekty tall;
+   long lists instead scroll inside their card via the sidebar-scoped .section-body cap below.) */
 .section-flex-grow {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin: 8px;
+  flex-shrink: 0;
 }
 
-.section-flex-grow .section-card {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-}
-
-.section-flex-grow .section-body {
-  flex: 1;
-  min-height: 0;
+.editor-sidebar .section-body {
+  max-height: 380px;
+  overflow-x: hidden;
 }
 
 .layer-group-heading {
@@ -268,6 +258,7 @@
 .project-item .name,
 .layer-item .name {
   flex: 1;
+  min-width: 40px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -819,16 +810,18 @@ button.primary-btn:disabled {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* Hidden via display (not opacity) so the buttons don't reserve ~100 px of row width while
+   invisible — at 280 px that squeezed the name span to zero and forced a horizontal scrollbar
+   (M6-UX1 E2E fix). */
 .project-item .project-actions {
-  display: flex;
+  display: none;
   gap: 2px;
   flex-shrink: 0;
-  opacity: 0;
 }
 
 .project-item:hover .project-actions,
 .project-item.selected .project-actions {
-  opacity: 1;
+  display: flex;
 }
 
 .icon-btn {
