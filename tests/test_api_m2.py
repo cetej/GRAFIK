@@ -298,6 +298,38 @@ def test_reorder_changes_order_and_persists(api):
     assert reloaded_ids == ids_in_order
 
 
+def test_reorder_single_step_down(api):
+    """Regression (user report, 2026-08-15): a +-1 move -- the only move the
+    UI arrows produce -- was a silent no-op. Assign-and-stable-sort kept
+    duplicate z_order keys in their original relative order, so _reindex
+    restored the starting state."""
+    client, _, project_id = api
+    before = client.get(f"/api/projects/{project_id}/layers").json()
+    top = max(before, key=lambda l: l["z_order"])
+    resp = client.post(
+        f"/api/projects/{project_id}/layers/{top['id']}/reorder",
+        json={"z_order": top["z_order"] - 1},
+    )
+    assert resp.status_code == 200, resp.text
+    body = sorted(resp.json(), key=lambda l: l["z_order"])
+    assert body[-2]["id"] == top["id"]  # moved exactly one slot down
+    assert [l["z_order"] for l in body] == list(range(len(body)))
+
+
+def test_reorder_single_step_up(api):
+    client, _, project_id = api
+    before = client.get(f"/api/projects/{project_id}/layers").json()
+    bottom = min(before, key=lambda l: l["z_order"])
+    resp = client.post(
+        f"/api/projects/{project_id}/layers/{bottom['id']}/reorder",
+        json={"z_order": bottom["z_order"] + 1},
+    )
+    assert resp.status_code == 200, resp.text
+    body = sorted(resp.json(), key=lambda l: l["z_order"])
+    assert body[1]["id"] == bottom["id"]  # moved exactly one slot up
+    assert [l["z_order"] for l in body] == list(range(len(body)))
+
+
 def test_reorder_unknown_layer_404(api):
     client, _, project_id = api
     resp = client.post(f"/api/projects/{project_id}/layers/does-not-exist/reorder", json={"z_order": 0})

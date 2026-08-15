@@ -80,10 +80,16 @@ class LayerProject(BaseModel):
 
     def reorder(self, layer_id: str, new_z: int) -> None:
         layer = self.get_layer(layer_id)
-        if layer:
-            layer.z_order = new_z
-            self._sort_layers()
-            self._reindex()
+        if not layer:
+            return
+        # Remove-and-insert instead of assign-and-sort: with duplicate z_order keys
+        # Python's stable sort keeps the original relative order, so a +-1 move
+        # always reindexed back to the starting state (silent no-op).
+        self._sort_layers()
+        self.layers.remove(layer)
+        idx = max(0, min(new_z, len(self.layers)))
+        self.layers.insert(idx, layer)
+        self._reindex()
 
     def visible_layers(self) -> list[Layer]:
         """Layers sorted bottom-to-top, only visible ones."""
