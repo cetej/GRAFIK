@@ -136,6 +136,7 @@ E2E důkaz: `docs/spikes/2026-08-15-m5-e2e.md` (klikáním v reálném Chrome, $
 
 ## Servery
 
+- **Jedním klikem**: `start-grafik.bat` (spustí API + UI jen pokud neběží, otevře prohlížeč; API vždy s `--access-log` do `logs/`)
 - **API**: `uvicorn grafik.api.app:app --port 8300` nebo `grafik serve`
 - **ui-web (React editor)**: `npm --prefix ui-web run dev` → port 5173 (primární UI)
 - **UI (Streamlit, frozen)**: `streamlit run ui/app.py --server.port 8501` nebo `grafik ui`

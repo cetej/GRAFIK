@@ -241,19 +241,28 @@ export default function EditorApp() {
   // Ping the API + load the project list on mount.
   useEffect(() => {
     let cancelled = false;
-    listProjects()
-      .then((list) => {
-        if (cancelled) return;
-        setProjects(list);
-        setApiOnline(true);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setApiOnline(false);
-        setProjectsError(describeError(err));
-      });
+    let timer: number | undefined;
+    const attempt = () => {
+      listProjects()
+        .then((list) => {
+          if (cancelled) return;
+          setProjects(list);
+          setApiOnline(true);
+          setProjectsError(null);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setApiOnline(false);
+          setProjectsError(describeError(err));
+          // API down (typicky server po restartu stroje neběží) — zkoušej dál,
+          // ať se UI samo zotaví, jakmile backend naběhne.
+          timer = window.setTimeout(attempt, 5000);
+        });
+    };
+    attempt();
     return () => {
       cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, []);
 
@@ -1739,7 +1748,20 @@ export default function EditorApp() {
           onDragLeave={handleCanvasDragLeave}
           onDrop={handleCanvasDrop}
         >
-          {!selectedProjectId && (
+          {apiOnline === false && (
+            <div className="editor-empty-state">
+              <div className="empty-icon" aria-hidden="true">
+                🔌
+              </div>
+              <h3>API server neběží</h3>
+              <p>
+                Frontend běží, ale backend na portu 8300 neodpovídá — projekty proto nejsou vidět
+                (na disku zůstávají netknuté). Spusťte <code>start-grafik.bat</code> ve složce
+                GRAFIK; jakmile server naběhne, tato stránka se obnoví sama.
+              </p>
+            </div>
+          )}
+          {apiOnline !== false && !selectedProjectId && (
             <div className="editor-empty-state">
               <div className="empty-icon" aria-hidden="true">
                 🖼️
