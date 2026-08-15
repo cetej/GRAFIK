@@ -968,10 +968,11 @@ def _segment_remote(image, text: str, endpoint: str, points: list | None = None)
 
     `points` are SegmentPoint models in uploaded-image pixel space. The
     payload shape (point_prompts: [{x, y, label}]) comes from the raw fal
-    OpenAPI schema for fal-ai/sam-3/image. Caveat from that schema: `prompt`
-    declares default "wheel", so point-only calls deliberately send no prompt
-    key and rely on point_prompts driving the result -- behavior notes in
-    docs/capabilities/sam3-point.md.
+    OpenAPI schema for fal-ai/sam-3/image. The `prompt` key is ALWAYS sent,
+    as "" for point-only calls: empirically (2026-08-15), omitting it lets
+    the schema default "wheel" take over and point_prompts return 0 masks,
+    while prompt="" + a point segments the clicked object (part-level
+    granularity) -- see docs/capabilities/sam3-point.md.
 
     Returns a list of "L"-mode (grayscale) PIL masks, one per detection.
     """
@@ -980,9 +981,7 @@ def _segment_remote(image, text: str, endpoint: str, points: list | None = None)
     from grafik.fal.upload import download_url, upload_image
 
     image_url = upload_image(image)
-    arguments: dict = {"image_url": image_url}
-    if text:
-        arguments["prompt"] = text
+    arguments: dict = {"image_url": image_url, "prompt": text}
     if points:
         arguments["point_prompts"] = [{"x": p.x, "y": p.y, "label": p.label} for p in points]
     result = fal_client.subscribe(endpoint, arguments=arguments, with_logs=False)

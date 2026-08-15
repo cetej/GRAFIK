@@ -239,10 +239,11 @@ def test_segment_without_text_and_points_400(api):
     assert resp.status_code == 400
 
 
-def test_segment_remote_point_only_omits_prompt_key(monkeypatch):
-    """The real payload builder: point-only calls must not send a `prompt`
-    key at all (design decision around the schema's default "wheel" -- see
-    _segment_remote docstring), text calls must."""
+def test_segment_remote_point_only_sends_empty_prompt(monkeypatch):
+    """The real payload builder: the `prompt` key is ALWAYS present -- "" for
+    point-only calls. Empirical finding (2026-08-15): omitting the key lets
+    the fal schema default "wheel" take over and points return 0 masks; see
+    _segment_remote docstring + docs/capabilities/sam3-point.md."""
     import grafik.api.app as app_module
     from grafik.api.models import SegmentPoint
 
@@ -259,7 +260,7 @@ def test_segment_remote_point_only_omits_prompt_key(monkeypatch):
     img = Image.new("RGBA", (8, 8))
     masks = app_module._segment_remote(img, "", "fal-ai/sam-3/image", points=[SegmentPoint(x=3, y=4)])
     assert len(masks) == 1
-    assert "prompt" not in captured["arguments"]
+    assert captured["arguments"]["prompt"] == ""
     assert captured["arguments"]["point_prompts"] == [{"x": 3, "y": 4, "label": 1}]
 
     app_module._segment_remote(img, "socha", "fal-ai/sam-3/image", points=[SegmentPoint(x=3, y=4)])
