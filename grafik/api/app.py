@@ -1139,11 +1139,24 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
     if entry.impl is None:
         raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
 
-    layer_img = layer.load_image(path)  # RGBA, layer-local size
+    layer_img = layer.load_image(path)  # RGBA, NATIVE resolution (may differ from layout)
     composite = compose(project, path)
 
+    # Layout-vs-native boundary (M4 fix, same lesson as /hittest): decompose
+    # stores native-resolution pixels (~0.4 MP) with layout width/height
+    # stretched onto the canvas. Every canvas-space step below — mask
+    # placement AND crop-back box — must use the LAYOUT quad, not the PNG's
+    # native size, or the mask lands in the wrong place and the crop writes
+    # back a misaligned fragment. Rotation is not handled here (pre-existing
+    # limitation; decomposed layers start at rotation 0).
+    layer_w = layer.width or layer_img.width
+    layer_h = layer.height or layer_img.height
+    layer_layout = (
+        layer_img if layer_img.size == (layer_w, layer_h) else layer_img.resize((layer_w, layer_h), Image.LANCZOS)
+    )
+
     if req.mask_b64 is None:
-        hard_mask_local = layer_img.split()[-1].point(lambda a: 255 if a > 127 else 0)
+        hard_mask_local = layer_layout.split()[-1].point(lambda a: 255 if a > 127 else 0)
         hard_mask_canvas = Image.new("L", composite.size, 0)
         hard_mask_canvas.paste(hard_mask_local, (layer.x, layer.y))
     else:
@@ -1169,7 +1182,7 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
     if req.feather_px > 0:
         feathered_canvas = feathered_canvas.filter(ImageFilter.GaussianBlur(req.feather_px))
 
-    box = (layer.x, layer.y, layer.x + layer_img.width, layer.y + layer_img.height)
+    box = (layer.x, layer.y, layer.x + layer_w, layer.y + layer_h)
     new_rgb_local = edited.crop(box)
     new_alpha_local = feathered_canvas.crop(box)
 
@@ -1178,8 +1191,9 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
     else:
         # Merge into the existing layer instead of replacing it: pixels
         # where the feathered brush mask is 0 must stay bit-identical.
-        orig_rgb = np.array(layer_img.convert("RGB"), dtype=np.float64)
-        orig_alpha = np.array(layer_img.split()[-1])
+        # Merge math runs at LAYOUT resolution (layer_layout, not layer_img).
+        orig_rgb = np.array(layer_layout.convert("RGB"), dtype=np.float64)
+        orig_alpha = np.array(layer_layout.split()[-1])
         f = np.array(new_alpha_local, dtype=np.float64)[..., None] / 255.0
         merged_rgb = np.clip(
             orig_rgb * (1 - f) + np.array(new_rgb_local, dtype=np.float64) * f, 0, 255
@@ -1245,13 +1259,24 @@ def inpaint_behind_layer(project_id: str, layer_id: str, req: InpaintBehindReque
     bg_layer = min(bg_candidates, key=lambda l: l.z_order)
 
     composite = compose(project, path)
-    layer_img = layer.load_image(path)  # RGBA, layer-local size
+    # Layout-vs-native boundary (M4 fix, same as ai-edit): masks and boxes are
+    # canvas-space, so both the target's alpha and the background layer must
+    # be taken at their LAYOUT size, not the PNG's native resolution.
+    layer_img = layer.load_image(path)
+    tgt_w = layer.width or layer_img.width
+    tgt_h = layer.height or layer_img.height
+    if layer_img.size != (tgt_w, tgt_h):
+        layer_img = layer_img.resize((tgt_w, tgt_h), Image.LANCZOS)
     hard_alpha_local = layer_img.split()[-1].point(lambda a: 255 if a > 127 else 0)
     mask_canvas = Image.new("L", composite.size, 0)
     mask_canvas.paste(hard_alpha_local, (layer.x, layer.y))
 
     bg_img = bg_layer.load_image(path)
-    bg_box = (bg_layer.x, bg_layer.y, bg_layer.x + bg_img.width, bg_layer.y + bg_img.height)
+    bg_w = bg_layer.width or bg_img.width
+    bg_h = bg_layer.height or bg_img.height
+    if bg_img.size != (bg_w, bg_h):
+        bg_img = bg_img.resize((bg_w, bg_h), Image.LANCZOS)
+    bg_box = (bg_layer.x, bg_layer.y, bg_layer.x + bg_w, bg_layer.y + bg_h)
     footprint = mask_canvas.getbbox()
     if footprint is None or not _boxes_overlap(footprint, bg_box):
         raise HTTPException(400, "target footprint does not overlap the background layer")

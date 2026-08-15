@@ -486,6 +486,91 @@ def test_ai_edit_route_accepts_flux_fill_provider(api, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Layout-vs-native mask geometry (M4 E2E finding)
+# ---------------------------------------------------------------------------
+
+
+def test_ai_edit_mask_and_crop_use_layout_geometry(api, monkeypatch):
+    """E2E-found regression: decompose stores native-res pixels with layout
+    width/height stretched onto the canvas (M2.5 fix). ai-edit must build its
+    mask AND crop-back box in LAYOUT space — the old native-space code placed
+    the mask at the PNG's native size (top-left fragment of the canvas) and
+    overwrote the layer with a misaligned crop."""
+    from grafik.providers.qwen_inpaint import QwenInpaintProvider
+
+    client, projects_dir, _ = api
+    a = _create_project(client)  # canvas 64x48
+    layer = _add_layer(client, a["id"])  # native PNG 32x24, fully opaque
+    resp = client.post(
+        f"/api/projects/{a['id']}/layers/{layer['id']}/transform",
+        json={"x": 10, "y": 8, "width": 50, "height": 40},
+    )
+    assert resp.status_code == 200, resp.text
+
+    seen = {}
+
+    def fake_edit(self, image, mask, prompt, **kw):
+        seen["mask_size"] = mask.size
+        seen["mask_bbox"] = mask.getbbox()
+        return Image.new("RGB", image.size, (1, 2, 3))
+
+    monkeypatch.setattr(QwenInpaintProvider, "edit", fake_edit)
+    resp = client.post(
+        f"/api/projects/{a['id']}/layers/{layer['id']}/ai-edit",
+        json={"prompt": "x", "provider": "qwen-inpaint", "dilate_px": 0, "feather_px": 0},
+    )
+    assert resp.status_code == 200, resp.text
+
+    assert seen["mask_size"] == (64, 48)
+    assert seen["mask_bbox"] == (10, 8, 60, 48)  # the LAYOUT quad, not native 32x24
+
+    proj_dir = _dir_by_id(projects_dir, a["id"])
+    saved = LayerProject.load(proj_dir).get_layer(layer["id"])
+    img = Image.open(proj_dir / saved.png_path)
+    assert img.size == (50, 40)  # crop-back at layout size
+    assert (saved.width, saved.height) == (50, 40)
+
+
+def test_inpaint_behind_uses_layout_geometry(api, monkeypatch):
+    from grafik.providers.qwen_inpaint import QwenInpaintProvider
+
+    client, projects_dir, _ = api
+    a = _create_project(client)
+    bg = _add_layer(client, a["id"], "bg.png")
+    fg = _add_layer(client, a["id"], "fg.png")
+    r1 = client.post(
+        f"/api/projects/{a['id']}/layers/{bg['id']}/transform",
+        json={"x": 0, "y": 0, "width": 64, "height": 48},
+    )
+    r2 = client.post(
+        f"/api/projects/{a['id']}/layers/{fg['id']}/transform",
+        json={"x": 20, "y": 10, "width": 30, "height": 20},
+    )
+    assert r1.status_code == 200 and r2.status_code == 200
+
+    seen = {}
+
+    def fake_edit(self, image, mask, prompt, **kw):
+        seen["mask_size"] = mask.size
+        seen["mask_bbox"] = mask.getbbox()
+        return Image.new("RGB", image.size, (9, 9, 9))
+
+    monkeypatch.setattr(QwenInpaintProvider, "edit", fake_edit)
+    resp = client.post(
+        f"/api/projects/{a['id']}/layers/{fg['id']}/inpaint-behind",
+        json={"dilate_px": 0, "feather_px": 0},
+    )
+    assert resp.status_code == 200, resp.text
+    assert seen["mask_size"] == (64, 48)
+    assert seen["mask_bbox"] == (20, 10, 50, 30)  # target's LAYOUT quad
+
+    proj_dir = _dir_by_id(projects_dir, a["id"])
+    bg_saved = LayerProject.load(proj_dir).get_layer(bg["id"])
+    img = Image.open(proj_dir / bg_saved.png_path)
+    assert img.size == (64, 48)  # merged at the bg layer's layout size
+
+
+# ---------------------------------------------------------------------------
 # Recursive layer decomposition
 # ---------------------------------------------------------------------------
 
