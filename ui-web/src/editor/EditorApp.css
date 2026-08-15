@@ -332,14 +332,33 @@
   color: #ffd98e;
 }
 
-/* Horizontal pair — stacked 32px buttons made every row ~85px tall (M6-UX1 E2E fix). */
+/* Horizontal pair — stacked 32px buttons made every row ~85px tall (M6-UX1 E2E fix). Reorder and
+   delete only materialize on hover/selection (same display:none pattern as .project-actions), so
+   the layer NAME keeps ~140px instead of ~55px on the 320px sidebar. The eye stays always visible —
+   it's a state indicator, not just an action. */
 .layer-item .zorder-controls {
-  display: flex;
+  display: none;
   flex-direction: row;
   gap: 2px;
   flex-shrink: 0;
 }
 
+.layer-item:hover .zorder-controls,
+.layer-item.selected .zorder-controls {
+  display: flex;
+}
+
+.layer-item .delete-btn {
+  display: none;
+}
+
+.layer-item:hover .delete-btn,
+.layer-item.selected .delete-btn {
+  display: inline-flex;
+}
+
+/* No `display` here — .delete-btn's visibility is owned by the hover/selected rules above
+   (a display set at equal specificity later in the file would win and re-show it always). */
 .layer-item .zorder-controls button,
 .layer-item .delete-btn {
   background: transparent;
@@ -350,9 +369,12 @@
   flex-shrink: 0;
   min-width: 28px;
   min-height: 32px;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.layer-item .zorder-controls button {
+  display: inline-flex;
 }
 
 .layer-item .zorder-controls button {
