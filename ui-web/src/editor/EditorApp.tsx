@@ -266,18 +266,22 @@ export default function EditorApp() {
     };
   }, []);
 
-  // Load the trash + session-cost summary once on mount (trash count shows collapsed).
+  // Load the trash + session-cost summary whenever the API comes (back) online —
+  // mount-only fetches stay permanently broken after a cold start without backend.
   useEffect(() => {
+    if (apiOnline !== true) return;
     listTrash()
       .then(setTrashItems)
       .catch(() => {});
     getSessionCosts()
       .then(setSessionCosts)
       .catch(() => {});
-  }, []);
+  }, [apiOnline]);
 
-  // Load the image-edit provider list once on mount (independent of project selection).
+  // Load the image-edit provider list whenever the API comes (back) online
+  // (independent of project selection).
   useEffect(() => {
+    if (apiOnline !== true) return;
     let cancelled = false;
     listProviders('image_edit')
       .then((list) => {
@@ -292,7 +296,7 @@ export default function EditorApp() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [apiOnline]);
 
   // Default the AI-edit provider select to the first usable (implemented + mask-capable)
   // entry once providers load, without clobbering a choice the user already made.
@@ -305,8 +309,10 @@ export default function EditorApp() {
     });
   }, [providers]);
 
-  // Load the video-job provider list once on mount (separate kind from the AI-edit list above).
+  // Load the video-job provider list whenever the API comes (back) online
+  // (separate kind from the AI-edit list above).
   useEffect(() => {
+    if (apiOnline !== true) return;
     let cancelled = false;
     listProviders('video')
       .then((list) => {
@@ -321,7 +327,7 @@ export default function EditorApp() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [apiOnline]);
 
   // Default the video provider select to wan-26 (best price/quality per the M3 contract) once
   // providers load, without clobbering a choice the user already made.
