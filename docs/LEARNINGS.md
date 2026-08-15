@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-15 — SAM-3 koncept „text" nedetekuje text — funguje „letters" (M6-UX1 sonda)
+
+**Kontext:** Detektor textových vrstev (M6-UX1) měl stát na text-concept segmentaci `prompt: "text"`. Sonda na plakátu 1792×2400 s obřím kontrastním titulkem: `"text"` → 0 masek, `"writing"` → 0, `"white text"` → 0; **`"letters"` → 1 maska, coverage 3,73 %, přesně přes oba řádky** (y 94–420, 100 % v textovém pásmu); `"words"` → maska jen přes titulek (y 94–280). Vedlejší nález: fal upload URL po pár minutách expiruje (`file_download_error`) — série sond musí uploadovat per volání. Sondy à $0.005.
+
+**Poučení:** Otevřený slovník SAM-3 není synonymický — „text" jako koncept nezabírá, konkrétnější „letters" ano („words" seká po řádcích). Concept prompt pro produkční feature vybírat sondou s měřitelným kritériem (coverage + poloha vs. známá ground truth), ne intuicí; vítěze zapsat jako pojmenovanou konstantu s odkazem na empirii. A fal media URLs necachovat mezi voláními.
+
 ## 2026-08-15 — fal si podle vstupních flagů tiše mění i SÉMANTIKU výstupu: SAM `apply_mask` (M5)
 
 **Kontext:** M5 E2E: box_prompts vrátil „masku" celého lva, která po `convert("L")` měla medián alfy 59 a coverage >127 jen 2,47 %. Nebyla to maska — se schema defaultem `apply_mask: true` obsahuje `masks[]` VYŘÍZNUTÝ OBRAZ (cutout) a alfa se tak vyrobila z JASU obsahu (Pearson korelace alfa × jas kompozitu = 1.000 na 499k px; tmavý bronz zmizel, světlý kámen zůstal). Fix `3a874d3`: `_segment_remote` posílá `apply_mask: false` VŽDY → binární masky 0/255. Empirie: `docs/capabilities/sam3-point.md`.
