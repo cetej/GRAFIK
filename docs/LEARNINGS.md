@@ -13,13 +13,16 @@
 
 ## 2026-08-15 — INCIDENT: tichá ztráta projektu během E2E; destruktivní routy bez access logu = nulová forenzika
 
-**Kontext:** M2.5 E2E. Během okna s ~2 min zaseknutým uvicornem (corrupt multipart upload, pre-fix éra) a dvěma restarty API zmizel z disku projekt `openart-…grafik`; současně se v UI objevil failnutý request, který nikdo vědomě neposlal. Mechanismus neprokázán — API tehdy běželo bez access logu (Start-Process bez redirectu), takže neexistuje záznam, KDO poslal DELETE/POST. Detail: `docs/spikes/2026-08-15-m25-e2e.md` (sekce INCIDENT).
+**Kontext:** M2.5 E2E. Během okna s ~2 min zaseknutým uvicornem (corrupt multipart upload, pre-fix éra) a dvěma restarty API zmizel z disku projekt `openart-…grafik`; současně se v UI objevil failnutý request, který nikdo vědomě neposlal. API tehdy běželo bez access logu (Start-Process bez redirectu), takže neexistuje záznam requestů. Detail: `docs/spikes/2026-08-15-m25-e2e.md` (sekce INCIDENT).
+
+**Dořešeno (tatáž noc):** náhodně zachycený `/api/projects` response z okamžiku incidentu (soubor `-w` z nepovedeného curlu) ukázal openart s **novým id** — manifest přepsal pre-fix `create_project` při kolizi jmen adresářů (nejspíš souběžný ruční drop `openart-image_….png` z Downloads); „rozbitý" 0-vrstvý projekt byl pak smazán přes UI ještě před startem logu. Root cause = bug opravený v `0d14ed2`; žádný replay/misroute.
 
 **Poučení:**
-1. Jakmile API dostane destruktivní routu (DELETE projektu), access log není nice-to-have ale podmínka provozu — `uvicorn --access-log` s `-RedirectStandardOutput logs/uvicorn-out.log` od prvního startu. Bez něj se incident nedá ani vyšetřit, ani vyvrátit.
+1. Jakmile API dostane destruktivní routu (DELETE projektu), access log není nice-to-have ale podmínka provozu — `uvicorn --access-log` s `-RedirectStandardOutput logs/uvicorn-out.log` od prvního startu. Bez něj se incident nedá ani vyšetřit, ani vyvrátit (tady zdržel diagnózu o hodiny; vyřešila ho až náhodná stopa).
 2. Před E2E nad živými daty udělat zálohu `projects/` (copy je levná; forenzika po ztrátě nemožná). Záloha session: `projects-backup-<stamp>/`.
-3. Zaseknutý server + restarty + prohlížeč s rozjetými fetchy = prostředí, kde se requesty můžou replaynout/ztratit — v takovém stavu nepokračovat v mutacích, nejdřív stabilizovat a auditovat.
-4. Kandidát M4: soft-delete (koš) místo okamžitého `rmtree`.
+3. „Tichý přepis dat" vypadá zvenku stejně jako „tiché smazání" — při ztrátě dat nejdřív hledat write-cesty s kolizí identifikátorů (tady `safe_name` adresáře), ne jen delete-cesty.
+4. Neznámé soubory nalezené po incidentu jsou potenciální evidence — archivovat, pak mazat (tady byl soubor po přečtení smazán; obsah přežil jen v transcriptu).
+5. Kandidát M4: soft-delete (koš) místo okamžitého `rmtree`.
 
 ## 2026-08-15 — fal schema defaulty: vynechaný klíč ≠ „bez hodnoty" — server si default dosadí sám
 
