@@ -23,6 +23,10 @@ interface InspectorPanelProps {
   onSegmentTextChange: (value: string) => void;
   onRunSegment: () => void;
   segmentStatus: string | null;
+
+  subLayers: number;
+  onSubLayersChange: (n: number) => void;
+  onRunLayerDecompose: () => void;
 }
 
 export default function InspectorPanel(props: InspectorPanelProps) {
@@ -45,6 +49,9 @@ export default function InspectorPanel(props: InspectorPanelProps) {
     onSegmentTextChange,
     onRunSegment,
     segmentStatus,
+    subLayers,
+    onSubLayersChange,
+    onRunLayerDecompose,
   } = props;
 
   return (
@@ -138,6 +145,32 @@ export default function InspectorPanel(props: InspectorPanelProps) {
           Tip: nástroj Segmentace v horní liště — kliknutím na prvek přímo v obraze.
         </p>
         {segmentStatus && <p className="editor-hint">{segmentStatus}</p>}
+      </div>
+
+      <div className="inspector-section">
+        <h3>Rozložit vrstvu</h3>
+        {!selectedLayer && <p className="editor-hint">Nejdřív vyberte vrstvu.</p>}
+        <label className="toolbar-label">
+          Podvrstvy
+          <select
+            value={subLayers}
+            disabled={busy}
+            onChange={(e) => onSubLayersChange(Number(e.target.value))}
+          >
+            {[2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="editor-hint">
+          Rozloží vybranou vrstvu na podvrstvy (I2L, ~$0.05). Podvrstvy nahradí původní vrstvu;
+          Zpět ji vrátí.
+        </p>
+        <button type="button" disabled={busy || !selectedLayer} onClick={onRunLayerDecompose}>
+          Rozložit
+        </button>
       </div>
     </aside>
   );

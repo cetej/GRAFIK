@@ -21,6 +21,8 @@ interface ToolbarProps {
   onNumLayersChange: (n: number) => void;
   /** Opens the shared hidden file input owned by EditorApp. */
   onNewFromImageClick: () => void;
+  /** Opens the NB Pro generate-image dialog owned by EditorApp (M4). */
+  onGenerateClick: () => void;
 
   brushSize: number;
   onBrushSizeChange: (size: number) => void;
@@ -58,6 +60,7 @@ export default function Toolbar(props: ToolbarProps) {
     numLayers,
     onNumLayersChange,
     onNewFromImageClick,
+    onGenerateClick,
     brushSize,
     onBrushSizeChange,
     brushStrokeCount,
@@ -156,6 +159,14 @@ export default function Toolbar(props: ToolbarProps) {
           title="Nahraje obrázek a rozloží ho na vrstvy (nový projekt)"
         >
           Nový z obrázku
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onGenerateClick}
+          title="Vygeneruje vstupní obrázek textem (Nano Banana Pro, ~$0.13) a rozloží ho na vrstvy"
+        >
+          Vygenerovat
         </button>
       </div>
     </div>

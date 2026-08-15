@@ -733,3 +733,148 @@ button.primary-btn:disabled {
   font-size: 13px;
   font-family: inherit;
 }
+
+/* --- M4: trash, cost summary, generate-image modal --- */
+
+.trash-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #b7b7bf;
+}
+
+.trash-item:hover {
+  background: #1f2027;
+}
+
+.trash-item .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-item .meta {
+  color: #8a8a92;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.trash-actions-row {
+  padding: 6px;
+}
+
+.cost-line {
+  font-size: 12px;
+  color: #b7b7bf;
+  margin: 0;
+  padding: 2px 6px;
+}
+
+.cost-line strong {
+  color: #e7e7ea;
+}
+
+button.secondary-btn {
+  background: #1f2027;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e7e7ea;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button.secondary-btn:hover:not(:disabled) {
+  background: #2a2b33;
+}
+
+button.secondary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.editor-empty-state .secondary-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  width: min(480px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #16171c;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.modal h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #e7e7ea;
+}
+
+.modal textarea {
+  background: #1f2027;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e7e7ea;
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  min-height: 72px;
+  resize: vertical;
+}
+
+.modal select {
+  background: #1f2027;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e7e7ea;
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.modal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #b7b7bf;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gen-preview {
+  max-width: 100%;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #0e0f13;
+}

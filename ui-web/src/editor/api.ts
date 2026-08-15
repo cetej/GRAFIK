@@ -170,7 +170,7 @@ export interface TransformRequestBody {
   rotation?: number;
 }
 
-export type ProviderKind = 'image_edit' | 'video' | 'segment';
+export type ProviderKind = 'image_edit' | 'video' | 'segment' | 'image_gen' | 'decompose';
 
 export interface ProviderCapabilities {
   supports_mask: boolean;
@@ -381,8 +381,9 @@ export function duplicateProject(id: string): Promise<ProjectResponse> {
   return request<ProjectResponse>(`/api/projects/${id}/duplicate`, { method: 'POST' });
 }
 
-export function deleteProject(id: string): Promise<{ deleted: string }> {
-  return request<{ deleted: string }>(`/api/projects/${id}`, { method: 'DELETE' });
+/** M4 soft-delete: the project moves into projects/.trash (see listTrash/restoreTrashEntry). */
+export function deleteProject(id: string): Promise<{ deleted: string; trash_entry: string }> {
+  return request<{ deleted: string; trash_entry: string }>(`/api/projects/${id}`, { method: 'DELETE' });
 }
 
 export function renameLayer(projectId: string, layerId: string, name: string): Promise<LayerResponse> {
@@ -506,4 +507,95 @@ export function clipVideoUrl(projectId: string, clipId: string, version?: number
   if (version !== undefined) params.set('v', String(version));
   const query = params.toString();
   return `${API_BASE}/api/projects/${projectId}/clips/${clipId}/video${query ? `?${query}` : ''}`;
+}
+
+// --- M4: trash (soft-delete), cost ledger, image generation, layer decompose ---
+
+export interface TrashItem {
+  entry: string;
+  id: string;
+  name: string;
+  layer_count: number;
+  deleted_at: string;
+}
+
+/** One paid call as recorded in the project's costs.jsonl (est_usd is an estimate; null = unknown rate). */
+export interface CostEntry {
+  ts: string;
+  endpoint: string;
+  kind: string;
+  mp: number | null;
+  seconds: number | null;
+  calls: number;
+  est_usd: number | null;
+  note: string;
+}
+
+export interface CostsSummary {
+  entries: CostEntry[];
+  total_usd: number;
+  count: number;
+}
+
+export interface GenerateImageResponse {
+  image_b64: string;
+  width: number;
+  height: number;
+  provider: string;
+  /** Session-recorded paid call — pass it to attachProjectCost when adopting the image. */
+  cost: CostEntry;
+}
+
+export function listTrash(): Promise<TrashItem[]> {
+  return request<TrashItem[]>('/api/trash');
+}
+
+export function restoreTrashEntry(entry: string): Promise<ProjectResponse> {
+  return request<ProjectResponse>(`/api/trash/${encodeURIComponent(entry)}/restore`, { method: 'POST' });
+}
+
+export function emptyTrash(): Promise<{ purged: number }> {
+  return request<{ purged: number }>('/api/trash', { method: 'DELETE' });
+}
+
+export function getProjectCosts(projectId: string): Promise<CostsSummary> {
+  return request<CostsSummary>(`/api/projects/${projectId}/costs`);
+}
+
+/** Paid calls recorded by the CURRENT API process (across all projects). */
+export function getSessionCosts(): Promise<CostsSummary> {
+  return request<CostsSummary>('/api/costs/session');
+}
+
+export function attachProjectCost(projectId: string, entry: CostEntry): Promise<CostsSummary> {
+  return request<CostsSummary>(`/api/projects/${projectId}/costs`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(entry),
+  });
+}
+
+export function generateImage(body: {
+  prompt: string;
+  aspect_ratio: string;
+  provider?: string;
+}): Promise<GenerateImageResponse> {
+  return request<GenerateImageResponse>('/api/generate-image', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+/** Recursive decomposition: replaces the layer with the returned sub-layers (undo restores it). */
+export function decomposeLayer(
+  projectId: string,
+  layerId: string,
+  numLayers: number,
+): Promise<LayerResponse[]> {
+  return request<LayerResponse[]>(`/api/projects/${projectId}/layers/${layerId}/decompose`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ num_layers: numLayers }),
+  });
 }

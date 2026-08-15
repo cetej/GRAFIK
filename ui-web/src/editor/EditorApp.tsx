@@ -32,6 +32,14 @@ import {
   listVideoJobs,
   refreshVideoJob,
   verifyClip,
+  listTrash,
+  restoreTrashEntry,
+  emptyTrash,
+  getProjectCosts,
+  getSessionCosts,
+  attachProjectCost,
+  generateImage,
+  decomposeLayer,
   ApiError,
   type ProjectListItem,
   type ProjectResponse,
@@ -43,6 +51,9 @@ import {
   type MotionSpecDto,
   type CompileMotionResponse,
   type ClipRecordDto,
+  type TrashItem,
+  type CostsSummary,
+  type GenerateImageResponse,
 } from './api';
 import Toolbar, { vrstvyWord } from './Toolbar';
 import InspectorPanel from './InspectorPanel';
@@ -149,6 +160,20 @@ export default function EditorApp() {
   const [pngVersions, setPngVersions] = useState<Record<string, number>>({});
   const [history, setHistory] = useState<{ undo_count: number; redo_count: number } | null>(null);
 
+  // --- M4 additions: trash (soft-delete), cost summaries, NB Pro generation,
+  // recursive layer decomposition ---
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashError, setTrashError] = useState<string | null>(null);
+  const [projectCosts, setProjectCosts] = useState<CostsSummary | null>(null);
+  const [sessionCosts, setSessionCosts] = useState<CostsSummary | null>(null);
+  const [genOpen, setGenOpen] = useState(false);
+  const [genPrompt, setGenPrompt] = useState('');
+  const [genAspect, setGenAspect] = useState('1:1');
+  const [genBusy, setGenBusy] = useState(false);
+  const [genResult, setGenResult] = useState<GenerateImageResponse | null>(null);
+  const [subLayers, setSubLayers] = useState(3);
+
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providersError, setProvidersError] = useState<string | null>(null);
   const [aiEditPrompt, setAiEditPrompt] = useState('');
@@ -212,6 +237,16 @@ export default function EditorApp() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Load the trash + session-cost summary once on mount (trash count shows collapsed).
+  useEffect(() => {
+    listTrash()
+      .then(setTrashItems)
+      .catch(() => {});
+    getSessionCosts()
+      .then(setSessionCosts)
+      .catch(() => {});
   }, []);
 
   // Load the image-edit provider list once on mount (independent of project selection).
@@ -444,6 +479,25 @@ export default function EditorApp() {
     }
   }
 
+  async function refreshTrash() {
+    try {
+      setTrashItems(await listTrash());
+      setTrashError(null);
+    } catch (err) {
+      setTrashError(describeError(err));
+    }
+  }
+
+  /** Refresh the cost summaries (project + API session). Called after every paid operation. */
+  async function refreshCosts(projectId: string | null = selectedProjectId) {
+    try {
+      setSessionCosts(await getSessionCosts());
+      if (projectId) setProjectCosts(await getProjectCosts(projectId));
+    } catch {
+      // Non-critical — keep the last known summary.
+    }
+  }
+
   async function handleSelectProject(id: string) {
     if (id === selectedProjectId) return;
     setSelectedProjectId(id);
@@ -459,6 +513,7 @@ export default function EditorApp() {
     setClipVideoVersions({});
     setCompileResult(null);
     setCompilePromptDraft('');
+    setProjectCosts(null);
     setProjectLoading(true);
     try {
       const [proj, layerList, hist, clipList] = await Promise.all([
@@ -471,6 +526,7 @@ export default function EditorApp() {
       setLayers(sortByZAsc(layerList.map((l) => ({ ...l }))));
       setHistory(hist);
       setClips(clipList);
+      void refreshCosts(id);
     } catch (err) {
       setBanner(`Načtení projektu selhalo: ${describeError(err)}`);
     } finally {
@@ -732,6 +788,7 @@ export default function EditorApp() {
       applyLayerUpdate(resp.layer);
       setSaveStatus(`AI úprava hotova (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
       await refreshHistory(projectId);
+      void refreshCosts();
     } catch (err) {
       setBanner(`AI úprava selhala: ${describeError(err)}`);
     } finally {
@@ -750,6 +807,7 @@ export default function EditorApp() {
       applyLayerUpdate(resp.layer);
       setSaveStatus(`Pozadí vyplněno (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
       await refreshHistory(projectId);
+      void refreshCosts();
     } catch (err) {
       setBanner(`Vyplnění pozadí selhalo: ${describeError(err)}`);
     } finally {
@@ -769,6 +827,7 @@ export default function EditorApp() {
       setSegmentStatus(msg);
       setSaveStatus(msg);
       await refreshHistory(projectId);
+      void refreshCosts();
     } catch (err) {
       setBanner(`Segmentace selhala: ${describeError(err)}`);
     } finally {
@@ -825,8 +884,8 @@ export default function EditorApp() {
 
   async function handleDeleteProject(p: ProjectListItem) {
     if (busy) return;
-    if (!window.confirm(`Smazat projekt „${p.name}"? Tuto akci nelze vrátit.`)) return;
-    setBusy({ op: `Mažu projekt „${p.name}"…` });
+    if (!window.confirm(`Přesunout projekt „${p.name}" do koše? Obnovit ho pak lze v sekci Koš.`)) return;
+    setBusy({ op: `Přesouvám projekt „${p.name}" do koše…` });
     try {
       await deleteProject(p.id);
       if (selectedProjectId === p.id) {
@@ -836,11 +895,115 @@ export default function EditorApp() {
         setSelectedLayerId(null);
         setClips([]);
         setHistory(null);
+        setProjectCosts(null);
       }
       await refreshProjects();
-      setSaveStatus(`Projekt „${p.name}" smazán.`);
+      await refreshTrash();
+      setSaveStatus(`Projekt „${p.name}" přesunut do koše.`);
     } catch (err) {
       setBanner(`Smazání projektu selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleRestoreTrash(item: TrashItem) {
+    if (busy) return;
+    setBusy({ op: `Obnovuji projekt „${item.name}" z koše…` });
+    try {
+      const restored = await restoreTrashEntry(item.entry);
+      await refreshProjects();
+      await refreshTrash();
+      setSaveStatus(`Projekt „${restored.name}" obnoven z koše.`);
+    } catch (err) {
+      setBanner(`Obnovení z koše selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleEmptyTrash() {
+    if (busy || trashItems.length === 0) return;
+    if (
+      !window.confirm(
+        `Trvale smazat všechny projekty v koši (${trashItems.length})? Tuto akci nelze vrátit.`,
+      )
+    )
+      return;
+    setBusy({ op: 'Vysypávám koš…' });
+    try {
+      const resp = await emptyTrash();
+      await refreshTrash();
+      setSaveStatus(`Koš vysypán (${resp.purged} položek).`);
+    } catch (err) {
+      setBanner(`Vysypání koše selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** One paid NB Pro call (~$0.13) → preview in the dialog. Modal-local busy,
+   * not the global gate — canvas operations are untouched while generating. */
+  async function handleGenerateImage() {
+    const prompt = genPrompt.trim();
+    if (!prompt || genBusy) return;
+    setGenBusy(true);
+    try {
+      setGenResult(await generateImage({ prompt, aspect_ratio: genAspect }));
+      void refreshCosts();
+    } catch (err) {
+      setBanner(`Generování obrázku selhalo: ${describeError(err)}`);
+    } finally {
+      setGenBusy(false);
+    }
+  }
+
+  function b64ToFile(b64: string, filename: string): File {
+    const bytes = atob(b64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new File([arr], filename, { type: 'image/png' });
+  }
+
+  /** Adopt the generated preview: new project + attach the generation cost to
+   * its ledger + the standard decompose flow (same path as an uploaded file). */
+  async function handleAdoptGenerated() {
+    const result = genResult;
+    if (!result || busy) return;
+    const name = genPrompt.trim().slice(0, 40) || 'generováno';
+    setGenOpen(false);
+    setBusy({ op: `Dekompozice na ${numLayers} ${vrstvyWord(numLayers)} běží…` });
+    try {
+      const proj = await createProject(name);
+      await attachProjectCost(proj.id, result.cost);
+      await decomposeFile(proj.id, b64ToFile(result.image_b64, `${name}.png`), numLayers);
+      setProjects(await listProjects());
+      await handleSelectProject(proj.id);
+      setGenResult(null);
+      setGenPrompt('');
+      setSaveStatus(`Vygenerovaný obrázek převzat jako projekt „${proj.name}".`);
+    } catch (err) {
+      setBanner(`Převzetí vygenerovaného obrázku selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Recursive decomposition: replaces the selected layer with sub-layers (undo restores it). */
+  async function handleRunLayerDecompose() {
+    const projectId = selectedProjectId;
+    const layer = selectedLayer;
+    if (!projectId || !layer) return;
+    setBusy({ op: `Rozkládám vrstvu „${layer.name}" na ${subLayers} pod${vrstvyWord(subLayers)}…` });
+    try {
+      const subs = await decomposeLayer(projectId, layer.id, subLayers);
+      await reloadLayers(projectId);
+      setSelectedLayerId(subs[0]?.id ?? null);
+      await refreshHistory(projectId);
+      void refreshCosts();
+      setSaveStatus(`Vrstva „${layer.name}" rozložena na ${subs.length} pod${vrstvyWord(subs.length)}.`);
+    } catch (err) {
+      setBanner(`Rozložení vrstvy selhalo: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -914,6 +1077,7 @@ export default function EditorApp() {
         : 'SAM v místě kliknutí nic nenašel.';
       setSegmentStatus(msg);
       setSaveStatus(msg);
+      void refreshCosts();
     } catch (err) {
       setBanner(`Segmentace kliknutím selhala: ${describeError(err)}`);
     } finally {
@@ -1001,6 +1165,7 @@ export default function EditorApp() {
       setCompileResult(null);
       setCompilePromptDraft('');
       setSaveStatus(`Klip odeslán ke generování (${clip.provider_id}).`);
+      void refreshCosts();
     } catch (err) {
       setBanner(`Odeslání video úlohy selhalo: ${describeError(err)}`);
     } finally {
@@ -1114,6 +1279,7 @@ export default function EditorApp() {
         numLayers={numLayers}
         onNumLayersChange={setNumLayers}
         onNewFromImageClick={() => fileInputRef.current?.click()}
+        onGenerateClick={() => setGenOpen(true)}
         brushSize={brush.brushSize}
         onBrushSizeChange={brush.setBrushSize}
         brushStrokeCount={brush.strokeCount}
@@ -1206,6 +1372,58 @@ export default function EditorApp() {
               </div>
             ))}
           </div>
+          <div className="editor-section">
+            <h2
+              className="trash-toggle"
+              title="Smazané projekty — obnovit nebo trvale vysypat"
+              onClick={() => {
+                const next = !trashOpen;
+                setTrashOpen(next);
+                if (next) void refreshTrash();
+              }}
+            >
+              Koš {trashOpen ? '▾' : '▸'}
+              {!trashOpen && trashItems.length > 0 ? ` (${trashItems.length})` : ''}
+            </h2>
+            {trashOpen && (
+              <>
+                {trashError && <p className="editor-hint error">Chyba: {trashError}</p>}
+                {trashItems.length === 0 && !trashError && (
+                  <p className="editor-hint">Koš je prázdný.</p>
+                )}
+                {trashItems.map((t) => (
+                  <div key={t.entry} className="trash-item">
+                    <span className="name" title={`${t.name} — ${t.layer_count} ${vrstvyWord(t.layer_count)}`}>
+                      {t.name}
+                    </span>
+                    <span className="meta">{formatDateShort(t.deleted_at)}</span>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      disabled={!!busy}
+                      title="Obnovit projekt z koše"
+                      onClick={() => void handleRestoreTrash(t)}
+                    >
+                      ↩
+                    </button>
+                  </div>
+                ))}
+                {trashItems.length > 0 && (
+                  <div className="trash-actions-row">
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      disabled={!!busy}
+                      onClick={() => void handleEmptyTrash()}
+                    >
+                      Vysypat koš
+                    </button>
+                  </div>
+                )}
+                <p className="editor-hint">Položky starší 30 dní se mažou automaticky.</p>
+              </>
+            )}
+          </div>
           {selectedProjectId && (
             <LayersPanel
               layers={sortedForList}
@@ -1227,6 +1445,29 @@ export default function EditorApp() {
               busy={!!busy}
               onRetry={handleRetryClip}
             />
+          )}
+          {selectedProjectId && projectCosts && (
+            <div className="editor-section">
+              <h2>Útrata</h2>
+              <p className="cost-line">
+                Projekt: <strong>${projectCosts.total_usd.toFixed(2)}</strong> · {projectCosts.count}{' '}
+                volání
+              </p>
+              {sessionCosts && (
+                <p className="cost-line">
+                  Session celkem: ${sessionCosts.total_usd.toFixed(2)} · {sessionCosts.count} volání
+                </p>
+              )}
+              {projectCosts.entries
+                .slice(-3)
+                .reverse()
+                .map((e, i) => (
+                  <p key={`${e.ts}-${i}`} className="editor-hint">
+                    {e.kind} · {e.endpoint.split('/').pop()} ·{' '}
+                    {e.est_usd != null ? `$${e.est_usd.toFixed(3)}` : 'cena neznámá'}
+                  </p>
+                ))}
+            </div>
           )}
         </aside>
 
@@ -1254,6 +1495,15 @@ export default function EditorApp() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 Nahrát nový obrázek
+              </button>
+              <button
+                type="button"
+                className="secondary-btn"
+                disabled={!!busy}
+                title="Vygeneruje vstupní obrázek textem (Nano Banana Pro, ~$0.13)"
+                onClick={() => setGenOpen(true)}
+              >
+                Vygenerovat obrázek
               </button>
               <p className="editor-hint">…nebo vyberte existující projekt vlevo.</p>
             </div>
@@ -1420,10 +1670,89 @@ export default function EditorApp() {
               onSegmentTextChange={setSegmentText}
               onRunSegment={() => void handleRunSegment()}
               segmentStatus={segmentStatus}
+              subLayers={subLayers}
+              onSubLayersChange={setSubLayers}
+              onRunLayerDecompose={() => void handleRunLayerDecompose()}
             />
           </div>
         )}
       </div>
+
+      {genOpen && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!genBusy) setGenOpen(false);
+          }}
+        >
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Vygenerovat obrázek (Nano Banana Pro)</h3>
+            <textarea
+              placeholder="Popište obrázek, který chcete vygenerovat…"
+              value={genPrompt}
+              disabled={genBusy}
+              onChange={(e) => setGenPrompt(e.target.value)}
+            />
+            <div className="modal-row">
+              <label htmlFor="gen-aspect">Poměr stran</label>
+              <select
+                id="gen-aspect"
+                value={genAspect}
+                disabled={genBusy}
+                onChange={(e) => setGenAspect(e.target.value)}
+              >
+                {['1:1', '3:4', '4:3', '16:9', '9:16'].map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              <span className="editor-hint">~$0.13 / obrázek (2K)</span>
+            </div>
+            {genResult && (
+              <>
+                <img
+                  className="gen-preview"
+                  src={`data:image/png;base64,${genResult.image_b64}`}
+                  alt="Vygenerovaný náhled"
+                />
+                <p className="editor-hint">
+                  {genResult.width}×{genResult.height}
+                  {genResult.cost.est_usd != null ? ` · ~$${genResult.cost.est_usd.toFixed(2)}` : ''}
+                </p>
+              </>
+            )}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-btn"
+                disabled={genBusy || !genPrompt.trim()}
+                onClick={() => void handleGenerateImage()}
+              >
+                {genBusy ? 'Generuji…' : genResult ? 'Vygenerovat znovu' : 'Vygenerovat'}
+              </button>
+              {genResult && (
+                <button
+                  type="button"
+                  className="primary-btn"
+                  disabled={genBusy || !!busy}
+                  onClick={() => void handleAdoptGenerated()}
+                >
+                  Převzít → rozložit na {numLayers} {vrstvyWord(numLayers)}
+                </button>
+              )}
+              <button
+                type="button"
+                className="secondary-btn"
+                disabled={genBusy}
+                onClick={() => setGenOpen(false)}
+              >
+                Zavřít
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="status-strip">
         <span>
@@ -1432,6 +1761,7 @@ export default function EditorApp() {
         </span>
         <span>Projekt: {project ? project.name : '—'}</span>
         <span>Vrstva: {selectedLayer ? selectedLayer.name : '—'}</span>
+        {project && projectCosts && <span>Útrata: ${projectCosts.total_usd.toFixed(2)}</span>}
         {runningClipsCount > 0 && <span>Klipy: {runningClipsCount} běží</span>}
         <span className="spacer" />
         <span className="status-op">
