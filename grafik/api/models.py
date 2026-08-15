@@ -250,6 +250,9 @@ class GenerateImageRequest(BaseModel):
     prompt: str
     provider: str = "nb-pro"
     aspect_ratio: str = "1:1"
+    # "1K"/"2K" cost the same ($0.134); "4K" costs $0.24 — the registry
+    # est_cost_usd_per_call assumes 1K/2K, so the UI only offers those two.
+    image_size: str = "2K"
 
 
 class GenerateImageResponse(BaseModel):

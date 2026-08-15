@@ -578,6 +578,8 @@ export function attachProjectCost(projectId: string, entry: CostEntry): Promise<
 export function generateImage(body: {
   prompt: string;
   aspect_ratio: string;
+  /** "1K" | "2K" — both $0.134; 4K is API-only (different price). */
+  image_size?: string;
   provider?: string;
 }): Promise<GenerateImageResponse> {
   return request<GenerateImageResponse>('/api/generate-image', {

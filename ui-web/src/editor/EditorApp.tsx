@@ -170,6 +170,7 @@ export default function EditorApp() {
   const [genOpen, setGenOpen] = useState(false);
   const [genPrompt, setGenPrompt] = useState('');
   const [genAspect, setGenAspect] = useState('1:1');
+  const [genSize, setGenSize] = useState('2K');
   const [genBusy, setGenBusy] = useState(false);
   const [genResult, setGenResult] = useState<GenerateImageResponse | null>(null);
   const [subLayers, setSubLayers] = useState(3);
@@ -949,7 +950,7 @@ export default function EditorApp() {
     if (!prompt || genBusy) return;
     setGenBusy(true);
     try {
-      setGenResult(await generateImage({ prompt, aspect_ratio: genAspect }));
+      setGenResult(await generateImage({ prompt, aspect_ratio: genAspect, image_size: genSize }));
       void refreshCosts();
     } catch (err) {
       setBanner(`Generování obrázku selhalo: ${describeError(err)}`);
@@ -1707,7 +1708,20 @@ export default function EditorApp() {
                   </option>
                 ))}
               </select>
-              <span className="editor-hint">~$0.13 / obrázek (2K)</span>
+              <label htmlFor="gen-size">Rozlišení</label>
+              <select
+                id="gen-size"
+                value={genSize}
+                disabled={genBusy}
+                onChange={(e) => setGenSize(e.target.value)}
+              >
+                {['1K', '2K'].map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <span className="editor-hint">~$0.13 / obrázek</span>
             </div>
             {genResult && (
               <>

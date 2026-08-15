@@ -498,7 +498,7 @@ def generate_image(req: GenerateImageRequest) -> GenerateImageResponse:
     create-project + decompose flow and attaches `cost` to the new ledger."""
     import base64
 
-    from grafik.providers.nbpro import ASPECT_RATIOS, GeminiKeyMissing
+    from grafik.providers.nbpro import ASPECT_RATIOS, IMAGE_SIZES, GeminiKeyMissing
     from grafik.providers.registry import get_provider
 
     try:
@@ -511,12 +511,14 @@ def generate_image(req: GenerateImageRequest) -> GenerateImageResponse:
         raise HTTPException(400, f"Provider {req.provider!r} has no implementation available yet")
     if req.aspect_ratio not in ASPECT_RATIOS:
         raise HTTPException(400, f"aspect_ratio must be one of {list(ASPECT_RATIOS)}")
+    if req.image_size not in IMAGE_SIZES:
+        raise HTTPException(400, f"image_size must be one of {list(IMAGE_SIZES)}")
     if not req.prompt.strip():
         raise HTTPException(400, "Prompt nesmí být prázdný")
 
     provider = entry.impl()
     try:
-        img = provider.generate(req.prompt, aspect_ratio=req.aspect_ratio)
+        img = provider.generate(req.prompt, aspect_ratio=req.aspect_ratio, image_size=req.image_size)
     except GeminiKeyMissing as exc:
         raise HTTPException(503, str(exc))
     except Exception as exc:
