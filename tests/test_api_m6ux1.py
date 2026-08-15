@@ -278,6 +278,8 @@ def test_rewrite_text_prompt_with_original_and_metadata(api, monkeypatch):
         return Image.new("RGB", image.size, (1, 2, 3))
 
     monkeypatch.setattr(QwenInpaintProvider, "_run_remote", fake_run_remote)
+    import grafik.api.app as app_module
+    monkeypatch.setattr(app_module, "_segment_remote", lambda *a, **k: [])  # re-cutout fallback: keep band alpha
 
     resp = client.post(
         f"/api/projects/{a['id']}/layers/{layer.id}/rewrite-text",
@@ -334,6 +336,8 @@ def test_rewrite_text_prompt_without_any_original(api, monkeypatch):
         return Image.new("RGB", image.size, (4, 5, 6))
 
     monkeypatch.setattr(QwenInpaintProvider, "_run_remote", fake_run_remote)
+    import grafik.api.app as app_module
+    monkeypatch.setattr(app_module, "_segment_remote", lambda *a, **k: [])  # re-cutout fallback: keep band alpha
 
     resp = client.post(
         f"/api/projects/{a['id']}/layers/{layer.id}/rewrite-text",
@@ -385,6 +389,8 @@ def test_rewrite_text_changes_layer_pixels(api, monkeypatch):
         return Image.new("RGB", image.size, (250, 10, 10))
 
     monkeypatch.setattr(QwenInpaintProvider, "_run_remote", fake_run_remote)
+    import grafik.api.app as app_module
+    monkeypatch.setattr(app_module, "_segment_remote", lambda *a, **k: [])  # re-cutout fallback: keep band alpha
 
     resp = client.post(
         f"/api/projects/{a['id']}/layers/{layer.id}/rewrite-text",
@@ -423,6 +429,8 @@ def test_rewrite_text_uses_band_mask_and_merges(api, monkeypatch):
         return Image.new("RGB", image.size, (250, 10, 10))
 
     monkeypatch.setattr(QwenInpaintProvider, "_run_remote", fake_run_remote)
+    import grafik.api.app as app_module
+    monkeypatch.setattr(app_module, "_segment_remote", lambda *a, **k: [])  # re-cutout fallback: keep band alpha
 
     resp = client.post(
         f"/api/projects/{a['id']}/layers/{layer.id}/rewrite-text",
@@ -442,3 +450,51 @@ def test_rewrite_text_uses_band_mask_and_merges(api, monkeypatch):
     assert after.getpixel((2, 2))[3] == 0  # merge: untouched outside the band
     assert after.getpixel((10, 8)) == (250, 10, 10, 255)  # band area adopted the edit
     assert after.getpixel((22, 20))[:3] == (250, 10, 10)
+
+
+def test_rewrite_text_sam_recutout_shrinks_alpha_to_glyphs(api, monkeypatch):
+    """After the band edit, one SAM "letters" call shrinks the layer's alpha
+    back to the new glyphs (clean cutout) -- overlapping bands of nearby text
+    layers must not bake copies of each other into their pixels (E2E
+    2026-08-15: the title layer's band carried the old subtitle)."""
+    client, projects_dir = api
+    import grafik.api.app as app_module
+
+    a = _create_project(client, "rewrite-cut", width=64, height=48)
+    project_dir = _dir_by_id(projects_dir, a["id"])
+    project = LayerProject.load(project_dir)
+    glyphs_img = Image.new("RGBA", (64, 48), (0, 0, 0, 0))
+    glyphs_img.paste((7, 7, 7, 255), (20, 18, 30, 24))
+    layer = Layer(name="txt")
+    layer.save_image(glyphs_img, project_dir)
+    project.add_layer(layer)
+    project.save(project_dir)
+
+    def fake_run_remote(self, image, mask, prompt, negative_prompt, enable_safety_checker):
+        return Image.new("RGB", image.size, (250, 10, 10))
+
+    monkeypatch.setattr(QwenInpaintProvider, "_run_remote", fake_run_remote)
+
+    def fake_segment_remote(image, text_prompt, endpoint):
+        assert text_prompt == "letters"
+        # "New glyphs": a 6x4 blob at (4, 6) inside the band crop.
+        mask = np.zeros((image.height, image.width), dtype=np.uint8)
+        mask[6:10, 4:10] = 255
+        return [Image.fromarray(mask, mode="L")]
+
+    monkeypatch.setattr(app_module, "_segment_remote", fake_segment_remote)
+
+    resp = client.post(
+        f"/api/projects/{a['id']}/layers/{layer.id}/rewrite-text",
+        json={"new_text": "New", "feather_px": 0, "dilate_px": 0},
+    )
+    assert resp.status_code == 200, resp.text
+
+    after = Image.open(
+        BytesIO(client.get(f"/api/projects/{a['id']}/layers/{layer.id}/png").content)
+    ).convert("RGBA")
+    # band (8,6)-(41,35); glyph blob crop-local (4..9, 6..9) -> layer coords (12..17, 12..15),
+    # grown 2 px by MaxFilter(5); far band corner must be re-cut away to transparent.
+    assert after.getpixel((14, 13))[3] > 200
+    assert after.getpixel((35, 30))[3] == 0  # inside band, outside new glyphs
+    assert after.getpixel((2, 2))[3] == 0  # outside band, untouched

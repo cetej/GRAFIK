@@ -1363,22 +1363,61 @@ def rewrite_text_layer(project_id: str, layer_id: str, req: RewriteTextRequest) 
     ys, xs = np.nonzero(alpha_arr)
     y0, y1, x0, x1 = int(ys.min()), int(ys.max()), int(xs.min()), int(xs.max())
     margin = max(12, round(0.4 * (y1 - y0 + 1)))
-    band = Image.new("L", alpha_canvas.size, 0)
-    band.paste(
-        255,
-        (
-            max(0, x0 - margin),
-            max(0, y0 - margin),
-            min(alpha_canvas.width, x1 + 1 + margin),
-            min(alpha_canvas.height, y1 + 1 + margin),
-        ),
+    band_canvas_box = (
+        max(0, x0 - margin),
+        max(0, y0 - margin),
+        min(alpha_canvas.width, x1 + 1 + margin),
+        min(alpha_canvas.height, y1 + 1 + margin),
     )
+    band = Image.new("L", alpha_canvas.size, 0)
+    band.paste(255, band_canvas_box)
 
     new_layer_img, elapsed = _ai_edit_apply(
         project, path, layer, prompt, req.provider,
         dilate_px=req.dilate_px, feather_px=req.feather_px,
         crop_inpaint=req.crop_inpaint, mask_img=band,
     )
+
+    # Re-cutout (M6-UX1 E2E fix): shrink the band back to the NEW glyphs via one
+    # SAM "letters" call (~$0.005) so the layer stays a clean text cutout.
+    # Without it, overlapping bands of nearby text layers bake copies of each
+    # other into their pixels (E2E: the title layer's band carried the OLD
+    # subtitle and covered the rewritten one below), and iterated rewrites
+    # inflate the band (the bbox of a band is bigger than the bbox of glyphs).
+    # On 0 masks / SAM failure the band alpha stays -- composite still correct,
+    # just not a tight cutout. Band box is CANVAS space; new_layer_img is
+    # layer-local LAYOUT space, hence the (layer.x, layer.y) shift.
+    from PIL import ImageFilter
+
+    from grafik.providers.registry import get_provider
+
+    layer_w = layer.width or new_layer_img.width
+    layer_h = layer.height or new_layer_img.height
+    local_box = (
+        max(0, band_canvas_box[0] - layer.x),
+        max(0, band_canvas_box[1] - layer.y),
+        min(layer_w, band_canvas_box[2] - layer.x),
+        min(layer_h, band_canvas_box[3] - layer.y),
+    )
+    if local_box[2] > local_box[0] and local_box[3] > local_box[1]:
+        try:
+            seg_endpoint = get_provider("sam-3").info.endpoint
+            crop_rgb = new_layer_img.crop(local_box).convert("RGB")
+            letter_masks = _segment_remote(crop_rgb, DETECT_TEXT_PROMPT, seg_endpoint)
+        except Exception:
+            letter_masks = []
+        union = np.zeros((local_box[3] - local_box[1], local_box[2] - local_box[0]), dtype=bool)
+        for m in letter_masks:
+            if m.size != crop_rgb.size:
+                m = m.resize(crop_rgb.size, Image.LANCZOS)
+            union |= np.array(m) > 127
+        if union.any():
+            glyphs = Image.fromarray((union * 255).astype("uint8"), "L")
+            # 2 px grow + 1 px blur: keep glyph outlines, soften the cutout edge.
+            glyphs = glyphs.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(1))
+            new_alpha = Image.new("L", new_layer_img.size, 0)
+            new_alpha.paste(glyphs, (local_box[0], local_box[1]))
+            new_layer_img.putalpha(new_alpha)
 
     # Metadata set BEFORE persistence so it's part of the same save/snapshot
     # as the pixel change.
