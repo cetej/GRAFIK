@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import Konva from 'konva';
-import { Stage, Layer, Image as KonvaImage, Rect, Transformer } from 'react-konva';
+import { Stage, Layer, Image as KonvaImage, Rect, Circle, Transformer } from 'react-konva';
 import {
   listProjects,
   getProject,
   listLayers,
   layerPngUrl,
+  compositeUrl,
   saveTransform,
   toggleVisibility,
   listProviders,
@@ -14,6 +15,8 @@ import {
   reorderLayer,
   segmentProject,
   segmentProjectPoint,
+  segmentProjectPoints,
+  segmentProjectBox,
   createProject,
   decomposeFile,
   exportPng,
@@ -35,6 +38,7 @@ import {
   listTrash,
   restoreTrashEntry,
   emptyTrash,
+  purgeTrashEntry,
   getProjectCosts,
   getSessionCosts,
   attachProjectCost,
@@ -54,6 +58,7 @@ import {
   type TrashItem,
   type CostsSummary,
   type GenerateImageResponse,
+  type SegmentBoxDto,
 } from './api';
 import Toolbar, { vrstvyWord } from './Toolbar';
 import InspectorPanel from './InspectorPanel';
@@ -68,6 +73,10 @@ import './EditorApp.css';
 type EditorLayer = LayerResponse;
 
 const CANVAS_PADDING = 32;
+
+/** Generate-modal reference images (M5): hard cap + downscale target for NB Pro reference_b64. */
+const MAX_GEN_REFS = 3;
+const MAX_REF_EDGE_PX = 1024;
 
 /** localStorage key for the one-time first-run gesture hint (M2.5). */
 const FIRST_RUN_HINT_KEY = 'grafik.firstRunHint.v1';
@@ -104,6 +113,8 @@ declare global {
       projectId: string | null;
       busy: string | null;
       tool: Tool;
+      segPointsCount: number;
+      segBoxActive: boolean;
     };
     __brushCanvas?: HTMLCanvasElement | null;
   }
@@ -173,15 +184,21 @@ export default function EditorApp() {
   const [genSize, setGenSize] = useState('2K');
   const [genBusy, setGenBusy] = useState(false);
   const [genResult, setGenResult] = useState<GenerateImageResponse | null>(null);
+  const [genRefs, setGenRefs] = useState<{ b64: string; label: string }[]>([]);
   const [subLayers, setSubLayers] = useState(3);
 
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [providersError, setProvidersError] = useState<string | null>(null);
   const [aiEditPrompt, setAiEditPrompt] = useState('');
   const [aiEditProviderId, setAiEditProviderId] = useState<string | null>(null);
+  const [cropInpaint, setCropInpaint] = useState(true);
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [segmentText, setSegmentText] = useState('');
   const [segmentStatus, setSegmentStatus] = useState<string | null>(null);
+  // --- M5 additions: segment box-drag + multi-point (whole-object segmentation) ---
+  const [segPoints, setSegPoints] = useState<CanvasPoint[]>([]);
+  const [segBoxDraft, setSegBoxDraft] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const segDragStartRef = useRef<CanvasPoint | null>(null);
 
   // --- M3 additions: motion/camera UI state, compile preview, video jobs ---
   const [videoProviders, setVideoProviders] = useState<ProviderInfo[]>([]);
@@ -452,6 +469,40 @@ export default function EditorApp() {
     };
   }, [containerSize, canvasWidth, canvasHeight]);
 
+  // M5: leaving the segment tool clears any in-progress box drag / accumulated multi-point set —
+  // switching tools (or projects, which resets tool to 'select') must not leave stale draft state.
+  useEffect(() => {
+    if (tool !== 'segment') {
+      setSegPoints([]);
+      setSegBoxDraft(null);
+      segDragStartRef.current = null;
+    }
+  }, [tool]);
+
+  // M5: Enter confirms the accumulated segment multi-point set (Shift+klik), Escape cancels the
+  // current draft (points and/or an in-progress box) — only wired while the segment tool is active.
+  useEffect(() => {
+    if (tool !== 'segment') return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Enter') {
+        if (segPoints.length > 0 && !busy) {
+          e.preventDefault();
+          void handleSegmentMultiPoint();
+        }
+      } else if (e.key === 'Escape') {
+        setSegPoints([]);
+        setSegBoxDraft(null);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // handleSegmentMultiPoint is a plain function recreated every render; omitting it is safe
+    // because its only external closure values are `segPoints` (already a dep) and
+    // `selectedProjectId`, and every path that changes selectedProjectId (handleSelectProject)
+    // also flips `tool` away from 'segment' first — which already tears this listener down.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, segPoints, busy]);
+
   // Dev hooks for editor-verify.mjs.
   useEffect(() => {
     window.__editorState = {
@@ -464,8 +515,22 @@ export default function EditorApp() {
       projectId: selectedProjectId,
       busy: busy?.op ?? null,
       tool,
+      segPointsCount: segPoints.length,
+      segBoxActive: segBoxDraft !== null,
     };
-  }, [fitScale, offsetX, offsetY, canvasWidth, canvasHeight, selectedLayerId, selectedProjectId, busy, tool]);
+  }, [
+    fitScale,
+    offsetX,
+    offsetY,
+    canvasWidth,
+    canvasHeight,
+    selectedLayerId,
+    selectedProjectId,
+    busy,
+    tool,
+    segPoints,
+    segBoxDraft,
+  ]);
 
   useEffect(() => {
     window.__brushCanvas = brush.canvas;
@@ -507,6 +572,8 @@ export default function EditorApp() {
     setLayers([]);
     setSaveStatus(null);
     setSegmentStatus(null);
+    setSegPoints([]);
+    setSegBoxDraft(null);
     setPngVersions({});
     setHistory(null);
     setTool('select');
@@ -784,6 +851,7 @@ export default function EditorApp() {
       const resp = await aiEditLayer(projectId, layer.id, {
         prompt,
         provider: aiEditProviderId,
+        crop_inpaint: cropInpaint,
         ...(maskB64 ? { mask_b64: maskB64 } : {}),
       });
       applyLayerUpdate(resp.layer);
@@ -804,7 +872,10 @@ export default function EditorApp() {
     setBusy({ op: 'Inpaint pozadí běží… může trvat desítky sekund' });
     try {
       const prompt = inpaintPrompt.trim();
-      const resp = await inpaintBehind(projectId, layer.id, prompt ? { prompt } : {});
+      const resp = await inpaintBehind(projectId, layer.id, {
+        ...(prompt ? { prompt } : {}),
+        crop_inpaint: cropInpaint,
+      });
       applyLayerUpdate(resp.layer);
       setSaveStatus(`Pozadí vyplněno (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
       await refreshHistory(projectId);
@@ -943,6 +1014,22 @@ export default function EditorApp() {
     }
   }
 
+  /** M5: per-entry permanent delete (Koš keeps ↩ restore; this is the irreversible companion). */
+  async function handlePurgeTrashEntry(item: TrashItem) {
+    if (busy) return;
+    if (!window.confirm(`Trvale smazat „${item.name}" z koše? Tuto akci nelze vrátit.`)) return;
+    setBusy({ op: `Trvale mažu „${item.name}" z koše…` });
+    try {
+      await purgeTrashEntry(item.entry);
+      await refreshTrash();
+      setSaveStatus(`Projekt „${item.name}" trvale smazán z koše.`);
+    } catch (err) {
+      setBanner(`Trvalé smazání z koše selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   /** One paid NB Pro call (~$0.13) → preview in the dialog. Modal-local busy,
    * not the global gate — canvas operations are untouched while generating. */
   async function handleGenerateImage() {
@@ -950,7 +1037,14 @@ export default function EditorApp() {
     if (!prompt || genBusy) return;
     setGenBusy(true);
     try {
-      setGenResult(await generateImage({ prompt, aspect_ratio: genAspect, image_size: genSize }));
+      setGenResult(
+        await generateImage({
+          prompt,
+          aspect_ratio: genAspect,
+          image_size: genSize,
+          ...(genRefs.length > 0 ? { reference_b64: genRefs.map((r) => r.b64) } : {}),
+        }),
+      );
       void refreshCosts();
     } catch (err) {
       setBanner(`Generování obrázku selhalo: ${describeError(err)}`);
@@ -964,6 +1058,63 @@ export default function EditorApp() {
     const arr = new Uint8Array(bytes.length);
     for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
     return new File([arr], filename, { type: 'image/png' });
+  }
+
+  /** Downscales a source image to at most MAX_REF_EDGE_PX on its longer edge and returns it as a
+   * base64 PNG (no data: prefix) — the shape NB Pro's reference_b64 expects. */
+  async function blobToRefB64(blob: Blob): Promise<string> {
+    const bitmap = await createImageBitmap(blob);
+    try {
+      const scale = Math.min(1, MAX_REF_EDGE_PX / Math.max(bitmap.width, bitmap.height));
+      const w = Math.max(1, Math.round(bitmap.width * scale));
+      const h = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('2D canvas kontext nedostupný');
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/png');
+      const comma = dataUrl.indexOf(',');
+      return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  /** Adds one reference image (from an uploaded File or a fetched Blob) to genRefs, silently capped
+   * at MAX_GEN_REFS — used by all three reference sources (file picker, composite, selected layer). */
+  async function addGenRef(blob: Blob, label: string) {
+    if (genRefs.length >= MAX_GEN_REFS) return;
+    try {
+      const b64 = await blobToRefB64(blob);
+      setGenRefs((prev) => (prev.length >= MAX_GEN_REFS ? prev : [...prev, { b64, label }]));
+    } catch (err) {
+      setBanner(`Načtení referenčního obrázku selhalo: ${describeError(err)}`);
+    }
+  }
+
+  /** Reference sources (b)/(c): fetch a same-origin API image (project composite / layer PNG) and
+   * feed it through the same downscale-and-add path as an uploaded file. */
+  async function addGenRefFromUrl(url: string, label: string) {
+    if (genRefs.length >= MAX_GEN_REFS) return;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      await addGenRef(await res.blob(), label);
+    } catch (err) {
+      setBanner(`Načtení referenčního obrázku selhalo: ${describeError(err)}`);
+    }
+  }
+
+  function handleAddCompositeRef() {
+    if (!selectedProjectId) return;
+    void addGenRefFromUrl(compositeUrl(selectedProjectId), 'kompozit projektu');
+  }
+
+  function handleAddSelectedLayerRef() {
+    if (!selectedProjectId || !selectedLayer) return;
+    void addGenRefFromUrl(layerPngUrl(selectedProjectId, selectedLayer.id), `vrstva „${selectedLayer.name}"`);
   }
 
   /** Adopt the generated preview: new project + attach the generation cost to
@@ -982,6 +1133,7 @@ export default function EditorApp() {
       await handleSelectProject(proj.id);
       setGenResult(null);
       setGenPrompt('');
+      setGenRefs([]);
       setSaveStatus(`Vygenerovaný obrázek převzat jako projekt „${proj.name}".`);
     } catch (err) {
       setBanner(`Převzetí vygenerovaného obrázku selhalo: ${describeError(err)}`);
@@ -1081,6 +1233,56 @@ export default function EditorApp() {
       void refreshCosts();
     } catch (err) {
       setBanner(`Segmentace kliknutím selhala: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Segment-tool box drag → one paid SAM box call (whole object) → new layer, selected. */
+  async function handleSegmentBoxDrag(box: SegmentBoxDto) {
+    const projectId = selectedProjectId;
+    if (!projectId) return;
+    setBusy({ op: `Segmentuji rámeček (${box.x_min}, ${box.y_min})–(${box.x_max}, ${box.y_max})…` });
+    try {
+      const resp = await segmentProjectBox(projectId, box);
+      await reloadLayers(projectId);
+      const created = resp.layers[0];
+      if (created) setSelectedLayerId(created.id);
+      const msg = created ? `Vytvořena vrstva „${created.name}" z rámečku.` : 'SAM v rámečku nic nenašel.';
+      setSegmentStatus(msg);
+      setSaveStatus(msg);
+      void refreshCosts();
+    } catch (err) {
+      setBanner(`Segmentace rámečkem selhala: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Segment-tool Shift+klik multi-point set, confirmed with Enter → one paid SAM call spanning all
+   * accumulated points (same object_id) → new layer, selected. */
+  async function handleSegmentMultiPoint() {
+    const projectId = selectedProjectId;
+    if (!projectId || segPoints.length === 0) return;
+    const count = segPoints.length;
+    setBusy({ op: `Segmentuji ${count} bodů…` });
+    try {
+      const resp = await segmentProjectPoints(
+        projectId,
+        segPoints.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y), label: 1, object_id: 0 })),
+      );
+      await reloadLayers(projectId);
+      const created = resp.layers[0];
+      if (created) setSelectedLayerId(created.id);
+      const msg = created
+        ? `Vytvořena vrstva „${created.name}" z ${count} bodů.`
+        : 'SAM v zadaných bodech nic nenašel.';
+      setSegmentStatus(msg);
+      setSaveStatus(msg);
+      setSegPoints([]);
+      void refreshCosts();
+    } catch (err) {
+      setBanner(`Segmentace body selhala: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -1221,13 +1423,14 @@ export default function EditorApp() {
       return;
     }
     if (tool === 'segment') {
-      // Layers don't listen in segment mode, so every canvas click lands on
-      // the Stage — treat each one inside the canvas rect as a SAM point
-      // prompt (same "every click is the tool's action" pattern as motion,
-      // see the M3 full-bleed-background finding).
+      // Layers don't listen in segment mode, so every canvas gesture lands on the Stage (same
+      // "every click is the tool's action" pattern as motion, see the M3 full-bleed-background
+      // finding). Mousedown only stakes out the drag start — mouseup below measures the total
+      // distance moved to decide klik (point) vs. tažení (box).
       const pt = getCanvasPoint();
       if (pt && pt.x >= 0 && pt.x <= canvasWidth && pt.y >= 0 && pt.y <= canvasHeight) {
-        void handleSegmentPointClick(pt);
+        segDragStartRef.current = pt;
+        setSegBoxDraft({ x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y });
       }
       return;
     }
@@ -1239,13 +1442,55 @@ export default function EditorApp() {
   }
 
   function handleStageMouseMove() {
-    if (busy || tool !== 'brush') return;
-    const pt = getCanvasPoint();
-    if (pt) brush.continueStroke(pt);
+    if (busy) return;
+    if (tool === 'brush') {
+      const pt = getCanvasPoint();
+      if (pt) brush.continueStroke(pt);
+      return;
+    }
+    if (tool === 'segment' && segDragStartRef.current) {
+      const pt = getCanvasPoint();
+      if (pt) {
+        const x2 = Math.max(0, Math.min(canvasWidth, pt.x));
+        const y2 = Math.max(0, Math.min(canvasHeight, pt.y));
+        setSegBoxDraft((prev) => (prev ? { ...prev, x2, y2 } : prev));
+      }
+    }
   }
 
-  function handleStageMouseUp() {
+  function handleStageMouseUp(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
     if (tool === 'brush') brush.endStroke();
+    if (tool === 'segment') {
+      const start = segDragStartRef.current;
+      const draft = segBoxDraft;
+      segDragStartRef.current = null;
+      setSegBoxDraft(null);
+      if (!start || !draft || busy) return;
+      const dist = Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1);
+      if (dist < 5 / fitScale) {
+        // KLIK: no shift + no accumulated points yet → immediate single-point call (unchanged
+        // pre-M5 behavior). Otherwise (shift held, or already building a multi-point set) just
+        // accumulate — Enter confirms the whole set via handleSegmentMultiPoint.
+        const pt = {
+          x: Math.max(0, Math.min(canvasWidth, Math.round(start.x))),
+          y: Math.max(0, Math.min(canvasHeight, Math.round(start.y))),
+        };
+        if (!e.evt.shiftKey && segPoints.length === 0) {
+          void handleSegmentPointClick(pt);
+        } else {
+          setSegPoints((prev) => [...prev, pt]);
+        }
+        return;
+      }
+      // TAŽENÍ: a real drag → whole-object box segmentation.
+      const box: SegmentBoxDto = {
+        x_min: Math.max(0, Math.min(canvasWidth, Math.round(Math.min(draft.x1, draft.x2)))),
+        y_min: Math.max(0, Math.min(canvasHeight, Math.round(Math.min(draft.y1, draft.y2)))),
+        x_max: Math.max(0, Math.min(canvasWidth, Math.round(Math.max(draft.x1, draft.x2)))),
+        y_max: Math.max(0, Math.min(canvasHeight, Math.round(Math.max(draft.y1, draft.y2)))),
+      };
+      void handleSegmentBoxDrag(box);
+    }
   }
 
   const sortedForList = useMemo(() => [...layers].sort((a, b) => b.z_order - a.z_order), [layers]);
@@ -1298,6 +1543,12 @@ export default function EditorApp() {
           if (file) void handleCreateFromImage(file, numLayers);
         }}
       />
+
+      {tool === 'segment' && (
+        <div className="segment-hint">
+          Klik = část · tažení = rámeček (celý objekt) · Shift+klik = víc bodů, Enter potvrdí
+        </div>
+      )}
 
       <div className="editor-body">
         <aside className="editor-sidebar">
@@ -1406,6 +1657,15 @@ export default function EditorApp() {
                       onClick={() => void handleRestoreTrash(t)}
                     >
                       ↩
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      disabled={!!busy}
+                      title="Trvale smazat z koše"
+                      onClick={() => void handlePurgeTrashEntry(t)}
+                    >
+                      🗑
                     </button>
                   </div>
                 ))}
@@ -1619,6 +1879,31 @@ export default function EditorApp() {
                     onPointDragEnd={handleTrajectoryPointDragEnd}
                   />
                 )}
+                {tool === 'segment' && segBoxDraft && (
+                  <Rect
+                    x={Math.min(segBoxDraft.x1, segBoxDraft.x2)}
+                    y={Math.min(segBoxDraft.y1, segBoxDraft.y2)}
+                    width={Math.abs(segBoxDraft.x2 - segBoxDraft.x1)}
+                    height={Math.abs(segBoxDraft.y2 - segBoxDraft.y1)}
+                    stroke="#4a7dff"
+                    dash={[6 / fitScale, 4 / fitScale]}
+                    strokeWidth={1.5 / fitScale}
+                    listening={false}
+                  />
+                )}
+                {tool === 'segment' &&
+                  segPoints.map((pt, index) => (
+                    <Circle
+                      key={`seg-pt-${index}`}
+                      x={pt.x}
+                      y={pt.y}
+                      radius={4 / fitScale}
+                      fill="#4a7dff"
+                      stroke="#ffffff"
+                      strokeWidth={1 / fitScale}
+                      listening={false}
+                    />
+                  ))}
                 <Transformer ref={transformerRef} resizeEnabled rotateEnabled />
               </Layer>
             </Stage>
@@ -1661,6 +1946,8 @@ export default function EditorApp() {
               onAiEditPromptChange={setAiEditPrompt}
               aiEditProviderId={aiEditProviderId}
               onAiEditProviderChange={setAiEditProviderId}
+              cropInpaint={cropInpaint}
+              onCropInpaintChange={setCropInpaint}
               onRunAiEdit={() => void handleRunAiEdit()}
               brushStrokeCount={brush.strokeCount}
               onClearBrush={brush.clear}
@@ -1723,6 +2010,58 @@ export default function EditorApp() {
               </select>
               <span className="editor-hint">~$0.13 / obrázek</span>
             </div>
+            <div className="modal-row">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                disabled={genBusy || genRefs.length >= MAX_GEN_REFS}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  e.target.value = '';
+                  for (const f of files) void addGenRef(f, f.name);
+                }}
+              />
+              {selectedProjectId && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  disabled={genBusy || genRefs.length >= MAX_GEN_REFS}
+                  onClick={handleAddCompositeRef}
+                >
+                  + kompozit projektu
+                </button>
+              )}
+              {selectedLayer && (
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  disabled={genBusy || genRefs.length >= MAX_GEN_REFS}
+                  onClick={handleAddSelectedLayerRef}
+                >
+                  + vybraná vrstva
+                </button>
+              )}
+            </div>
+            {genRefs.length > 0 && (
+              <div className="gen-refs-row">
+                {genRefs.map((r, i) => (
+                  <div key={i} className="gen-ref-thumb">
+                    <img src={`data:image/png;base64,${r.b64}`} alt={r.label} title={r.label} />
+                    <button
+                      type="button"
+                      className="gen-ref-remove"
+                      disabled={genBusy}
+                      title="Odebrat referenci"
+                      onClick={() => setGenRefs((prev) => prev.filter((_, idx) => idx !== i))}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="editor-hint">Reference udrží stejnou postavu/styl napříč obrázky (max 3).</p>
             {genResult && (
               <>
                 <img

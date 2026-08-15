@@ -79,14 +79,34 @@ class ElementVerdict(BaseModel):
 
 
 class ClipVerification(BaseModel):
-    """Result of grafik.motion.verify.verify_clip for one ClipRecord."""
+    """Result of grafik.motion.verify.verify_clip for one ClipRecord.
+
+    M5 additions (camera compensation) all default to the pre-M5 behaviour, so
+    a verification persisted by M3 code reloads without migration.
+    """
 
     verified_at: str  # ISO UTC timestamp
     frame_size: list[int]
     frames_sampled: int
+    # RAW (uncompensated) mean frame-to-frame diff. Semantics deliberately
+    # UNCHANGED across M5 so numbers stay comparable with M3 verifications --
+    # the post-compensation figure is residual_global_motion.
     global_motion: float
     elements: list[ElementVerdict] = Field(default_factory=list)
     summary: str  # human-readable summary (Czech)
+    # True when at least one sampled frame was successfully aligned to frame 0
+    # by grafik.motion.verify (ECC affine estimate on the background).
+    camera_compensated: bool = False
+    compensated_frames: int = 0
+    # Mean background diff AFTER alignment; None when nothing was compensated.
+    # residual << global_motion is the signal that the camera (not the scene)
+    # produced most of the raw motion.
+    residual_global_motion: float | None = None
+    # "submit" = every element mask came from ClipRecord.mask_paths (the layer
+    # footprint AT SUBMIT TIME); "current" = at least one was re-rendered from
+    # the layer's present state, so a layer moved since submit is measured in
+    # the wrong place.
+    mask_source: str = "current"
 
 
 class ClipRecord(BaseModel):
@@ -104,3 +124,10 @@ class ClipRecord(BaseModel):
     cost_note: str = ""
     error: str = ""
     verification: ClipVerification | None = None
+    # layer_id -> path (relative to the project dir) of the layer's full-canvas
+    # footprint mask, rendered AT SUBMIT TIME by grafik.motion.jobs. Verification
+    # runs minutes later, by which time the user may have moved/scaled/deleted
+    # the layer -- re-deriving the mask from the layer's present state would
+    # then measure the wrong region of the clip. Empty dict = pre-M5 record;
+    # verify falls back to the layer's current footprint.
+    mask_paths: dict[str, str] = Field(default_factory=dict)

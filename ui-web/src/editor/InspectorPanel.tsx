@@ -1,5 +1,13 @@
 import type { LayerResponse, ProviderInfo } from './api';
 
+/** M5: one-line reminder of each provider's prompt semantics, shown under the AI-edit provider
+ * select. Fill models (flux-fill) never see the masked content; edit models (qwen-inpaint) see the
+ * whole image. Providers not listed here render no hint. */
+const PROVIDER_HINTS: Record<string, string> = {
+  'qwen-inpaint': 'qwen: popište ÚPRAVU stávajícího obsahu (model vidí celý obraz)',
+  'flux-fill': 'flux-fill: popište, co má v oblasti VZNIKNOUT (model obsah masky nevidí)',
+};
+
 interface InspectorPanelProps {
   selectedLayer: LayerResponse | null;
   busy: boolean;
@@ -11,6 +19,9 @@ interface InspectorPanelProps {
   onAiEditPromptChange: (value: string) => void;
   aiEditProviderId: string | null;
   onAiEditProviderChange: (id: string) => void;
+  /** M5: crop around a small mask and edit at full resolution (see the hint text next to it). */
+  cropInpaint: boolean;
+  onCropInpaintChange: (value: boolean) => void;
   onRunAiEdit: () => void;
   brushStrokeCount: number;
   onClearBrush: () => void;
@@ -39,6 +50,8 @@ export default function InspectorPanel(props: InspectorPanelProps) {
     onAiEditPromptChange,
     aiEditProviderId,
     onAiEditProviderChange,
+    cropInpaint,
+    onCropInpaintChange,
     onRunAiEdit,
     brushStrokeCount,
     onClearBrush,
@@ -87,6 +100,9 @@ export default function InspectorPanel(props: InspectorPanelProps) {
           ))}
         </select>
         {providersError && <p className="editor-hint error">Provideři: {providersError}</p>}
+        {aiEditProviderId && PROVIDER_HINTS[aiEditProviderId] && (
+          <p className="editor-hint">{PROVIDER_HINTS[aiEditProviderId]}</p>
+        )}
         <p className="editor-hint">
           {brushStrokeCount > 0 ? (
             <>
@@ -105,6 +121,16 @@ export default function InspectorPanel(props: InspectorPanelProps) {
             'Bez masky se použije alfa vrstvy.'
           )}
         </p>
+        <label className="motion-checkbox-label">
+          <input
+            type="checkbox"
+            checked={cropInpaint}
+            disabled={busy}
+            onChange={(e) => onCropInpaintChange(e.target.checked)}
+          />
+          Crop kolem masky (ostřejší edit na velkém plátně)
+        </label>
+        <p className="editor-hint">Malou masku na plátně &gt;1536 px pošle modelu ve výřezu v plném rozlišení.</p>
         <button
           type="button"
           disabled={busy || !selectedLayer || !aiEditPrompt.trim() || !aiEditProviderId}

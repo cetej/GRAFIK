@@ -153,6 +153,11 @@ class AiEditRequest(BaseModel):
     # When set, the edit MERGES into the layer instead of replacing it -- see
     # ai_edit_layer in grafik/api/app.py.
     mask_b64: str | None = None
+    # M5: forwarded to provider.edit(..., crop_inpaint=...) -- crop-based
+    # inpaint for small masks on large canvases (grafik/providers/
+    # qwen_inpaint.py compute_crop_box, shared by flux-fill). True (default)
+    # lets the provider decide; False forces the pre-M5 whole-image send.
+    crop_inpaint: bool = True
 
 
 class AiEditResponse(BaseModel):
@@ -166,6 +171,8 @@ class InpaintBehindRequest(BaseModel):
     provider: str = "qwen-inpaint"
     dilate_px: int = Field(default=4, ge=0)
     feather_px: int = Field(default=2, ge=0)
+    # M5: same crop_inpaint plumbing as AiEditRequest -- see there.
+    crop_inpaint: bool = True
 
 
 class InpaintBehindResponse(BaseModel):
@@ -194,17 +201,38 @@ class ProviderListItem(BaseModel):
 class SegmentPoint(BaseModel):
     """One SAM point prompt in composite/canvas pixel space (upload preserves
     dimensions, so canvas px == uploaded-image px). Shape verified against the
-    raw fal OpenAPI schema for fal-ai/sam-3/image (PointPrompt: x, y, label)."""
+    raw fal OpenAPI schema for fal-ai/sam-3/image (PointPrompt: x, y, label,
+    object_id, frame_index -- only object_id used here)."""
 
     x: int
     y: int
     label: int = Field(default=1, ge=0, le=1)  # 1 foreground, 0 background
+    # Schema field that groups several points onto ONE object -- e.g. two
+    # points sharing the same object_id segment one whole object instead of
+    # two independent part-level detections (M5). None -> the key is omitted
+    # from the fal payload entirely (see _segment_remote in grafik/api/app.py:
+    # fal silently fills in schema defaults for OMITTED known keys, so we
+    # never send a key we don't mean to set).
+    object_id: int | None = None
+
+
+class SegmentBox(BaseModel):
+    """One SAM box prompt in composite/canvas pixel space. Shape verified
+    against the raw fal OpenAPI schema for fal-ai/sam-3/image (BoxPrompt:
+    x_min, y_min, x_max, y_max, object_id -- object_id not exposed here,
+    one box already pins a whole object)."""
+
+    x_min: int
+    y_min: int
+    x_max: int
+    y_max: int
 
 
 class SegmentRequest(BaseModel):
-    # At least one of text/points must be non-empty -- validated in the route.
+    # At least one of text/points/boxes must be non-empty -- validated in the route.
     text: str = ""
     points: list[SegmentPoint] = Field(default_factory=list)
+    boxes: list[SegmentBox] = Field(default_factory=list)
     provider: str = "sam-3"
     create_layers: bool = True
 
@@ -253,6 +281,11 @@ class GenerateImageRequest(BaseModel):
     # "1K"/"2K" cost the same ($0.134); "4K" costs $0.24 — the registry
     # est_cost_usd_per_call assumes 1K/2K, so the UI only offers those two.
     image_size: str = "2K"
+    # M5: style/subject reference images, base64 PNG/JPEG (no data: prefix),
+    # max 3 -- decoded to PIL images and forwarded to
+    # provider.generate(..., reference_images=...). NB Pro's impl consumes
+    # these (parallel M5 work); the route only validates + decodes.
+    reference_b64: list[str] = Field(default_factory=list)
 
 
 class GenerateImageResponse(BaseModel):

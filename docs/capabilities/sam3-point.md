@@ -20,3 +20,13 @@
 1. Klíč `prompt` posílat VŽDY — pro point-only mód explicitně `""`. Vynechání klíče ≠ „bez text promptu"; schema default se tiše dosadí (rozšíření pravidla „fal tiše ignoruje neznámá pole": fal si i tiše *doplňuje* známá pole).
 2. Granularita: point mask je **part-level** (těsně kolem kliknutého detailu, zde ~30×45 px na soše ~11 % plátna) — SAM s jedním bodem vrací část objektu, ne celý objekt. Pro objekt-level masku: více bodů se stejným `object_id`, box prompt, nebo textový prompt (kandidát M4+).
 3. Text mód (`prompt: "socha"`) beze změny — masky per detekce, cap 8 v routě.
+
+## Box + multi-point (M5, 2026-08-15)
+
+**Schema (raw OpenAPI, stejný zdroj jako výše):** `box_prompts`: pole `BoxPrompt {x_min: int, y_min: int, x_max: int, y_max: int, object_id}` — souřadnice v pixelech nahraného obrázku, stejný prostor jako `point_prompts`.
+
+- `SegmentBox` (`grafik/api/models.py`) posílá jen `x_min/y_min/x_max/y_max` — `object_id` na úrovni boxu nevystavujeme (jeden box už pinuje celý objekt, na rozdíl od jednotlivých bodů).
+- `SegmentPoint.object_id: int | None` — schema pole, které seskupuje víc bodů k JEDNOMU objektu (víc bodů se stejným `object_id` = jedna object-level maska místo part-level detekcí). Stejné pravidlo jako u `prompt`: `None` → klíč se do payloadu vůbec nepřidá (viz `_segment_remote` v `grafik/api/app.py`), nedosazuje se `object_id: null`.
+- `prompt` klíč nadále VŽDY (i pro box/multi-point-only volání, jako `""`) — pravidlo č. 1 výše platí beze změny i pro boxy.
+
+Empirie: doplněno po E2E (orchestrátor doplní výsledky placeného testu, až proběhne).

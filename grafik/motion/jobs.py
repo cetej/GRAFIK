@@ -19,6 +19,7 @@ grafik.providers.qwen_inpaint.QwenInpaintProvider._run_remote.
 from __future__ import annotations
 
 import tempfile
+import uuid
 from pathlib import Path
 
 import fal_client
@@ -29,6 +30,7 @@ from grafik.core.costs import record_paid_call
 from grafik.core.motion import ClipRecord, MotionSpec
 from grafik.core.project import LayerProject
 from grafik.motion.compiler import build_video_payload, compile_motion_prompt
+from grafik.motion.verify import layer_mask_on_canvas
 from grafik.providers.registry import RegistryEntry, get_provider
 
 
@@ -83,6 +85,35 @@ def _cost_note(entry: RegistryEntry, duration: str) -> str:
     return f"~${total:.2f} ({duration} s × ${per_second:.2f}/s{suffix}; orientační, sekundární zdroj)"
 
 
+def _snapshot_masks(
+    project: LayerProject, project_dir: Path, spec: MotionSpec, clip_id: str
+) -> dict[str, str]:
+    """Freeze each motion layer's canvas footprint to disk at submit time (M5).
+
+    Verification runs minutes later, when the job finishes. Until M5 it
+    re-rendered every mask from the layer's state AT THAT MOMENT, so a layer
+    the user moved/scaled while the job was running got measured in the wrong
+    place -- the clip was diffed against a footprint the generator never saw.
+    The masks are rendered here, from the same project state that produced the
+    uploaded composite, and referenced by ClipRecord.mask_paths.
+
+    Layer ids in the spec that no longer exist are skipped (verify falls back
+    to its own not-found handling). Returns layer_id -> path relative to
+    project_dir.
+    """
+    mask_paths: dict[str, str] = {}
+    for layer_id in spec.layer_motions:
+        layer = project.get_layer(layer_id)
+        if layer is None:
+            continue
+        relative = f"clips/{clip_id}-mask-{layer_id}.png"
+        path = project_dir / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        layer_mask_on_canvas(project, project_dir, layer).save(path, "PNG")
+        mask_paths[layer_id] = relative
+    return mask_paths
+
+
 def submit_video_job(
     project: LayerProject,
     project_dir: Path,
@@ -106,8 +137,9 @@ def submit_video_job(
             preview before submitting. Saved verbatim onto ClipRecord.prompt.
 
     Returns:
-        The new ClipRecord (status="running", request_id set), already
-        appended to project.clips and saved to project_dir/project.json.
+        The new ClipRecord (status="running", request_id set, mask_paths
+        pointing at the submit-time footprint masks), already appended to
+        project.clips and saved to project_dir/project.json.
 
     Raises:
         KeyError: provider_id is not a registered provider (grafik.providers.registry.get_provider).
@@ -118,7 +150,13 @@ def submit_video_job(
     if entry.info.kind != "video":
         raise ValueError(f"Provider {provider_id!r} is kind {entry.info.kind!r}, expected 'video'")
 
+    # The clip id is minted BEFORE the submit so the footprint masks written
+    # below can be named after it (M5) -- ClipRecord is constructed with this
+    # same id further down instead of defaulting its own.
+    clip_id = uuid.uuid4().hex[:12]
+
     composite = compose(project, project_dir)
+    mask_paths = _snapshot_masks(project, project_dir, spec, clip_id)
     with tempfile.TemporaryDirectory(prefix="grafik_video_") as tmp:
         tmp_png = Path(tmp) / "composite.png"
         composite.save(tmp_png, "PNG")
@@ -144,6 +182,7 @@ def submit_video_job(
     )
 
     record = ClipRecord(
+        id=clip_id,
         provider_id=provider_id,
         endpoint=entry.info.endpoint,
         status="running",
@@ -151,6 +190,7 @@ def submit_video_job(
         prompt=prompt,
         motion=spec,
         cost_note=_cost_note(entry, spec.duration),
+        mask_paths=mask_paths,
     )
     project.clips.append(record)
     project.save(project_dir)

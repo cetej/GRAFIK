@@ -435,6 +435,16 @@ def restore_trash(entry: str) -> ProjectResponse:
     )
 
 
+@app.delete("/api/trash/{entry}")
+def purge_trash_entry(entry: str) -> dict:
+    """Permanently delete ONE trash entry (the UI confirms first). Distinct
+    path from DELETE /api/trash (no extra segment) -- no routing collision."""
+    entry_dir = _trash_entry_dir(entry)
+    shutil.rmtree(entry_dir)
+    _log_destructive("trash-purge-entry", entry=entry)
+    return {"purged": entry}
+
+
 @app.delete("/api/trash")
 def empty_trash() -> dict:
     """Permanently delete every trash entry (the UI confirms first)."""
@@ -498,6 +508,8 @@ def generate_image(req: GenerateImageRequest) -> GenerateImageResponse:
     create-project + decompose flow and attaches `cost` to the new ledger."""
     import base64
 
+    from PIL import Image
+
     from grafik.providers.nbpro import ASPECT_RATIOS, IMAGE_SIZES, GeminiKeyMissing
     from grafik.providers.registry import get_provider
 
@@ -515,20 +527,39 @@ def generate_image(req: GenerateImageRequest) -> GenerateImageResponse:
         raise HTTPException(400, f"image_size must be one of {list(IMAGE_SIZES)}")
     if not req.prompt.strip():
         raise HTTPException(400, "Prompt nesmí být prázdný")
+    if len(req.reference_b64) > 3:
+        raise HTTPException(400, "Maximálně 3 referenční obrázky")
+
+    reference_images = []
+    for i, ref_b64 in enumerate(req.reference_b64):
+        try:
+            ref_img = Image.open(BytesIO(base64.b64decode(ref_b64)))
+            ref_img.load()
+        except Exception as exc:
+            raise HTTPException(400, f"Referenční obrázek {i} nejde dekódovat: {exc}")
+        reference_images.append(ref_img.convert("RGBA"))
 
     provider = entry.impl()
     try:
-        img = provider.generate(req.prompt, aspect_ratio=req.aspect_ratio, image_size=req.image_size)
+        img = provider.generate(
+            req.prompt,
+            aspect_ratio=req.aspect_ratio,
+            image_size=req.image_size,
+            reference_images=reference_images,
+        )
     except GeminiKeyMissing as exc:
         raise HTTPException(503, str(exc))
     except Exception as exc:
         raise HTTPException(502, f"Generování obrázku selhalo ({req.provider}): {exc}")
 
+    note = f"generate {img.width}x{img.height}"
+    if reference_images:
+        note += f" +{len(reference_images)} ref"
     cost = record_paid_call(
         entry.info.endpoint,
         "image_gen",
         calls=1,
-        note=f"generate {img.width}x{img.height}",
+        note=note,
     )
     buf = BytesIO()
     img.save(buf, "PNG")
@@ -1171,7 +1202,7 @@ def ai_edit_layer(project_id: str, layer_id: str, req: AiEditRequest) -> AiEditR
     provider = entry.impl()
     start = time.monotonic()
     try:
-        edited = provider.edit(composite, hard_mask_canvas, req.prompt)
+        edited = provider.edit(composite, hard_mask_canvas, req.prompt, crop_inpaint=req.crop_inpaint)
     except Exception as exc:
         raise HTTPException(502, f"AI edit failed ({req.provider}): {exc}")
     elapsed = time.monotonic() - start
@@ -1291,7 +1322,7 @@ def inpaint_behind_layer(project_id: str, layer_id: str, req: InpaintBehindReque
     provider = entry.impl()
     start = time.monotonic()
     try:
-        edited = provider.edit(base, mask_canvas, prompt)
+        edited = provider.edit(base, mask_canvas, prompt, crop_inpaint=req.crop_inpaint)
     except Exception as exc:
         raise HTTPException(502, f"AI edit failed ({req.provider}): {exc}")
     elapsed = time.monotonic() - start
@@ -1327,20 +1358,27 @@ def inpaint_behind_layer(project_id: str, layer_id: str, req: InpaintBehindReque
 # --- Segmentation (SAM 3, task 1.7) ---
 
 
-def _segment_remote(image, text: str, endpoint: str, points: list | None = None) -> list:
-    """All network I/O for one text- or point-prompted segmentation call:
-    upload the image, call the fal segmentation endpoint, download each
+def _segment_remote(
+    image, text: str, endpoint: str, points: list | None = None, boxes: list | None = None
+) -> list:
+    """All network I/O for one text-, point-, or box-prompted segmentation
+    call: upload the image, call the fal segmentation endpoint, download each
     returned mask. Isolated in this one function so tests can monkeypatch
     grafik.api.app._segment_remote and exercise the /segment route fully
     offline -- mirrors QwenInpaintProvider._run_remote.
 
-    `points` are SegmentPoint models in uploaded-image pixel space. The
-    payload shape (point_prompts: [{x, y, label}]) comes from the raw fal
-    OpenAPI schema for fal-ai/sam-3/image. The `prompt` key is ALWAYS sent,
-    as "" for point-only calls: empirically (2026-08-15), omitting it lets
-    the schema default "wheel" take over and point_prompts return 0 masks,
-    while prompt="" + a point segments the clicked object (part-level
-    granularity) -- see docs/capabilities/sam3-point.md.
+    `points` are SegmentPoint models, `boxes` are SegmentBox models, both in
+    uploaded-image pixel space. The payload shapes (point_prompts: [{x, y,
+    label, object_id?}], box_prompts: [{x_min, y_min, x_max, y_max}]) come
+    from the raw fal OpenAPI schema for fal-ai/sam-3/image. A point's
+    `object_id` is only added to its dict when set (None -> key omitted, same
+    "don't send a key we don't mean" rule as the `prompt` key below).
+
+    The `prompt` key is ALWAYS sent, as "" for point/box-only calls:
+    empirically (2026-08-15), omitting it lets the schema default "wheel"
+    take over and point_prompts return 0 masks, while prompt="" + a point
+    segments the clicked object (part-level granularity) -- see
+    docs/capabilities/sam3-point.md.
 
     Returns a list of "L"-mode (grayscale) PIL masks, one per detection.
     """
@@ -1350,12 +1388,32 @@ def _segment_remote(image, text: str, endpoint: str, points: list | None = None)
     image_url = upload_image(image)
     arguments: dict = {"image_url": image_url, "prompt": text}
     if points:
-        arguments["point_prompts"] = [{"x": p.x, "y": p.y, "label": p.label} for p in points]
+        point_prompts = []
+        for p in points:
+            point_dict = {"x": p.x, "y": p.y, "label": p.label}
+            if p.object_id is not None:
+                point_dict["object_id"] = p.object_id
+            point_prompts.append(point_dict)
+        arguments["point_prompts"] = point_prompts
+    if boxes:
+        arguments["box_prompts"] = [
+            {"x_min": b.x_min, "y_min": b.y_min, "x_max": b.x_max, "y_max": b.y_max} for b in boxes
+        ]
+
+    note_parts = []
+    if text:
+        note_parts.append(f"text={text!r}")
+    if boxes:
+        note_parts.append("box_prompts")
+    if points:
+        note_parts.append(f"point_prompts×{len(points)}")
+    note = " ".join(note_parts) if note_parts else "point_prompts"
+
     result = tracked_subscribe(
         endpoint,
         arguments,
         kind="segment",
-        note=f"text={text!r}" if text else "point_prompts",
+        note=note,
         with_logs=False,
     )
     masks = []
@@ -1368,11 +1426,12 @@ def _segment_remote(image, text: str, endpoint: str, points: list | None = None)
 
 @app.post("/api/projects/{project_id}/segment")
 def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
-    """Text- or point-prompted segmentation (SAM 3) over the composite. Each
-    returned mask (capped at 8) optionally becomes a new tagged layer: the
-    composite's RGB masked by that detection's alpha. Registry entry sam-3
-    has no concrete impl class (unlike qwen-inpaint) -- this route calls its
-    fal endpoint directly via _segment_remote instead of a provider.segment().
+    """Text-, point-, or box-prompted segmentation (SAM 3) over the
+    composite. Each returned mask (capped at 8) optionally becomes a new
+    tagged layer: the composite's RGB masked by that detection's alpha.
+    Registry entry sam-3 has no concrete impl class (unlike qwen-inpaint) --
+    this route calls its fal endpoint directly via _segment_remote instead of
+    a provider.segment().
     """
     from PIL import Image
 
@@ -1382,8 +1441,8 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
     project, path = _load_project(project_id)
 
     text = req.text.strip()
-    if not text and not req.points:
-        raise HTTPException(400, "Provide text or points for segmentation")
+    if not text and not req.points and not req.boxes:
+        raise HTTPException(400, "Provide text, points, or boxes for segmentation")
 
     try:
         entry = get_provider(req.provider)
@@ -1393,8 +1452,14 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
         raise HTTPException(400, f"Provider {req.provider!r} is kind {entry.info.kind!r}, expected 'segment'")
 
     composite = compose(project, path)
+    # `boxes` is only forwarded when non-empty so a caller-supplied
+    # _segment_remote stub with the pre-M5 3-positional-plus-points
+    # signature (points=None, no boxes param) keeps working unchanged.
+    remote_kwargs: dict = {"points": req.points}
+    if req.boxes:
+        remote_kwargs["boxes"] = req.boxes
     try:
-        masks = _segment_remote(composite, text, entry.info.endpoint, points=req.points)
+        masks = _segment_remote(composite, text, entry.info.endpoint, **remote_kwargs)
     except Exception as exc:
         raise HTTPException(502, f"Segmentation failed ({req.provider}): {exc}")
     mask_count = len(masks)  # informational: how many SAM found, even if capped below
@@ -1405,6 +1470,11 @@ def segment_project(project_id: str, req: SegmentRequest) -> SegmentResponse:
 
     if text:
         layer_name = f"sam: {text}"
+    elif req.boxes:
+        b0 = req.boxes[0]
+        layer_name = f"sam: box ({b0.x_min},{b0.y_min})–({b0.x_max},{b0.y_max})"
+    elif len(req.points) > 1:
+        layer_name = f"sam: {len(req.points)} bodů"
     else:
         p0 = req.points[0]
         layer_name = f"sam: bod ({p0.x},{p0.y})"

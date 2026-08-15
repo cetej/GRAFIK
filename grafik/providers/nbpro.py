@@ -16,6 +16,16 @@ API key resolution (in order): GEMINI_API_KEY, GOOGLE_API_KEY,
 GOOGLE_GEMINI_API_KEY from the environment (GRAFIK's .env/key.env are
 already loaded by the app), then a read-only fallback to NG-ROBOT's .env —
 values are read with dotenv_values, never written anywhere.
+
+Reference images (M5): `generate()` accepts up to MAX_REFERENCE_IMAGES PIL
+images for style/subject/character consistency across generations. Each
+becomes one extra `inlineData` part (camelCase, same field names as the
+response parsing below) appended after the text part in
+`contents[0].parts`. Shape per ai.google.dev/gemini-api/docs/image-generation
+(fetch 2026-08-15) — gemini-3-pro-image documents up to 6 object / 5
+character / 3 style references; GRAFIK caps at 3 as a single UI contract.
+Payload shape confirmed empirically by a paid E2E call, done by the
+orchestrator, not this module.
 """
 
 from __future__ import annotations
@@ -44,6 +54,13 @@ NG_ROBOT_ENV_PATH = Path("C:/Users/stock/Documents/000_NGM/NG-ROBOT/.env")
 ASPECT_RATIOS = ("1:1", "3:4", "4:3", "16:9", "9:16")
 IMAGE_SIZES = ("1K", "2K", "4K")
 
+# M5: reference images for style/subject/character consistency. GRAFIK's own
+# UI contract (below the documented per-type gemini-3-pro-image limits).
+MAX_REFERENCE_IMAGES = 3
+# Server-side downscale guard -- the client already downscales before
+# upload, but the provider does not trust it.
+MAX_REFERENCE_EDGE_PX = 1536
+
 
 class GeminiKeyMissing(RuntimeError):
     """No usable Gemini API key anywhere — the route turns this into a 503."""
@@ -64,6 +81,21 @@ def resolve_api_key() -> str | None:
     return None
 
 
+def _encode_reference_image(image: Image.Image) -> dict[str, Any]:
+    """Downscale one reference image to a long edge of at most
+    MAX_REFERENCE_EDGE_PX (Image.LANCZOS; smaller images are left alone),
+    then PNG+base64-encode it into a Gemini `inlineData` part."""
+    long_edge = max(image.size)
+    if long_edge > MAX_REFERENCE_EDGE_PX:
+        scale = MAX_REFERENCE_EDGE_PX / long_edge
+        new_size = (round(image.width * scale), round(image.height * scale))
+        image = image.resize(new_size, Image.LANCZOS)
+    buf = BytesIO()
+    image.save(buf, format="PNG")
+    data = base64.b64encode(buf.getvalue()).decode("ascii")
+    return {"inlineData": {"mimeType": "image/png", "data": data}}
+
+
 class NanoBananaProProvider(ImageGenProvider):
     """Concrete ImageGenProvider for Nano Banana Pro over the Gemini REST API."""
 
@@ -75,18 +107,30 @@ class NanoBananaProProvider(ImageGenProvider):
         Args:
             aspect_ratio: one of ASPECT_RATIOS, default "1:1".
             image_size: one of IMAGE_SIZES, default "2K" ($0.134 covers 1K/2K).
+            reference_images: optional list of up to MAX_REFERENCE_IMAGES
+                PIL images, for style/subject/character consistency across
+                generations. Each is downscaled server-side and sent as an
+                extra `inlineData` part after the text prompt (M5).
 
         Raises:
+            ValueError: aspect_ratio/image_size not recognized, or more than
+                MAX_REFERENCE_IMAGES reference images given.
             GeminiKeyMissing: no API key found anywhere.
             RuntimeError: the API answered without an image (moderation etc.)
                 — the reason is kept readable in the message.
         """
         aspect_ratio: str = kw.get("aspect_ratio", "1:1")
         image_size: str = kw.get("image_size", "2K")
+        reference_images: list[Image.Image] | None = kw.get("reference_images")
         if aspect_ratio not in ASPECT_RATIOS:
             raise ValueError(f"aspect_ratio {aspect_ratio!r} not in {ASPECT_RATIOS}")
         if image_size not in IMAGE_SIZES:
             raise ValueError(f"image_size {image_size!r} not in {IMAGE_SIZES}")
+        if reference_images and len(reference_images) > MAX_REFERENCE_IMAGES:
+            raise ValueError(
+                f"Příliš mnoho referenčních obrázků ({len(reference_images)}), "
+                f"nejvýš {MAX_REFERENCE_IMAGES}."
+            )
 
         key = resolve_api_key()
         if not key:
@@ -96,20 +140,41 @@ class NanoBananaProProvider(ImageGenProvider):
                 "https://aistudio.google.com/apikey."
             )
 
-        data = self._run_remote(key, prompt, aspect_ratio, image_size)
+        if reference_images:
+            reference_parts = [_encode_reference_image(img) for img in reference_images]
+            data = self._run_remote(
+                key, prompt, aspect_ratio, image_size, reference_parts=reference_parts
+            )
+        else:
+            data = self._run_remote(key, prompt, aspect_ratio, image_size)
         img = Image.open(BytesIO(data))
         if img.mode != "RGBA":
             img = img.convert("RGBA")
         return img
 
-    def _run_remote(self, key: str, prompt: str, aspect_ratio: str, image_size: str) -> bytes:
+    def _run_remote(
+        self,
+        key: str,
+        prompt: str,
+        aspect_ratio: str,
+        image_size: str,
+        reference_parts: list[dict] | None = None,
+    ) -> bytes:
         """All network I/O for one generation call — isolated for
-        monkeypatching, mirrors QwenInpaintProvider._run_remote."""
+        monkeypatching, mirrors QwenInpaintProvider._run_remote.
+
+        `reference_parts` (M5, default None): pre-encoded `inlineData` parts
+        for reference images, appended after the text part -- kept as a
+        trailing defaulted parameter so pre-M5 monkeypatch fakes with the
+        original 4-positional-argument shape keep working unchanged."""
+        parts: list[dict] = [{"text": prompt}]
+        if reference_parts:
+            parts.extend(reference_parts)
         resp = httpx.post(
             API_URL,
             headers={"x-goog-api-key": key, "Content-Type": "application/json"},
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
+                "contents": [{"parts": parts}],
                 "generationConfig": {
                     "responseModalities": ["TEXT", "IMAGE"],
                     "imageConfig": {"aspectRatio": aspect_ratio, "imageSize": image_size},

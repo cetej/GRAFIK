@@ -206,6 +206,9 @@ export interface AiEditRequestBody {
   dilate_px?: number;
   feather_px?: number;
   mask_b64?: string;
+  /** M5: crop around a small mask and edit at full resolution instead of the whole (possibly
+   * downscaled) composite. Server defaults to true when omitted. */
+  crop_inpaint?: boolean;
 }
 
 export interface AiEditResponse {
@@ -218,6 +221,8 @@ export interface AiEditResponse {
 export interface InpaintBehindRequestBody {
   prompt?: string;
   provider?: string;
+  /** M5: same crop_inpaint plumbing as AiEditRequestBody — see there. */
+  crop_inpaint?: boolean;
 }
 
 export interface InpaintBehindResponse {
@@ -306,6 +311,12 @@ export function layerPngUrl(projectId: string, layerId: string, checker = false,
   if (version !== undefined) params.set('v', String(version));
   const query = params.toString();
   return `${API_BASE}/api/projects/${projectId}/layers/${layerId}/png${query ? `?${query}` : ''}`;
+}
+
+/** Direct <img>-able / fetch-able URL for a project's full RGBA composite PNG (M5: used to seed
+ * NB Pro reference images from the current canvas). */
+export function compositeUrl(projectId: string): string {
+  return `${API_BASE}/api/projects/${projectId}/composite`;
 }
 
 export function saveTransform(
@@ -400,6 +411,41 @@ export function segmentProjectPoint(projectId: string, x: number, y: number): Pr
     method: 'POST',
     headers: JSON_HEADERS,
     body: JSON.stringify({ points: [{ x, y, label: 1 }] }),
+  });
+}
+
+/** One foreground/background point in a multi-point SAM prompt (M5). `object_id` groups points
+ * that describe the same object server-side — this UI always builds a single group (0). */
+export interface SegmentPointDto {
+  x: number;
+  y: number;
+  label: number;
+  object_id: number;
+}
+
+/** Multi-point SAM segmentation (M5: Shift+klik accumulates points, Enter confirms) — whole-object
+ * granularity, unlike the single-point click above which is part-level. */
+export function segmentProjectPoints(projectId: string, points: SegmentPointDto[]): Promise<SegmentResponse> {
+  return request<SegmentResponse>(`/api/projects/${projectId}/segment`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ points }),
+  });
+}
+
+/** Axis-aligned box in canvas px (M5: drag-to-select on the segment tool) — whole-object SAM prompt. */
+export interface SegmentBoxDto {
+  x_min: number;
+  y_min: number;
+  x_max: number;
+  y_max: number;
+}
+
+export function segmentProjectBox(projectId: string, box: SegmentBoxDto): Promise<SegmentResponse> {
+  return request<SegmentResponse>(`/api/projects/${projectId}/segment`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ boxes: [box] }),
   });
 }
 
@@ -558,6 +604,11 @@ export function emptyTrash(): Promise<{ purged: number }> {
   return request<{ purged: number }>('/api/trash', { method: 'DELETE' });
 }
 
+/** M5: permanently deletes one trash entry (irreversible — unlike restoreTrashEntry). */
+export function purgeTrashEntry(entry: string): Promise<{ purged: string }> {
+  return request<{ purged: string }>(`/api/trash/${encodeURIComponent(entry)}`, { method: 'DELETE' });
+}
+
 export function getProjectCosts(projectId: string): Promise<CostsSummary> {
   return request<CostsSummary>(`/api/projects/${projectId}/costs`);
 }
@@ -581,6 +632,8 @@ export function generateImage(body: {
   /** "1K" | "2K" — both $0.134; 4K is API-only (different price). */
   image_size?: string;
   provider?: string;
+  /** Base64 PNGs (no data: prefix), max 3 — style/subject reference images (M5). */
+  reference_b64?: string[];
 }): Promise<GenerateImageResponse> {
   return request<GenerateImageResponse>('/api/generate-image', {
     method: 'POST',
