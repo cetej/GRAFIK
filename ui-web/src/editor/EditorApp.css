@@ -237,8 +237,8 @@
 .layer-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 8px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
@@ -306,7 +306,7 @@
   font-size: 14px;
   line-height: 1;
   flex-shrink: 0;
-  min-width: 32px;
+  min-width: 28px;
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -332,9 +332,10 @@
   color: #ffd98e;
 }
 
+/* Horizontal pair — stacked 32px buttons made every row ~85px tall (M6-UX1 E2E fix). */
 .layer-item .zorder-controls {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 2px;
   flex-shrink: 0;
 }
@@ -347,7 +348,7 @@
   cursor: pointer;
   line-height: 1;
   flex-shrink: 0;
-  min-width: 32px;
+  min-width: 28px;
   min-height: 32px;
   display: inline-flex;
   align-items: center;
@@ -355,7 +356,7 @@
 }
 
 .layer-item .zorder-controls button {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .layer-item .delete-btn {
