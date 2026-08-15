@@ -29,3 +29,4 @@ node_modules/
 !docs/spikes/img/*.png
 .claude/memory/
 .claude/settings.local.json
+projects/.trash/
