@@ -13,6 +13,8 @@ venv/
 
 projects/*.grafik/
 !projects/.gitkeep
+projects-backup-*/
+logs/
 
 .pytest_cache/
 .mypy_cache/
