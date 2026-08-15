@@ -34,8 +34,7 @@ export default function ClipsPanel(props: ClipsPanelProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="editor-section editor-section-clips">
-      <h2>Klipy</h2>
+    <>
       {clips.length === 0 && <p className="editor-hint">Zatím žádné klipy.</p>}
       {clips.map((clip) => (
         <div key={clip.id} className="clip-card">
@@ -84,6 +83,6 @@ export default function ClipsPanel(props: ClipsPanelProps) {
           </button>
         </div>
       ))}
-    </div>
+    </>
   );
 }

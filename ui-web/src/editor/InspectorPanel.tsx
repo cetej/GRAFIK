@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { LayerResponse, ProviderInfo } from './api';
+import Section from './Section';
 
 /** M5: one-line reminder of each provider's prompt semantics, shown under the AI-edit provider
  * select. Fill models (flux-fill) never see the masked content; edit models (qwen-inpaint) see the
@@ -38,6 +40,9 @@ interface InspectorPanelProps {
   subLayers: number;
   onSubLayersChange: (n: number) => void;
   onRunLayerDecompose: () => void;
+
+  /** M6-UX1: text-layer rewrite (rewrite-text route mutates the layer's pixels). */
+  onRewriteText: (layer: LayerResponse, newText: string, originalText: string) => void;
 }
 
 export default function InspectorPanel(props: InspectorPanelProps) {
@@ -65,14 +70,53 @@ export default function InspectorPanel(props: InspectorPanelProps) {
     subLayers,
     onSubLayersChange,
     onRunLayerDecompose,
+    onRewriteText,
   } = props;
+
+  // Local edit buffers for the rewrite-text inputs, same "draft then commit on action" pattern as
+  // MotionPanel's descriptionDraft — reset whenever the selected layer changes.
+  const [newText, setNewText] = useState('');
+  const [originalTextDraft, setOriginalTextDraft] = useState('');
+  useEffect(() => {
+    setNewText('');
+    setOriginalTextDraft(selectedLayer?.text_current ?? selectedLayer?.text_original ?? '');
+  }, [selectedLayer?.id, selectedLayer?.text_current, selectedLayer?.text_original]);
 
   return (
     <aside className="editor-inspector">
       <h2>Inspektor</h2>
 
-      <div className="inspector-section">
-        <h3>AI úprava</h3>
+      {selectedLayer?.is_text && (
+        <Section title="Text vrstvy" storageKey="inspector.text">
+          {selectedLayer.text_current && (
+            <p className="editor-hint">Aktuální znění: „{selectedLayer.text_current}"</p>
+          )}
+          <input
+            type="text"
+            placeholder="Nové znění (povinné)"
+            value={newText}
+            disabled={busy}
+            onChange={(e) => setNewText(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Původní znění (nepovinné — zpřesní výsledek)"
+            value={originalTextDraft}
+            disabled={busy}
+            onChange={(e) => setOriginalTextDraft(e.target.value)}
+          />
+          <button
+            type="button"
+            disabled={busy || !newText.trim()}
+            title="Qwen edit — zachová font i barvu, ~$0.01–0.05"
+            onClick={() => onRewriteText(selectedLayer, newText.trim(), originalTextDraft.trim())}
+          >
+            Přepsat text (AI)
+          </button>
+        </Section>
+      )}
+
+      <Section title="AI úprava" storageKey="inspector.aiedit">
         {!selectedLayer && <p className="editor-hint">Nejdřív vyberte vrstvu.</p>}
         <textarea
           className="inspector-textarea"
@@ -138,10 +182,9 @@ export default function InspectorPanel(props: InspectorPanelProps) {
         >
           Spustit
         </button>
-      </div>
+      </Section>
 
-      <div className="inspector-section">
-        <h3>Vyplnit pozadí</h3>
+      <Section title="Vyplnit pozadí" storageKey="inspector.fillbg">
         <input
           type="text"
           placeholder="(volitelný prompt)"
@@ -153,10 +196,9 @@ export default function InspectorPanel(props: InspectorPanelProps) {
         <button type="button" disabled={busy || !selectedLayer} onClick={onRunInpaintBehind}>
           Spustit
         </button>
-      </div>
+      </Section>
 
-      <div className="inspector-section">
-        <h3>Segmentace textem</h3>
+      <Section title="Segmentace textem" storageKey="inspector.segment">
         <input
           type="text"
           placeholder="popište prvek (např. socha)"
@@ -171,10 +213,9 @@ export default function InspectorPanel(props: InspectorPanelProps) {
           Tip: nástroj Segmentace v horní liště — kliknutím na prvek přímo v obraze.
         </p>
         {segmentStatus && <p className="editor-hint">{segmentStatus}</p>}
-      </div>
+      </Section>
 
-      <div className="inspector-section">
-        <h3>Rozložit vrstvu</h3>
+      <Section title="Rozložit vrstvu" storageKey="inspector.decompose" defaultOpen={false}>
         {!selectedLayer && <p className="editor-hint">Nejdřív vyberte vrstvu.</p>}
         <label className="toolbar-label">
           Podvrstvy
@@ -197,7 +238,7 @@ export default function InspectorPanel(props: InspectorPanelProps) {
         <button type="button" disabled={busy || !selectedLayer} onClick={onRunLayerDecompose}>
           Rozložit
         </button>
-      </div>
+      </Section>
     </aside>
   );
 }

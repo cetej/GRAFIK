@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { CameraMove, CompileMotionResponse, LayerResponse, ProviderInfo } from './api';
+import Section from './Section';
 
 interface MotionPanelProps {
   selectedLayer: LayerResponse | null;
@@ -100,8 +101,7 @@ export default function MotionPanel(props: MotionPanelProps) {
     <div className="editor-motion-panel">
       <h2>Pohyb</h2>
 
-      <div className="inspector-section">
-        <h3>Pohyb prvku</h3>
+      <Section title="Pohyb prvku" storageKey="motion.element">
         {!selectedLayer && <p className="editor-hint">Nejdřív vyberte vrstvu.</p>}
         {selectedLayer && (
           <>
@@ -136,10 +136,9 @@ export default function MotionPanel(props: MotionPanelProps) {
             <p className="editor-hint">Kliknutím na plátno přidáte bod trajektorie (nástroj Pohyb).</p>
           </>
         )}
-      </div>
+      </Section>
 
-      <div className="inspector-section">
-        <h3>Kamera</h3>
+      <Section title="Kamera" storageKey="motion.camera">
         <select value={cameraMove} disabled={busy} onChange={(e) => onCameraMoveChange(e.target.value as CameraMove)}>
           {CAMERA_MOVE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -171,10 +170,9 @@ export default function MotionPanel(props: MotionPanelProps) {
             onChange={(e) => onCameraPromptChange(e.target.value)}
           />
         )}
-      </div>
+      </Section>
 
-      <div className="inspector-section">
-        <h3>Generace klipu</h3>
+      <Section title="Generace klipu" storageKey="motion.generate">
         <select
           value={videoProviderId ?? ''}
           disabled={busy || videoProviders.length === 0}
@@ -219,7 +217,7 @@ export default function MotionPanel(props: MotionPanelProps) {
         <button type="button" disabled={busy || !compilePromptDraft.trim()} onClick={onSubmit}>
           Generovat klip
         </button>
-      </div>
+      </Section>
     </div>
   );
 }

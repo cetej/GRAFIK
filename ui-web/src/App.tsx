@@ -1,32 +1,13 @@
-import { useState } from 'react'
 import SpikeStage from './spike/SpikeStage'
 import EditorApp from './editor/EditorApp'
 import './App.css'
 
-type View = 'editor' | 'spike'
+// Spike stage stays reachable at /spike for benchmarking, but is no longer part of the
+// production UI switcher (M6-UX1: operators never need to see it).
+const isSpike = window.location.pathname === '/spike'
 
 function App() {
-  const [view, setView] = useState<View>('editor')
-
-  return (
-    <>
-      <div className="view-switch">
-        <button
-          className={view === 'editor' ? 'active' : ''}
-          onClick={() => setView('editor')}
-        >
-          Editor
-        </button>
-        <button
-          className={view === 'spike' ? 'active' : ''}
-          onClick={() => setView('spike')}
-        >
-          Spike
-        </button>
-      </div>
-      {view === 'editor' ? <EditorApp /> : <SpikeStage />}
-    </>
-  )
+  return isSpike ? <SpikeStage /> : <EditorApp />
 }
 
 export default App

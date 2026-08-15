@@ -48,6 +48,11 @@ export interface LayerResponse {
   source: string;
   tags: string[];
   motion: LayerMotionDto | null;
+  /** M6-UX1: text-layer detection (SAM-based) — see detectText/rewriteText below. */
+  is_text: boolean;
+  text_score: number | null;
+  text_original: string | null;
+  text_current: string | null;
 }
 
 // --- M3: motion / video (per-layer trajectory, camera intent, async clip jobs) ---
@@ -653,4 +658,53 @@ export function decomposeLayer(
     headers: JSON_HEADERS,
     body: JSON.stringify({ num_layers: numLayers }),
   });
+}
+
+// --- M6-UX1: text layers (SAM-based detection + AI rewrite) ---
+
+export interface DetectTextResponse {
+  /** ALL layers of the project with their is_text/text_score fields refreshed (not just the ones found). */
+  layers: LayerResponse[];
+  mask_count: number;
+}
+
+/** Body for POST /api/projects/{id}/layers/{layerId}/rewrite-text. Mutates the layer's pixels. */
+export interface RewriteTextRequestBody {
+  new_text: string;
+  original_text?: string;
+  provider?: string;
+  crop_inpaint?: boolean;
+}
+
+export interface RewriteTextResponse {
+  layer: LayerResponse;
+  provider: string;
+  elapsed_s: number;
+  prompt: string;
+}
+
+export function detectText(projectId: string, body?: { threshold?: number }): Promise<DetectTextResponse> {
+  return request<DetectTextResponse>(`/api/projects/${projectId}/detect-text`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export function rewriteText(
+  projectId: string,
+  layerId: string,
+  body: RewriteTextRequestBody,
+): Promise<RewriteTextResponse> {
+  return request<RewriteTextResponse>(`/api/projects/${projectId}/layers/${layerId}/rewrite-text`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body),
+  });
+}
+
+/** Direct <img>-able URL for a project's thumbnail PNG (404 for an empty project). `version` is a
+ * client-side cache-buster, same role as layerPngUrl's (callers pass e.g. `updated_at`). */
+export function projectThumbnailUrl(projectId: string, version?: string): string {
+  return `${API_BASE}/api/projects/${projectId}/thumbnail${version ? `?v=${encodeURIComponent(version)}` : ''}`;
 }

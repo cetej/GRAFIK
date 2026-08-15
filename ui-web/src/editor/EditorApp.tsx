@@ -44,6 +44,9 @@ import {
   attachProjectCost,
   generateImage,
   decomposeLayer,
+  detectText,
+  rewriteText,
+  projectThumbnailUrl,
   ApiError,
   type ProjectListItem,
   type ProjectResponse,
@@ -65,6 +68,7 @@ import InspectorPanel from './InspectorPanel';
 import LayersPanel from './LayersPanel';
 import MotionPanel from './MotionPanel';
 import ClipsPanel from './ClipsPanel';
+import Section from './Section';
 import TrajectoryOverlay, { TRAJECTORY_ANCHOR_NAME } from './TrajectoryOverlay';
 import { useBrush } from './useBrush';
 import type { Tool, BusyState, CanvasPoint } from './types';
@@ -73,6 +77,11 @@ import './EditorApp.css';
 type EditorLayer = LayerResponse;
 
 const CANVAS_PADDING = 32;
+
+/** Alpha hit-test threshold for drawHitFromCache (M6-UX1) — empirically tuned so nearly-transparent
+ * edge pixels (feathered/antialiased borders) don't register a click; only pixels above this alpha
+ * count as part of a layer's clickable hit region. */
+const ALPHA_HIT_THRESHOLD = 40;
 
 /** Generate-modal reference images (M5): hard cap + downscale target for NB Pro reference_b64. */
 const MAX_GEN_REFS = 3;
@@ -115,6 +124,8 @@ declare global {
       tool: Tool;
       segPointsCount: number;
       segBoxActive: boolean;
+      hoveredPanelLayerId: string | null;
+      hoverTarget: string | null;
     };
     __brushCanvas?: HTMLCanvasElement | null;
   }
@@ -122,6 +133,12 @@ declare global {
 
 function sortByZAsc(items: EditorLayer[]): EditorLayer[] {
   return [...items].sort((a, b) => a.z_order - b.z_order);
+}
+
+/** True when both id lists have the same members in the same order (used to decide whether a
+ * click landed on the same overlapping-layer stack as the previous one — see handleLayerClick). */
+function sameIdOrder(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 function describeError(err: unknown): string {
@@ -159,6 +176,12 @@ export default function EditorApp() {
   const [tool, setTool] = useState<Tool>('select');
   const [busy, setBusy] = useState<BusyState | null>(null);
 
+  // --- M6-UX1 additions: canvas hover-highlight (from LayersPanel) + hit-test hover status ---
+  const [hoveredPanelLayerId, setHoveredPanelLayerId] = useState<string | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<{ name: string; count: number } | null>(null);
+  const lastClickRef = useRef<{ x: number; y: number; ids: string[] } | null>(null);
+  const hoverRafRef = useRef(false);
+
   // --- M2.5 additions: onboarding (drag&drop + shared file input), project
   // management (inline rename), first-run hint ---
   const [numLayers, setNumLayers] = useState(4);
@@ -174,7 +197,6 @@ export default function EditorApp() {
   // --- M4 additions: trash (soft-delete), cost summaries, NB Pro generation,
   // recursive layer decomposition ---
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
-  const [trashOpen, setTrashOpen] = useState(false);
   const [trashError, setTrashError] = useState<string | null>(null);
   const [projectCosts, setProjectCosts] = useState<CostsSummary | null>(null);
   const [sessionCosts, setSessionCosts] = useState<CostsSummary | null>(null);
@@ -447,7 +469,7 @@ export default function EditorApp() {
       const node = imageNodeRefs.current[id];
       if (node && !cachedIdsRef.current.has(id)) {
         node.cache({ pixelRatio: 1 });
-        node.drawHitFromCache(0);
+        node.drawHitFromCache(ALPHA_HIT_THRESHOLD);
         cachedIdsRef.current.add(id);
         changed = true;
       }
@@ -468,6 +490,15 @@ export default function EditorApp() {
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
   }, [selectedLayerId, images, tool, busy]);
+
+  // M6-UX1: hover state is purely a transient pointer hint — drop it whenever a blocking
+  // operation starts, so a stale highlight/status line doesn't survive the context switch.
+  useEffect(() => {
+    if (busy) {
+      setHoveredPanelLayerId(null);
+      setHoverTarget(null);
+    }
+  }, [busy]);
 
   const { fitScale, offsetX, offsetY } = useMemo(() => {
     if (!canvasWidth || !canvasHeight) {
@@ -532,6 +563,8 @@ export default function EditorApp() {
       tool,
       segPointsCount: segPoints.length,
       segBoxActive: segBoxDraft !== null,
+      hoveredPanelLayerId,
+      hoverTarget: hoverTarget?.name ?? null,
     };
   }, [
     fitScale,
@@ -545,6 +578,8 @@ export default function EditorApp() {
     tool,
     segPoints,
     segBoxDraft,
+    hoveredPanelLayerId,
+    hoverTarget,
   ]);
 
   useEffect(() => {
@@ -589,6 +624,8 @@ export default function EditorApp() {
     setSegmentStatus(null);
     setSegPoints([]);
     setSegBoxDraft(null);
+    setHoveredPanelLayerId(null);
+    setHoverTarget(null);
     setPngVersions({});
     setHistory(null);
     setTool('select');
@@ -758,7 +795,7 @@ export default function EditorApp() {
     // Changing width/height invalidates Konva's cached hit bitmap — rebuild it
     // so alpha hit-testing keeps working at the new size.
     node.cache({ pixelRatio: 1 });
-    node.drawHitFromCache(0);
+    node.drawHitFromCache(ALPHA_HIT_THRESHOLD);
     layerRef.current?.batchDraw();
     commitTransform(
       layer,
@@ -953,6 +990,16 @@ export default function EditorApp() {
       const list = await listProjects();
       setProjects(list);
       await handleSelectProject(proj.id);
+      // M6-UX1 auto-detect: a failure here must not fail the whole import — the project is
+      // already usable at this point, so only the status line reports it.
+      setBusy({ op: 'Detekuji textové vrstvy…' });
+      try {
+        setSaveStatus(await runDetectText(proj.id));
+        await refreshHistory(proj.id);
+        void refreshCosts(proj.id);
+      } catch (err) {
+        setSaveStatus(`Detekce textu selhala: ${describeError(err)}`);
+      }
     } catch (err) {
       setBanner(`Nový projekt z obrázku selhal: ${describeError(err)}`);
     } finally {
@@ -1149,7 +1196,15 @@ export default function EditorApp() {
       setGenResult(null);
       setGenPrompt('');
       setGenRefs([]);
-      setSaveStatus(`Vygenerovaný obrázek převzat jako projekt „${proj.name}".`);
+      // M6-UX1 auto-detect (see handleCreateFromImage) — its status message is the final one shown.
+      setBusy({ op: 'Detekuji textové vrstvy…' });
+      try {
+        setSaveStatus(await runDetectText(proj.id));
+        await refreshHistory(proj.id);
+        void refreshCosts(proj.id);
+      } catch (err) {
+        setSaveStatus(`Detekce textu selhala: ${describeError(err)}`);
+      }
     } catch (err) {
       setBanner(`Převzetí vygenerovaného obrázku selhalo: ${describeError(err)}`);
     } finally {
@@ -1172,6 +1227,60 @@ export default function EditorApp() {
       setSaveStatus(`Vrstva „${layer.name}" rozložena na ${subs.length} pod${vrstvyWord(subs.length)}.`);
     } catch (err) {
       setBanner(`Rozložení vrstvy selhalo: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /**
+   * Runs SAM text detection over the whole project and applies the refreshed layer list
+   * (is_text/text_score/text_original/text_current). Shared core for both the manual "Detekovat
+   * text" button (handleDetectText below) and the auto-detect step after a fresh decomposition
+   * (handleCreateFromImage/handleAdoptGenerated) — those two call sites differ in how loudly they
+   * surface a failure, so error handling stays with the caller.
+   */
+  async function runDetectText(projectId: string): Promise<string> {
+    const resp = await detectText(projectId);
+    setLayers(sortByZAsc(resp.layers));
+    const count = resp.layers.filter((l) => l.is_text).length;
+    return count > 0 ? `Nalezeno ${count} textových vrstev.` : 'Žádné textové vrstvy nenalezeny.';
+  }
+
+  /** Manual trigger (Vrstvy section header button, M6-UX1) — own busy gate + refreshCosts, failure
+   * surfaced as a banner like the other segment/ai-edit handlers. */
+  async function handleDetectText() {
+    const projectId = selectedProjectId;
+    if (!projectId) return;
+    setBusy({ op: 'Detekuji textové vrstvy…' });
+    try {
+      setSaveStatus(await runDetectText(projectId));
+      await refreshHistory(projectId);
+      void refreshCosts();
+    } catch (err) {
+      setBanner(`Detekce textu selhala: ${describeError(err)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Text-layer rewrite (M6-UX1) — pixel mutation, same optimistic-update shape as handleRunAiEdit. */
+  async function handleRewriteText(layer: EditorLayer, newText: string, originalText: string) {
+    const projectId = selectedProjectId;
+    const trimmedNew = newText.trim();
+    if (!projectId || !trimmedNew) return;
+    setBusy({ op: 'Přepisuji text vrstvy…' });
+    try {
+      const resp = await rewriteText(projectId, layer.id, {
+        new_text: trimmedNew,
+        ...(originalText.trim() ? { original_text: originalText.trim() } : {}),
+        crop_inpaint: cropInpaint,
+      });
+      applyLayerUpdate(resp.layer);
+      setSaveStatus(`Text přepsán (${resp.provider}, ${resp.elapsed_s.toFixed(1)}s).`);
+      await refreshHistory(projectId);
+      void refreshCosts();
+    } catch (err) {
+      setBanner(`Přepis textu selhal: ${describeError(err)}`);
     } finally {
       setBusy(null);
     }
@@ -1456,7 +1565,7 @@ export default function EditorApp() {
     }
   }
 
-  function handleStageMouseMove() {
+  function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
     if (busy) return;
     if (tool === 'brush') {
       const pt = getCanvasPoint();
@@ -1470,6 +1579,14 @@ export default function EditorApp() {
         const y2 = Math.max(0, Math.min(canvasHeight, pt.y));
         setSegBoxDraft((prev) => (prev ? { ...prev, x2, y2 } : prev));
       }
+    }
+    // M6-UX1: hover status for the status strip ("Klik vybere: …") — select tool, idle (no mouse
+    // button held, i.e. not mid-drag/resize). TouchEvent has no .buttons, so the `in` check makes
+    // touch-move simply fall through to clearing the hint instead of computing it.
+    if (tool === 'select' && 'buttons' in e.evt && e.evt.buttons === 0) {
+      updateHoverTarget();
+    } else if (hoverTarget) {
+      setHoverTarget(null);
     }
   }
 
@@ -1508,6 +1625,70 @@ export default function EditorApp() {
     }
   }
 
+  /** Every overlapping "layer-image" node under the pointer, topmost (highest z_order) first. */
+  function intersectingLayerIds(pos: { x: number; y: number }): string[] {
+    const stage = stageRef.current;
+    if (!stage) return [];
+    const zOrderById = new Map(layers.map((l) => [l.id, l.z_order]));
+    const raw = stage
+      .getAllIntersections(pos)
+      .filter((n) => n.name() === 'layer-image')
+      .map((n) => n.id());
+    return [...new Set(raw)].sort((a, b) => (zOrderById.get(b) ?? 0) - (zOrderById.get(a) ?? 0));
+  }
+
+  /**
+   * Shared onClick/onTap for every layer image (M6-UX1). Repeated clicks at the same spot (<= 4px,
+   * same overlapping stack) cycle top-down through overlapping layers instead of always reselecting
+   * the topmost one; a click anywhere else (or a different stack) just selects the topmost hit.
+   */
+  function handleLayerClick() {
+    // In motion mode with a selection, canvas clicks add trajectory points (Stage mousedown) —
+    // don't let them also switch layers. Same guard the old per-node handler carried.
+    if (tool === 'motion' && selectedLayerId) return;
+    const stage = stageRef.current;
+    const pos = stage?.getPointerPosition();
+    if (!pos) return;
+    const ids = intersectingLayerIds(pos);
+    if (ids.length === 0) return;
+    const last = lastClickRef.current;
+    const samePlace = !!last && Math.hypot(pos.x - last.x, pos.y - last.y) <= 4 && sameIdOrder(last.ids, ids);
+    const nextId =
+      samePlace && selectedLayerId && ids.includes(selectedLayerId)
+        ? ids[(ids.indexOf(selectedLayerId) + 1) % ids.length]
+        : ids[0];
+    lastClickRef.current = { x: pos.x, y: pos.y, ids };
+    setSelectedLayerId(nextId);
+  }
+
+  /** rAF-throttled hover-stack lookup for the status strip's "Klik vybere: …" hint (M6-UX1). */
+  function updateHoverTarget() {
+    if (hoverRafRef.current) return;
+    hoverRafRef.current = true;
+    requestAnimationFrame(() => {
+      hoverRafRef.current = false;
+      const stage = stageRef.current;
+      const pos = stage?.getPointerPosition();
+      if (!pos) {
+        setHoverTarget(null);
+        return;
+      }
+      const ids = intersectingLayerIds(pos);
+      if (ids.length === 0) {
+        setHoverTarget(null);
+        return;
+      }
+      const top = layers.find((l) => l.id === ids[0]);
+      setHoverTarget({ name: top?.name || ids[0], count: ids.length });
+    });
+  }
+
+  /** Thumbnail <img> src for LayersPanel — same URL Konva's own loader uses, so the browser's HTTP
+   * cache serves it with no extra request (M6-UX1). Only ever rendered while a project is selected. */
+  function getLayerThumbUrl(layer: EditorLayer): string {
+    return layerPngUrl(selectedProjectId ?? '', layer.id, false, pngVersions[layer.id] ?? 0);
+  }
+
   const sortedForList = useMemo(() => [...layers].sort((a, b) => b.z_order - a.z_order), [layers]);
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) ?? null;
   // draggable/Transformer stay select-only (unchanged); listening also opens up in motion mode so
@@ -1515,6 +1696,21 @@ export default function EditorApp() {
   const interactive = tool === 'select' && !busy;
   const layersListenable = (tool === 'select' || tool === 'motion') && !busy;
   const runningClipsCount = clips.filter((c) => c.status === 'running' || c.status === 'pending').length;
+
+  // M6-UX1: canvas hover-highlight (from LayersPanel) — only "active" once the hovered layer is
+  // both visible and its image has actually loaded, same guard the Transformer-attach effect uses.
+  const hoveredLayer = hoveredPanelLayerId ? (layers.find((l) => l.id === hoveredPanelLayerId) ?? null) : null;
+  const hoveredImg = hoveredLayer ? images[hoveredLayer.id] : undefined;
+  const hoverActive = !!hoveredLayer && hoveredLayer.visible && !!hoveredImg;
+  const hoverRectW = hoveredLayer && hoveredImg ? (hoveredLayer.width ?? hoveredImg.naturalWidth) : 0;
+  const hoverRectH = hoveredLayer && hoveredImg ? (hoveredLayer.height ?? hoveredImg.naturalHeight) : 0;
+
+  // M6-UX1: permanent selection outline for modes where the Transformer isn't attached (see the
+  // Transformer-attach effect above — it only connects during idle 'select').
+  const selectedImg = selectedLayer ? images[selectedLayer.id] : undefined;
+  const showSelectedOutline = (tool !== 'select' || !!busy) && !!selectedLayer && !!selectedImg;
+  const selectedRectW = selectedLayer && selectedImg ? (selectedLayer.width ?? selectedImg.naturalWidth) : 0;
+  const selectedRectH = selectedLayer && selectedImg ? (selectedLayer.height ?? selectedImg.naturalHeight) : 0;
 
   return (
     <div className="editor-root">
@@ -1568,8 +1764,7 @@ export default function EditorApp() {
       <div className="editor-body">
         <aside className="editor-sidebar">
           <h1>GRAFIK Editor</h1>
-          <div className="editor-section">
-            <h2>Projekty</h2>
+          <Section title="Projekty">
             {projectsError && <p className="editor-hint error">Chyba: {projectsError}</p>}
             {projects.length === 0 && !projectsError && (
               <p className="editor-hint">Zatím žádné projekty — nahrajte obrázek.</p>
@@ -1580,6 +1775,15 @@ export default function EditorApp() {
                 className={`project-item${p.id === selectedProjectId ? ' selected' : ''}`}
                 onClick={() => void handleSelectProject(p.id)}
               >
+                <img
+                  className="project-thumb"
+                  src={projectThumbnailUrl(p.id, p.updated_at)}
+                  alt=""
+                  loading="lazy"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
                 {editingProjectId === p.id ? (
                   <input
                     className="rename-input"
@@ -1638,93 +1842,102 @@ export default function EditorApp() {
                 </span>
               </div>
             ))}
-          </div>
-          <div className="editor-section">
-            <h2
-              className="trash-toggle"
-              title="Smazané projekty — obnovit nebo trvale vysypat"
-              onClick={() => {
-                const next = !trashOpen;
-                setTrashOpen(next);
-                if (next) void refreshTrash();
-              }}
-            >
-              Koš {trashOpen ? '▾' : '▸'}
-              {!trashOpen && trashItems.length > 0 ? ` (${trashItems.length})` : ''}
-            </h2>
-            {trashOpen && (
-              <>
-                {trashError && <p className="editor-hint error">Chyba: {trashError}</p>}
-                {trashItems.length === 0 && !trashError && (
-                  <p className="editor-hint">Koš je prázdný.</p>
-                )}
-                {trashItems.map((t) => (
-                  <div key={t.entry} className="trash-item">
-                    <span className="name" title={`${t.name} — ${t.layer_count} ${vrstvyWord(t.layer_count)}`}>
-                      {t.name}
-                    </span>
-                    <span className="meta">{formatDateShort(t.deleted_at)}</span>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      disabled={!!busy}
-                      title="Obnovit projekt z koše"
-                      onClick={() => void handleRestoreTrash(t)}
-                    >
-                      ↩
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      disabled={!!busy}
-                      title="Trvale smazat z koše"
-                      onClick={() => void handlePurgeTrashEntry(t)}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                ))}
-                {trashItems.length > 0 && (
-                  <div className="trash-actions-row">
-                    <button
-                      type="button"
-                      className="secondary-btn"
-                      disabled={!!busy}
-                      onClick={() => void handleEmptyTrash()}
-                    >
-                      Vysypat koš
-                    </button>
-                  </div>
-                )}
-                <p className="editor-hint">Položky starší 30 dní se mažou automaticky.</p>
-              </>
+          </Section>
+          <Section
+            title="Koš"
+            defaultOpen={false}
+            badge={trashItems.length > 0 ? trashItems.length : undefined}
+            onOpen={() => void refreshTrash()}
+          >
+            {trashError && <p className="editor-hint error">Chyba: {trashError}</p>}
+            {trashItems.length === 0 && !trashError && <p className="editor-hint">Koš je prázdný.</p>}
+            {trashItems.map((t) => (
+              <div key={t.entry} className="trash-item">
+                <span className="name" title={`${t.name} — ${t.layer_count} ${vrstvyWord(t.layer_count)}`}>
+                  {t.name}
+                </span>
+                <span className="meta">{formatDateShort(t.deleted_at)}</span>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  disabled={!!busy}
+                  title="Obnovit projekt z koše"
+                  onClick={() => void handleRestoreTrash(t)}
+                >
+                  ↩
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  disabled={!!busy}
+                  title="Trvale smazat z koše"
+                  onClick={() => void handlePurgeTrashEntry(t)}
+                >
+                  🗑
+                </button>
+              </div>
+            ))}
+            {trashItems.length > 0 && (
+              <div className="trash-actions-row">
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  disabled={!!busy}
+                  onClick={() => void handleEmptyTrash()}
+                >
+                  Vysypat koš
+                </button>
+              </div>
             )}
-          </div>
+            <p className="editor-hint">Položky starší 30 dní se mažou automaticky.</p>
+          </Section>
           {selectedProjectId && (
-            <LayersPanel
-              layers={sortedForList}
-              selectedLayerId={selectedLayerId}
-              busy={!!busy}
-              loading={projectLoading}
-              onSelect={setSelectedLayerId}
-              onToggleVisibility={handleToggleVisibility}
-              onReorder={(layer, dir) => void handleReorder(layer, dir)}
-              onDelete={(layer) => void handleDeleteLayer(layer)}
-              onRename={handleRenameLayer}
-            />
+            <div className="section-flex-grow">
+              <Section
+                title={`Vrstvy${projectLoading ? ' (načítám…)' : ''}`}
+                badge={layers.length}
+                headerExtra={
+                  <button
+                    type="button"
+                    className="section-header-btn"
+                    disabled={!!busy}
+                    title="Označí vrstvy s textem (SAM, ~$0.005)"
+                    onClick={() => void handleDetectText()}
+                  >
+                    🔤 Detekovat text
+                  </button>
+                }
+              >
+                <LayersPanel
+                  layers={sortedForList}
+                  selectedLayerId={selectedLayerId}
+                  busy={!!busy}
+                  onSelect={setSelectedLayerId}
+                  onToggleVisibility={handleToggleVisibility}
+                  onReorder={(layer, dir) => void handleReorder(layer, dir)}
+                  onDelete={(layer) => void handleDeleteLayer(layer)}
+                  onRename={handleRenameLayer}
+                  onHoverLayer={setHoveredPanelLayerId}
+                  getThumbUrl={getLayerThumbUrl}
+                />
+              </Section>
+            </div>
           )}
           {selectedProjectId && (
-            <ClipsPanel
-              projectId={selectedProjectId}
-              clips={clips}
-              videoVersions={clipVideoVersions}
-              busy={!!busy}
-              onRetry={handleRetryClip}
-            />
+            <div className="section-flex-grow">
+              <Section title="Klipy">
+                <ClipsPanel
+                  projectId={selectedProjectId}
+                  clips={clips}
+                  videoVersions={clipVideoVersions}
+                  busy={!!busy}
+                  onRetry={handleRetryClip}
+                />
+              </Section>
+            </div>
           )}
           {selectedProjectId && projectCosts && (
-            <div className="editor-section">
-              <h2>Útrata</h2>
+            <Section title="Útrata">
               <p className="cost-line">
                 Projekt: <strong>${projectCosts.total_usd.toFixed(2)}</strong> · {projectCosts.count}{' '}
                 volání
@@ -1743,7 +1956,7 @@ export default function EditorApp() {
                     {e.est_usd != null ? `$${e.est_usd.toFixed(3)}` : 'cena neznámá'}
                   </p>
                 ))}
-            </div>
+            </Section>
           )}
         </aside>
 
@@ -1833,6 +2046,7 @@ export default function EditorApp() {
               onTouchMove={handleStageMouseMove}
               onMouseUp={handleStageMouseUp}
               onTouchEnd={handleStageMouseUp}
+              onMouseLeave={() => setHoverTarget(null)}
             >
               <Layer ref={layerRef} x={offsetX} y={offsetY} scaleX={fitScale} scaleY={fitScale}>
                 {canvasWidth > 0 && canvasHeight > 0 && (
@@ -1853,9 +2067,13 @@ export default function EditorApp() {
                   const width = layer.width ?? img.naturalWidth;
                   const height = layer.height ?? img.naturalHeight;
                   if (!width || !height) return null;
+                  // M6-UX1: dim every other visible layer while one is hovered from LayersPanel.
+                  const dimmed = hoverActive && layer.id !== hoveredPanelLayerId;
                   return (
                     <KonvaImage
                       key={layer.id}
+                      id={layer.id}
+                      name="layer-image"
                       ref={(node) => {
                         imageNodeRefs.current[layer.id] = node;
                       }}
@@ -1865,25 +2083,44 @@ export default function EditorApp() {
                       width={width}
                       height={height}
                       rotation={layer.rotation}
-                      opacity={layer.opacity}
+                      opacity={dimmed ? layer.opacity * 0.25 : layer.opacity}
                       visible={layer.visible}
                       listening={layer.visible && layersListenable}
                       draggable={layer.visible && interactive}
-                      onClick={() => {
-                        // In motion mode with a selection, canvas clicks add trajectory
-                        // points (Stage mousedown) — don't let them also switch layers.
-                        if (tool === 'motion' && selectedLayerId) return;
-                        setSelectedLayerId(layer.id);
-                      }}
-                      onTap={() => {
-                        if (tool === 'motion' && selectedLayerId) return;
-                        setSelectedLayerId(layer.id);
-                      }}
+                      onClick={handleLayerClick}
+                      onTap={handleLayerClick}
                       onDragEnd={() => handleDragEnd(layer)}
                       onTransformEnd={() => handleTransformEnd(layer)}
                     />
                   );
                 })}
+                {showSelectedOutline && selectedLayer && (
+                  <Rect
+                    name="selected-outline"
+                    x={selectedLayer.x}
+                    y={selectedLayer.y}
+                    width={selectedRectW}
+                    height={selectedRectH}
+                    rotation={selectedLayer.rotation}
+                    stroke="#4a9dff"
+                    strokeWidth={1.5 / fitScale}
+                    listening={false}
+                  />
+                )}
+                {hoverActive && hoveredLayer && (
+                  <Rect
+                    name="hover-highlight"
+                    x={hoveredLayer.x}
+                    y={hoveredLayer.y}
+                    width={hoverRectW}
+                    height={hoverRectH}
+                    rotation={hoveredLayer.rotation}
+                    stroke="#7cc4ff"
+                    dash={[8 / fitScale, 4 / fitScale]}
+                    strokeWidth={2 / fitScale}
+                    listening={false}
+                  />
+                )}
                 {brush.canvas && !brush.isEmpty && canvasWidth > 0 && canvasHeight > 0 && (
                   <KonvaImage
                     image={brush.canvas}
@@ -1932,7 +2169,16 @@ export default function EditorApp() {
                       listening={false}
                     />
                   ))}
-                <Transformer ref={transformerRef} resizeEnabled rotateEnabled />
+                <Transformer
+                  ref={transformerRef}
+                  resizeEnabled
+                  rotateEnabled
+                  borderStroke="#4a9dff"
+                  borderStrokeWidth={2}
+                  anchorStroke="#4a9dff"
+                  anchorSize={10}
+                  anchorCornerRadius={2}
+                />
               </Layer>
             </Stage>
           )}
@@ -1989,6 +2235,7 @@ export default function EditorApp() {
               subLayers={subLayers}
               onSubLayersChange={setSubLayers}
               onRunLayerDecompose={() => void handleRunLayerDecompose()}
+              onRewriteText={(layer, newText, originalText) => void handleRewriteText(layer, newText, originalText)}
             />
           </div>
         )}
@@ -2142,6 +2389,14 @@ export default function EditorApp() {
         </span>
         <span>Projekt: {project ? project.name : '—'}</span>
         <span>Vrstva: {selectedLayer ? selectedLayer.name : '—'}</span>
+        {hoverTarget && (
+          <span>
+            Klik vybere: {hoverTarget.name}
+            {hoverTarget.count > 1
+              ? ` · ${hoverTarget.count} vrstvy pod kurzorem — opakovaný klik je střídá`
+              : ''}
+          </span>
+        )}
         {project && projectCosts && <span>Útrata: ${projectCosts.total_usd.toFixed(2)}</span>}
         {runningClipsCount > 0 && <span>Klipy: {runningClipsCount} běží</span>}
         <span className="spacer" />
