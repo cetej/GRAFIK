@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-15 — Qwen I2L decompose: vrstvy v nativním rozlišení (~0,4 MP), ne v rozlišení vstupu
+
+**Kontext:** Obnova projektu openart (`75778f1bd1a4`): `decompose/file` auto-setuje canvas z uploadu (1792×2400), ale I2L vrátí vrstvy 544×736 (3:4) — `FalClient.decompose` nastavoval `layer.width/height` z fal výstupu a canvas už neměnil → kompozit měl obsah jen v bboxu (0,0,544,736) vlevo nahoře. Endpoint dekompozice z URL rozměry zdroje vůbec nezná (canvas přebírá z prvního fal PNG), proto starší projekty (e2e-sc1, decompose-test) mají canvas == 544×736 a bug se u nich neprojevil.
+
+**Poučení:**
+1. I2L (qwen-image-layered) resampluje výstup na nativní rozlišení modelu ~0,4 MP (544×736 pro 3:4 — stejná rodina omezení jako inpaint cap ~1536 px). Rozměry fal výstupu nikdy nebrat jako rozměry zdroje.
+2. Fix = varianta (a): `FalClient.decompose` roztáhne layout vrstev (width/height) na canvas projektu; pixel data zůstávají nativní a composer resizuje při kompozici (width/height ≠ PNG umí od M2 hittest fixe). Stejná hranice jako resize-back u QwenInpaintProvider — výstup provideru se mapuje do geometrie projektu hned na hranici provideru. Zachovává plné rozlišení plátna (export, budoucí crop-based inpaint). Varianta (b) — canvas z fal výstupu — by plátno degradovala na ~0,4 MP a přepisovala explicitně zadané rozměry projektu.
+3. Kompatibilita: canvas se z fal výstupu setuje jen když nebyl → staré projekty (canvas == vrstvy 544×736) jsou no-op, projekty na disku se nemění.
+4. Testovací nuance: mock fal musí vracet záměrně JINÝ rozměr než upload — mock se shodnými rozměry by tuhle třídu regresí nikdy neodhalil. Testy `tests/test_api_decompose_canvas.py` (offline, včetně pixel-proof kompozitu: roh plátna mimo nativní box musí být neprůhledný).
+
 ## 2026-08-15 — INCIDENT: tichá ztráta projektu během E2E; destruktivní routy bez access logu = nulová forenzika
 
 **Kontext:** M2.5 E2E. Během okna s ~2 min zaseknutým uvicornem (corrupt multipart upload, pre-fix éra) a dvěma restarty API zmizel z disku projekt `openart-…grafik`; současně se v UI objevil failnutý request, který nikdo vědomě neposlal. Mechanismus neprokázán — API tehdy běželo bez access logu (Start-Process bez redirectu), takže neexistuje záznam, KDO poslal DELETE/POST. Detail: `docs/spikes/2026-08-15-m25-e2e.md` (sekce INCIDENT).

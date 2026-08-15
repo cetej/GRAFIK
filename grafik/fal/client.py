@@ -45,7 +45,10 @@ class FalClient:
             project_dir: Directory to save layer PNGs. Required if project given.
 
         Returns:
-            List of Layer objects with PNGs saved to project_dir.
+            List of Layer objects with PNGs saved to project_dir. Layer PNGs
+            keep fal's native output resolution (~0.4 MP); when `project`
+            already has a canvas, the layer layout (width/height) is
+            stretched onto it and the composer resizes at compose time.
         """
         result = fal_client.subscribe(
             self.MODEL_I2L,
@@ -87,6 +90,15 @@ class FalClient:
                     project.canvas_width = img.width
                 if not project.canvas_height:
                     project.canvas_height = img.height
+                # I2L returns layers at the model's native resolution
+                # (~0.4 MP, e.g. 544x736 for a 3:4 input) regardless of the
+                # input size. With a canvas pre-set from the source image
+                # (decompose_file endpoint) the content would sit in the
+                # top-left corner -- stretch the layout onto the canvas;
+                # pixel data stays native, the composer resizes at compose
+                # time (same boundary as QwenInpaintProvider's resize-back).
+                layer.width = project.canvas_width
+                layer.height = project.canvas_height
 
             layers.append(layer)
 

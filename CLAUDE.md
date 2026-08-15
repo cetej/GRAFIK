@@ -90,6 +90,7 @@ E2E důkaz: `docs/spikes/2026-08-15-m25-e2e.md` (klikáním v reálném Chrome, 
 - Testy: 119 pytest (12 nových `tests/test_api_m25.py` — synteticky, bez fixture závislosti)
 - ⚠️ Incident: během E2E ztracen projekt openart (mechanismus neprokázán; záloha `projects-backup-*`, API nově s access logem `logs/uvicorn-*.log`, zdroják v Downloads → obnovitelný re-decompose) — viz spike + LEARNINGS; M4 kandidát soft-delete
 - Provoz: uvicorn spouštět s access logem (`--access-log` + redirect do `logs/`)
+- Fix (2026-08-15): decompose velkého obrázku už nenechává obsah v levém horním rohu — I2L vrací vrstvy v nativním rozlišení (~0,4 MP, 544×736 pro 3:4), ne v rozlišení uploadu; `FalClient.decompose` nyní roztáhne layout vrstev (width/height) na canvas projektu (pixel data nativní, composer resizuje — stejná hranice jako inpaint resize-back), canvas z fal výstupu jen když nebyl → staré projekty (canvas == 544×736) beze změny. Testy `tests/test_api_decompose_canvas.py` (123 pytest celkem), viz LEARNINGS „Qwen I2L decompose: vrstvy v nativním rozlišení"
 
 ### Fáze 3 — Pokročilé (TODO)
 - [ ] T2L (text-to-layers) mód v fal klientu
@@ -139,7 +140,7 @@ composite.save("output.png")
 > GRAFIK Unified Editor — M4 (provider šíře + cost tracking).
 >
 > M2 (obrazová osa, sc-1) i M3 (motion osa, sc-2) jsou HOTOVÉ a ověřené E2E klikáním v UI — viz sekce „Unified Editor — M2/M3" výše, `docs/spikes/2026-08-14-m2-e2e-sc1.md`, `docs/spikes/2026-08-14-m3-e2e-sc2.md`, `docs/plans/2026-08-14-phase1-gate.md`.
-> Klíčová fakta: capability tvrzení JEN z raw OpenAPI fetche + empirického testu (fal tiše ignoruje neznámá pole; jména polí driftují mezi verzemi — Kling 2.6 bere start_image_url; defaulty umí zdvojnásobit cenu — generate_audio:true); registry nese image_field/payload_defaults/duration_choices/est_cost_usd_per_second per endpoint; qwen inpaint vrací max ~1536 px (resize-back load-bearing); binární média přes FileResponse (Range/206); pixel-diff atribuce prvku nefunguje pod globální kamerou (viz LEARNINGS). Testy jen přes `rtk proxy python -m pytest tests/ -q`. Živá UI práce nad `e2e-*` projekty (decompose-test je testovací fixture).
+> Klíčová fakta: capability tvrzení JEN z raw OpenAPI fetche + empirického testu (fal tiše ignoruje neznámá pole; jména polí driftují mezi verzemi — Kling 2.6 bere start_image_url; defaulty umí zdvojnásobit cenu — generate_audio:true); registry nese image_field/payload_defaults/duration_choices/est_cost_usd_per_second per endpoint; qwen inpaint vrací max ~1536 px (resize-back load-bearing); I2L decompose vrací vrstvy ~0,4 MP nativně — layout se škáluje na canvas ve `FalClient.decompose` (fix 2026-08-15); binární média přes FileResponse (Range/206); pixel-diff atribuce prvku nefunguje pod globální kamerou (viz LEARNINGS). Testy jen přes `rtk proxy python -m pytest tests/ -q`. Živá UI práce nad `e2e-*` projekty (decompose-test je testovací fixture).
 >
 > **Co implementovat (M4):**
 > 1. NB Pro (Gemini) provider — generace vstupního obrázku / globální edity textem (pixel masku NEBERE — role: vstup, ne per-prvek edit); pozor SynthID watermark
