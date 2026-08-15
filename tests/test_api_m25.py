@@ -90,6 +90,19 @@ def test_list_projects_sorted_by_updated_desc_with_dates(api):
 # ---------------------------------------------------------------------------
 
 
+def test_create_project_same_name_gets_unique_dir(api):
+    """Same name twice (e.g. the same file dropped twice) -> two distinct
+    projects in two directories, not a silently shared/overwritten manifest."""
+    client, projects_dir = api
+    a = _create_project(client, "dvojnik")
+    b = _create_project(client, "dvojnik")
+    assert a["id"] != b["id"]
+    assert _dir_by_id(projects_dir, a["id"]).name == "dvojnik.grafik"
+    assert _dir_by_id(projects_dir, b["id"]).name == "dvojnik-2.grafik"
+    ids = {i["id"] for i in client.get("/api/projects").json()}
+    assert {a["id"], b["id"]} <= ids
+
+
 def test_rename_project_persists_and_bumps_updated(api):
     client, _ = api
     a = _create_project(client, "old-name")

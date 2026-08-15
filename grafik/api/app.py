@@ -169,7 +169,15 @@ def list_projects() -> list[ProjectListItem]:
 def create_project(req: CreateProjectRequest) -> ProjectResponse:
     project = LayerProject.new(req.name, req.canvas_width, req.canvas_height)
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in req.name)
-    path = _projects_dir() / f"{safe_name or project.id}.grafik"
+    base = safe_name or project.id
+    # Uniquify the directory: two projects created from the same name (e.g.
+    # the same file dropped twice) must not share a .grafik dir -- the second
+    # save would silently replace the first project's manifest.
+    path = _projects_dir() / f"{base}.grafik"
+    n = 2
+    while path.exists():
+        path = _projects_dir() / f"{base}-{n}.grafik"
+        n += 1
     project.save(path)
     return ProjectResponse(
         id=project.id,
