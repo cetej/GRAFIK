@@ -1,5 +1,26 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-15 — fal si podle vstupních flagů tiše mění i SÉMANTIKU výstupu: SAM `apply_mask` (M5)
+
+**Kontext:** M5 E2E: box_prompts vrátil „masku" celého lva, která po `convert("L")` měla medián alfy 59 a coverage >127 jen 2,47 %. Nebyla to maska — se schema defaultem `apply_mask: true` obsahuje `masks[]` VYŘÍZNUTÝ OBRAZ (cutout) a alfa se tak vyrobila z JASU obsahu (Pearson korelace alfa × jas kompozitu = 1.000 na 499k px; tmavý bronz zmizel, světlý kámen zůstal). Fix `3a874d3`: `_segment_remote` posílá `apply_mask: false` VŽDY → binární masky 0/255. Empirie: `docs/capabilities/sam3-point.md`.
+
+**Poučení:** Rodina pravidel o fal defaultech má třetí člen: (1) neznámá pole tiše ignoruje, (2) vynechané známé klíče tiše doplní defaultem (SAM `prompt`→„wheel"), (3) **flagy umí tiše přepnout SÉMANTIKU výstupu — „masks" nemusí být masky.** Každý klíč, který mění tvar/význam odpovědi, posílat explicitně a výstup první den PŘEMĚŘIT (histogram alfy odhalil za minutu, co by v UI vypadalo jen jako „divně průhledná vrstva"). Korelace s jasem je rychlý diagnostický trik na „je to maska, nebo obraz?".
+
+## 2026-08-15 — Verifikace klipu: lokální optimalizátor nestačí na generativní kameru — feature-first + řetězení + jasový offset (M5)
+
+**Kontext:** Kamerová kompenzace (findTransformECC, affine) prošla na syntetice (zoom 8 %), ale na reálném M3 klipu nehnula residualem (54,2 vs raw 55,4). Důvody, všechny změřené: (a) prompt „zoom_in 0,25" model vyrenderoval jako ~3,5× nájezd → mezi 5 vzorky skoky scale >1,3× a ECC z identity skončilo v near-identity lokálním minimu (cc ~0,4); (b) jas driftoval +24/255 → i perfektní zarovnání by nechalo „pohyb"; (c) obsah morfuje (dav, přepózování sochy). Fix `bca5ed0`: ORB+RANSAC po SOUSEDNÍCH párech (matching nemá konvergenční kotlinu; RANSAC vyřadí pohybující se prvky jako outliery), kompozice transformací na frame 0, ECC jen jako refinement se seedem, 13 vzorků místo 5, jasový offset z mediánu pozadí. Výsledek: M3 klip ratio 0,95→1,94 („weak"→„yes"), nový E2E klip in 46,4/out 33,7/ratio 1,38 → „yes", maska ze submitu, 12/12 snímků.
+
+**Poučení:**
+1. **Generativní video není rigidní transformace vstupu** — kompenzace musí počítat s velkým kumulativním pohybem (řetězit malé kroky, ne fitovat celek), expozičním driftem (odečíst offset pozadí) a zbytkovým morfem (residual neklesne k nule; cílem je správná atribuce in/out, ne nula).
+2. Syntetické testy cvičí jen cestu, kterou jim postavíš: šumové pozadí nemá ORB rohy → featurová (produkčně nosná) větev byla netestovaná, dokud nevznikl test s blocky mozaikou. Ke každé fallback kaskádě test, který vynutí KAŽDOU větev.
+3. Magnitude v promptu je přání, ne měřítko — model si ji škáluje po svém (0,25 → 3,5×). Verifikace se nesmí opírat o očekávanou velikost pohybu kamery.
+
+## 2026-08-15 — E2E přes Chrome/Konva: syntetické eventy s čerstvou geometrií, ne CDP drag (M5)
+
+**Kontext:** CDP `left_click_drag` nedodal Konva Stage průběžný mousemove stream → box-drag se vyhodnotil jako klik (a spustil nechtěný placený single-point call). Navíc přepnutí nástroje přidalo hint řádek, který posunul plátno o ~24 px — souřadnice spočtené ze staršího screenshotu mířily vedle (klik do budovy místo hřívy).
+
+**Poučení:** Konva gesta v E2E řídit syntetickými MouseEventy na `.konvajs-content` s clientX/Y počítanými z ČERSTVÉHO `getBoundingClientRect()` + `__editorState.fitScale/offset`, s `await sleep()` mezi eventy (React batching — bez yieldu čte mouseup handler zastaralý state z closure). Po každé změně nástroje/layoutu geometrii přepočítat. A pozor na `el?.click() ?? fallback.click()` — `click()` vrací undefined, takže fallback běží VŽDY (dvojitý DELETE v destructive logu; server idempotenci ustál).
+
 ## 2026-08-15 — Layout quad je JEDINÝ canvas-space rozměr vrstvy — třetí výskyt téže třídy chyby (M4)
 
 **Kontext:** M4 E2E: flux-fill edit draka minul cíl a přepsal vrstvu zmenšeným výřezem. `ai-edit` (a stejně `inpaint-behind`) stavěl masku z alfy v NATIVNÍM rozlišení PNG (~0,4 MP po M2.5 I2L fixu) a vkládal ji na (x,y) — u vrstvy s layout 1024² a nativními 640² tak maska kryla levý horní box místo prvku a crop-back psal zpět 640px fragment. Docstring routy dokonce tvrdil „layers are canvas-sized already" — pravda jen do M2.5. Fix `f6a0cba`: maska i crop-back v layout prostoru (resize nativní→layout na hranici routy) + regresní testy s vrstvou native≠layout (`test_ai_edit_mask_and_crop_use_layout_geometry`, `test_inpaint_behind_uses_layout_geometry`).

@@ -29,4 +29,13 @@
 - `SegmentPoint.object_id: int | None` — schema pole, které seskupuje víc bodů k JEDNOMU objektu (víc bodů se stejným `object_id` = jedna object-level maska místo part-level detekcí). Stejné pravidlo jako u `prompt`: `None` → klíč se do payloadu vůbec nepřidá (viz `_segment_remote` v `grafik/api/app.py`), nedosazuje se `object_id: null`.
 - `prompt` klíč nadále VŽDY (i pro box/multi-point-only volání, jako `""`) — pravidlo č. 1 výše platí beze změny i pro boxy.
 
-Empirie: doplněno po E2E (orchestrátor doplní výsledky placeného testu, až proběhne).
+### Empirie (M5 E2E 2026-08-15, plátno 1792×2400 — socha lva; 5 placených callů à $0.005)
+
+| Volání | Výsledek |
+|---|---|
+| box_prompts (427,598)–(1600,1759), `apply_mask` NEPOSLÁN (default true) | masks=1, ale **`masks[]` obsahuje VYŘÍZNUTÝ OBRAZ (cutout), ne masku** — `convert("L")` udělá alfu z JASU obsahu: Pearson korelace alfa vs. jas kompozitu **1.000** (499k px), tmavý bronz → medián alfa 59, „maska" s coverage >127 jen 2,47 % |
+| box_prompts totéž + **`apply_mask: false`** | masks=1, **binární maska 0/255** (min=medián=max 255), celý lev: coverage 11,45 %, bbox (476,535,1593,1560) — objekt-level ✓ |
+| point_prompts ×2 (hříva + bok), `object_id: 0` na obou, `apply_mask: false` | masks=1 — **jedna object-level maska** (ne dvě části): coverage 10,07 %, bbox (476,533,1260,1561) — proti boxu chybí část ocasu vpravo |
+| point_prompts ×1 (bez object_id) | part-level chování dle M2.5 (dnešní jediný vzorek trefil budovu — velká part-detekce) |
+
+**Pravidlo č. 4 (nové, rozšiřuje č. 1):** fal si podle vstupních flagů tiše mění i SÉMANTIKU výstupu — `apply_mask` default true znamená „masks = maskované obrazy". Každý klíč, který mění tvar/význam výstupu, posílat explicitně; `_segment_remote` posílá `apply_mask: false` VŽDY (fix `3a874d3`).

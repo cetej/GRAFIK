@@ -103,6 +103,20 @@ E2E důkaz: `docs/spikes/2026-08-15-m4-e2e.md` (klikáním v reálném Chrome, 5
 - Testy: 147 pytest (24 nových `tests/test_api_m4.py`).
 - Známé limity: generate modal bez referenčních obrázků (NB Pro je umí — M5 kandidát); session útrata se nuluje s restartem API procesu (ledger na disku drží); rotace vrstvy se v ai-edit masce neřeší (dekompozice startuje na rotation 0); SynthID watermark ve vygenerovaných vstupech.
 
+### Unified Editor — M5 přesnost výběru + kvalita editů (HOTOVO, 2026-08-15)
+E2E důkaz: `docs/spikes/2026-08-15-m5-e2e.md` (klikáním v reálném Chrome, $0.88 dle vlastního ledgeru) · master `705b887`…`3a874d3` + doc commity
+- [x] **SAM celý objekt**: box-drag (dashed overlay) → `box_prompts`, Shift+klik multi-point + Enter (`object_id: 0` seskupí body k jednomu objektu), Escape čistí; **`apply_mask: false` VŽDY** — s defaultem true vrací `masks[]` CUTOUT obrazu, ne masku (Pearson alfa×jas 1.000; třetí člen rodiny „fal tiché defaulty", viz LEARNINGS + `docs/capabilities/sam3-point.md`); box → celý lev binárně 11,45 %, 2 body → 10,07 %, single point zůstává part-level
+- [x] **Crop-based inpaint** (qwen + flux-fill): maska bbox <25 % plochy a plátno >1536 px → crop bbox+margin (max(64, 25 % delší strany)) v plném rozlišení, resize-back guard vůči cropu, paste do kopie, povinný paste-back beze změny; kw `crop_inpaint=True` (UI checkbox v inspektoru); E2E na 2K: ledger mp 1.264 (vs 4.30 plné plátno), diff mimo masku 0.0000, mech ostrý (crop 1225 px < 1536 → žádný upscale)
+- [x] **Kamerově kompenzovaná verifikace klipu**: ORB+RANSAC po sousedních párech (RANSAC vyřazuje pohybující se prvky) → kompozice na frame 0 → ECC refinement; 13 vzorků, jasový offset z mediánu pozadí, validity mask okrajů; `global_motion` zůstává RAW, nově `residual_global_motion`, `camera_compensated`, `compensated_frames`, `mask_source`; ECC-only slepá ulička zdokumentována (near-identity minimum na ~3,5× generativním zoomu — LEARNINGS)
+- [x] **Verifikační maska ze submitu**: jobs.py mintí clip_id před submitem, ukládá `clips/<id>-mask-<layer>.png`, `ClipRecord.mask_paths`; verify je preferuje (fallback current pro staré klipy)
+- [x] **NB Pro reference**: `generate(reference_images=…)` max 3, downscale 1536, PNG inlineData parts za textem; routa `reference_b64` (400 >3/nevalidní); modal: soubor/„+ kompozit projektu"/„+ vybraná vrstva", náhledy s ×, klientský downscale 1024; E2E: tentýž lev v zimě, ledger note „+1 ref"
+- [x] **Koš per-entry**: `DELETE /api/trash/{entry}` + UI 🗑 per položka (destructive log `trash-purge-entry`); undo po restore FUNGUJE (history.json cestuje s adresářem — ověřeno testem, ne jen tvrzením)
+- [x] **UI hinty**: fill-vs-edit u přepínače provideru (qwen = ÚPRAVA stávajícího / flux-fill = co má VZNIKNOUT), segment lišta „Klik = část · tažení = rámeček · Shift+klik = víc bodů, Enter potvrdí"
+- [x] **Failed video job E2E**: bogus request_id → poll → karta SELHALO s verbatim důvodem (`{"status":"NOT_FOUND"}`)
+- E2E akceptace: klip s kamerou zoom_in 0,25 + pohyb lva → **„hýbalo se ✓" (in 46,4/out 33,7/ratio 1,38, maska ze submitu, 12/12 snímků)**; M3 klip re-verify: 0,95 „weak" → 1,94 „yes"
+- Testy: 193 pytest (46 nových: crop 17, verify 11, api 14, nbpro 4)
+- Známé limity: velký objekt (lev, bbox 26,6 %) crop nespustí — práh 0.25 konzervativní (M6 zvednout dle potřeby); session útrata se nuluje restartem API (projektový ledger drží); residual na generativním footage neklesá k nule (obsah morfuje — atribuce funguje i tak); poll klipů jede nad in-memory seznamem (externě dopsaný klip až po reloadu projektu)
+
 ### Fáze 3 — Pokročilé (TODO)
 - [ ] T2L (text-to-layers) mód v fal klientu
 - [ ] Mask painting (streamlit-drawable-canvas)
@@ -146,17 +160,15 @@ composite.save("output.png")
 
 ## Resume prompt
 
-> GRAFIK Unified Editor — M5.
+> GRAFIK Unified Editor — M6 (režim „používat a ladit z reálné potřeby").
 >
-> M2 (obrazová osa), M3 (motion osa), M2.5 (UX) i M4 (koš + cost tracking + NB Pro + FLUX Fill + rekurzivní dekompozice) jsou HOTOVÉ a ověřené E2E klikáním — viz sekce „Unified Editor — M2…M4" výše a `docs/spikes/2026-08-15-m4-e2e.md`.
-> Klíčová fakta: capability tvrzení JEN z raw OpenAPI + empirie (fal tiše ignoruje neznámá pole; defaulty umí zdvojnásobit cenu nebo vynulovat výsledek — SAM `prompt` klíč VŽDY); **každá canvas-space operace nad vrstvou používá LAYOUT quad, nikdy nativní rozměr PNG** (třetí výskyt třídy chyby: hittest M2 → decompose M2.5 → ai-edit M4, fix `f6a0cba`); fill modely (flux-fill) NEVIDÍ obsah masky — prompt popisuje cílový obsah díry, na recolor qwen-inpaint (edit-style); qwen inpaint cap ~1536 px (resize-back load-bearing); I2L vrací ~0,4 MP nativně; NB Pro $0.134/img (1K/2K), bez pixel masky, SynthID, klíč read-only fallback z NG-ROBOT `.env`; ceny v registry per-MP/call/s (sekundární, fetch 2026-08-15); placené cally jediným zápisovým bodem `tracked_subscribe`/`record_paid_call` → `.grafik/costs.jsonl`. Testy jen `rtk proxy python -m pytest tests/ -q`. UI verifikace v reálném Chrome (claude-in-chrome MCP: `window.confirm` přepsat na ()=>true, CDP screenshot po mutaci umí 1× timeoutnout — retry; refy brát čerstvé, úspěch ověřovat přes `window.__editorState.busy`); skrytý CC pane nekomposituje Konvu. Servery z hlavního checkoutu, uvicorn vždy `--access-log` s redirectem do `logs/`. Živá UI práce nad `e2e-*` projekty.
+> M2–M5 jsou HOTOVÉ a ověřené E2E klikáním — viz sekce „Unified Editor — M2…M5" výše a `docs/spikes/2026-08-15-m5-e2e.md`.
+> Klíčová fakta: capability tvrzení JEN z raw OpenAPI + empirie — fal (1) tiše ignoruje neznámá pole, (2) tiše doplňuje vynechané klíče (SAM `prompt` VŽDY), (3) **flagy tiše mění SÉMANTIKU výstupu (SAM `apply_mask: false` VŽDY — jinak `masks[]` = cutout obrazy, ne masky)**; **každá canvas-space operace nad vrstvou používá LAYOUT quad, nikdy nativní rozměr PNG** (fix `f6a0cba`); fill modely (flux-fill) NEVIDÍ obsah masky — prompt popisuje cílový obsah díry, na recolor qwen-inpaint (edit-style); qwen inpaint cap ~1536 px → crop-based inpaint default on (práh bbox <25 % plochy, `crop_inpaint` kw); verifikace klipu = ORB+RANSAC řetěz + ECC refinement + jasový offset, masky ze submitu (`ClipRecord.mask_paths`), magnitude kamery je přání ne měřítko (0,25 → model klidně 3,5×); NB Pro $0.134/img, reference max 3 (`reference_b64`), bez pixel masky, SynthID; placené cally jediným zápisovým bodem `tracked_subscribe`/`record_paid_call` → `.grafik/costs.jsonl`. Testy jen `rtk proxy python -m pytest tests/ -q` (193). UI verifikace v reálném Chrome (claude-in-chrome MCP: `window.confirm` → ()=>true; Konva gesta syntetickými MouseEventy na `.konvajs-content` s čerstvým getBoundingClientRect + sleep mezi eventy — CDP drag nefunguje, layout se hint řádkem posouvá; úspěch přes `window.__editorState.busy`; CDP screenshot umí 1× timeoutnout — retry). Servery z hlavního checkoutu, uvicorn vždy `--access-log` do `logs/`. Živá UI práce nad `e2e-*` projekty.
 >
-> **Kandidáti M5 (vybrat dle priority):**
-> 1. T2L (text-to-layers) — přímá generace vrstev; srovnat kvalitu/cenu s pipeline NB Pro→I2L
-> 2. SAM box/multi-point pro celý objekt (dnes part-level point)
-> 3. Kamerově kompenzovaná verifikace klipu (optical flow / homografie před diffem) + verifikační maska ze stavu vrstvy v čase submitu
-> 4. Crop-based inpaint pro jemné edity velkých pláten (qwen 1536px cap)
-> 5. NB Pro referenční obrázky (style/subject) v generate modalu; UI hint edit-style vs fill-style u přepínače provideru
-> 6. Koš follow-up: obnova in-memory undo relace po restore, per-entry purge
-> 7. Batch workflow (složka obrázků), STOPA skill `/grafik`, integrace do NG-ROBOT
-> 8. Selhání video jobu v UI: failed karta s důvodem — přidat E2E krok
+> **Kandidáti M6 (vybírat dle reálné potřeby při používání, ne dopředu):**
+> 1. T2L (text-to-layers) experiment — srovnat kvalitu/cenu s pipeline NB Pro→I2L
+> 2. Mask painting (pokročilejší malování masek)
+> 3. Batch workflow (složka obrázků)
+> 4. STOPA skill `/grafik`
+> 5. Integrace do NG-ROBOT
+> 6. Zbytky z M5: práh crop-inpaintu pro velké objekty (0.25 → ?), obnova in-memory undo po restore (id-kolizní edge), rotace vrstvy v ai-edit masce, per-entry purge → hromadný výběr, NB Pro 4K (jiná cena, mimo registry est)
