@@ -1386,7 +1386,13 @@ def _segment_remote(
     from grafik.fal.upload import download_url, upload_image
 
     image_url = upload_image(image)
-    arguments: dict = {"image_url": image_url, "prompt": text}
+    # apply_mask=False VŽDY (empirie 2026-08-15, M5 E2E): se schema defaultem
+    # True vrací box mód v `masks[]` VYŘÍZNUTÝ obraz (cutout), ne masku —
+    # convert("L") pak udělá alfu z JASU obsahu (Pearson korelace alfa vs.
+    # jas kompozitu = 1.000 na 499k px; tmavý bronz → medián alfa 59, díra
+    # místo výběru). S False chodí skutečné binární masky. Stejné pravidlo
+    # jako `prompt` níže: klíč, na jehož defaultu záleží, posílat explicitně.
+    arguments: dict = {"image_url": image_url, "prompt": text, "apply_mask": False}
     if points:
         point_prompts = []
         for p in points:
