@@ -61,12 +61,19 @@ const CANVAS_PADDING = 32;
 /** localStorage key for the one-time first-run gesture hint (M2.5). */
 const FIRST_RUN_HINT_KEY = 'grafik.firstRunHint.v1';
 
-/** "15. 8. 14:03" from an ISO timestamp; empty string when missing/invalid. */
+/** "15. 8. 14:03" (current year) or "22. 3. 2025 14:03" from an ISO timestamp; empty when missing/invalid. */
 function formatDateShort(iso: string): string {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const withYear = d.getFullYear() !== new Date().getFullYear();
+  return d.toLocaleString('cs-CZ', {
+    day: 'numeric',
+    month: 'numeric',
+    ...(withYear ? { year: 'numeric' } : {}),
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // Dev hook for editor-verify.mjs (Playwright): expose the Konva runtime on

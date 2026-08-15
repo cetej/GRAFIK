@@ -98,11 +98,11 @@ export default function MotionPanel(props: MotionPanelProps) {
 
   return (
     <div className="editor-motion-panel">
-      <h2>Motion</h2>
+      <h2>Pohyb</h2>
 
       <div className="inspector-section">
         <h3>Pohyb prvku</h3>
-        {!selectedLayer && <p className="editor-hint">Select a layer first.</p>}
+        {!selectedLayer && <p className="editor-hint">Nejdřív vyberte vrstvu.</p>}
         {selectedLayer && (
           <>
             <label className="motion-checkbox-label">
@@ -133,7 +133,7 @@ export default function MotionPanel(props: MotionPanelProps) {
                 Smazat trajektorii
               </button>
             </p>
-            <p className="editor-hint">Klikni na plátno pro přidání bodu.</p>
+            <p className="editor-hint">Kliknutím na plátno přidáte bod trajektorie (nástroj Pohyb).</p>
           </>
         )}
       </div>
@@ -180,7 +180,7 @@ export default function MotionPanel(props: MotionPanelProps) {
           disabled={busy || videoProviders.length === 0}
           onChange={(e) => onVideoProviderChange(e.target.value)}
         >
-          {videoProviders.length === 0 && <option value="">(no providers)</option>}
+          {videoProviders.length === 0 && <option value="">(žádní provideři)</option>}
           {videoProviders.map((p) => (
             <option key={p.id} value={p.id} title={p.capabilities.notes}>
               {p.id}
@@ -189,7 +189,7 @@ export default function MotionPanel(props: MotionPanelProps) {
             </option>
           ))}
         </select>
-        {videoProvidersError && <p className="editor-hint error">Providers: {videoProvidersError}</p>}
+        {videoProvidersError && <p className="editor-hint error">Provideři: {videoProvidersError}</p>}
         <select value={clipDuration} disabled={busy} onChange={(e) => onClipDurationChange(e.target.value)}>
           {durationChoices.map((d) => (
             <option key={d} value={d}>
