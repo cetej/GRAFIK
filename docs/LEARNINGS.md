@@ -1,5 +1,20 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-15 — Layout quad je JEDINÝ canvas-space rozměr vrstvy — třetí výskyt téže třídy chyby (M4)
+
+**Kontext:** M4 E2E: flux-fill edit draka minul cíl a přepsal vrstvu zmenšeným výřezem. `ai-edit` (a stejně `inpaint-behind`) stavěl masku z alfy v NATIVNÍM rozlišení PNG (~0,4 MP po M2.5 I2L fixu) a vkládal ji na (x,y) — u vrstvy s layout 1024² a nativními 640² tak maska kryla levý horní box místo prvku a crop-back psal zpět 640px fragment. Docstring routy dokonce tvrdil „layers are canvas-sized already" — pravda jen do M2.5. Fix `f6a0cba`: maska i crop-back v layout prostoru (resize nativní→layout na hranici routy) + regresní testy s vrstvou native≠layout (`test_ai_edit_mask_and_crop_use_layout_geometry`, `test_inpaint_behind_uses_layout_geometry`).
+
+**Poučení:**
+1. Pravidlo (třetí výskyt: hittest M2 → decompose M2.5 → ai-edit/inpaint-behind M4): **každá canvas-space operace nad vrstvou (maska, crop, merge, hit-test) počítá s layout quadem (x/y/width/height/rotation); nativní rozměr PNG existuje jen uvnitř load/save hranice.** Nový kód dotýkající se geometrie vrstvy začíná otázkou „ve kterém prostoru počítám?".
+2. Testy s vrstvou native == layout tuhle třídu regresí nikdy nechytí (stejné poučení jako mock-rozměry u M2.5) — geometrické testy vždy s native ≠ layout.
+3. Změna invariantu (M2.5: „vrstvy už nejsou canvas-sized") musí projít grepem na všechny konzumenty invariantu — ai-edit docstring invariant explicitně jmenoval, a stejně přežil.
+
+## 2026-08-15 — Fill model nevidí obsah masky: prompt popisuje cílový obsah díry, ne relativní změnu (M4)
+
+**Kontext:** flux-fill („make the dragon bright green") na vrstvě draka vrátil jinou kompozici (drak jinde, věž pryč) — fill endpoint dostává obraz s dírou + prompt a do díry generuje NOVÝ obsah; původní pixely masky nezná, „make X green" nemá k čemu vztáhnout. Druhý pokus s fill-style promptem („an old parchment banner scroll with the text GRAFIK…") vrátil přesně lokalizovaný výsledek (pixel-diff uvnitř masky 72,9, mimo 3,7). Detail: `docs/spikes/2026-08-15-m4-e2e.md`.
+
+**Poučení:** U mask-based editů rozlišovat dvě sémantiky: **edit-style** (qwen-image-edit — vidí celý obraz, rozumí relativní instrukci „přebarvi") vs **fill-style** (flux-fill — generuje obsah díry z okolí + promptu). Recolor/úprava existujícího prvku → qwen-inpaint; náhrada/odstranění/nový obsah → flux-fill s promptem popisujícím CO má v díře být. Kandidát M5: hint u přepínače provideru v UI.
+
 ## 2026-08-15 — Qwen I2L decompose: vrstvy v nativním rozlišení (~0,4 MP), ne v rozlišení vstupu
 
 **Kontext:** Obnova projektu openart (`75778f1bd1a4`): `decompose/file` auto-setuje canvas z uploadu (1792×2400), ale I2L vrátí vrstvy 544×736 (3:4) — `FalClient.decompose` nastavoval `layer.width/height` z fal výstupu a canvas už neměnil → kompozit měl obsah jen v bboxu (0,0,544,736) vlevo nahoře (~30 % plátna). Endpoint dekompozice z URL rozměry zdroje vůbec nezná (canvas přebírá z prvního fal PNG), proto starší projekty (e2e-sc1, decompose-test) mají canvas == 544×736 a bug se u nich neprojevil; kanonický ui-web flow (`createProject` 0×0 + drag&drop) byl postižený u každého velkého vstupu.

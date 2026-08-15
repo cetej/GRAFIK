@@ -92,11 +92,20 @@ E2E důkaz: `docs/spikes/2026-08-15-m25-e2e.md` (klikáním v reálném Chrome, 
 - Provoz: uvicorn spouštět s access logem (`--access-log` + redirect do `logs/`)
 - Fix (2026-08-15): decompose velkého obrázku už nenechává obsah v levém horním rohu — I2L vrací vrstvy v nativním rozlišení (~0,4 MP, 544×736 pro 3:4), ne v rozlišení uploadu; `FalClient.decompose` nyní roztáhne layout vrstev (width/height) na canvas projektu (pixel data nativní, composer resizuje — stejná hranice jako inpaint resize-back), canvas z fal výstupu jen když nebyl → staré projekty (canvas == 544×736) beze změny. Testy `tests/test_api_decompose_canvas.py` (123 pytest celkem), viz LEARNINGS „Qwen I2L decompose: vrstvy v nativním rozlišení"
 
+### Unified Editor — M4 provider šíře + ochrana dat + cost tracking (HOTOVO, 2026-08-15)
+E2E důkaz: `docs/spikes/2026-08-15-m4-e2e.md` (klikáním v reálném Chrome, 5 placených volání $0.34 dle vlastního ledgeru — self-test trackingu) · master `063ec66`…
+- [x] **Koš (soft-delete)**: DELETE projektu → `projects/.trash/<ts>-<dir>/` (žádné rm; history.json + costs.jsonl putují s adresářem), `GET /api/trash`, `POST /api/trash/{entry}/restore` (uniquifikace jména; openart-defense: kolize id → nové id), `DELETE /api/trash` (vysypat), auto-úklid >30 dní při listingu; destruktivní operace → `logs/destructive.jsonl`; UI sekce Koš (počet po sbalení, obnovit ↩, vysypat s potvrzením). Incident zálohy `projects-backup-*` smazány po ověření koše.
+- [x] **Cost tracking**: `grafik/core/costs.py` — per-projekt `.grafik/costs.jsonl` + in-process session akumulátor; jediný zápisový bod `tracked_subscribe` (`grafik/fal/client.py`) + `record_paid_call` pro async submit (video) a NB Pro; atribuce = explicitní project_dir NEBO contextvar nastavený v `_load_project` (per-request context); odhady z registry — nová pole `est_cost_usd_per_mp/_per_call` (fal model pages + ai.google.dev, fetch 2026-08-15: I2L $0.05/call, qwen-inpaint $0.03/MP, flux-fill $0.05/MP, SAM $0.005/req, NB Pro $0.134/img 1K-2K); routy `GET /projects/{id}/costs`, `GET /costs/session`, `POST /projects/{id}/costs` (attach před-projektové generace); duplicate čistí costs.jsonl kopie; UI panel Útrata (projekt + session + poslední položky) + chip ve status stripu; neznámá sazba → est_usd=null, nikdy odhad vydávaný za fakt.
+- [x] **NB Pro (image_gen)**: nový kind `image_gen`, `NanoBananaProProvider` — Gemini REST přes httpx (bez SDK závislosti), stabilní alias `nano-banana-pro-preview`, klíč GEMINI_API_KEY/GOOGLE_API_KEY/GOOGLE_GEMINI_API_KEY + **read-only fallback na NG-ROBOT `.env`** (dotenv_values, nic se nekopíruje); chybějící klíč → čitelná 503; `POST /api/generate-image` (aspect_ratio, image_size 1K/2K — 4K jen API, jiná cena mimo registry est); UI modal Vygenerovat (toolbar + empty-state) → náhled → Převzít = create + attach cost + standardní decompose flow. POZOR: nebere pixel masku, vkládá SynthID → jen vstupní generace, ne per-prvek edit.
+- [x] **FLUX Fill impl**: `FluxFillProvider` — payload dle raw OpenAPI (2026-08-15): required prompt+image_url+mask_url, output_format default jpeg → posíláme png, safety_tolerance "2", bez image_size pole (resize-back guard); sdílí dilate/feather/paste-back helpery s qwen. **Fill sémantika: model NEVIDÍ obsah masky → prompt popisuje cílový obsah díry; na recolor je qwen-inpaint (edit-style)** — viz LEARNINGS.
+- [x] **Rekurzivní dekompozice**: `POST /layers/{id}/decompose` — I2L nad pixel daty vrstvy, podvrstvy zdědí layout quad (x/y/w/h/rotation) a nahradí původní v z-orderu (splice + reindex); původní PNG zůstává na disku → undo (metadata snapshot) je i pixelově úplné; UI Inspector sekce Rozložit vrstvu (2–6 podvrstev, cena v hintu).
+- [x] **Fix (E2E nález)**: ai-edit a inpaint-behind stavěly masku/crop-back v NATIVNÍM prostoru PNG — po M2.5 fixu (nativní ~0,4 MP ≠ layout na canvas) maska mířila do levého horního rohu a vrstvu přepsal zmenšený výřez; opraveno na layout-space (`f6a0cba`) + 2 regresní testy s native≠layout. Třetí výskyt této třídy (hittest M2, decompose M2.5) → pravidlo v LEARNINGS „Layout quad".
+- Testy: 147 pytest (24 nových `tests/test_api_m4.py`).
+- Známé limity: generate modal bez referenčních obrázků (NB Pro je umí — M5 kandidát); session útrata se nuluje s restartem API procesu (ledger na disku drží); rotace vrstvy se v ai-edit masce neřeší (dekompozice startuje na rotation 0); SynthID watermark ve vygenerovaných vstupech.
+
 ### Fáze 3 — Pokročilé (TODO)
 - [ ] T2L (text-to-layers) mód v fal klientu
-- [ ] Rekurzivní dekompozice (rozložit vrstvu dál)
 - [ ] Mask painting (streamlit-drawable-canvas)
-- [ ] fal.ai cost tracking
 - [ ] STOPA skill (`/grafik`)
 - [ ] Batch workflow (složka obrázků)
 - [ ] Integrace do NG-ROBOT
@@ -137,15 +146,17 @@ composite.save("output.png")
 
 ## Resume prompt
 
-> GRAFIK Unified Editor — M4 (provider šíře + cost tracking).
+> GRAFIK Unified Editor — M5.
 >
-> M2 (obrazová osa, sc-1) i M3 (motion osa, sc-2) jsou HOTOVÉ a ověřené E2E klikáním v UI — viz sekce „Unified Editor — M2/M3" výše, `docs/spikes/2026-08-14-m2-e2e-sc1.md`, `docs/spikes/2026-08-14-m3-e2e-sc2.md`, `docs/plans/2026-08-14-phase1-gate.md`.
-> Klíčová fakta: capability tvrzení JEN z raw OpenAPI fetche + empirického testu (fal tiše ignoruje neznámá pole; jména polí driftují mezi verzemi — Kling 2.6 bere start_image_url; defaulty umí zdvojnásobit cenu — generate_audio:true); registry nese image_field/payload_defaults/duration_choices/est_cost_usd_per_second per endpoint; qwen inpaint vrací max ~1536 px (resize-back load-bearing); I2L decompose vrací vrstvy ~0,4 MP nativně — layout se škáluje na canvas ve `FalClient.decompose` (fix 2026-08-15); binární média přes FileResponse (Range/206); pixel-diff atribuce prvku nefunguje pod globální kamerou (viz LEARNINGS). Testy jen přes `rtk proxy python -m pytest tests/ -q`. Živá UI práce nad `e2e-*` projekty (decompose-test je testovací fixture).
+> M2 (obrazová osa), M3 (motion osa), M2.5 (UX) i M4 (koš + cost tracking + NB Pro + FLUX Fill + rekurzivní dekompozice) jsou HOTOVÉ a ověřené E2E klikáním — viz sekce „Unified Editor — M2…M4" výše a `docs/spikes/2026-08-15-m4-e2e.md`.
+> Klíčová fakta: capability tvrzení JEN z raw OpenAPI + empirie (fal tiše ignoruje neznámá pole; defaulty umí zdvojnásobit cenu nebo vynulovat výsledek — SAM `prompt` klíč VŽDY); **každá canvas-space operace nad vrstvou používá LAYOUT quad, nikdy nativní rozměr PNG** (třetí výskyt třídy chyby: hittest M2 → decompose M2.5 → ai-edit M4, fix `f6a0cba`); fill modely (flux-fill) NEVIDÍ obsah masky — prompt popisuje cílový obsah díry, na recolor qwen-inpaint (edit-style); qwen inpaint cap ~1536 px (resize-back load-bearing); I2L vrací ~0,4 MP nativně; NB Pro $0.134/img (1K/2K), bez pixel masky, SynthID, klíč read-only fallback z NG-ROBOT `.env`; ceny v registry per-MP/call/s (sekundární, fetch 2026-08-15); placené cally jediným zápisovým bodem `tracked_subscribe`/`record_paid_call` → `.grafik/costs.jsonl`. Testy jen `rtk proxy python -m pytest tests/ -q`. UI verifikace v reálném Chrome (claude-in-chrome MCP: `window.confirm` přepsat na ()=>true, CDP screenshot po mutaci umí 1× timeoutnout — retry; refy brát čerstvé, úspěch ověřovat přes `window.__editorState.busy`); skrytý CC pane nekomposituje Konvu. Servery z hlavního checkoutu, uvicorn vždy `--access-log` s redirectem do `logs/`. Živá UI práce nad `e2e-*` projekty.
 >
-> **Co implementovat (M4):**
-> 1. NB Pro (Gemini) provider — generace vstupního obrázku / globální edity textem (pixel masku NEBERE — role: vstup, ne per-prvek edit); pozor SynthID watermark
-> 2. FLUX Fill jako druhý inpaint provider (registry entry `flux-fill` existuje bez impl — doplnit impl třídu, stejný paste-back vzor jako QwenInpaintProvider) + UI přepínání už funguje přes registry
-> 3. Rekurzivní dekompozice (rozložit existující vrstvu dál na sub-vrstvy)
-> 4. Cost tracking souhrnně: per-projekt log placených volání (decompose/edit/segment/video) + zobrazení v UI
-> 5. Kandidáti z M3 nálezů (vybrat dle priority): kamerově kompenzovaná verifikace klipu (optical flow / homografie před diffem), crop-based inpaint workflow pro jemné edity na velkých plátnech (qwen 1536px cap), verifikační maska ze stavu vrstvy v čase submitu
-> 6. Selhání video jobu v UI: mock-fail test existuje (backend), rozšířit o UI stav (failed karta s důvodem se zobrazuje — přidat E2E/Playwright krok)
+> **Kandidáti M5 (vybrat dle priority):**
+> 1. T2L (text-to-layers) — přímá generace vrstev; srovnat kvalitu/cenu s pipeline NB Pro→I2L
+> 2. SAM box/multi-point pro celý objekt (dnes part-level point)
+> 3. Kamerově kompenzovaná verifikace klipu (optical flow / homografie před diffem) + verifikační maska ze stavu vrstvy v čase submitu
+> 4. Crop-based inpaint pro jemné edity velkých pláten (qwen 1536px cap)
+> 5. NB Pro referenční obrázky (style/subject) v generate modalu; UI hint edit-style vs fill-style u přepínače provideru
+> 6. Koš follow-up: obnova in-memory undo relace po restore, per-entry purge
+> 7. Batch workflow (složka obrázků), STOPA skill `/grafik`, integrace do NG-ROBOT
+> 8. Selhání video jobu v UI: failed karta s důvodem — přidat E2E krok
