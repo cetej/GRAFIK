@@ -1,5 +1,35 @@
 # LEARNINGS — GRAFIK
 
+## 2026-08-15 — INCIDENT: tichá ztráta projektu během E2E; destruktivní routy bez access logu = nulová forenzika
+
+**Kontext:** M2.5 E2E. Během okna s ~2 min zaseknutým uvicornem (corrupt multipart upload, pre-fix éra) a dvěma restarty API zmizel z disku projekt `openart-…grafik`; současně se v UI objevil failnutý request, který nikdo vědomě neposlal. Mechanismus neprokázán — API tehdy běželo bez access logu (Start-Process bez redirectu), takže neexistuje záznam, KDO poslal DELETE/POST. Detail: `docs/spikes/2026-08-15-m25-e2e.md` (sekce INCIDENT).
+
+**Poučení:**
+1. Jakmile API dostane destruktivní routu (DELETE projektu), access log není nice-to-have ale podmínka provozu — `uvicorn --access-log` s `-RedirectStandardOutput logs/uvicorn-out.log` od prvního startu. Bez něj se incident nedá ani vyšetřit, ani vyvrátit.
+2. Před E2E nad živými daty udělat zálohu `projects/` (copy je levná; forenzika po ztrátě nemožná). Záloha session: `projects-backup-<stamp>/`.
+3. Zaseknutý server + restarty + prohlížeč s rozjetými fetchy = prostředí, kde se requesty můžou replaynout/ztratit — v takovém stavu nepokračovat v mutacích, nejdřív stabilizovat a auditovat.
+4. Kandidát M4: soft-delete (koš) místo okamžitého `rmtree`.
+
+## 2026-08-15 — fal schema defaulty: vynechaný klíč ≠ „bez hodnoty" — server si default dosadí sám
+
+**Kontext:** SAM-3 point mode. `point_prompts` bez klíče `prompt` → **0 masek**: schema deklaruje `prompt` default `"wheel"`, server ho při chybějícím klíči dosadí a textová detekce „wheel" nic nenajde. `prompt: ""` + bod → maska prvku pod bodem (part-level granularita ~jednotky % plátna; celý objekt = víc bodů se stejným `object_id` / box / text). Empirie + payload pravidla: `docs/capabilities/sam3-point.md`, fix `ccdf5a8`, test `test_segment_remote_point_only_sends_empty_prompt`.
+
+**Poučení:** Rozšíření pravidla „jediný zdroj pravdy je raw OpenAPI": fal pole s defaultem se chová, jako by ho poslal klient. Při stavbě payloadu projít defaulty VŠECH vynechaných polí (stejná rodina jako `generate_audio:true` u Klingu — default umí změnit cenu, tady umí vynulovat výsledek).
+
+## 2026-08-15 — FastAPI: neošetřená výjimka = 500 bez CORS hlaviček → frontend vidí jen „Failed to fetch"
+
+**Kontext:** Drop poškozeného PNG → PIL výjimka v `decompose/file` → 500 mimo CORSMiddleware (výjimky obcházejí middleware stack) → banner „Network error … Failed to fetch" místo důvodu.
+
+**Poučení:** Všechno, co může selhat na uživatelském vstupu (upload, parsování), balit do `HTTPException(4xx, důvod)` — ta projde exception handlerem UVNITŘ middleware stacku a prohlížeč důvod přečte. Vzor shodný s M2 „provider faily → 502 s důvodem". Fix `53a880b` + `test_decompose_file_not_an_image_400`.
+
+## 2026-08-15 — claude-in-chrome (tato instance): ref-kliky lžou, souřadnice jsou screenshot-space, background tab rozbíjí ResizeObserver
+
+Doplnění M3 zápisu o E2E automatizaci:
+1. **Ref-based kliky** (`computer` + `ref`) hlásí úspěch, ale klik do stránky nedorazí (i s čerstvým `find`) — klikat na **souřadnice** odečtené ze screenshotu, nebo JS `.click()` (plnohodnotný DOM event přes React). Kalibrace: screenshot px = CSS px × (šířka_screenshotu / window.innerWidth) — zde ×0,8167; opačným směrem při přepočtu z `getBoundingClientRect`.
+2. **Background tab**: reload stránky v tabu, který není aktivní, nechá Konva Stage na 1×1 — ResizeObserver callbacky jedou přes rAF a ten je v background tabu throttlovaný. Nejde o bug aplikace (viditelný tab se změří správně); pro programové exporty nutná ruční korekce (`stage.width/height` + layer transform + pozor na `strokeWidth: 1/fitScale` spočtený z 1×1 → 736px tah přes celé plátno).
+3. **html2canvas nevykreslí Konva canvasy** (stacked canvas vrstvy) — kompozici exportovat přímo `stage.toDataURL()`; DOM chrome a plátno skládat zvlášť. Soubory na disk z prohlížeče: mini HTTP receiver (PowerShell HttpListener) + fetch POST base64 — `save_to_disk` u screenshotů nikam viditelně neukládá.
+4. `window.confirm` nejde obsloužit přes CDP (nativní dialog) — pro E2E intercept `window.confirm = (msg) => {…; return true}` se záznamem zprávy; existenci dialogu dokládá zachycený text.
+
 ## 2026-08-14 — Servírování videa: FileResponse (206), a jak odlišit bug od rozbité media pipeline
 
 **Kontext:** M3 E2E — `<video>` v editoru stál na readyState 0. Route vracela mp4 přes `Response(content=…)` (200 na všechno včetně Range probe). Fix: `FileResponse` (starlette ≥0.36 umí Range → 206), commit `a732042`.

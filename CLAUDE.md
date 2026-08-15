@@ -78,6 +78,19 @@ E2E důkaz: `docs/spikes/2026-08-14-m3-e2e-sc2.md` (klikáním v reálném Chrom
 - Známé limity: atribuce prvku pod globální kamerou → verdikt „weak" (kompenzace = M4 kandidát); tažení kotvy trajektorie neověřeno syntetickým CDP dragem (Konva potřebuje reálný pointer stream — vzor shodný s M2-ověřeným dragem vrstev); verifikační maska = aktuální stav vrstvy (verify hned po dokončení)
 - Další: M4 (provider šíře + cost tracking)
 
+### Unified Editor — M2.5 UX/discoverability (HOTOVO, 2026-08-15)
+E2E důkaz: `docs/spikes/2026-08-15-m25-e2e.md` (klikáním v reálném Chrome, 4 placené SAM cally ~$0.02) · master `540f196`…`049fc6d`
+- [x] Onboarding: empty-state dropzone na plátně („Začněte obrázkem" + Nahrát nový obrázek), drag&drop obrázku kamkoliv na canvas → nový projekt + dekompozice; „Nový z obrázku" primární tlačítko; label „Rozložit na N vrstvy/vrstev"
+- [x] Správa projektů v panelu: řazení dle updated_at desc + datum, inline přejmenování (✎), duplikace (⧉ — nové id, bez history.json: snapshoty nesou zdrojové id), mazání (🗑 + potvrzení); backend PATCH /api/projects/{id}, POST /duplicate, DELETE + _histories cleanup; create_project uniquifikuje adresář (2× stejné jméno ≠ přepsaný manifest)
+- [x] **Klik-segmentace**: Segment mód → klik do plátna → SAM-3 point_prompts → nová vrstva (vybraná); **past: klíč `prompt` VŽDY, pro point-only `""`** — vynechaný klíč = server dosadí schema default „wheel" → 0 masek (raw OpenAPI + empirie: `docs/capabilities/sam3-point.md`); point maska je part-level (celý objekt = víc bodů/box/text — M4 kandidát)
+- [x] Layer rename dvojklikem (inline, persist + undo snapshot); Inspector sekce „Segmentace textem" + tip na klik-segmentaci
+- [x] Počeštění celého ui-web (nástroje Výběr/Štětec/Segmentace/Pohyb, Zpět/Znovu/Vyplnit pozadí, statusy, bannery, potvrzení; vykání)
+- [x] First-run hint overlay (jednorázový, localStorage `grafik.firstRunHint.v1`)
+- [x] Upload chybová cesta: nevalidní obrázek → čitelný 400 (neošetřený 500 obchází CORSMiddleware → „Failed to fetch")
+- Testy: 119 pytest (12 nových `tests/test_api_m25.py` — synteticky, bez fixture závislosti)
+- ⚠️ Incident: během E2E ztracen projekt openart (mechanismus neprokázán; záloha `projects-backup-*`, API nově s access logem `logs/uvicorn-*.log`, zdroják v Downloads → obnovitelný re-decompose) — viz spike + LEARNINGS; M4 kandidát soft-delete
+- Provoz: uvicorn spouštět s access logem (`--access-log` + redirect do `logs/`)
+
 ### Fáze 3 — Pokročilé (TODO)
 - [ ] T2L (text-to-layers) mód v fal klientu
 - [ ] Rekurzivní dekompozice (rozložit vrstvu dál)
