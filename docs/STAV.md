@@ -4,16 +4,20 @@ Aktualizováno 2026-10-22.
 
 ## Teď
 
-**GRAFIK v2 — fáze G0 (spec) čeká na schválení operátorem.**
-Spec: [`docs/plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-greenfield.md). Rozhodnutí 22. 10.: [`DECISIONS.md`](DECISIONS.md).
-Větev `claude/grafik-rebuild-fb1f3e`. Implementace nezačala.
+**GRAFIK v2 — G0 schváleno, G1 (Engine) hotové a ověřené na RTX 4060.**
+Spec: [`docs/plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-greenfield.md) · rozhodnutí: [`DECISIONS.md`](DECISIONS.md) · důkaz G1: [`spikes/2026-10-22-g1-engine.md`](spikes/2026-10-22-g1-engine.md).
 
-Otevřené otázky pro operátora (spec § 3): Q1 rozhraní studia, Q2 kde žijí výstupy, Q3 formát karty stylu, Q4 cesta předloh z Pinterestu, Q5 starý GRAFIK a port 8300.
+- `engine/` — FastAPI na :8300 (`/api/v2/images`, `/jobs`, `/health`, `/costs`), fronta SQLite + jeden worker, správa sd-serveru jen podle vlastního PID (idle 10 min), zámek GPU (`~/.gpu-lock` + kontrola VRAM), provenience a `library/costs.jsonl`.
+- `clients/grafik_client.py` — jeden soubor, jen stdlib; výchozí `flux-local`, placené jen `backend=` + `confirm_cost=True`.
+- `start-grafik.bat`: Engine :8300, starý editor API :8301 + UI :5173.
+- Testy: `tests/test_engine_v2.py` (24, offline s falešným sd-serverem).
 
 ## Další krok
 
-Po schválení specu G1 — GRAFIK Engine: správa `sd-server.exe` (jen vlastní PID), fronta + zámek GPU, `POST /api/v2/images`, provenience a náklady, `clients/grafik_client.py`. Hotovo = sc-1…sc-9 ve specu + PR.
+- P1/P2: napojit KLAPKA a NG-ROBOT přes `grafik_client` (vlastní sessions v těch projektech; NG-ROBOT musí brát `~/.gpu-lock` i při dabingu).
+- G2: nové studio UI (React, :5173 po vyřazení starého editoru) — rozpis podle specu § 7.
+- G1 zbytky: fal backend, `supersample`, živé ověření popisu stylu přes Haiku (placené, jen se souhlasem).
 
 ## Starý GRAFIK (v1)
 
-Unified Editor M2–M6-UX1 (vrstvy Qwen-Layered, SAM, motion, React editor `ui-web/`) — hotový a funkční, popsán v `CLAUDE.md`. Od 22. 10. jen reference, nové featury se do něj nepřidávají.
+Unified Editor M2–M6-UX1 (vrstvy Qwen-Layered, SAM, motion, React editor `ui-web/`) — funkční, popsán v `CLAUDE.md`. Od 22. 10. jen reference; API přesunuto na :8301. O archivaci rozhodne operátor po G2.

@@ -2,7 +2,15 @@
 
 Univerzální nástroj pro práci s obrázky rozloženými na RGBA vrstvy pomocí Qwen-Image-Layered (fal.ai API).
 
-## Architektura
+## GRAFIK v2 (od 2026-10-22) — obrazové studio + lokální obrazová služba
+
+**Nová práce jde sem.** Rozhodnutí: `docs/DECISIONS.md` · stav: `docs/STAV.md` · spec: `docs/plans/2026-10-22-grafik-v2-greenfield.md`.
+- `engine/` — GRAFIK Engine :8300 `/api/v2` (jediný uživatel GPU pro všechny projekty; lokální FLUX 3 Klein výchozí, 0 USD; placené jen `backend=` + `confirm_cost`, nikdy fallback). sd-server :8390 spouští a vypíná jen podle vlastního PID (`run/sd-server.json`).
+- `clients/grafik_client.py` — klient pro projekty (jen stdlib), kopírovat do projektu.
+- Testy v2: `rtk proxy python -m pytest tests/test_engine_v2.py -q`. Živé ověření: `docs/spikes/2026-10-22-g1-engine.md`.
+- Starý kód níže (`grafik/`, `ui/`, `ui-web/`) = v1, jen reference; nemazat bez souhlasu operátora.
+
+## Architektura (v1)
 
 ```
 GRAFIK/
@@ -145,8 +153,9 @@ E2E důkaz: `docs/spikes/2026-08-15-m6ux1-e2e.md` (reálný Chrome, ~$0.49 dle l
 
 ## Servery
 
-- **Jedním klikem**: `start-grafik.bat` (spustí API + UI jen pokud neběží, otevře prohlížeč; API vždy s `--access-log` do `logs/`)
-- **API**: `uvicorn grafik.api.app:app --port 8300` nebo `grafik serve`
+- **Jedním klikem**: `start-grafik.bat` (Engine v2 :8300 + starý API :8301 + UI :5173, jen pokud neběží; vše s `--access-log` do `logs/`)
+- **Engine v2**: `python -m uvicorn engine.app:app --port 8300 --access-log`
+- **API v1**: `uvicorn grafik.api.app:app --port 8301` (od 2026-10-22; ui-web s `VITE_API_URL=http://localhost:8301`)
 - **ui-web (React editor)**: `npm --prefix ui-web run dev` → port 5173 (primární UI)
 - **UI (Streamlit, frozen)**: `streamlit run ui/app.py --server.port 8501` nebo `grafik ui`
 

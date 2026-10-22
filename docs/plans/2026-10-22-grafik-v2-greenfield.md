@@ -1,6 +1,6 @@
 # GRAFIK v2 — obrazové studio + lokální obrazová služba (spec G0)
 
-Stav: **návrh ke schválení operátorem** (2026-10-22). Nic neimplementováno.
+Stav: **schváleno operátorem 2026-10-22** (Q1–Q5 viz `docs/DECISIONS.md`: React web, výstupy centrálně + kopie, karta stylu jako POHYB, Pinterest všemi třemi cestami, Engine na :8300). G1 v práci.
 Zdroje: `ZZZ_TEST/plan-flux-vychozi-vsude.md` (§ 2 architektura, § 4 zadání, § 5 licence), `ZZZ_TEST/plan-ngrobot-lokalni-flux.md` (ověřená fakta o sd-server), měření v `C:/Users/stock/models/flux3-klein/` (prompty, `out/server*.png`), formát stylů POHYB (`POHYB/styles/README.md`, PR #17).
 Šablona: STOPA `docs/templates/greenfield-planning-prompt.md` (varianta „přestavba existujícího projektu“).
 
