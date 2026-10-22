@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-22 — sd-server (stable-diffusion.cpp): stdout do souboru, defaulty přepsat, procesy jen podle vlastního PID (G1)
+
+**Kontext:** GRAFIK Engine spravuje `sd-server.exe` pro lokální FLUX 3 Klein. Živé ověření `docs/spikes/2026-10-22-g1-engine.md`, API `docs/capabilities/sd-server-master-987.md`.
+
+**Poučení:**
+1. sd-server (Rust obal) **panikne, když se mu zavře stdout** (`failed printing to stdout … os error 109`) — stalo se při `curl … | head`. Spouštět vždy s přesměrováním do souboru, nikdy do roury, kterou nikdo nečte.
+2. Defaulty serveru jsou pro jiné modely (`--steps 20`, `--cfg-scale 7.0`, port 1234). Pro Klein předávat `--steps 16 --cfg-scale 1.0 --sampling-method euler` jako v `models/flux3-klein/run.sh`; per-request `sample_params.sample_steps` a `seed` se propíšou (ověřeno v PNG tEXt `parameters`).
+3. Na stroji běžně leží víc `sd-server.exe` se stejnou cestou (ruční testy v `models/flux3-klein`). Identita vlastního procesu = PID + `create_time` + exe uložené při startu (`run/sd-server.json`); jméno image ani cesta nestačí. Test i živé ověření: cizí server na :8391 přežil idle stop.
+4. Edit s jednou referencí trvá u 1024×576 stejně jako t2i (~38 s), ne dvojnásobek.
+
 ## 2026-08-15 — Generativní přepis textu: maska glyfů vězní model, pás zapéká sousedy — band + SAM re-cutout (M6-UX1)
 
 **Kontext:** rewrite-text v1 (qwen edit-style). Tři iterace téhož dne, každá s měřeným selháním: (1) maska = alfa starých glyfů (+4 px) → rozlámaná písmena přes ducha starého textu — model nemá kam kreslit JINÉ tvary; (2) pásová maska (bbox glyfů + 0,4× výška řádku, MERGE cesta) → text čistý, ALE pásy sousedních text vrstev se protínají a **zapékají si navzájem kopie** (pás titulku nesl starý podtitulek a překryl ten přepsaný) a iterované přepisy pás nafukují (bbox pásu > bbox glyfů); (3) fix: po editu **SAM „letters" re-cutout** (+$0.005) zúží alfu na nové glyfy → vrstva zůstane čistý text-cutout, pásy se nikdy nepotkají. Commity `4fb5841`, `775317c`; testy pinují pás i re-cutout.
