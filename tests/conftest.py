@@ -29,3 +29,8 @@ assert _resolved.is_relative_to(WORKTREE_ROOT), (
     f"grafik resolved to {_resolved}, expected it under worktree root {WORKTREE_ROOT} "
     "(check for a stale editable install shadowing this worktree)"
 )
+
+# The real termdb (BIOLIB/termdb.db) must not leak into tests; tests/test_termdb.py builds its own.
+import os  # noqa: E402
+
+os.environ["GRAFIK_TERMDB"] = ""

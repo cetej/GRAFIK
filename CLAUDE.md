@@ -11,6 +11,7 @@ Univerzální nástroj pro práci s obrázky rozloženými na RGBA vrstvy pomoc�
 - Předlohy: knihovna `refs/library/` (`engine/reflib.py`), Wikimedia Commons (`engine/commons.py`, vždy `filetype:bitmap`), Pinterest přes operátorův Chrome (`docs/pinterest.md`); průvodce historickým objektem `engine/workflows.py`. Předlohy pro lokální FLUX mají dohromady rozpočet ~1,1 MP (VRAM, LEARNINGS 2026-10-23).
 - Styly (G4): karty `styles/<slug>/` (`style.json` = zdroj pravdy, `STYLE.md` se přepisuje), `engine/styles.py`, `/api/v2/styles`; do generátoru jen slovy (`style: "<slug>"`).
 - Infografiky (G5): `engine/infographics.py`, `/api/v2/infographics`, `studio/src/Infographics.tsx` (jeden SVG renderer, Engine převádí přes Playwright na PNG/PDF); šablony schémat `schemas/*.svg`; text nikdy z modelu.
+- Termdb: `engine/termdb.py` čte `BIOLIB/termdb.db` (sdílená s NG-ROBOT, jen čtení, `GRAFIK_TERMDB`); jednoznačné termíny jdou do překladu jako nápověda, `/api/v2/terms/check` pro kontrolu infografiky.
 - Testy v2: `rtk proxy python -m pytest tests/test_engine_v2.py -q`. Živé ověření: `docs/spikes/2026-10-22-g1-engine.md`.
 - Starý kód níže (`grafik/`, `ui/`, `ui-web/`) = v1, jen reference; nemazat bez souhlasu operátora.
 

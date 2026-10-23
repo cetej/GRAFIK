@@ -271,3 +271,9 @@ export const infoApi = {
   schemas: () => call<{ slug: string; title: string; svg: string }[]>('/api/v2/schemas'),
   saveSchema: (title: string, svg: string) => post<{ slug: string }>('/api/v2/schemas', { title, svg }),
 }
+
+// -- termdb (editorial term database, read-only, free) --------------------------
+export interface TermResult { text: string; ok: string[]; ambiguous: { phrase: string; senses: string[] }[]; missing: string[]; hints: string[] }
+export const termsApi = {
+  check: (texts: string[]) => post<{ available: boolean; results: TermResult[] }>('/api/v2/terms/check', { texts }),
+}

@@ -49,6 +49,9 @@ RULES = ("Keep every fact and do not add new objects, people or historical detai
          "lettering that must appear in the image: copy it unchanged, in its original language and spelling, inside "
          "double quotes. Keep tags such as <ref_image_0> or <edit_1> exactly as they are. Answer with the English "
          "text only.\n\nCzech text:\n")
+# Terms from the editorial term database (engine/termdb.py), only the unambiguous ones (operator 2026-10-23).
+GLOSSARY_GUIDE = ("Terminology from the editorial term database; where the Czech text means these, use the English "
+                  "terms (a Latin name in brackets identifies the species): {terms}. ")
 QUOTED = re.compile(r'"[^"]*"|„[^“”"]*[“”"]|“[^”]*”')
 CROP_MAX_EDGE = 512
 
@@ -103,8 +106,9 @@ def fields(req: ImageRequest) -> list[tuple[str, str, str, bytes | None]]:
 
 
 class Translator:
-    def __init__(self, cache_path: Path):
+    def __init__(self, cache_path: Path, termdb=None):
         self.cache_path = cache_path
+        self.termdb = termdb  # engine.termdb.TermDB or None
         self._lock = threading.Lock()
         self._cache: dict[str, str] = {}
         if cache_path.exists():
@@ -114,25 +118,32 @@ class Translator:
                     self._cache[e["key"]] = e["en"]
 
     @staticmethod
-    def key(backend: str, kind: str, text: str, image: bytes | None = None) -> str:
+    def key(backend: str, kind: str, text: str, image: bytes | None = None, glossary: list[str] | None = None) -> str:
         base = f"{family(backend)}|{kind}|{text.strip()}"
         if image:  # same words over a different box are a different translation
             base += "|" + hashlib.sha256(image).hexdigest()
+        if glossary:  # a changed termdb entry gives a new translation
+            base += "|" + "; ".join(glossary)
         return hashlib.sha256(base.encode()).hexdigest()
+
+    def glossary(self, text: str) -> list[str]:
+        return self.termdb.glossary(text) if self.termdb and self.termdb.available else []
 
     def pending(self, req: ImageRequest) -> tuple[int, int]:
         """(fields that would be paid for, how many of them send a crop) - Czech and not cached."""
         crops = [image is not None for _, kind, text, image in fields(req)
-                 if self.key(req.backend, kind, text, image) not in self._cache]
+                 if self.key(req.backend, kind, text, image, self.glossary(text)) not in self._cache]
         return len(crops), sum(crops)
 
     def translate(self, backend: str, kind: str, text: str, image: bytes | None = None) -> tuple[str, bool]:
         """(English text, paid?). Raises BackendError when the answer is empty or still Czech; such an
         answer is never cached, so the next attempt asks again."""
-        k = self.key(backend, kind, text, image)
+        terms = self.glossary(text)
+        k = self.key(backend, kind, text, image, terms)
         if k in self._cache:
             return self._cache[k], False
-        instruction = f"{FAMILY_GUIDE[family(backend)]} {KIND_GUIDE[kind]} {RULES}{text}"
+        gloss = GLOSSARY_GUIDE.format(terms="; ".join(terms)) if terms else ""
+        instruction = f"{FAMILY_GUIDE[family(backend)]} {KIND_GUIDE[kind]} {gloss}{RULES}{text}"
         if image:
             content = [{"type": "image", "source": {"type": "base64", "media_type": "image/png",
                                                     "data": base64.b64encode(image).decode()}},
@@ -156,7 +167,8 @@ class Translator:
         done, update, refs = [], {}, list(req.refs)
         for path, kind, text, image in fields(req):
             en, paid = self.translate(req.backend, kind, text, image)
-            done.append({"field": path, "cs": text, "en": en, "paid": paid, "crop": image is not None})
+            done.append({"field": path, "cs": text, "en": en, "paid": paid, "crop": image is not None,
+                         "glossary": self.glossary(text)})
             if path == "prompt":
                 update["prompt"] = en
             elif path == "style":
