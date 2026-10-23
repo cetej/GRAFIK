@@ -19,6 +19,7 @@ from engine.config import Settings
 from engine.gpu import GpuBusy, GpuLock
 from engine.models import ImageRequest
 from engine.paste import paste_back
+from engine.translate import TRANSLATE_USD, Translator
 from engine.refs import RefError, load_ref_png, sha256
 from engine.sdserver import SdServerError
 
@@ -102,6 +103,12 @@ class JobStore:
             rows = self.db.execute("SELECT * FROM jobs ORDER BY seq DESC LIMIT ?", (limit,)).fetchall()
         return [self._public(r, None) for r in rows]
 
+    def raw_request(self, job_id: str) -> dict | None:
+        """The full stored request, refs' b64 included (for repeating a job)."""
+        with self._lock:
+            row = self.db.execute("SELECT request FROM jobs WHERE id=?", (job_id,)).fetchone()
+        return json.loads(row["request"]) if row else None
+
     def image_path(self, ref: str) -> Path | None:
         """'<job_id>/<n>' -> PNG path of a finished image, else None."""
         job_id, _, n = ref.partition("/")
@@ -161,8 +168,10 @@ class JobStore:
 class Worker:
     """Pulls jobs in FIFO order and runs them one by one."""
 
-    def __init__(self, settings: Settings, store: JobStore, backends: dict, poll_s: float = 0.5):
+    def __init__(self, settings: Settings, store: JobStore, backends: dict, poll_s: float = 0.5,
+                 translator: Translator | None = None):
         self.s = settings
+        self.translator = translator or Translator(settings.translations_path)
         self.store = store
         self.backends = backends
         self.poll_s = poll_s
@@ -201,6 +210,10 @@ class Worker:
         job_dir = self.s.library_dir / datetime.now().strftime("%Y-%m") / job_id
         (job_dir / "refs").mkdir(parents=True, exist_ok=True)
 
+        original = req
+        req, translations = self.translator.apply(req)
+        paid_translations = sum(t["paid"] for t in translations)
+
         refs_meta, image_refs, described = [], [], {}
         for i, ref in enumerate(req.refs):
             png = None
@@ -232,7 +245,7 @@ class Worker:
             # ref 0 is the parent (the API prepends it); outside the box the parent stays unchanged
             gen.images = [paste_back(image_refs[0], img, req.edit) for img in gen.images]
 
-        est = estimate_usd(req, backend)
+        est = estimate_usd(req, backend, paid_translations)
         files = []
         for n, data in enumerate(gen.images):
             name = f"image-{n}.png"
@@ -240,12 +253,13 @@ class Worker:
             prov = {
                 "job_id": job_id, "file": name, "backend": backend.name, "model": gen.model,
                 "seed": gen.seeds[n], "params": gen.params,
-                "prompt_original": req.prompt, "prompt_sent": prompt,
+                "prompt_original": original.edit.instruction if original.edit else original.prompt,
+                "prompt_sent": prompt, "translations": translations,
                 "refs": refs_meta, "layout": [i.model_dump(by_alias=True, exclude_none=True) for i in req.layout],
                 "style": req.style, "caller": req.caller,
                 "parent": req.parent, "edit": req.edit.model_dump() if req.edit else None,
                 "ai_generated": True, "reviewed_by": None,
-                "cost_usd": round(backend.usd_for(req) / req.n, 4),
+                "cost_usd": round(est["total_usd"] / len(gen.images), 4),
                 "timing_s": {"queue": round(t_start - created, 1), "generate": round(t_done - t_start, 1)},
                 "created": datetime.now().isoformat(timespec="seconds"),
             }

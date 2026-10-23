@@ -1,23 +1,26 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-10-22.
+Aktualizováno 2026-10-23.
 
 ## Teď
 
-**GRAFIK v2 — G0 schváleno, G1 (Engine) hotové a ověřené na RTX 4060.**
-Spec: [`docs/plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-greenfield.md) · rozhodnutí: [`DECISIONS.md`](DECISIONS.md) · důkaz G1: [`spikes/2026-10-22-g1-engine.md`](spikes/2026-10-22-g1-engine.md).
+**GRAFIK v2: G0 spec, G1 Engine, supersample, fal backend a G2 studio jsou hotové a ověřené na RTX 4060.**
+Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-greenfield.md) · rozhodnutí: [`DECISIONS.md`](DECISIONS.md) · důkazy: [`spikes/2026-10-22-g1-engine.md`](spikes/2026-10-22-g1-engine.md), [`spikes/2026-10-23-supersample.md`](spikes/2026-10-23-supersample.md), [`spikes/2026-10-23-g2-studio.md`](spikes/2026-10-23-g2-studio.md).
 
-- `engine/` — FastAPI na :8300 (`/api/v2/images`, `/jobs`, `/health`, `/costs`), fronta SQLite + jeden worker, správa sd-serveru jen podle vlastního PID (idle 10 min), zámek GPU (`~/.gpu-lock` + kontrola VRAM), provenience a `library/costs.jsonl`.
-- `clients/grafik_client.py` — jeden soubor, jen stdlib; výchozí `flux-local`, placené jen `backend=` + `confirm_cost=True`.
-- `start-grafik.bat`: Engine :8300, starý editor API :8301 + UI :5173.
-- Testy: `tests/test_engine_v2.py` (24, offline s falešným sd-serverem).
+- **Engine** `engine/` na :8300 (`/api/v2`): fronta SQLite + jeden worker, sd-server jen podle vlastního PID, zámek GPU, provenience a náklady; výchozí lokální FLUX zdarma; placené `nb-pro` a `fal:<endpoint>` jen s `confirm_cost`; supersample; úprava v rámečku s paste-back; strom verzí; **překlad českých zadání přes Claude** (cena v odhadu, mezipaměť).
+- **Studio** `studio/` na :5174: zadání, předlohy s rolí, formát, varianty, drobné detaily, výběr generátoru s cenou; náhled se zvětšením, porovnání před/po, úprava v rámečku, další varianta, použít jako předlohu; fronta a galerie; historie verzí, údaje o obrázku, kontrola člověkem; knihovna.
+- **Klient** `clients/grafik_client.py` pro ostatní projekty (jen stdlib).
+- `start-grafik.bat`: Engine :8300, studio :5174 (otevře se), starý editor API :8301 + UI :5173.
+- Testy: `tests/test_engine_v2.py` (offline, falešný sd-server), celá sada 255.
 
 ## Další krok
 
-- P1/P2: napojit KLAPKA a NG-ROBOT přes `grafik_client` (vlastní sessions v těch projektech; NG-ROBOT musí brát `~/.gpu-lock` i při dabingu).
-- G2: nové studio UI (React, :5173 po vyřazení starého editoru) — rozpis podle specu § 7.
-- G1 zbytky: fal backend, `supersample`, živé ověření popisu stylu přes Haiku (placené, jen se souhlasem).
+- **G3 předlohy:** hledání ve Wikimedia Commons, Pinterest (Claude in Chrome do `refs/inbox/`, přetažení, bookmarklet), průvodce „historický objekt“ (bokorys → oprava → natočený pohled).
+- **G4 styly:** karty stylu ve formátu POHYB, detekce z obrázku, knihovna přes API.
+- **G5 infografiky:** vrstva českých popisků HTML/SVG, export PNG/SVG/PDF.
+- Napojení projektů (KLAPKA, NG-ROBOT…) až na pokyn operátora.
+- Drobnosti: „Rozepsat zadání“ naostro neklikáno (ověřeno offline); čas v provenienci u více variant je za celou úlohu.
 
 ## Starý GRAFIK (v1)
 
-Unified Editor M2–M6-UX1 (vrstvy Qwen-Layered, SAM, motion, React editor `ui-web/`) — funkční, popsán v `CLAUDE.md`. Od 22. 10. jen reference; API přesunuto na :8301. O archivaci rozhodne operátor po G2.
+Unified Editor M2–M6-UX1 (`grafik/`, `ui-web/`) — funkční, API :8301, UI :5173. Jen reference; o archivaci rozhodne operátor.

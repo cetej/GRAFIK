@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — G2 studio, čeština, cena v tlačítku
+
+- **Náčrt studia schválen** (`docs/spikes/img/g2-nacrt.png`): vlevo zadání a předlohy, uprostřed náhled s porovnáním a úpravou v rámečku, dole fronta a galerie, vpravo historie verzí a údaje o obrázku.
+- **Nové studio běží na :5174**, starý editor zůstává na :5173 do rozhodnutí operátora o archivaci.
+- **Překladová vrstva:** FLUX česky rozumí jen zhruba (ověřeno: český pokyn úpravu neprovedl, z „majáku“ udělal dům). Engine proto překládá české zadání, pokyn i styl přes Claude do angličtiny laděné pro cílový generátor; opakovaný text z mezipaměti zdarma.
+- **Cena překladu (~0,01 USD) se ukazuje v tlačítku a kliknutí je souhlas.** Dialog s cenou zůstává pro placené generátory. Operátor odsouhlasil živý test dvou překladů (~0,02 USD).
+- Pokračovat podle plánu: supersample, fal jako volba s cenou předem, G2; napojení dalších projektů zatím ne (zpráva zakládající session, operátor „Tak pokračuj“).
+
 ## 2026-10-22 — GRAFIK v2: spec G0 schválen, odpovědi Q1–Q5
 
 Operátor schválil spec `docs/plans/2026-10-22-grafik-v2-greenfield.md` a start G1 (Engine).

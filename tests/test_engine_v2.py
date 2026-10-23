@@ -424,7 +424,7 @@ def test_edit_in_box_pastes_back_outside(api, settings):
     from PIL import Image, ImageChops
     base = _first_image(api)
     parent = f"{base['job_id']}/0"
-    edit = {"action": "remove", "bbox": [250, 250, 750, 500], "instruction": "dva vojáci"}
+    edit = {"action": "remove", "bbox": [250, 250, 750, 500], "instruction": "two soldiers"}
     r = api.post("/api/v2/images", json={"prompt": "-", "parent": parent, "edit": edit, "seed": 50})
     job = wait_done(api, r.json()["job_id"])
     assert job["status"] == "done", job["error"]
@@ -454,12 +454,14 @@ def test_lineage_tree_and_request_summary(api):
     root = f"{base['job_id']}/0"
     v2 = _first_image(api, parent=root)
     v3 = _first_image(api, parent=f"{v2['job_id']}/0",
-                      edit={"action": "recolor", "bbox": [0, 0, 500, 500], "instruction": "modrá"})
+                      edit={"action": "recolor", "bbox": [0, 0, 500, 500], "instruction": "blue"})
     tree = api.get(f"/api/v2/lineage/{v3['job_id']}/0").json()
     assert [n["ref"] for n in tree] == [root, f"{v2['job_id']}/0", f"{v3['job_id']}/0"]
     assert [n["parent"] for n in tree] == [None, root, f"{v2['job_id']}/0"]
     assert all(n["image"] for n in tree)
     assert "b64" not in json.dumps(api.get(f"/api/v2/jobs/{base['job_id']}").json()["request"])
+    assert api.get(f"/api/v2/jobs/{base['job_id']}/refs/0").content[1:4] == b"PNG"
+    assert api.get(f"/api/v2/jobs/{base['job_id']}/refs/5").status_code == 404
 
 
 def test_thumbnail_review_estimate_backends(api):
@@ -488,3 +490,85 @@ def test_prompt_expand_needs_confirmation(api, monkeypatch):
     r = api.post("/api/v2/prompt/expand", json={"text": "římský přístav", "confirm_cost": True})
     assert r.json()["prompt"] == "A Roman harbour at noon." and calls == ["římský přístav"]
     assert api.get("/api/v2/costs").json()["entries"][-1]["backend"] == "claude:prompt-expand"
+
+
+def test_repeat_keeps_refs_new_seed_and_lineage(api):
+    base = _first_image(api, refs=[{"b64": PNG_1PX, "role": "geometry", "source": "lod.png"}])
+    r = api.post(f"/api/v2/jobs/{base['job_id']}/repeat", json={})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    assert job["request"]["parent"] == f"{base['job_id']}/0" and job["request"]["seed"] is None
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["refs"][0]["source"] == "lod.png" and prov["refs"][0]["sha256"]
+    r = api.post(f"/api/v2/jobs/{base['job_id']}/repeat", json={"n": 0})
+    assert r.status_code == 202
+
+
+def test_repeat_of_edit_is_sibling_with_single_parent_ref(api):
+    base = _first_image(api)
+    parent = f"{base['job_id']}/0"
+    e = _first_image(api, parent=parent, edit={"action": "add", "bbox": [0, 0, 500, 500], "instruction": "strom"})
+    r = api.post(f"/api/v2/jobs/{e['job_id']}/repeat", json={})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["request"]["parent"] == parent
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert [x["source"] for x in prov["refs"]] == [f"verze {parent}"]
+
+
+# -- Czech -> English translation layer ---------------------------------------
+
+@pytest.fixture
+def fake_claude(monkeypatch):
+    from engine import translate
+    calls = []
+
+    def fake(content, max_tokens, what):
+        calls.append(content)
+        return "the fox has silver-grey fur" if "image-edit" in content else "A red lighthouse on a rocky coast in a storm."
+    monkeypatch.setattr(translate, "claude_text", fake)
+    return calls
+
+
+def test_czech_prompt_translated_with_price_first_then_cached(api, fake_claude):
+    body = {"prompt": "Červený maják na skalnatém pobřeží za bouře", "size": "256x256"}
+    r = api.post("/api/v2/images", json=body)
+    assert r.status_code == 402 and r.json()["estimate_usd"] == 0.01 and fake_claude == []
+    assert r.json()["items"][0]["kind"] == "translation"
+    r = api.post("/api/v2/images", json={**body, "confirm_cost": True})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["prompt_sent"].startswith("A red lighthouse on a rocky coast in a storm.")
+    assert prov["prompt_original"] == body["prompt"] and prov["translations"][0]["paid"] is True
+    assert "FLUX" in fake_claude[0]
+    # same text again: cached -> free, no confirmation needed
+    est = api.post("/api/v2/estimate", json=body).json()
+    assert est["total_usd"] == 0
+    assert api.post("/api/v2/images", json=body).status_code == 202
+
+
+def test_czech_edit_instruction_translated_into_edit_template(api, fake_claude):
+    base = _first_image(api)
+    edit = {"action": "recolor", "bbox": [100, 100, 900, 900], "instruction": "liška má stříbrně šedou srst"}
+    r = api.post("/api/v2/images", json={"prompt": "-", "parent": f"{base['job_id']}/0", "edit": edit,
+                                         "confirm_cost": True})
+    job = wait_done(api, r.json()["job_id"])
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["prompt_sent"].startswith("In <ref_image_0>, change <edit_1>: the fox has silver-grey fur.")
+    assert prov["prompt_original"] == edit["instruction"]
+
+
+def test_translation_off_and_english_untouched(api, fake_claude):
+    assert api.post("/api/v2/estimate", json={"prompt": "Maják", "translate": "off"}).json()["total_usd"] == 0
+    assert api.post("/api/v2/estimate", json={"prompt": "A lighthouse"}).json()["total_usd"] == 0
+    assert api.post("/api/v2/estimate", json={"prompt": "Červený maják"}).json()["total_usd"] == 0.01
+    assert fake_claude == []
+
+
+def test_translation_guide_per_generator(fake_claude, tmp_path):
+    from engine.translate import Translator
+    t = Translator(tmp_path / "t.jsonl")
+    t.translate("nb-pro", "prompt", "Červený maják")
+    t.translate("fal:fal-ai/flux-2-pro", "prompt", "Červený maják")
+    assert "Gemini" in fake_claude[0] and "FLUX" in fake_claude[1]
+    assert Translator(tmp_path / "t.jsonl").pending(ImageRequest(prompt="Červený maják", backend="nb-pro")) == 0

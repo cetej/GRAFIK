@@ -21,6 +21,7 @@ from engine.gpu import free_vram_mib
 from engine.jobs import JobStore, Worker
 from engine.models import ImageRequest, Ref
 from engine.sdserver import SdServer
+from engine.translate import Translator
 
 
 # Body models live at module level: with `from __future__ import annotations` FastAPI
@@ -28,6 +29,11 @@ from engine.sdserver import SdServer
 # misread as a query parameter.
 class Review(BaseModel):
     reviewed_by: str
+
+
+class Repeat(BaseModel):
+    n: int = 0                  # which image of the job the variant comes from
+    confirm_cost: bool = False
 
 
 class Expand(BaseModel):
@@ -42,7 +48,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     sd = server or SdServer(s)
     store = JobStore(s.db_path)
     bk = backends or make_backends(s, sd)
-    worker = Worker(s, store, bk)
+    translator = Translator(s.translations_path)
+    worker = Worker(s, store, bk, translator=translator)
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -98,7 +105,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     @app.post("/api/v2/estimate")
     def estimate(req: ImageRequest):
         req, backend = prepare(req)
-        est = estimate_usd(req, backend)
+        est = estimate_usd(req, backend, translator.pending(req))
         eta = backend.eta_s(req) if hasattr(backend, "eta_s") else None
         render = backend.render_size(req) if hasattr(backend, "render_size") else (req.width, req.height)
         return {**est, "eta_s": eta, "size": req.size, "render_size": f"{render[0]}x{render[1]}"}
@@ -106,7 +113,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     @app.post("/api/v2/images", status_code=202)
     def submit(req: ImageRequest):
         req, backend = prepare(req)
-        est = estimate_usd(req, backend)
+        est = estimate_usd(req, backend, translator.pending(req))
         if est["total_usd"] > 0 and not req.confirm_cost:
             return JSONResponse(status_code=402, content={
                 "detail": "Placená operace — nic nespuštěno. Pošlete znovu s confirm_cost=true.",
@@ -115,6 +122,20 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         job = store.get(job_id)
         return {"job_id": job_id, "status": job["status"], "position": job["position"],
                 "estimate_usd": est["total_usd"]}
+
+    @app.post("/api/v2/jobs/{job_id}/repeat", status_code=202)
+    def repeat(job_id: str, body: Repeat):
+        """Another variant: same request (refs included), new seed. A variant of an edit is
+        its sibling (same parent and box); otherwise the source image becomes the parent."""
+        raw = store.raw_request(job_id)
+        if raw is None:
+            raise HTTPException(404, "úloha neexistuje")
+        raw.update(seed=None, n=1, confirm_cost=body.confirm_cost)
+        if raw.get("edit"):  # prepare() prepends the parent again
+            raw["refs"] = [r for r in raw["refs"] if r.get("source") != f"verze {raw['parent']}"]
+        else:
+            raw["parent"] = f"{job_id}/{body.n}"
+        return submit(ImageRequest.model_validate(raw))
 
     @app.get("/api/v2/jobs")
     def jobs(limit: int = 50):
@@ -146,6 +167,15 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                 img.thumbnail((w, w * 4))
                 img.save(thumb, quality=85)
             return FileResponse(thumb, media_type="image/jpeg")
+        return FileResponse(path, media_type="image/png")
+
+    @app.get("/api/v2/jobs/{job_id}/refs/{i}")
+    def ref_image(job_id: str, i: int):
+        j = store.get(job_id)
+        files = ((j or {}).get("result") or {}).get("files", [])
+        path = Path(files[0]).parent / "refs" / f"ref-{i}.png" if files else None
+        if path is None or not path.exists():
+            raise HTTPException(404, "předloha neexistuje")
         return FileResponse(path, media_type="image/png")
 
     @app.get("/api/v2/lineage/{job_id}/{n}")

@@ -94,6 +94,8 @@ class ImageRequest(BaseModel):
     # Lineage: "<job_id>/<n>" of the image this one was made from (variant or edit).
     parent: str | None = Field(default=None, pattern=r"^[\w\-]+/\d+$")
     edit: EditSpec | None = None
+    # Czech text fields are translated to English for the target generator (engine/translate.py).
+    translate: Literal["auto", "off"] = "auto"
     caller: str = "unknown"
     confirm_cost: bool = False
 
