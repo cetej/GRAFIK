@@ -17,7 +17,7 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 
 ## Další krok
 
-- **Termdb (přání operátora 23. 10.):** ověřit české termíny v překladu a v infografice proti `BIOLIB/termdb.db` (lokální SQLite, zdarma). Pozor: lodní termíny tam chybí (kloun/zobec/rostrum), „liška obecná“ je v biologii houba — slepé dosazování by škodilo. Rozsah čeká na operátora.
+- **Termdb napojená** (`engine/termdb.py`, `BIOLIB/termdb.db`, jen čtení, zdarma): jednoznačné odborné termíny jdou do překladu jako nápověda („Rys ostrovid = Eurasian lynx (Lynx lynx)“), kontrola infografiky ukazuje nalezené, nejednoznačné a „není v termdb“. Lodní termíny (kloun, kvinquerema) v termdb chybí; doplnění termdb je věc NG-ROBOT.
 - Infografiky: „Navrhnout popisky“ přes Claude naostro neklikáno (čeká na schválení útraty).
 - Napojení projektů (KLAPKA, NG-ROBOT…) až na pokyn operátora.
 - Drobnosti: „Rozepsat zadání“ naostro neklikáno; pin přes `og:image` ověřen jen offline (Pinterest robotům ukazuje přihlášení).

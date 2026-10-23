@@ -40,6 +40,8 @@ class Settings:
     gpu_lock_wait_s: float = 600.0
     # Q4 weights on 8 GB: 1920x1088 is the measured ceiling.
     max_pixels: int = 1920 * 1088
+    # Editorial term database shared with NG-ROBOT (read-only); "" switches it off.
+    termdb: str = field(default_factory=lambda: _env("TERMDB", "C:/Users/stock/Documents/000_NGM/BIOLIB/termdb.db"))
     vae_tiling_above_pixels: int = 1280 * 1280
 
     @property

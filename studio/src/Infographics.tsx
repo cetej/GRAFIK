@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from 'react'
-import { imageUrl, infoApi, PaymentRequired, type Infographic, type InfoLabel } from './api.ts'
+import { imageUrl, infoApi, PaymentRequired, termsApi, type Infographic, type InfoLabel, type TermResult } from './api.ts'
 
 // G5 — editor infografiky podle náčrtu schváleného 2026-10-23 (docs/spikes/img/g5-nacrt-*.png) a vzoru
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
@@ -236,6 +236,7 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   const [saved, setSaved] = useState(true)
   const [reviewer, setReviewer] = useState('')
   const [lastExport, setLastExport] = useState<string | null>(null)
+  const [terms, setTerms] = useState<{ available: boolean; names: TermResult[]; facts: TermResult[] } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ i: number; what: 'anchor' | 'label' } | null>(null)
   const loaded = useRef(false)
@@ -259,6 +260,23 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
     const t = setTimeout(() => infoApi.save(doc).then(() => setSaved(true)).catch((e) => onError(e.message)), 600)
     return () => clearTimeout(t)
   }, [doc, onError])
+
+  // termdb check (free, local): names = title and label texts (nominative, "není v termdb" makes sense);
+  // the rest (subtitle, small texts, schema title, facts) is inflected prose, checked only for ambiguous terms
+  const termTexts = doc ? JSON.stringify([[doc.title, ...doc.labels.map((l) => l.text)],
+    [doc.subtitle, ...doc.labels.map((l) => l.small), doc.schema?.title ?? '', ...doc.facts.map((f) => f.text)]]) : ''
+  useEffect(() => {
+    if (!termTexts) return
+    const [names, facts] = JSON.parse(termTexts) as [string[], string[]]
+    const t = setTimeout(() => {
+      termsApi.check([...names, ...facts]).then((r) => {
+        const byText = new Map(r.results.map((x) => [x.text, x]))
+        const pick = (xs: string[]) => xs.filter((x) => x.trim()).map((x) => byText.get(x)).filter(Boolean) as TermResult[]
+        setTerms({ available: r.available, names: pick(names), facts: pick(facts) })
+      }).catch(() => setTerms(null))
+    }, 500)
+    return () => clearTimeout(t)
+  }, [termTexts])
 
   const set = useCallback((patch: Partial<Infographic>) => setDoc((d) => (d ? { ...d, ...patch } : d)), [])
   const setLabel = (i: number, patch: Partial<InfoLabel>) => setDoc((d) => (d ? { ...d, labels: d.labels.map((l, j) => (j === i ? { ...l, ...patch } : l)) } : d))
@@ -320,7 +338,7 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   }
 
   const longLabels = doc.labels.map((l, i) => ({ i, n: (l.text + l.small).length })).filter((x) => x.n > MAX_LABEL_CHARS)
-  const checks: { ok: boolean; text: string }[] = [
+  const checks: { ok: boolean; text: string; title?: string }[] = [
     { ok: doc.labels.length <= MAX_LABELS, text: `${doc.labels.length} popisků${doc.labels.length > MAX_LABELS ? `, doporučeno do ${MAX_LABELS}` : ''}` },
     ...(longLabels.length ? longLabels.map((x) => ({ ok: false, text: `popisek ${x.i + 1} je delší než ${MAX_LABEL_CHARS} znaků` })) : [{ ok: true, text: 'popisky krátké' }]),
     { ok: true, text: 'text jen z editoru, ne z modelu' },
@@ -328,6 +346,17 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
     { ok: true, text: 'označení AI v patičce' },
     { ok: !!doc.reviewed_by, text: doc.reviewed_by ? `zkontroloval(a) ${doc.reviewed_by}` : 'před zveřejněním zkontroluje člověk' },
   ]
+  const termChecks: { ok: boolean; text: string; title?: string }[] = []
+  if (terms && !terms.available) termChecks.push({ ok: false, text: 'termdb nedostupná (Nastavení)' })
+  if (terms?.available) {
+    const okCount = new Set(terms.names.flatMap((r) => r.ok)).size
+    const missing = [...new Set(terms.names.flatMap((r) => r.missing))]
+    const ambiguous = [...terms.names, ...terms.facts].flatMap((r) => r.ambiguous)
+    termChecks.push({ ok: true, text: `termdb: ${okCount} ${okCount === 1 ? 'termín' : okCount < 5 && okCount ? 'termíny' : 'termínů'} nalezeno` })
+    for (const h of [...new Set([...terms.names, ...terms.facts].flatMap((r) => r.hints))]) termChecks.push({ ok: true, text: `termdb: ${h}` })
+    for (const a of ambiguous) termChecks.push({ ok: false, text: `nejednoznačné v termdb: ${a.phrase}`, title: a.senses.join('\n') })
+    if (missing.length) termChecks.push({ ok: false, text: `není v termdb: ${missing.join(', ')}` })
+  }
   const sel = selected !== null ? doc.labels[selected] : null
   const selBox = sel ? labelBox(sel, L) : null
 
@@ -428,7 +457,8 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
         <div className="row"><input type="color" className="accent" value={doc.accent} onChange={(e) => set({ accent: e.target.value })} aria-label="Barva akcentu" /><span className="hint">{doc.accent}</span></div>
 
         <h3>Kontrola</h3>
-        <ul className="check">{checks.map((c, i) => <li key={i}><b className={c.ok ? 'ok' : 'w'}>{c.ok ? '✓' : '!'}</b>{c.text}</li>)}</ul>
+        <ul className="check">{[...checks, ...termChecks].map((c, i) => <li key={i} title={c.title}><b className={c.ok ? 'ok' : 'w'}>{c.ok ? '✓' : '!'}</b>{c.text}</li>)}</ul>
+        <p className="hint">Termíny ověřuje lokální termdb (sdílená s NG-ROBOT), zdarma. Nejednoznačné ukáže význam po najetí myší.</p>
         <div className="row">
           <input className="search" style={{ flex: 1 }} value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="jméno" aria-label="Kdo zkontroloval" />
           <button className="btn small" disabled={!reviewer.trim()} onClick={() => set({ reviewed_by: reviewer.trim(), reviewed_at: new Date().toISOString().slice(0, 19) })}>Zkontrolováno</button>

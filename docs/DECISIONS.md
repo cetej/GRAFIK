@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — Termdb v překladu a v kontrole infografiky
+
+Operátor: „Napoj termdb na překlad i na kontrolu infografiky: zdarma a lokálně, jednoznačné termíny předat překladu jako nápovědu, neznámé označit ‚není v termdb‘, bez placeného vyhledávání na webu.“
+
+- Termdb = `BIOLIB/termdb.db` (sdílená s NG-ROBOT), GRAFIK ji jen čte (`GRAFIK_TERMDB`, prázdná hodnota vypne). Placené vyhledávání na webu z NG-ROBOT se nepoužívá.
+- **Nápověda do překladu jen pro jednoznačné odborné termíny** (biologie, zeměpis…): všechny odborné významy se shodují a slovníkový výklad nemluví o něčem jiném. Proto „liška obecná“ (v biologii houba, ve slovníku liška) ani „Most“ (město × most) nápovědu nedostanou. Nápověda je součástí klíče mezipaměti překladu a je v provenienci.
+- **Kontrola infografiky:** „není v termdb“ se hlásí jen u nadpisu a hlavních textů popisků (1. pád); podtitulek, drobné texty, schéma a fakta jsou skloňovaná věta, tam jen nejednoznačné termíny.
+
 ## 2026-10-23 — G5 infografiky
 
 - **Náčrt G5 schválen** („Schvaluji náčrt G5, stavěj.“): záložka Infografiky (obsah vlevo, živý náhled uprostřed, vzhled, kontrola a export vpravo), vstupy z kroku 5 Průvodce a tlačítkem „→ Infografika“, návrh popisků od Claude jen na kliknutí s cenou. Vzor: kvinquerema `overlay_quinq3.html` (do ~5 popisků, čáry mimo objekt, 3 fakta, vektorové schéma, tmavé pozadí, patička se zdroji a AI).

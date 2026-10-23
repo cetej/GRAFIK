@@ -1,5 +1,10 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Termdb: past na stejná slova a pomalý poddotaz
+
+- „liška obecná“ má v doméně biology jediný primární záznam *Cantharellus cibarius* (houba), slovník (foreign_words) říká red fox; „Most“ je město i most; „Věž“ obec. Slepé dosazování by škodilo — nápověda jen při shodě odborného a slovníkového významu, zeměpis jen s velkým písmenem.
+- Dotaz na anglický název přes korelovaný poddotaz trval 170–570 ms na slovo: plánovač zvolil `idx_translations_lang_primary` (400 tis. anglických řádků). `INDEXED BY idx_translations_term_lang` → 18 ms za celou větu. U `name = ? COLLATE NOCASE` taky `INDEXED BY idx_translations_name`.
+
 ## 2026-10-23 — Servery spuštěné z Claude session zmizí s její obnovou
 
 Dvakrát za den Engine (:8300), jeho sd-server a studio (:5174) zmizely bez záznamu v logu (poslední řádek běžný `GET /health`). Společné: všechny byly spuštěné z této Claude session (`Start-Process` z nástroje PowerShell), a zmizely po obnovení session. Procesy jsou ve stromu session a s ní končí. Trvalý provoz: spouštět `start-grafik.bat` ručně (nebo z Plánovače úloh), ne z Claude. Po obnovení session vždy nejdřív ověřit :8300 a :5174 a teprve pak tvrdit „běží“.

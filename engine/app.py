@@ -28,6 +28,7 @@ from engine import commons
 from engine.reflib import RefLibError, RefLibrary
 from engine.styles import StyleError, StyleLibrary, palette, slugify
 from engine.infographics import InfoError, InfographicStore
+from engine.termdb import TermDB
 from engine.translate import Translator
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
 
@@ -111,6 +112,10 @@ class SuggestLabels(BaseModel):
     confirm_cost: bool = False
 
 
+class TermCheck(BaseModel):
+    texts: list[str]
+
+
 class Expand(BaseModel):
     text: str
     confirm_cost: bool = False
@@ -123,7 +128,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     sd = server or SdServer(s)
     store = JobStore(s.db_path)
     bk = backends or make_backends(s, sd)
-    translator = Translator(s.translations_path)
+    termdb = TermDB(Path(s.termdb) if s.termdb else None)
+    translator = Translator(s.translations_path, termdb)
     reflib = RefLibrary(s.reflib_dir)
     stylelib = StyleLibrary(s.styles_dir)
     infos = InfographicStore(s.library_dir / "infographics", s.data_dir / "schemas")
@@ -233,6 +239,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                 {"id": "gemini", "label": "Google Gemini (Nano Banana Pro)",
                  "connected": key("GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GEMINI_API_KEY")},
                 {"id": "fal", "label": "fal.ai (FLUX.2 pro, Krea, Nano Banana přes fal)", "connected": key("FAL_KEY", "FAL_API_KEY")},
+                {"id": "termdb", "label": "Terminologická databáze (termdb, sdílená s NG-ROBOT)", "connected": termdb.available,
+                 "note": "jen čtení, zdarma" if termdb.available else f"nenalezena: {s.termdb or 'vypnuta'}"},
                 {"id": "commons", "label": "Wikimedia Commons", "connected": True, "note": "bez účtu"},
                 {"id": "pinterest", "label": "Pinterest", "connected": True,
                  "note": "bez účtu v GRAFIK: piny přes váš přihlášený Chrome (záložka → GRAFIK nebo Claude in Chrome)"},
@@ -669,6 +677,13 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                                 "items": [{"what": "návrh popisků infografiky", "usd": LABELS_USD}]},
                                ensure_ascii=False) + "\n")
         return {"labels": labels, "usd": LABELS_USD}
+
+    @app.post("/api/v2/terms/check")
+    def terms_check(body: TermCheck):
+        """Free, local: what termdb confirms, what is ambiguous and what it does not know (infographic check)."""
+        if not termdb.available:
+            return {"available": False, "results": []}
+        return {"available": True, "results": [termdb.check(t) for t in body.texts[:40] if t.strip()]}
 
     @app.get("/api/v2/schemas")
     def schemas():
