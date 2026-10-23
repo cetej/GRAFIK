@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Restart Engine z větve nechá osiřelý sd-server
+
+Engine z větve (vlastní `GRAFIK_DATA_DIR`) si sd-server zapsal do `run/sd-server.json` ve worktree. Po zabití toho Engine a startu Engine z hlavního checkoutu držel :8390 osiřelý sd-server a nový Engine ho právem odmítl vypnout („Port 8390 už obsluhuje jiný sd-server“), takže úlohy KLAPKY padaly. Před vypnutím Engine z větve vypni i jeho sd-server podle PID z `<data_dir>/run/sd-server.json` a soubor smaž.
+
 ## 2026-10-23 — Termdb: past na stejná slova a pomalý poddotaz
 
 - „liška obecná“ má v doméně biology jediný primární záznam *Cantharellus cibarius* (houba), slovník (foreign_words) říká red fox; „Most“ je město i most; „Věž“ obec. Slepé dosazování by škodilo — nápověda jen při shodě odborného a slovníkového významu, zeměpis jen s velkým písmenem.
