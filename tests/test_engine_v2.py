@@ -300,3 +300,37 @@ def test_client_engine_down_raises_unavailable(monkeypatch):
     monkeypatch.setattr(grafik_client, "ENGINE_URL", f"http://127.0.0.1:{free_port()}")
     with pytest.raises(grafik_client.EngineUnavailable):
         grafik_client.generate("x")
+
+
+# -- supersample ------------------------------------------------------------
+
+@pytest.mark.parametrize("size,factor,expected", [
+    ("512x512", 2.0, (1024, 1024)),
+    ("1024x1024", 2.0, (1440, 1440)),      # capped by 1920*1088 px, aspect kept
+    ("1024x576", 1.5, (1536, 864)),
+    ("1024x1024", None, (1024, 1024)),
+])
+def test_supersample_render_size(settings, size, factor, expected):
+    fl = FluxLocal(settings, None)
+    req = ImageRequest(prompt="x", size=size, supersample=factor)
+    w, h = fl.render_size(req)
+    assert (w, h) == expected and w % 16 == 0 and h % 16 == 0 and w * h <= settings.max_pixels
+
+
+def test_supersample_renders_big_returns_requested(api, settings, tmp_path, monkeypatch):
+    log = tmp_path / "sd.log"
+    monkeypatch.setenv("FAKE_SD_LOG", str(log))
+    r = api.post("/api/v2/images", json={"prompt": "tiny figures", "size": "512x512", "supersample": 2})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    sent = json.loads(log.read_text().splitlines()[-1])
+    assert (sent["width"], sent["height"]) == (1024, 1024)
+    from PIL import Image
+    assert Image.open(job["result"]["files"][0]).size == (512, 512)
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["params"]["render_size"] == "1024x1024" and prov["params"]["size"] == "512x512"
+
+
+def test_supersample_rejected_for_paid(api):
+    r = api.post("/api/v2/images", json={"prompt": "x", "backend": "nb-pro", "supersample": 2})
+    assert r.status_code == 400 and "flux-local" in r.json()["detail"]

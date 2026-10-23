@@ -5,10 +5,13 @@ another one."""
 from __future__ import annotations
 
 import base64
+import math
 import random
+from io import BytesIO
 from dataclasses import dataclass
 
 import httpx
+from PIL import Image
 
 from engine.config import Settings
 from engine.keys import get_key
@@ -43,28 +46,49 @@ class FluxLocal:
                 f"{req.size} je nad strop lokálního FLUX na 8 GB (nejvýš {self.s.max_pixels} px, např. 1920x1088)."
             )
 
+    def render_size(self, req: ImageRequest) -> tuple[int, int]:
+        """Size FLUX actually renders: size × supersample, capped to the pixel
+        ceiling with the aspect ratio kept, floored to multiples of 16."""
+        if not req.supersample or req.supersample <= 1:
+            return req.width, req.height
+        factor = min(req.supersample, math.sqrt(self.s.max_pixels / (req.width * req.height)))
+        w, h = int(req.width * factor) // 16 * 16, int(req.height * factor) // 16 * 16
+        return max(w, req.width), max(h, req.height)
+
     def payload(self, req: ImageRequest, prompt: str, ref_pngs: list[bytes], seed: int) -> dict:
+        w, h = self.render_size(req)
         p = {
-            "prompt": prompt, "width": req.width, "height": req.height, "seed": seed,
+            "prompt": prompt, "width": w, "height": h, "seed": seed,
             "sample_params": {"sample_steps": req.steps or self.s.steps},
         }
         if ref_pngs:
             p["ref_images"] = [base64.b64encode(b).decode() for b in ref_pngs]
-        if req.width * req.height > self.s.vae_tiling_above_pixels:
+        if w * h > self.s.vae_tiling_above_pixels:
             p["vae_tiling_params"] = {"enabled": True}
         return p
+
+    @staticmethod
+    def downscale(png: bytes, width: int, height: int) -> bytes:
+        img = Image.open(BytesIO(png))
+        if img.size == (width, height):
+            return png
+        buf = BytesIO()
+        img.resize((width, height), Image.LANCZOS).save(buf, format="PNG")
+        return buf.getvalue()
 
     def run(self, req: ImageRequest, prompt: str, ref_pngs: list[bytes]) -> Generated:
         self.validate(req)
         base_seed = req.seed if req.seed is not None else random.randint(0, 2**31 - 1)
         images, seeds = [], []
+        rw, rh = self.render_size(req)
         for i in range(req.n):
             seed = base_seed + i
-            images.extend(self.server.generate(self.payload(req, prompt, ref_pngs, seed))[:1])
+            png = self.server.generate(self.payload(req, prompt, ref_pngs, seed))[0]
+            images.append(self.downscale(png, req.width, req.height))
             seeds.append(seed)
         return Generated(images, seeds, self.model,
                          {"steps": req.steps or self.s.steps, "cfg_scale": self.s.cfg_scale,
-                          "sampler": self.s.sampler, "size": req.size})
+                          "sampler": self.s.sampler, "size": req.size, "render_size": f"{rw}x{rh}"})
 
 
 # Gemini nano-banana-pro-preview, price per image 1K–2K from ai.google.dev (fetched 2026-08-15,
@@ -81,6 +105,8 @@ class NanoBananaPro:
     usd_per_image = 0.134
 
     def validate(self, req: ImageRequest) -> None:
+        if req.supersample:
+            raise BackendError("supersample umí jen flux-local")
         if sum(r.role != "style" for r in req.refs) > NB_MAX_REFS:
             raise BackendError(f"nb-pro: nejvýš {NB_MAX_REFS} obrazové předlohy")
 

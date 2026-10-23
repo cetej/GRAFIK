@@ -64,6 +64,9 @@ class ImageRequest(BaseModel):
     layout: list[LayoutItem] = []
     style: str | None = None            # free text until the style library (G4)
     no_text: bool = True
+    # Render at size × supersample (capped by the 8 GB ceiling) and downscale with
+    # Lanczos — small figures deform less (verified 2026-10-22). flux-local only.
+    supersample: float | None = Field(default=None, ge=1.0, le=4.0)
     caller: str = "unknown"
     confirm_cost: bool = False
 

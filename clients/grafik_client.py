@@ -78,10 +78,10 @@ def _ref_payload(ref) -> dict:
 def submit(prompt: str, *, backend: str = "flux-local", size: str = "1024x1024", n: int = 1,
            seed: int | None = None, steps: int | None = None, refs: list | None = None,
            layout: list | None = None, style: str | None = None, no_text: bool = True,
-           caller: str | None = None, confirm_cost: bool = False) -> str:
+           supersample: float | None = None, caller: str | None = None, confirm_cost: bool = False) -> str:
     body = {"prompt": prompt, "backend": backend, "size": size, "n": n, "seed": seed, "steps": steps,
             "refs": [_ref_payload(r) for r in refs or []], "layout": layout or [], "style": style,
-            "no_text": no_text, "caller": caller or Path(sys.argv[0]).stem or "client",
+            "no_text": no_text, "supersample": supersample, "caller": caller or Path(sys.argv[0]).stem or "client",
             "confirm_cost": confirm_cost}
     status, data = _request("POST", "/api/v2/images", body)
     if status == 402:
@@ -140,6 +140,7 @@ def _cli(argv: list[str]) -> int:
     g.add_argument("--steps", type=int)
     g.add_argument("--ref", action="append", default=[], help="cesta[:role], role subject|geometry|scene|style")
     g.add_argument("--style")
+    g.add_argument("--supersample", type=float, help="vykreslit N× větší a zmenšit (drobné postavy), jen flux-local")
     g.add_argument("--backend", default="flux-local")
     g.add_argument("--confirm-cost", action="store_true")
     g.add_argument("--out", default=".")
@@ -162,7 +163,7 @@ def _cli(argv: list[str]) -> int:
             last[0] = state
     try:
         job_id = submit(a.prompt, backend=a.backend, size=a.size, n=a.n, seed=a.seed, steps=a.steps,
-                        refs=refs, style=a.style, confirm_cost=a.confirm_cost, caller="grafik_client-cli")
+                        refs=refs, style=a.style, supersample=a.supersample, confirm_cost=a.confirm_cost, caller="grafik_client-cli")
         print(f"úloha {job_id}", flush=True)
         paths = download(wait(job_id, on_status=show), a.out)
     except GrafikError as e:
