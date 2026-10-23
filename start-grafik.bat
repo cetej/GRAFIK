@@ -6,8 +6,10 @@ rem   Stary editor v1 je od 2026-10-23 pryc (git tag v1-final).
 rem Bezici sluzby nespousti znovu (kontrola portu), takze je bezpecne pustit opakovane.
 cd /d "%~dp0"
 if not exist logs mkdir logs
+rem Porty cteme ze souboru, ne pres rouru: pod Command Center (bez konzole) findstr na roure z netstat visel.
+netstat -ano > logs\ports.txt
 
-netstat -ano | findstr ":8300 " | findstr "LISTENING" >nul
+findstr /r /c:":8300 .*LISTENING" logs\ports.txt >nul
 if errorlevel 1 (
   echo Spoustim GRAFIK Engine na portu 8300...
   start "GRAFIK Engine" /min cmd /c "python -m uvicorn engine.app:app --port 8300 --host 127.0.0.1 --access-log >> logs\engine.log 2>&1"
@@ -15,7 +17,7 @@ if errorlevel 1 (
   echo GRAFIK Engine uz bezi.
 )
 
-netstat -ano | findstr ":5174 " | findstr "LISTENING" >nul
+findstr /r /c:":5174 .*LISTENING" logs\ports.txt >nul
 if errorlevel 1 (
   echo Spoustim GRAFIK Studio na portu 5174...
   rem npm --prefix install reads the repo root package.json, so install from inside studio\
@@ -25,5 +27,6 @@ if errorlevel 1 (
   echo GRAFIK Studio uz bezi.
 )
 
-timeout /t 3 /nobreak >nul
+rem timeout bez stdin selze, ping ceka i bez konzole
+ping -n 4 127.0.0.1 >nul
 start http://localhost:5174
