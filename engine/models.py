@@ -30,6 +30,17 @@ class Ref(BaseModel):
         return self
 
 
+def check_box(v: list[int] | None) -> list[int] | None:
+    if v is None:
+        return v
+    if len(v) != 4 or not all(0 <= x <= 1000 for x in v):
+        raise ValueError("bbox = [top, left, bottom, right] v rozsahu 0–1000")
+    top, left, bottom, right = v
+    if not (top < bottom and left < right):
+        raise ValueError("bbox: top < bottom a left < right")
+    return v
+
+
 class LayoutItem(BaseModel):
     id: str = Field(pattern=r"^[A-Za-z0-9_\-]+$")
     desc: str
@@ -43,14 +54,27 @@ class LayoutItem(BaseModel):
     @field_validator("bbox", "src_bbox", "tgt_bbox")
     @classmethod
     def _box(cls, v):
-        if v is None:
-            return v
-        if len(v) != 4 or not all(0 <= x <= 1000 for x in v):
-            raise ValueError("bbox = [top, left, bottom, right] v rozsahu 0–1000")
-        top, left, bottom, right = v
-        if not (top < bottom and left < right):
-            raise ValueError("bbox: top < bottom a left < right")
-        return v
+        return check_box(v)
+
+
+class EditSpec(BaseModel):
+    """Edit of a region of the parent image. Outside the box(es) the parent is
+    pasted back unchanged."""
+    action: Literal["add", "remove", "move", "recolor"]
+    bbox: list[int]                       # [top, left, bottom, right], 0–1000
+    target_bbox: list[int] | None = None  # move only
+    instruction: str = Field(min_length=1)
+
+    @field_validator("bbox", "target_bbox")
+    @classmethod
+    def _box(cls, v):
+        return check_box(v)
+
+    @model_validator(mode="after")
+    def _target(self):
+        if (self.action == "move") != (self.target_bbox is not None):
+            raise ValueError("target_bbox patří jen k akci move (a move ho potřebuje)")
+        return self
 
 
 class ImageRequest(BaseModel):
@@ -67,6 +91,9 @@ class ImageRequest(BaseModel):
     # Render at size × supersample (capped by the 8 GB ceiling) and downscale with
     # Lanczos — small figures deform less (verified 2026-10-22). flux-local only.
     supersample: float | None = Field(default=None, ge=1.0, le=4.0)
+    # Lineage: "<job_id>/<n>" of the image this one was made from (variant or edit).
+    parent: str | None = Field(default=None, pattern=r"^[\w\-]+/\d+$")
+    edit: EditSpec | None = None
     caller: str = "unknown"
     confirm_cost: bool = False
 
@@ -80,6 +107,12 @@ class ImageRequest(BaseModel):
         if w < 256 or h < 256 or w % 16 or h % 16:
             raise ValueError("šířka a výška: násobky 16, nejméně 256")
         return f"{w}x{h}"
+
+    @model_validator(mode="after")
+    def _edit_needs_parent(self):
+        if self.edit and not self.parent:
+            raise ValueError("úprava v rámečku potřebuje parent (obrázek, který se upravuje)")
+        return self
 
     @model_validator(mode="after")
     def _ref_count(self):

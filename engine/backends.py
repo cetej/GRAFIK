@@ -42,6 +42,11 @@ class FluxLocal:
     def usd_for(self, req: ImageRequest) -> float:
         return 0.0
 
+    def eta_s(self, req: ImageRequest) -> int:
+        """Rough generation time on the RTX 4060: measured 0.59 MP 26 s, 1.05 MP 40 s (cold), 2.06 MP 85 s."""
+        w, h = self.render_size(req)
+        return round((5 + 38 * w * h / 1e6) * req.n)
+
     def validate(self, req: ImageRequest) -> None:
         if req.width * req.height > self.s.max_pixels:
             raise BackendError(
@@ -268,6 +273,36 @@ class FalBackend:
         except Exception as e:  # fal_client raises its own error types
             raise BackendError(f"fal {endpoint}: {type(e).__name__}: {e}") from e
         return Generated(images, seeds, endpoint, {k: v for k, v in args.items() if k not in ("prompt", "image_urls")})
+
+
+# "Rozepsat zadání": short (often Czech) brief -> English FLUX prompt. Paid like any
+# Claude call; the UI shows the estimate first. Same per-call estimate as describe_style.
+EXPAND_MODEL = STYLE_MODEL
+EXPAND_USD = 0.01
+EXPAND_INSTRUCTION = (
+    "Rewrite this image brief as one English prompt for the FLUX image model. Describe the scene concretely: "
+    "subject, setting, composition and camera viewpoint, medium and rendering, lighting, colour palette, level of "
+    "detail. Keep every fact from the brief, invent nothing historical that is not implied. If people or small "
+    "figures appear, state their size and distance. No text in the image. Answer with the prompt only.\n\nBrief: "
+)
+
+
+def expand_prompt(text: str) -> str:
+    key = get_key("ANTHROPIC_API_KEY")
+    if not key:
+        raise BackendError("rozepsání zadání: chybí ANTHROPIC_API_KEY")
+    try:
+        r = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
+            json={"model": EXPAND_MODEL, "max_tokens": 500,
+                  "messages": [{"role": "user", "content": EXPAND_INSTRUCTION + text}]},
+            timeout=120,
+        )
+        r.raise_for_status()
+    except httpx.HTTPError as e:
+        raise BackendError(f"rozepsání zadání selhalo: {e}") from e
+    return "".join(b.get("text", "") for b in r.json().get("content", [])).strip()
 
 
 def make_backends(settings: Settings, server: SdServer) -> dict:

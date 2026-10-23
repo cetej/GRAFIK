@@ -407,3 +407,84 @@ def test_fal_job_runs_only_after_confirmation(api, settings, monkeypatch):
     assert FakeFalClient.calls[0][1]["image_urls"] == ["https://fal.media/ref.png"]
     prov = api.get(job["images"][0] + "/provenance").json()
     assert prov["backend"] == "fal:fal-ai/flux-2-pro" and prov["cost_usd"] == pytest.approx(0.18)
+
+
+# -- G2 studio API ------------------------------------------------------------
+
+def _first_image(api, **body):
+    r = api.post("/api/v2/images", json={"prompt": "base", "size": "512x256", "seed": 1, **body})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    return job
+
+
+def test_edit_in_box_pastes_back_outside(api, settings):
+    from io import BytesIO
+
+    from PIL import Image, ImageChops
+    base = _first_image(api)
+    parent = f"{base['job_id']}/0"
+    edit = {"action": "remove", "bbox": [250, 250, 750, 500], "instruction": "dva vojáci"}
+    r = api.post("/api/v2/images", json={"prompt": "-", "parent": parent, "edit": edit, "seed": 50})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    before = Image.open(job["result"]["files"][0].replace(job["job_id"], base["job_id"])).convert("RGB")
+    after = Image.open(BytesIO(api.get(job["images"][0]).content)).convert("RGB")
+    assert after.size == before.size == (512, 256)
+    diff = ImageChops.difference(before, after)
+    assert diff.crop((0, 0, 100, 256)).getbbox() is None, "mimo rámeček musí zůstat beze změny"
+    assert diff.crop((140, 70, 250, 185)).getbbox() is not None, "v rámečku se má obraz změnit"
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["parent"] == parent and prov["edit"]["action"] == "remove"
+    assert prov["refs"][0]["source"] == f"verze {parent}"
+    assert '"src_bbox": [250, 250, 750, 500], "tgt_bbox": null' in prov["prompt_sent"]
+
+
+def test_edit_validation(api):
+    r = api.post("/api/v2/images", json={"prompt": "-", "edit": {"action": "remove", "bbox": [1, 1, 2, 2],
+                                                                  "instruction": "x"}})
+    assert r.status_code == 422
+    r = api.post("/api/v2/images", json={"prompt": "-", "parent": "nope-1/0",
+                                         "edit": {"action": "add", "bbox": [1, 1, 2, 2], "instruction": "x"}})
+    assert r.status_code == 404
+
+
+def test_lineage_tree_and_request_summary(api):
+    base = _first_image(api, refs=[{"b64": PNG_1PX, "role": "subject"}])
+    root = f"{base['job_id']}/0"
+    v2 = _first_image(api, parent=root)
+    v3 = _first_image(api, parent=f"{v2['job_id']}/0",
+                      edit={"action": "recolor", "bbox": [0, 0, 500, 500], "instruction": "modrá"})
+    tree = api.get(f"/api/v2/lineage/{v3['job_id']}/0").json()
+    assert [n["ref"] for n in tree] == [root, f"{v2['job_id']}/0", f"{v3['job_id']}/0"]
+    assert [n["parent"] for n in tree] == [None, root, f"{v2['job_id']}/0"]
+    assert all(n["image"] for n in tree)
+    assert "b64" not in json.dumps(api.get(f"/api/v2/jobs/{base['job_id']}").json()["request"])
+
+
+def test_thumbnail_review_estimate_backends(api):
+    from io import BytesIO
+
+    from PIL import Image
+    job = _first_image(api)
+    t = api.get(job["images"][0] + "?w=128")
+    assert t.headers["content-type"] == "image/jpeg" and Image.open(BytesIO(t.content)).width == 128
+    prov = api.post(job["images"][0] + "/review", json={"reviewed_by": "operátor"}).json()
+    assert prov["reviewed_by"] == "operátor" and prov["reviewed_at"]
+    est = api.post("/api/v2/estimate", json={"prompt": "x", "size": "512x512", "supersample": 2}).json()
+    assert est["total_usd"] == 0 and est["render_size"] == "1024x1024" and est["eta_s"] > 0
+    est = api.post("/api/v2/estimate", json={"prompt": "x", "backend": "nb-pro", "n": 2}).json()
+    assert est["total_usd"] == pytest.approx(0.268)
+    ids = [b["id"] for b in api.get("/api/v2/backends").json()]
+    assert ids[0] == "flux-local"
+
+
+def test_prompt_expand_needs_confirmation(api, monkeypatch):
+    from engine import app as app_mod
+    calls = []
+    monkeypatch.setattr(app_mod, "expand_prompt", lambda t: calls.append(t) or "A Roman harbour at noon.")
+    r = api.post("/api/v2/prompt/expand", json={"text": "římský přístav"})
+    assert r.status_code == 402 and r.json()["estimate_usd"] == 0.01 and calls == []
+    r = api.post("/api/v2/prompt/expand", json={"text": "římský přístav", "confirm_cost": True})
+    assert r.json()["prompt"] == "A Roman harbour at noon." and calls == ["římský přístav"]
+    assert api.get("/api/v2/costs").json()["entries"][-1]["backend"] == "claude:prompt-expand"
