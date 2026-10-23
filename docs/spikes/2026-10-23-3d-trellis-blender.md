@@ -108,3 +108,17 @@ Hliněný řez (`scripts/3d/rez_kvinquerema.py`, rozměry sladěné s `lod_kvinq
 ![řez, Nano Banana Pro](img/2026-10-23-3d/17-rez-nbpro-1.jpg)
 
 Útrata spike celkem: 1,41 USD.
+
+## Iterace 6: podle vikinského vzoru, varianta bez řezu a s oknem v boku (0,30 USD)
+
+Vzor operátora (vložený 22. 10.): „Anatomie langskipu“ – celá loď v šikmém pohledu, řez je přímo v ní jako okno v boku, malý příčný řez v rohu, fakta v liště. Moje první infografika dala řez jako hlavní obraz – špatně: hlavní sdělení je loď, řez doplňuje.
+
+- `lod_kvinquerema.py --cutaway`: okno v blízkém boku (x −10 až 8 m) vyříznuté booleanem z trupu, nástavce i moře; v okně vnitřní konce vesel s veslaři (2–2–1), podlaha, trámy paluby, žebra, džbány a zátěž; vnější vesla před oknem vynechaná (konvence průřezových kreseb); render Cycles (světlo z okolí, bez ostrých stínů), elevace 13°.
+- Past: boolean nechá prázdný slot materiálu, na který ukazují plochy → moře se vykreslí bíle. Před přiřazením `materials.clear()`.
+- Nano Banana Pro, 2 obrázky (job `20261023-132330-c4967d`): okno s veslaři, podpalubím a řezem trupu; tři patra veslařů ale nerozliší (jedna řada) – rozdělení 2–2–1 vysvětluje řez ve schématu.
+- Infografiky: bez řezu `20261023-130542-fe9b`, s oknem `20261023-132515-16c5` (stejná fakta a schéma s řezem).
+
+![s oknem](img/2026-10-23-3d/20-infografika-okno.jpg)
+![bez řezu](img/2026-10-23-3d/21-infografika-bez-okna.jpg)
+
+Útrata spike celkem: 1,71 USD.
