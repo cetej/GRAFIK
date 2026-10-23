@@ -96,7 +96,7 @@ function boxStyle(b: Box) {
   return { top: `${t / 10}%`, left: `${l / 10}%`, height: `${(bo - t) / 10}%`, width: `${(r - l) / 10}%` }
 }
 
-function BoxEditor({ src, selected, onSubmit, onDone }: {
+export function BoxEditor({ src, selected, onSubmit, onDone }: {
   src: string; selected: string; onSubmit: Props['onSubmit']; onDone: () => void
 }) {
   const wrap = useRef<HTMLDivElement>(null)

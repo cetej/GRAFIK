@@ -572,3 +572,148 @@ def test_translation_guide_per_generator(fake_claude, tmp_path):
     t.translate("fal:fal-ai/flux-2-pro", "prompt", "Červený maják")
     assert "Gemini" in fake_claude[0] and "FLUX" in fake_claude[1]
     assert Translator(tmp_path / "t.jsonl").pending(ImageRequest(prompt="Červený maják", backend="nb-pro")) == 0
+
+
+# -- G3: reference library, Commons, Pinterest, historical-object workflow -----
+
+def _png_bytes(color=(200, 30, 30), size=(64, 32)):
+    from io import BytesIO
+
+    from PIL import Image
+    buf = BytesIO()
+    Image.new("RGB", size, color).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def test_reflib_add_dedupe_and_pinterest_license(tmp_path):
+    from engine.reflib import PINTEREST_LICENSE, RefLibrary, origin_of
+    lib = RefLibrary(tmp_path / "lib")
+    a = lib.add(_png_bytes(), origin="pinterest", page_url="https://www.pinterest.com/pin/1/")
+    b = lib.add(_png_bytes(), origin="upload")
+    assert a["id"] == b["id"] and len(lib.list()) == 1
+    assert a["license"] == PINTEREST_LICENSE and a["seen"] is False
+    assert lib.mark_seen(a["id"])["seen"] is True
+    assert origin_of("https://i.pinimg.com/originals/x.jpg") == "pinterest"
+    assert origin_of("https://upload.wikimedia.org/x.jpg") == "commons"
+
+
+def test_pin_page_resolves_og_image(tmp_path, monkeypatch):
+    import httpx as _httpx
+
+    from engine import reflib
+    page = '<html><meta property="og:image" content="https://i.pinimg.com/originals/ab/cd.jpg"></html>'
+
+    def fake_get(url, **kw):
+        req = _httpx.Request("GET", url)
+        if "pinterest.com/pin" in url:
+            return _httpx.Response(200, text=page, headers={"content-type": "text/html"}, request=req)
+        return _httpx.Response(200, content=_png_bytes(), headers={"content-type": "image/png"}, request=req)
+    monkeypatch.setattr(reflib.httpx, "get", fake_get)
+    meta = reflib.RefLibrary(tmp_path / "lib").add_url("https://www.pinterest.com/pin/123/")
+    assert meta["origin"] == "pinterest" and meta["source_url"] == "https://www.pinterest.com/pin/123/"
+
+
+def test_commons_search_parses_license_and_author(monkeypatch):
+    from engine import commons
+    fake = {"query": {"pages": {"1": {"index": 1, "title": "File:Ship model.jpg", "imageinfo": [{
+        "thumburl": "https://upload.wikimedia.org/thumb/ship.jpg", "thumbwidth": 320, "url": "https://u/ship.jpg",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ship_model.jpg", "width": 3000, "height": 2000,
+        "extmetadata": {"LicenseShortName": {"value": "CC BY-SA 4.0"},
+                        "Artist": {"value": '<a href="//x">Zbyna&nbsp;Zl</a>'}}}]}}}}
+    seen = {}
+    monkeypatch.setattr(commons, "_call", lambda params: seen.update(params) or fake)
+    r = commons.search("roman warship")
+    assert seen["gsrsearch"] == "roman warship filetype:bitmap"
+    assert r[0]["license"] == "CC BY-SA 4.0" and r[0]["author"] == "Zbyna Zl" and r[0]["title"] == "Ship model.jpg"
+
+
+def test_api_refs_and_ref_id_provenance(api):
+    import base64
+    r = api.post("/api/v2/refs", json={"b64": base64.b64encode(_png_bytes()).decode(), "title": "loď",
+                                       "author": "Zbyna Zl", "license": "CC BY-SA 4.0"})
+    assert r.status_code == 201
+    ref = r.json()
+    assert api.get(ref["image"]).content[1:4] == b"PNG"
+    assert api.get(ref["image"] + "?w=64").headers["content-type"] == "image/jpeg"
+    assert [x["id"] for x in api.get("/api/v2/refs").json()] == [ref["id"]]
+    job = _first_image(api, refs=[{"ref_id": ref["id"], "role": "geometry"}])
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["refs"][0]["ref_id"] == ref["id"]
+    assert prov["refs"][0]["license"] == "CC BY-SA 4.0" and prov["refs"][0]["author"] == "Zbyna Zl"
+    assert api.post("/api/v2/images", json={"prompt": "x", "refs": [{"ref_id": "nope-1"}]}).status_code == 404
+    # repeat re-validates the stored request (path + ref_id together)
+    assert api.post(f"/api/v2/jobs/{job['job_id']}/repeat", json={}).status_code == 202
+
+
+def test_historical_workflow_steps(api, tmp_path, monkeypatch):
+    import base64
+    log = tmp_path / "sd.log"
+    monkeypatch.setenv("FAKE_SD_LOG", str(log))
+    ref = api.post("/api/v2/refs", json={"b64": base64.b64encode(_png_bytes(size=(96, 32))).decode()}).json()
+    wf = api.post("/api/v2/workflows/historical", json={"object": "Roman quinquereme of the First Punic War",
+                                                        "refs": [{"ref_id": ref["id"], "role": "geometry"}]}).json()
+    assert api.post(f"/api/v2/workflows/{wf['id']}/rotate", json={}).status_code == 400  # no elevation yet
+    est = api.post(f"/api/v2/workflows/{wf['id']}/side", json={"n": 2, "estimate_only": True}).json()
+    assert est["total_usd"] == 0 and est["size"] == "1920x640"
+    r = api.post(f"/api/v2/workflows/{wf['id']}/side", json={"n": 2})
+    side = wait_done(api, r.json()["job_id"])
+    assert side["status"] == "done", side["error"]
+    assert "pure side elevation" in side["result"]["prompt_sent"]
+    wf = api.get(f"/api/v2/workflows/{wf['id']}").json()
+    assert wf["side_job"] == side["job_id"]
+    wf = api.patch(f"/api/v2/workflows/{wf['id']}", json={"side_pick": f"{side['job_id']}/1"}).json()
+    r = api.post(f"/api/v2/workflows/{wf['id']}/rotate", json={"view": "34_right", "background": "sea", "n": 1})
+    rot = wait_done(api, r.json()["job_id"])
+    assert rot["status"] == "done", rot["error"]
+    assert rot["request"]["parent"] == f"{side['job_id']}/1"
+    assert "front right" in rot["result"]["prompt_sent"] and "calm smooth sea" in rot["result"]["prompt_sent"]
+    sent = json.loads(log.read_text().splitlines()[-1])
+    assert (sent["width"], sent["height"]) == (1920, 1072) and sent["ref_images"] == 1
+    wf = api.get(f"/api/v2/workflows/{wf['id']}").json()
+    assert wf["rotate_job"] == rot["job_id"] and wf["view"] == "34_right"
+    assert api.patch(f"/api/v2/workflows/{wf['id']}", json={"pick": "nope-1/0"}).status_code == 404
+
+
+def test_workflow_czech_object_is_translated(api, fake_claude):
+    import base64
+    ref = api.post("/api/v2/refs", json={"b64": base64.b64encode(_png_bytes(size=(80, 40))).decode()}).json()
+    wf = api.post("/api/v2/workflows/historical", json={"object": "římská kvinquerema",
+                                                        "refs": [{"ref_id": ref["id"]}]}).json()
+    r = api.post(f"/api/v2/workflows/{wf['id']}/side", json={})
+    assert r.status_code == 402 and r.json()["items"][0]["kind"] == "translation"
+
+
+def test_flux_refs_share_one_megapixel_budget(settings):
+    import base64
+    from io import BytesIO
+
+    from PIL import Image
+    fl = FluxLocal(settings, None)
+    big, small = _png_bytes(size=(2048, 1028)), _png_bytes(size=(736, 387))
+    p = fl.payload(ImageRequest(prompt="x", size="1920x640"), "x", [small, big], 1)
+    sizes = [Image.open(BytesIO(base64.b64decode(b))).size for b in p["ref_images"]]
+    assert sum(w * h for w, h in sizes) <= FluxLocal.REF_MAX_PIXELS
+    assert abs(sizes[1][0] / sizes[1][1] - 2048 / 1028) < 0.01
+    parent = _png_bytes(size=(1344, 768))
+    p = fl.payload(ImageRequest(prompt="x", size="1344x768"), "x", [parent], 1)
+    assert Image.open(BytesIO(base64.b64decode(p["ref_images"][0]))).size == (1344, 768)
+
+
+def test_out_of_vram_restarts_own_server_and_retries(sd, tmp_path, monkeypatch):
+    monkeypatch.setenv("FAKE_SD_OOM_ONCE", str(tmp_path / "oom.marker"))
+    sd.ensure_running()
+    first_pid = json.loads(sd.state_path.read_text())["pid"]
+    out = sd.generate({"prompt": "x", "width": 256, "height": 256, "seed": 1})
+    assert out[0][1:4] == b"PNG"
+    assert json.loads(sd.state_path.read_text())["pid"] != first_pid
+    assert "restart" in (sd.s.log_dir / "engine-events.log").read_text(encoding="utf-8")
+
+
+def test_settings_status_never_exposes_key_values(api, monkeypatch):
+    monkeypatch.setenv("FAL_KEY", "secret-fal-value")
+    st = api.get("/api/v2/settings").json()
+    assert "secret-fal-value" not in json.dumps(st)
+    fal = next(x for x in st["services"] if x["id"] == "fal")
+    assert fal["connected"] is True
+    assert next(x for x in st["services"] if x["id"] == "pinterest")["note"].startswith("bez účtu")
+    assert st["flux_local"]["min_free_vram_mib"] == 4600 and "today_usd" in st["costs"]

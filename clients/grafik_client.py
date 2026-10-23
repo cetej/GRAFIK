@@ -12,6 +12,7 @@ with the estimate and nothing runs. The client never switches backends on its
 own: when the local generator is unavailable you get EngineUnavailable.
 
 CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:role]] [--out DIR]
+     python grafik_client.py ref-add <image or pin URL> [--page URL] [--title T]
      python grafik_client.py health
 """
 from __future__ import annotations
@@ -63,6 +64,17 @@ def _request(method: str, path: str, body: dict | None = None, timeout: float = 
 
 def health() -> dict:
     return _request("GET", "/api/v2/health")[1]
+
+
+def add_ref(url: str, page_url: str | None = None, title: str | None = None, author: str | None = None,
+            license: str | None = None) -> dict:
+    """Put an image into GRAFIK's reference library ("Schránka předloh"). `url` may be the image
+    itself or a Pinterest pin page; use the returned `id` as refs=[{"ref_id": id, "role": ...}]."""
+    status, data = _request("POST", "/api/v2/refs", {"url": url, "page_url": page_url, "title": title,
+                                                     "author": author, "license": license}, timeout=90)
+    if status != 201:
+        raise GrafikError(f"předlohu se nepodařilo přidat ({status}): {data.get('detail')}")
+    return data
 
 
 def _ref_payload(ref) -> dict:
@@ -132,6 +144,10 @@ def _cli(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="grafik_client")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("health")
+    ra = sub.add_parser("ref-add", help="uložit obrázek (nebo pin z Pinterestu) do schránky předloh")
+    ra.add_argument("url")
+    ra.add_argument("--page", help="adresa stránky, odkud obrázek je (pin)")
+    ra.add_argument("--title")
     g = sub.add_parser("generate")
     g.add_argument("prompt")
     g.add_argument("--size", default="1024x1024")
@@ -147,6 +163,14 @@ def _cli(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "health":
         print(json.dumps(health(), ensure_ascii=False, indent=2))
+        return 0
+    if a.cmd == "ref-add":
+        try:
+            meta = add_ref(a.url, page_url=a.page, title=a.title)
+        except GrafikError as e:
+            print(f"CHYBA: {e}", file=sys.stderr)
+            return 1
+        print(f"předloha {meta['id']} ({meta['origin']}, {meta['width']}x{meta['height']}) je ve schránce")
         return 0
     refs = []
     for r in a.ref:
@@ -175,6 +199,7 @@ def _cli(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(_cli(sys.argv[1:]))

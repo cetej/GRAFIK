@@ -71,10 +71,29 @@ class FluxLocal:
             "sample_params": {"sample_steps": req.steps or self.s.steps},
         }
         if ref_pngs:
-            p["ref_images"] = [base64.b64encode(b).decode() for b in ref_pngs]
+            p["ref_images"] = [base64.b64encode(b).decode() for b in self.fit_refs(ref_pngs)]
         if w * h > self.s.vae_tiling_above_pixels:
             p["vae_tiling_params"] = {"enabled": True}
         return p
+
+    # sd-server feeds refs at their own resolution; a 2048x1028 Commons photo plus a 1920x640 render
+    # ran out of VRAM on 8 GB (2026-10-23). All refs together get ~1.1 MP, which keeps a single
+    # 1344x768 edit parent untouched.
+    REF_MAX_PIXELS = 1_100_000
+
+    @classmethod
+    def fit_refs(cls, pngs: list[bytes]) -> list[bytes]:
+        imgs = [Image.open(BytesIO(b)) for b in pngs]
+        total = sum(i.width * i.height for i in imgs)
+        if total <= cls.REF_MAX_PIXELS:
+            return pngs
+        k = math.sqrt(cls.REF_MAX_PIXELS / total)
+        out = []
+        for img in imgs:
+            buf = BytesIO()
+            img.resize((max(16, int(img.width * k)), max(16, int(img.height * k))), Image.LANCZOS).save(buf, format="PNG")
+            out.append(buf.getvalue())
+        return out
 
     @staticmethod
     def downscale(png: bytes, width: int, height: int) -> bytes:

@@ -14,17 +14,20 @@ class Ref(BaseModel):
     b64: str | None = None
     path: str | None = None
     url: str | None = None
+    ref_id: str | None = None       # an entry of the reference library (engine/reflib.py)
     # Style refs: the words that describe the style. FLUX cannot transfer style
     # from an image (verified 2026-10-22), so a style ref is never sent as pixels.
     text: str | None = None
     license: str | None = None
+    author: str | None = None
     source: str | None = None
 
     @model_validator(mode="after")
     def _one_source(self):
-        given = [x for x in (self.b64, self.path, self.url) if x]
+        # the API resolves ref_id to the library file's path and keeps both (provenance)
+        given = [x for x in (self.b64, self.path or self.ref_id, self.url) if x]
         if self.role != "style" and len(given) != 1:
-            raise ValueError("obrazová předloha potřebuje právě jedno z b64 / path / url")
+            raise ValueError("obrazová předloha potřebuje právě jedno z b64 / path / url / ref_id")
         if self.role == "style" and not (self.text or given):
             raise ValueError("stylová předloha potřebuje text (popis stylu) nebo obrázek")
         return self

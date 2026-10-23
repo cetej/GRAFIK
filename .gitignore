@@ -34,3 +34,5 @@ projects/.trash/
 # GRAFIK v2 Engine
 library/
 run/
+refs/
+workflows/

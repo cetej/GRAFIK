@@ -3,6 +3,7 @@ real server (docs/capabilities/sd-server-master-987.md), returns a solid PNG.
 
 Usage: python fake_sd_server.py --listen-port N [ignored sd-server args...]
 Env FAKE_SD_DELAY_S: seconds a job stays running. FAKE_SD_LOG: append payloads (JSON lines).
+FAKE_SD_OOM_ONCE=<path>: the first job ever (marker file absent) fails like an out-of-VRAM run.
 """
 import base64
 import io
@@ -50,6 +51,12 @@ class H(BaseHTTPRequestHandler):
                 return self._json(404, {"error": "not found"})
             if time.time() - job["t"] < DELAY:
                 return self._json(200, {"id": job["id"], "status": "running"})
+            marker = os.environ.get("FAKE_SD_OOM_ONCE")
+            if marker and not os.path.exists(marker):
+                open(marker, "w").close()
+                print("[W] model manager cannot make enough memory available on CUDA0", flush=True)
+                return self._json(200, {"id": job["id"], "status": "failed",
+                                        "error": {"code": "generation_failed", "message": "no results"}})
             p = job["p"]
             return self._json(200, {"id": job["id"], "status": "completed", "error": None, "result": {
                 "images": [{"b64_json": png(p["width"], p["height"], p["seed"]), "index": 0}],

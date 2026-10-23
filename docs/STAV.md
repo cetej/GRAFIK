@@ -4,22 +4,21 @@ Aktualizováno 2026-10-23.
 
 ## Teď
 
-**GRAFIK v2: G0 spec, G1 Engine, supersample, fal backend a G2 studio jsou hotové a ověřené na RTX 4060.**
-Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-greenfield.md) · rozhodnutí: [`DECISIONS.md`](DECISIONS.md) · důkazy: [`spikes/2026-10-22-g1-engine.md`](spikes/2026-10-22-g1-engine.md), [`spikes/2026-10-23-supersample.md`](spikes/2026-10-23-supersample.md), [`spikes/2026-10-23-g2-studio.md`](spikes/2026-10-23-g2-studio.md).
+**GRAFIK v2: G0–G3 hotové a ověřené na RTX 4060** (spec, Engine, supersample, fal, studio, překlad češtiny, předlohy a průvodce historickým objektem, karta Nastavení).
+Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-greenfield.md) · rozhodnutí: [`DECISIONS.md`](DECISIONS.md) · důkazy: [G1](spikes/2026-10-22-g1-engine.md), [supersample](spikes/2026-10-23-supersample.md), [G2](spikes/2026-10-23-g2-studio.md), [G3](spikes/2026-10-23-g3-predlohy.md).
 
-- **Engine** `engine/` na :8300 (`/api/v2`): fronta SQLite + jeden worker, sd-server jen podle vlastního PID, zámek GPU, provenience a náklady; výchozí lokální FLUX zdarma; placené `nb-pro` a `fal:<endpoint>` jen s `confirm_cost`; supersample; úprava v rámečku s paste-back; strom verzí; **překlad českých zadání přes Claude** (cena v odhadu, mezipaměť).
-- **Studio** `studio/` na :5174: zadání, předlohy s rolí, formát, varianty, drobné detaily, výběr generátoru s cenou; náhled se zvětšením, porovnání před/po, úprava v rámečku, další varianta, použít jako předlohu; fronta a galerie; historie verzí, údaje o obrázku, kontrola člověkem; knihovna.
-- **Klient** `clients/grafik_client.py` pro ostatní projekty (jen stdlib).
-- `start-grafik.bat`: Engine :8300, studio :5174 (otevře se), starý editor API :8301 + UI :5173.
-- Testy: `tests/test_engine_v2.py` (offline, falešný sd-server), celá sada 255.
+- **Engine** `engine/` :8300 `/api/v2`: fronta + jeden worker, sd-server jen podle vlastního PID (při nedostatku VRAM restart a nový pokus), zámek GPU, provenience a náklady; lokální FLUX zdarma, placené `nb-pro` a `fal:` jen s `confirm_cost`; supersample; úprava v rámečku; strom verzí; překlad češtiny; **knihovna předloh** (`refs/library/`, `ref_id`), **Wikimedia Commons** (hledání, import s autorem a licencí), **příjem z Pinterestu** (URL obrázku i pinu), **průvodce historickým objektem** (`/api/v2/workflows`), `/api/v2/settings`.
+- **Studio** `studio/` :5174: Studio, Průvodce, Knihovna, Nastavení; okno Přidat předlohu (Commons, Schránka, soubor), záložka „→ GRAFIK“ pro Chrome.
+- **Klient** `clients/grafik_client.py`: `generate`, `add_ref`, CLI `ref-add` (pro Claude in Chrome).
+- Pinterest: návod [`pinterest.md`](pinterest.md).
+- Testy: celá sada 264.
 
 ## Další krok
 
-- **G3 předlohy:** hledání ve Wikimedia Commons, Pinterest (Claude in Chrome do `refs/inbox/`, přetažení, bookmarklet), průvodce „historický objekt“ (bokorys → oprava → natočený pohled).
 - **G4 styly:** karty stylu ve formátu POHYB, detekce z obrázku, knihovna přes API.
-- **G5 infografiky:** vrstva českých popisků HTML/SVG, export PNG/SVG/PDF.
+- **G5 infografiky:** vrstva českých popisků HTML/SVG nad výsledkem průvodce, export PNG/SVG/PDF.
 - Napojení projektů (KLAPKA, NG-ROBOT…) až na pokyn operátora.
-- Drobnosti: „Rozepsat zadání“ naostro neklikáno (ověřeno offline); čas v provenienci u více variant je za celou úlohu.
+- Drobnosti: „Rozepsat zadání“ naostro neklikáno; pin přes `og:image` ověřen jen offline (Pinterest robotům ukazuje přihlášení).
 
 ## Starý GRAFIK (v1)
 
