@@ -81,3 +81,17 @@ Srovnání na stejném hliněném renderu (`8-model-z-rozmeru.jpg`):
 Řez (`scripts/3d/rez_kvinquerema.py`): hliněný model hotový (trup s žebry a kýlem, 3 patra veslařů 2–2–1, podpalubí, paluba, věž), světlo ještě doladit, pak stejnou cestou přes Nano Banana Pro.
 
 ![řez v hlíně](img/2026-10-23-3d/13-rez-hlina.jpg)
+
+## Iterace 4: realističtější poměry (0,30 USD)
+
+Operátor: loď moc úzká, postavy moc velké. Postavy v modelu měly 1,7 m, ale Nano Banana Pro si je zvětšil asi o polovinu (poměr k lodi odpovídal 31 m místo 45 m); loď byla úzká, protože 5 m (Coates, šířka u hladiny) jsem vzal skoro jako největší šířku a trup se zužoval už od poloviny.
+
+- Model: paluba 5,8 m, 7 m přes nástavce (délka : šířka 6,4, Olympias 6,7), rovné boky v pásmu veslařů (|x| < 14 m), postavy 1,72 m, slunce bez vržených stínů.
+- Kontrola před placenou kresbou: ortogonální půdorys a bokorys s kótami a kontrolní postavou vedle přídě (`scripts/3d/dims_overlay.py`).
+- Prompt: výslovně „a man is 1.7 metres tall, about one twenty-sixth of the ship's length … do not enlarge them“.
+- Nano Banana Pro přes fal, 2 obrázky (job `20261023-124017-ae4f4c`): postavy v měřítku (~1/27 délky lodi), širší loď, tři řady vesel, korvus, věž; druhý obrázek fotorealistický.
+
+![kontrola rozměrů](img/2026-10-23-3d/14-kontrola-rozmeru.jpg)
+![Nano Banana Pro, poměry](img/2026-10-23-3d/15-nbpro-pomery-1.jpg)
+
+Útrata spike celkem: 0,30 (TRELLIS) + 0,36 (FLUX.2 pro) + 0,15 + 0,30 (Nano Banana Pro) = 1,11 USD.
