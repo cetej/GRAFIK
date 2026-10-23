@@ -34,7 +34,8 @@ if errorlevel 1 (
 netstat -ano | findstr ":5174 " | findstr "LISTENING" >nul
 if errorlevel 1 (
   echo Spoustim GRAFIK Studio na portu 5174...
-  if not exist studio\node_modules call npm --prefix studio install --no-audit --no-fund
+  rem npm --prefix install reads the repo root package.json, so install from inside studio\
+  if not exist studio\node_modules (pushd studio & call npm install --no-audit --no-fund & popd)
   start "GRAFIK Studio" /min cmd /c "npm --prefix studio run dev"
 ) else (
   echo GRAFIK Studio uz bezi.
