@@ -128,8 +128,8 @@ interface EditorHooks {
 function factBar(doc: Infographic, W: number, H: number, k: number, pad: number) {
   const items = doc.facts.filter((f) => f.value || f.text)
   // readable measure (~100 characters) that also leaves the bar's right end to the picture
-  const maxW = Math.min(W - 2 * pad, 0.66 * W)
-  const width = (f: { value: string; text: string }) => (f.value.length * 9.2 + (f.text ? f.text.length * 8.2 + 5 : 0)) * k
+  const maxW = Math.min(W - 2 * pad, 0.7 * W)
+  const width = (f: { value: string; text: string }) => (f.value.length * 8 + (f.text ? f.text.length * 7.3 + 5 : 0)) * k   // Bahnschrift semi-condensed at 18 px, measured
   const lines: { value: string; text: string }[][] = []
   let cur: { value: string; text: string }[] = []
   let w = 0
@@ -141,7 +141,7 @@ function factBar(doc: Infographic, W: number, H: number, k: number, pad: number)
   }
   if (cur.length) lines.push(cur)
   const footerH = 30 * k
-  const top = H - (58 * k + lines.length * 25 * k + footerH)
+  const top = H - (16 * k + lines.length * 26 * k + footerH)
   return { top, lines }
 }
 
@@ -183,26 +183,23 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
       <rect width={W} height={H} fill={t.bg} />
       <image href={href} x="0" y="0" width={W} height={imgH} preserveAspectRatio="xMidYMid slice" mask={pruh ? undefined : 'url(#fade-mask)'}
         onClick={ed ? (e) => { const [x, y] = svgPoint(e); ed.onImageClick(x, y) } : undefined} style={ed ? { cursor: 'crosshair' } : undefined} />
-      {!pruh && <>
-        <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />
+      {/* title top left in both layouts: the picture usually has room there, the bottom stays light */}
+      {!pruh && <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />}
+      <>
         <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontWeight="700" fontSize={34 * k} letterSpacing={0.6 * k}>{doc.title.toUpperCase()}</text>
         {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily={FONT} fontStretch="semi-condensed" fontSize={17 * k}>{doc.subtitle}</text>}
-      </>}
+      </>
 
       {bar && (
         <g fontFamily={FONT} fontStretch="semi-condensed">
-          <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".35" stopColor={t.bg} stopOpacity=".86" /><stop offset="1" stopColor={t.bg} stopOpacity=".94" /></linearGradient>
+          <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".45" stopColor={t.bg} stopOpacity=".72" /><stop offset="1" stopColor={t.bg} stopOpacity=".88" /></linearGradient>
             {/* the bar backs only the text: past its measure the picture shows through (bow, ram) */}
             <linearGradient id="bar-h"><stop offset=".68" stopColor="#fff" /><stop offset=".86" stopColor="#fff" stopOpacity="0" /></linearGradient>
             <mask id="bar-mask"><rect x="0" y="0" width={W} height={H} fill="url(#bar-h)" /></mask></defs>
-          <rect x="0" y={bar.top - 70 * k} width={W} height={H - bar.top + 70 * k} fill="url(#bar)" mask="url(#bar-mask)" />
+          <rect x="0" y={bar.top - 40 * k} width={W} height={H - bar.top + 40 * k} fill="url(#bar)" mask="url(#bar-mask)" />
           <line x1={pad} y1={bar.top} x2={0.7 * W} y2={bar.top} stroke={t.rule} strokeWidth="1" />
-          <text x={pad} y={bar.top + 36 * k}>
-            <tspan fill={doc.accent} fontWeight="700" fontSize={30 * k} letterSpacing={0.5 * k}>{doc.title.toUpperCase()}</tspan>
-            {doc.subtitle && <tspan fill={t.ink} fontSize={22 * k}>{'  —  '}{doc.subtitle}</tspan>}
-          </text>
           {bar.lines.map((line, j) => (
-            <text key={j} x={pad} y={bar.top + 70 * k + j * 25 * k} fontSize={17 * k}>
+            <text key={j} x={pad} y={bar.top + 30 * k + j * 26 * k} fontSize={18 * k}>
               {line.map((f, n) => (
                 <tspan key={n}>
                   {n > 0 && <tspan fill={t.rule}>{'   |   '}</tspan>}
@@ -242,15 +239,20 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
       ))}
       {schema && doc.schema && pruh && (() => {
         const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number)
-        const iw2 = 0.3 * W
+        const iw2 = 0.32 * W
         const ih2 = (iw2 * vh) / vw
         const x = W - pad - iw2
         const y = pad
         return (
+          // no frame or panel: the inset sits on the picture and its edges fade into it (docs/infografiky-zasady.md)
           <g fontFamily={FONT} fontStretch="semi-condensed">
-            <rect x={x - 12 * k} y={y - 10 * k} width={iw2 + 24 * k} height={ih2 + 48 * k} rx={4 * k} fill={t.bg} fillOpacity=".82" stroke={t.rule} />
+            <defs>
+              {/* vignette in each picture's own box: only the raster fades, the labels drawn in the schema stay sharp */}
+              <radialGradient id="inset-vig" cx=".5" cy=".5" r=".5"><stop offset=".78" stopColor="#fff" /><stop offset="1" stopColor="#000" /></radialGradient>
+              <mask id="inset-fade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#inset-vig)" /></mask>
+            </defs>
             <text x={x} y={y + 14 * k} fill={doc.accent} fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema!.title.toUpperCase()}</text>
-            <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
+            <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner.replace(/<image /g, '<image mask="url(#inset-fade)" ') }} />
           </g>
         )
       })()}
