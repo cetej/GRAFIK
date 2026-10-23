@@ -156,17 +156,13 @@ for name, (ty, tz, slope, men, seat_dz, stagger) in LEVELS.items():
                 rower((ox + 0.55, s * (yy - 0.05), tz + seat_dz - (0.25 if name != "thranite" else 0.0)),
                       (ox, s * yy, tz + slope * (ty - yy)))
 
-# --- marines on deck, tower behind -------------------------------------------------------------
+# --- marines on deck (no tower: not attested for the First Punic War, see lod_kvinquerema.py) ------
 for i, (x, y) in enumerate([(0.6, -1.6), (0.9, -0.6), (1.4, 0.7), (0.7, 1.6), (1.9, -1.2), (2.2, 1.1)]):
     z = DECK_Z + 0.05
     rod((x, y, z), (x, y, z + 1.25), 0.17, 12)
     ball((x, y, z + 1.42), 0.13)
     rod((x - 0.25, y, z + 0.75), (x - 0.3, y, z + 0.75), 0.33, 20)    # shield facing the bow end
     rod((x - 0.1, y + 0.25, z), (x - 0.1, y + 0.25, z + 2.2), 0.025, 6)  # spear
-box((LEN - 0.6, 0, DECK_Z + 1.2), (1.4, 1.8, 2.4))
-for k in range(4):
-    for x, y in ((LEN - 1.3 + 0.17 + k * 0.4, 0.85), (LEN - 1.3 + 0.17 + k * 0.4, -0.85)):
-        box((x, y, DECK_Z + 2.55), (0.2, 0.15, 0.3))
 
 # --- sea, cut open on the same plane as the hull ---------------------------------------------
 water = box((LEN / 2, 0, -0.9), (LEN, 22, 1.8))
