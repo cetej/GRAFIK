@@ -41,7 +41,8 @@ def test_infographic_document_lifecycle(api, settings):
     ref = f"{base['job_id']}/0"
     assert api.post("/api/v2/infographics", json={"base": "nope-1/0"}).status_code == 404
     doc = api.post("/api/v2/infographics", json={"base": ref, "title": "Římská kvinquerema"}).json()
-    assert doc["ai_note"].startswith("Ilustrace: FLUX 3 Klein (AI)") and doc["size"] == "1280x990"
+    assert doc["ai_note"].startswith("Ilustrace: FLUX 3 Klein (AI)") and doc["size"] == "1920x1080"
+    assert doc["layout"] == "pruh"   # new documents: image over the whole canvas, facts in a bar
     labels = [{"text": "Corvus", "small": "sklopný most", "anchor": [210, 540], "pos": [120, 296]}]
     doc = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "labels": labels, "ai_note": "smazáno",
                                                               "schema": {"title": "Řez", "svg": '<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>'}}).json()
@@ -51,6 +52,7 @@ def test_infographic_document_lifecycle(api, settings):
     doc = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "schema": {"title": "Řez", "svg": raster}}).json()
     assert "data:image/jpeg" in doc["schema"]["svg"]   # a raster cross-section may sit in the schema box
     assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "size": "5x5"}).status_code == 400
+    assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "layout": "mozaika"}).status_code == 400
     assert [d["id"] for d in api.get("/api/v2/infographics").json()] == [doc["id"]]
     moved = api.delete(f"/api/v2/infographics/{doc['id']}").json()["moved_to"]
     assert ".trash" in moved and api.get(f"/api/v2/infographics/{doc['id']}").status_code == 404
@@ -66,7 +68,7 @@ def test_export_svg_png_pdf_with_provenance(api, settings):
         r = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": svg, "format": fmt})
         assert r.status_code == 201, r.text
         out[fmt] = api.get(r.json()["url"])
-    assert Image.open(BytesIO(out["png"].content)).size == (1280, 990)
+    assert Image.open(BytesIO(out["png"].content)).size == (1920, 1080)   # new documents default to the wide format
     assert out["pdf"].content.startswith(b"%PDF") and "Římská" in out["svg"].text
     ex = settings.library_dir / "infographics" / doc["id"] / "exports"
     prov = json.loads(next(ex.glob("*.png.json")).read_text(encoding="utf-8"))

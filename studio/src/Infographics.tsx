@@ -5,6 +5,8 @@ import { imageUrl, infoApi, PaymentRequired, termsApi, type Infographic, type In
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
 // jedno tmavé pozadí, patička se zdroji a označením AI. Text v obrázku nikdy z modelu.
 // Jeden renderer: náhled je přesně to, co jde do exportu (Engine z něj dělá PNG a PDF).
+// Zásady vzhledu: docs/infografiky-zasady.md (jedna písmová rodina ve dvou řezech, popisky u věci s krátkými
+// lomenými vodítky, rozvržení „pruh“: obraz přes celé plátno, nadpis a fakta v liště přes jeho spodek).
 
 const SIZES: Record<Infographic['size'], [number, number]> = { '1280x990': [1280, 990], '1920x1080': [1920, 1080], '1080x1350': [1080, 1350] }
 const SIZE_LABEL: Record<Infographic['size'], string> = { '1280x990': '1280×990', '1920x1080': '16:9', '1080x1350': '4:5' }
@@ -12,8 +14,13 @@ const THEMES = {
   dark: { bg: '#1d2532', ink: '#f1ede4', muted: '#a7b1bf', rule: 'rgba(255,255,255,.14)', foot: '#7b8594', shadow: '#000', lead: 'rgba(255,255,255,.75)', dot: '#fff' },
   light: { bg: '#f2f3f5', ink: '#1d1f23', muted: '#5d636b', rule: 'rgba(0,0,0,.14)', foot: '#6b7079', shadow: '#fff', lead: 'rgba(0,0,0,.6)', dot: '#1d1f23' },
 }
-const MAX_LABELS = 5
-const MAX_LABEL_CHARS = 30
+// one family, two weights: bold accent for names and keys, regular light for explanations (Windows font,
+// so the studio preview and the Playwright export render the same glyphs)
+const FONT = 'Bahnschrift, "Roboto Condensed", "Arial Narrow", sans-serif'
+const MAX_LABELS = 10
+const MAX_LABEL_CHARS = 40
+const LEADER_MEDIAN_MAX = 0.06   // of the canvas width (reference infographic 0.035)
+const LEADER_MAX = 0.12
 type Suggestion = { text: string; small: string; anchor: [number, number] }
 
 const clamp = (v: number, lo = 0, hi = 1000) => Math.max(lo, Math.min(hi, v))
@@ -28,18 +35,20 @@ function wrap(text: string, maxChars: number): string[] {
   return out
 }
 
-/** Geometry shared by the renderer and the editor: image fills the top, facts and schema the bottom. */
+/** Geometry shared by the renderer and the editor. "klasika": image on top, facts and schema below it;
+ *  "pruh": image over the whole canvas, title and facts in a bar across its bottom, schema inset top right. */
 export function layout(doc: Infographic, iw: number, ih: number) {
   const [W, H] = SIZES[doc.size]
   const k = W / 1280
   const pad = 40 * k
+  const pruh = doc.layout === 'pruh'
   const bottomH = doc.facts.length || doc.schema ? 265 * k : 60 * k
-  const imgH = Math.min((W * ih) / iw, H - bottomH)
+  const imgH = pruh ? H : Math.min((W * ih) / iw, H - bottomH)
   const s = Math.max(W / iw, imgH / ih)
   const ox = (W - iw * s) / 2
   const oy = (imgH - ih * s) / 2
   return {
-    W, H, k, pad, imgH,
+    W, H, k, pad, imgH, pruh,
     toCanvas: (a: [number, number]): [number, number] => [ox + (a[0] / 1000) * iw * s, oy + (a[1] / 1000) * ih * s],
     toImage: (x: number, y: number): [number, number] => [Math.round(clamp(((x - ox) / (iw * s)) * 1000)), Math.round(clamp(((y - oy) / (ih * s)) * 1000))],
     pos: (p: [number, number]): [number, number] => [(p[0] / 1000) * W, (p[1] / 1000) * H],
@@ -58,9 +67,45 @@ function placeLabel(L: ReturnType<typeof layout>, anchor: [number, number], text
 
 function labelBox(l: InfoLabel, L: ReturnType<typeof layout>) {
   const [x, y] = L.pos(l.pos)
-  const w = Math.max(l.text.length * 7.6, l.small.length * 6.4, 30) * L.k
-  const h = (l.small ? 32 : 18) * L.k
+  const w = Math.max(l.text.length * 8.4, l.small.length * 6.9, 30) * L.k
+  const h = (l.small ? 38 : 21) * L.k
   return { x: l.align === 'right' ? x - w : x, y, w, h }
+}
+
+/** Leader from the anchor to the label: straight when nearly vertical or horizontal, else one elbow
+ *  (vertical from the object, then horizontal into the label). */
+export function leader(l: InfoLabel, L: ReturnType<typeof layout>): [number, number][] {
+  const [ax, ay] = L.toCanvas(l.anchor)
+  const [px, py] = L.pos(l.pos)
+  const ex = px + (l.align === 'right' ? 6 : -6) * L.k
+  const ey = py + 11 * L.k
+  if (Math.abs(ax - ex) < 8 * L.k || Math.abs(ay - ey) < 8 * L.k) return [[ax, ay], [ex, ey]]
+  return [[ax, ay], [ax, ey], [ex, ey]]
+}
+
+const polyLen = (p: [number, number][]) => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0)
+
+function segCross(a: [number, number], b: [number, number], c: [number, number], d: [number, number]) {
+  const o = (p: [number, number], q: [number, number], r: [number, number]) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+  return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0
+}
+
+/** Layout checks from docs/infografiky-zasady.md: leader length and crossings. */
+export function leaderChecks(doc: Infographic, L: ReturnType<typeof layout>): { ok: boolean; text: string }[] {
+  if (!doc.labels.length) return []
+  const polys = doc.labels.map((l) => leader(l, L))
+  const lens = polys.map(polyLen).map((x) => x / L.W)
+  const median = [...lens].sort((a, b) => a - b)[Math.floor(lens.length / 2)]
+  const out = [{ ok: median <= LEADER_MEDIAN_MAX, text: `vodítka: medián ${Math.round(median * 1000) / 10} % šířky${median > LEADER_MEDIAN_MAX ? ' – dej popisky blíž k věci' : ''}` }]
+  lens.forEach((x, i) => { if (x > LEADER_MAX) out.push({ ok: false, text: `vodítko „${doc.labels[i].text}“ je dlouhé (${Math.round(x * 100)} % šířky)` }) })
+  let crossings = 0
+  for (let i = 0; i < polys.length; i++) for (let j = i + 1; j < polys.length; j++) {
+    const si = polys[i].slice(1).map((q, n) => [polys[i][n], q] as const)
+    const sj = polys[j].slice(1).map((q, n) => [polys[j][n], q] as const)
+    if (si.some(([a, b]) => sj.some(([c, d]) => segCross(a, b, c, d)))) crossings++
+  }
+  out.push({ ok: crossings === 0, text: crossings ? `${crossings}× se vodítka kříží` : 'vodítka se nekříží' })
+  return out
 }
 
 function schemaParts(svg: string): { viewBox: string; inner: string } | null {
@@ -79,13 +124,35 @@ interface EditorHooks {
   onImageClick: (x: number, y: number) => void
 }
 
+/** Facts flowed into lines across the bar ("value text | value text"), then the bar's top edge. */
+function factBar(doc: Infographic, W: number, H: number, k: number, pad: number) {
+  const items = doc.facts.filter((f) => f.value || f.text)
+  // readable measure (~100 characters) that also leaves the bar's right end to the picture
+  const maxW = Math.min(W - 2 * pad, 0.66 * W)
+  const width = (f: { value: string; text: string }) => (f.value.length * 9.2 + (f.text ? f.text.length * 8.2 + 5 : 0)) * k
+  const lines: { value: string; text: string }[][] = []
+  let cur: { value: string; text: string }[] = []
+  let w = 0
+  for (const f of items) {
+    const fw = width(f) + (cur.length ? 30 * k : 0)
+    if (cur.length && w + fw > maxW) { lines.push(cur); cur = []; w = 0 }
+    cur.push(f)
+    w += width(f) + (cur.length > 1 ? 30 * k : 0)
+  }
+  if (cur.length) lines.push(cur)
+  const footerH = 30 * k
+  const top = H - (58 * k + lines.length * 25 * k + footerH)
+  return { top, lines }
+}
+
 export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
   doc: Infographic; href: string; iw: number; ih: number; svgRef?: RefObject<SVGSVGElement | null>; ed?: EditorHooks
 }) {
   const L = layout(doc, iw, ih)
-  const { W, H, k, pad, imgH } = L
+  const { W, H, k, pad, imgH, pruh } = L
   const t = THEMES[doc.template]
   const schema = doc.schema ? schemaParts(doc.schema.svg) : null
+  const bar = pruh ? factBar(doc, W, H, k, pad) : null
   const bottomTop = imgH + 10 * k
   const schemaW = 500 * k
   const factsW = (schema ? W - 2 * pad - schemaW - 40 * k : W - 2 * pad) - 134 * k
@@ -114,43 +181,87 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
         <filter id="halo"><feDropShadow dx="0" dy={1 * k} stdDeviation={2 * k} floodColor={t.shadow} floodOpacity=".95" /></filter>
       </defs>
       <rect width={W} height={H} fill={t.bg} />
-      <image href={href} x="0" y="0" width={W} height={imgH} preserveAspectRatio="xMidYMid slice" mask="url(#fade-mask)"
+      <image href={href} x="0" y="0" width={W} height={imgH} preserveAspectRatio="xMidYMid slice" mask={pruh ? undefined : 'url(#fade-mask)'}
         onClick={ed ? (e) => { const [x, y] = svgPoint(e); ed.onImageClick(x, y) } : undefined} style={ed ? { cursor: 'crosshair' } : undefined} />
-      <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />
-      <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily="Palatino Linotype, Book Antiqua, serif" fontWeight="700" fontSize={34 * k} letterSpacing={1.4 * k}>{doc.title.toUpperCase()}</text>
-      {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily="Segoe UI, sans-serif" fontSize={15 * k}>{doc.subtitle}</text>}
+      {!pruh && <>
+        <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />
+        <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontWeight="700" fontSize={34 * k} letterSpacing={0.6 * k}>{doc.title.toUpperCase()}</text>
+        {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily={FONT} fontStretch="semi-condensed" fontSize={17 * k}>{doc.subtitle}</text>}
+      </>}
+
+      {bar && (
+        <g fontFamily={FONT} fontStretch="semi-condensed">
+          <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".35" stopColor={t.bg} stopOpacity=".86" /><stop offset="1" stopColor={t.bg} stopOpacity=".94" /></linearGradient>
+            {/* the bar backs only the text: past its measure the picture shows through (bow, ram) */}
+            <linearGradient id="bar-h"><stop offset=".68" stopColor="#fff" /><stop offset=".86" stopColor="#fff" stopOpacity="0" /></linearGradient>
+            <mask id="bar-mask"><rect x="0" y="0" width={W} height={H} fill="url(#bar-h)" /></mask></defs>
+          <rect x="0" y={bar.top - 70 * k} width={W} height={H - bar.top + 70 * k} fill="url(#bar)" mask="url(#bar-mask)" />
+          <line x1={pad} y1={bar.top} x2={0.7 * W} y2={bar.top} stroke={t.rule} strokeWidth="1" />
+          <text x={pad} y={bar.top + 36 * k}>
+            <tspan fill={doc.accent} fontWeight="700" fontSize={30 * k} letterSpacing={0.5 * k}>{doc.title.toUpperCase()}</tspan>
+            {doc.subtitle && <tspan fill={t.ink} fontSize={22 * k}>{'  —  '}{doc.subtitle}</tspan>}
+          </text>
+          {bar.lines.map((line, j) => (
+            <text key={j} x={pad} y={bar.top + 70 * k + j * 25 * k} fontSize={17 * k}>
+              {line.map((f, n) => (
+                <tspan key={n}>
+                  {n > 0 && <tspan fill={t.rule}>{'   |   '}</tspan>}
+                  <tspan fill={doc.accent} fontWeight="700">{f.value}</tspan>
+                  {f.text && <tspan fill={t.ink}>{' '}{f.text}</tspan>}
+                </tspan>
+              ))}
+            </text>
+          ))}
+        </g>
+      )}
 
       {doc.labels.map((l, i) => {
-        const [ax, ay] = L.toCanvas(l.anchor)
+        const pts = leader(l, L)
+        const [ax, ay] = pts[0]
         const [px, py] = L.pos(l.pos)
         const anchorEnd = l.align === 'right' ? 'end' : 'start'
         return (
-          <g key={i} fontFamily="Segoe UI, sans-serif">
-            <polyline points={`${ax},${ay} ${px},${py}`} stroke={t.lead} strokeWidth={k} fill="none" />
-            <circle cx={ax} cy={ay} r={2.5 * k} fill={t.dot} />
+          <g key={i} fontFamily={FONT} fontStretch="semi-condensed">
+            <polyline points={pts.map((q) => q.join(',')).join(' ')} stroke={t.lead} strokeWidth={1.1 * k} fill="none" />
+            <circle cx={ax} cy={ay} r={2.8 * k} fill={t.dot} />
             <g filter="url(#halo)" stroke={t.shadow} strokeWidth={3 * k} strokeLinejoin="round" paintOrder="stroke">
-              <text x={px} y={py + 13 * k} textAnchor={anchorEnd} fill={t.ink} fontSize={13 * k} fontWeight="600">{l.text}</text>
-              {l.small && <text x={px} y={py + 28 * k} textAnchor={anchorEnd} fill={t.muted} fontSize={11.5 * k}>{l.small}</text>}
+              <text x={px} y={py + 16 * k} textAnchor={anchorEnd} fill={doc.accent} fontSize={16 * k} fontWeight="700">{l.text}</text>
+              {l.small && <text x={px} y={py + 33 * k} textAnchor={anchorEnd} fill={t.ink} fontSize={14 * k}>{l.small}</text>}
             </g>
           </g>
         )
       })}
 
-      {(facts.length > 0 || schema) && <line x1={pad} y1={bottomTop} x2={W - pad} y2={bottomTop} stroke={t.rule} strokeWidth="1" />}
-      {facts.map((f, i) => (
+
+      {!pruh && (facts.length > 0 || schema) && <line x1={pad} y1={bottomTop} x2={W - pad} y2={bottomTop} stroke={t.rule} strokeWidth="1" />}
+      {!pruh && facts.map((f, i) => (
         <g key={i} fontFamily="Segoe UI, sans-serif">
           <text x={pad} y={f.y + 20 * k} fill={doc.accent} fontSize={22 * k} fontWeight="700">{f.value}</text>
           {f.lines.map((line, j) => <text key={j} x={pad + 134 * k} y={f.y + 15 * k + j * 19 * k} fill={t.muted} fontSize={13.5 * k}>{line}</text>)}
         </g>
       ))}
-      {schema && doc.schema && (
+      {schema && doc.schema && pruh && (() => {
+        const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number)
+        const iw2 = 0.3 * W
+        const ih2 = (iw2 * vh) / vw
+        const x = W - pad - iw2
+        const y = pad
+        return (
+          <g fontFamily={FONT} fontStretch="semi-condensed">
+            <rect x={x - 12 * k} y={y - 10 * k} width={iw2 + 24 * k} height={ih2 + 48 * k} rx={4 * k} fill={t.bg} fillOpacity=".82" stroke={t.rule} />
+            <text x={x} y={y + 14 * k} fill={doc.accent} fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema!.title.toUpperCase()}</text>
+            <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
+          </g>
+        )
+      })()}
+      {schema && doc.schema && !pruh && (
         <g>
           <text x={W - pad - schemaW} y={bottomTop + 35 * k} fill={doc.accent} fontFamily="Segoe UI, sans-serif" fontSize={13 * k} fontWeight="700" letterSpacing={1 * k}>{doc.schema.title.toUpperCase()}</text>
           <svg x={W - pad - schemaW} y={bottomTop + 47 * k} width={schemaW} height={Math.min(200 * k, H - bottomTop - 47 * k - 30 * k)}
             viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
         </g>
       )}
-      {footer.map((line, i) => <text key={i} x={pad} y={H - 8 * k - (footer.length - 1 - i) * 13 * k} fill={t.foot} fontFamily="Segoe UI, sans-serif" fontSize={10 * k}>{line}</text>)}
+      {footer.map((line, i) => <text key={i} x={pad} y={H - 8 * k - (footer.length - 1 - i) * 13 * k} fill={t.foot} fontFamily={FONT} fontStretch="semi-condensed" fontSize={11 * k}>{line}</text>)}
 
       {ed && (
         <g className="ed">
@@ -344,6 +455,7 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   const checks: { ok: boolean; text: string; title?: string }[] = [
     { ok: doc.labels.length <= MAX_LABELS, text: `${doc.labels.length} popisků${doc.labels.length > MAX_LABELS ? `, doporučeno do ${MAX_LABELS}` : ''}` },
     ...(longLabels.length ? longLabels.map((x) => ({ ok: false, text: `popisek ${x.i + 1} je delší než ${MAX_LABEL_CHARS} znaků` })) : [{ ok: true, text: 'popisky krátké' }]),
+    ...leaderChecks(doc, L),
     { ok: true, text: 'text jen z editoru, ne z modelu' },
     { ok: !!doc.sources.trim(), text: doc.sources.trim() ? 'zdroj vyplněn' : 'chybí zdroj' },
     { ok: true, text: 'označení AI v patičce' },
@@ -452,6 +564,8 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
         </select>
 
         <h3>Vzhled</h3>
+        <div className="hint">Rozvržení</div>
+        <div className="seg">{(['pruh', 'klasika'] as const).map((v) => <button key={v} className={(doc.layout ?? 'klasika') === v ? 'on' : ''} onClick={() => set({ layout: v })} title={v === 'pruh' ? 'obraz přes celé plátno, nadpis a fakta v liště přes jeho spodek, schéma v rohu' : 'obraz nahoře, fakta a schéma pod ním'}>{v === 'pruh' ? 'Lišta přes obraz' : 'Klasické'}</button>)}</div>
         <div className="hint">Šablona</div>
         <div className="seg">{(['dark', 'light'] as const).map((t) => <button key={t} className={doc.template === t ? 'on' : ''} onClick={() => set({ template: t })}>{t === 'dark' ? 'Tmavá muzejní' : 'Světlá'}</button>)}</div>
         <div className="hint" style={{ marginTop: 8 }}>Formát</div>

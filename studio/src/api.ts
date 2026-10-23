@@ -245,6 +245,7 @@ export interface Infographic {
   title: string
   subtitle: string
   template: 'dark' | 'light'
+  layout?: 'klasika' | 'pruh'
   size: '1280x990' | '1920x1080' | '1080x1350'
   accent: string
   labels: InfoLabel[]
