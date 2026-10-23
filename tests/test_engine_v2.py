@@ -334,3 +334,76 @@ def test_supersample_renders_big_returns_requested(api, settings, tmp_path, monk
 def test_supersample_rejected_for_paid(api):
     r = api.post("/api/v2/images", json={"prompt": "x", "backend": "nb-pro", "supersample": 2})
     assert r.status_code == 400 and "flux-local" in r.json()["detail"]
+
+
+# -- fal backend (opt-in, price first) -------------------------------------
+
+from engine.backends import FAL_CATALOG, FalBackend  # noqa: E402
+
+
+@pytest.mark.parametrize("endpoint,body,usd", [
+    ("fal-ai/nano-banana-pro", {"n": 2}, 0.30),
+    ("fal-ai/flux/krea", {"size": "1024x1024"}, 0.05),           # 1.05 MP -> 2 MP rounded up
+    ("fal-ai/flux-pro/v1.1", {"size": "1024x576"}, 0.04),
+    ("fal-ai/flux-2-pro", {"size": "1024x576", "refs": [{"b64": PNG_1PX}]}, 0.18),  # 1 + 5 MP upper bound
+])
+def test_fal_estimates(endpoint, body, usd):
+    assert FalBackend(endpoint).usd_for(ImageRequest(prompt="x", **body)) == pytest.approx(usd)
+
+
+def test_fal_refs_need_edit_variant_and_unknown_endpoint():
+    with pytest.raises(Exception, match="neumí předlohy"):
+        FalBackend("fal-ai/flux/krea").validate(ImageRequest(prompt="x", refs=[{"b64": PNG_1PX}]))
+    with pytest.raises(Exception, match="katalogu"):
+        FalBackend("fal-ai/whatever")
+
+
+def test_fal_arguments_only_schema_fields():
+    req = ImageRequest(prompt="x", size="1024x576")
+    a = FalBackend("fal-ai/flux-2-pro").arguments(req, "p", [], 7)
+    assert a == {"prompt": "p", "output_format": "png", "seed": 7, "image_size": {"width": 1024, "height": 576}}
+    b = FalBackend("fal-ai/nano-banana-pro").arguments(ImageRequest(prompt="x", size="1536x1024"), "p", ["u"], None)
+    assert b == {"prompt": "p", "output_format": "png", "aspect_ratio": "3:2", "resolution": "2K", "image_urls": ["u"]}
+
+
+class FakeFalClient:
+    calls: list = []
+
+    def __init__(self, key=None, default_timeout=120):
+        assert key
+
+    def upload(self, data, content_type, file_name=None):
+        return "https://fal.media/ref.png"
+
+    def subscribe(self, application, arguments):
+        FakeFalClient.calls.append((application, arguments))
+        return {"images": [{"url": "https://fal.media/out.png"}], "seed": arguments.get("seed")}
+
+
+def test_fal_job_runs_only_after_confirmation(api, settings, monkeypatch):
+    import fal_client
+    import httpx as _httpx
+    monkeypatch.setattr(fal_client, "SyncClient", FakeFalClient)
+    monkeypatch.setenv("FAL_KEY", "test-key")
+    real_get = _httpx.get
+
+    def fake_get(url, *a, **kw):
+        if url.startswith("https://fal.media/"):
+            return _httpx.Response(200, content=b"\x89PNG\r\n\x1a\nfal", request=_httpx.Request("GET", url))
+        return real_get(url, *a, **kw)
+    monkeypatch.setattr(_httpx, "get", fake_get)
+    api.app.state.worker.backends.update({f"fal:{e}": FalBackend(e) for e in FAL_CATALOG})
+    FakeFalClient.calls = []
+
+    body = {"prompt": "x", "backend": "fal:fal-ai/flux-2-pro", "size": "1024x576",
+            "refs": [{"b64": PNG_1PX, "role": "subject"}]}
+    r = api.post("/api/v2/images", json=body)
+    assert r.status_code == 402 and r.json()["estimate_usd"] == pytest.approx(0.18)
+    assert FakeFalClient.calls == []
+    r = api.post("/api/v2/images", json={**body, "confirm_cost": True})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    assert FakeFalClient.calls[0][0] == "fal-ai/flux-2-pro/edit"
+    assert FakeFalClient.calls[0][1]["image_urls"] == ["https://fal.media/ref.png"]
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["backend"] == "fal:fal-ai/flux-2-pro" and prov["cost_usd"] == pytest.approx(0.18)

@@ -194,7 +194,7 @@ class Worker:
                 "refs": refs_meta, "layout": [i.model_dump(by_alias=True, exclude_none=True) for i in req.layout],
                 "style": req.style, "caller": req.caller,
                 "ai_generated": True, "reviewed_by": None,
-                "cost_usd": round(backend.usd_per_image, 4),
+                "cost_usd": round(backend.usd_for(req) / req.n, 4),
                 "timing_s": {"queue": round(t_start - created, 1), "generate": round(t_done - t_start, 1)},
                 "created": datetime.now().isoformat(timespec="seconds"),
             }

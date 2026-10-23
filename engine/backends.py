@@ -34,11 +34,13 @@ class Generated:
 class FluxLocal:
     name = "flux-local"
     model = "flux-3-image-klein-q4 (sd.cpp a77d362)"
-    usd_per_image = 0.0
 
     def __init__(self, settings: Settings, server: SdServer):
         self.s = settings
         self.server = server
+
+    def usd_for(self, req: ImageRequest) -> float:
+        return 0.0
 
     def validate(self, req: ImageRequest) -> None:
         if req.width * req.height > self.s.max_pixels:
@@ -103,6 +105,9 @@ class NanoBananaPro:
     name = "nb-pro"
     model = f"google/{NB_MODEL}"
     usd_per_image = 0.134
+
+    def usd_for(self, req: ImageRequest) -> float:
+        return self.usd_per_image * req.n
 
     def validate(self, req: ImageRequest) -> None:
         if req.supersample:
@@ -177,15 +182,106 @@ def describe_style(png: bytes) -> str:
     return "".join(b.get("text", "") for b in r.json().get("content", [])).strip()
 
 
+# fal endpoints we allow, schemas from raw OpenAPI and prices from GET api.fal.ai/v1/models/pricing
+# (both fetched 2026-10-23, docs/capabilities/fal-image-backends.md). fal silently ignores unknown
+# fields, so only keys present in the schema are sent.
+FAL_CATALOG = {
+    "fal-ai/nano-banana-pro": {"edit": "fal-ai/nano-banana-pro/edit", "unit": "image", "usd": 0.15,
+                               "size": "aspect_ratio"},
+    "fal-ai/flux-2-pro": {"edit": "fal-ai/flux-2-pro/edit", "unit": "processed_mp", "usd": 0.03, "size": "wh"},
+    "fal-ai/flux-pro/v1.1": {"edit": None, "unit": "mp", "usd": 0.04, "size": "wh"},
+    "fal-ai/flux/krea": {"edit": None, "unit": "mp", "usd": 0.025, "size": "wh"},
+}
+FAL_RATIOS = {"21:9": 21 / 9, "16:9": 16 / 9, "3:2": 1.5, "4:3": 4 / 3, "5:4": 1.25, "1:1": 1.0,
+              "4:5": 0.8, "3:4": 0.75, "2:3": 2 / 3, "9:16": 9 / 16}
+# Refs are downscaled to MAX_REF_EDGE (2048) before upload -> at most ~4.2 MP each.
+REF_MP_UPPER = 2048 * 2048 / 1e6
+
+
+class FalBackend:
+    """backend="fal:<endpoint>". With image refs the endpoint's /edit variant is called."""
+
+    def __init__(self, endpoint: str):
+        if endpoint not in FAL_CATALOG:
+            raise BackendError(f"fal endpoint {endpoint!r} není v katalogu: {sorted(FAL_CATALOG)}")
+        self.endpoint = endpoint
+        self.spec = FAL_CATALOG[endpoint]
+        self.name = f"fal:{endpoint}"
+        self.model = endpoint
+
+    def _image_refs(self, req: ImageRequest) -> int:
+        return sum(r.role != "style" for r in req.refs)
+
+    def usd_for(self, req: ImageRequest) -> float:
+        """Upper-bound estimate: megapixels rounded up, each ref counted at its max size."""
+        spec = self.spec
+        if spec["unit"] == "image":
+            return spec["usd"] * req.n
+        out_mp = math.ceil(req.width * req.height / 1e6)
+        if spec["unit"] == "processed_mp":
+            out_mp += math.ceil(REF_MP_UPPER) * self._image_refs(req)
+        return round(spec["usd"] * out_mp * req.n, 4)
+
+    def validate(self, req: ImageRequest) -> None:
+        if req.supersample:
+            raise BackendError("supersample umí jen flux-local")
+        if self._image_refs(req) and not self.spec["edit"]:
+            raise BackendError(f"{self.endpoint} neumí předlohy; použijte fal-ai/flux-2-pro nebo fal-ai/nano-banana-pro")
+
+    def arguments(self, req: ImageRequest, prompt: str, image_urls: list[str], seed: int | None) -> dict:
+        args = {"prompt": prompt, "output_format": "png"}
+        if seed is not None:
+            args["seed"] = seed
+        if self.spec["size"] == "wh":
+            args["image_size"] = {"width": req.width, "height": req.height}
+        else:
+            args["aspect_ratio"] = min(FAL_RATIOS, key=lambda r: abs(FAL_RATIOS[r] - req.width / req.height))
+            args["resolution"] = "1K" if max(req.width, req.height) <= 1024 else "2K"
+        if image_urls:
+            args["image_urls"] = image_urls
+        return args
+
+    def run(self, req: ImageRequest, prompt: str, ref_pngs: list[bytes]) -> Generated:
+        self.validate(req)
+        import fal_client
+        key = get_key("FAL_KEY", "FAL_API_KEY")
+        if not key:
+            raise BackendError("fal: chybí FAL_KEY / FAL_API_KEY")
+        client = fal_client.SyncClient(key=key, default_timeout=300)
+        endpoint = self.spec["edit"] if ref_pngs else self.endpoint
+        try:
+            urls = [client.upload(b, "image/png") for b in ref_pngs]
+            images, seeds = [], []
+            base_seed = req.seed if req.seed is not None else random.randint(0, 2**31 - 1)
+            for i in range(req.n):
+                args = self.arguments(req, prompt, urls, base_seed + i)
+                result = client.subscribe(endpoint, arguments=args)
+                url = (result.get("images") or [{}])[0].get("url")
+                if not url:
+                    raise BackendError(f"fal {endpoint}: odpověď bez obrázku: {str(result)[:300]}")
+                images.append(httpx.get(url, timeout=120).raise_for_status().content)
+                seeds.append(result.get("seed", base_seed + i))
+        except httpx.HTTPError as e:
+            raise BackendError(f"fal {endpoint}: stažení výsledku selhalo: {e}") from e
+        except BackendError:
+            raise
+        except Exception as e:  # fal_client raises its own error types
+            raise BackendError(f"fal {endpoint}: {type(e).__name__}: {e}") from e
+        return Generated(images, seeds, endpoint, {k: v for k, v in args.items() if k not in ("prompt", "image_urls")})
+
+
 def make_backends(settings: Settings, server: SdServer) -> dict:
-    return {"flux-local": FluxLocal(settings, server), "nb-pro": NanoBananaPro()}
+    backends = {"flux-local": FluxLocal(settings, server), "nb-pro": NanoBananaPro()}
+    backends.update({f"fal:{e}": FalBackend(e) for e in FAL_CATALOG})
+    return backends
 
 
 def estimate_usd(req: ImageRequest, backend) -> dict:
     """Cost estimate shown before anything paid runs."""
     items = []
-    if backend.usd_per_image:
-        items.append({"what": f"{backend.name} × {req.n}", "usd": round(backend.usd_per_image * req.n, 4)})
+    usd = backend.usd_for(req)
+    if usd:
+        items.append({"what": f"{backend.name} × {req.n}", "usd": round(usd, 4)})
     describe = sum(1 for r in req.refs if r.role == "style" and not r.text)
     if describe:
         items.append({"what": f"popis stylu slovy (Claude Haiku) × {describe}",
