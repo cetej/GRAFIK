@@ -21,6 +21,8 @@ def test_clean_svg_drops_scripts_handlers_and_external_links():
     assert "script" not in out and "onload" not in out and "onclick" not in out and "evil" not in out
     assert "foreignObject" not in out and 'href="#r"' in out and "data:image" not in out
     assert "data:image/png" in clean_svg(dirty, allow_data_images=True)
+    svg_uri = '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/svg+xml;base64,AAAA"/></svg>'
+    assert "data:image" not in clean_svg(svg_uri, allow_data_images=True)   # only raster data URIs
     with pytest.raises(InfoError):
         clean_svg("<html/>")
 
@@ -29,6 +31,9 @@ def test_ai_note_from_provenance():
     assert ai_note({"backend": "flux-local", "refs": [{"sent_as": "image"}]}) == \
         "Ilustrace: FLUX 3 Klein (AI) podle předlohy, schéma a popisky redakčně."
     assert ai_note({"backend": "flux-local", "refs": []}).startswith("Ilustrace: FLUX 3 Klein (AI), ")
+    # fal backends get the product name, not the endpoint path (model: "fal-ai/nano-banana-pro/edit")
+    assert ai_note({"backend": "fal:fal-ai/nano-banana-pro", "model": "fal-ai/nano-banana-pro/edit", "refs": []}) \
+        .startswith("Ilustrace: Nano Banana Pro (AI), ")
 
 
 def test_infographic_document_lifecycle(api, settings):
@@ -42,6 +47,9 @@ def test_infographic_document_lifecycle(api, settings):
                                                               "schema": {"title": "Řez", "svg": '<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>'}}).json()
     assert doc["labels"][0]["text"] == "Corvus" and doc["ai_note"].startswith("Ilustrace:")  # AI label stays
     assert "script" not in doc["schema"]["svg"]
+    raster = '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/jpeg;base64,AAAA"/></svg>'
+    doc = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "schema": {"title": "Řez", "svg": raster}}).json()
+    assert "data:image/jpeg" in doc["schema"]["svg"]   # a raster cross-section may sit in the schema box
     assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "size": "5x5"}).status_code == 400
     assert [d["id"] for d in api.get("/api/v2/infographics").json()] == [doc["id"]]
     moved = api.delete(f"/api/v2/infographics/{doc['id']}").json()["moved_to"]
