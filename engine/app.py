@@ -16,8 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from engine.backends import (EXPAND_USD, STYLE_CARD_MAX_IMAGES, STYLE_DESCRIBE_USD, BackendError, describe_style_card,
-                             estimate_usd, expand_prompt, make_backends)
+from engine.backends import (EXPAND_USD, LABELS_USD, STYLE_CARD_MAX_IMAGES, STYLE_DESCRIBE_USD, BackendError,
+                             describe_style_card, estimate_usd, expand_prompt, make_backends, suggest_labels)
 from engine.config import Settings
 from engine.gpu import free_vram_mib
 from engine.keys import get_key
@@ -27,6 +27,7 @@ from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
 from engine.styles import StyleError, StyleLibrary, palette, slugify
+from engine.infographics import InfoError, InfographicStore
 from engine.translate import Translator
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
 
@@ -91,6 +92,25 @@ class StyleSample(BaseModel):
     job: str | None = None          # "<job_id>/<n>"
 
 
+class InfoNew(BaseModel):
+    base: str                       # "<job_id>/<n>" image the infographic is built on
+    title: str = ""
+
+
+class InfoExport(BaseModel):
+    svg: str                        # rendered by the studio (one renderer: preview = export)
+    format: str = "png"
+
+
+class SchemaIn(BaseModel):
+    title: str
+    svg: str
+
+
+class SuggestLabels(BaseModel):
+    confirm_cost: bool = False
+
+
 class Expand(BaseModel):
     text: str
     confirm_cost: bool = False
@@ -106,6 +126,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     translator = Translator(s.translations_path)
     reflib = RefLibrary(s.reflib_dir)
     stylelib = StyleLibrary(s.styles_dir)
+    infos = InfographicStore(s.library_dir / "infographics", s.data_dir / "schemas")
     workflows = WorkflowStore(s.data_dir / "workflows")
     worker = Worker(s, store, bk, translator=translator)
 
@@ -563,6 +584,102 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                                 "items": [{"what": "popis stylu z obrázků", "usd": STYLE_DESCRIBE_USD}]},
                                ensure_ascii=False) + "\n")
         return {**card, "palette": palette(images), "origin": "detected", "usd": STYLE_DESCRIBE_USD}
+
+    # -- infographics (G5) ---------------------------------------------------
+    def _prov(ref: str) -> dict | None:
+        j = store.get(ref.split("/")[0])
+        files = ((j or {}).get("result") or {}).get("files", [])
+        n = int(ref.split("/")[1])
+        if not j or not 0 <= n < len(files):
+            return None
+        return json.loads(Path(files[n]).with_suffix(".json").read_text(encoding="utf-8"))
+
+    def _info_or_404(info_id: str) -> dict:
+        try:
+            doc = infos.get(info_id)
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+        if doc is None:
+            raise HTTPException(404, "infografika neexistuje")
+        return doc
+
+    @app.get("/api/v2/infographics")
+    def info_list():
+        return infos.list()
+
+    @app.post("/api/v2/infographics", status_code=201)
+    def info_create(body: InfoNew):
+        if store.image_path(body.base) is None:
+            raise HTTPException(404, f"obrázek {body.base} neexistuje")
+        return infos.create(body.base, body.title.strip(), _prov(body.base))
+
+    @app.get("/api/v2/infographics/{info_id}")
+    def info_get(info_id: str):
+        return _info_or_404(info_id)
+
+    @app.put("/api/v2/infographics/{info_id}")
+    def info_save(info_id: str, body: dict):
+        _info_or_404(info_id)
+        if body.get("base") and store.image_path(body["base"]) is None:
+            raise HTTPException(404, f"obrázek {body['base']} neexistuje")
+        try:
+            return infos.save(info_id, body)
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/v2/infographics/{info_id}")
+    def info_delete(info_id: str):
+        _info_or_404(info_id)
+        return {"moved_to": infos.delete(info_id)}
+
+    @app.post("/api/v2/infographics/{info_id}/export", status_code=201)
+    def info_export(info_id: str, body: InfoExport):
+        doc = _info_or_404(info_id)
+        try:
+            out = infos.export(info_id, body.svg, body.format, _prov(doc["base"]))
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+        return {**out, "url": f"/api/v2/infographics/{info_id}/exports/{out['file']}"}
+
+    @app.get("/api/v2/infographics/{info_id}/exports/{name}")
+    def info_export_file(info_id: str, name: str):
+        _info_or_404(info_id)
+        path = infos.export_path(info_id, name)
+        if path is None:
+            raise HTTPException(404, "export neexistuje")
+        media = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}[path.suffix[1:]]
+        return FileResponse(path, media_type=media, filename=f"infografika-{info_id}{path.suffix}")
+
+    @app.post("/api/v2/infographics/{info_id}/suggest-labels")
+    def info_suggest(info_id: str, body: SuggestLabels):
+        """Paid: Claude proposes parts of the object to label (names and points, never facts)."""
+        doc = _info_or_404(info_id)
+        if not body.confirm_cost:
+            return JSONResponse(status_code=402, content={
+                "detail": "Návrh popisků je placený (Claude) — pošlete znovu s confirm_cost=true.",
+                "estimate_usd": LABELS_USD, "items": [{"what": "návrh popisků (Claude Haiku)", "usd": LABELS_USD}]})
+        try:
+            labels = suggest_labels(store.image_path(doc["base"]).read_bytes(), doc["title"])
+        except BackendError as e:
+            raise HTTPException(502, str(e)) from e
+        s.library_dir.mkdir(parents=True, exist_ok=True)
+        with open(s.costs_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "job_id": None,
+                                "caller": "studio", "backend": "claude:labels", "n": len(labels), "usd": LABELS_USD,
+                                "items": [{"what": "návrh popisků infografiky", "usd": LABELS_USD}]},
+                               ensure_ascii=False) + "\n")
+        return {"labels": labels, "usd": LABELS_USD}
+
+    @app.get("/api/v2/schemas")
+    def schemas():
+        return infos.schemas()
+
+    @app.post("/api/v2/schemas", status_code=201)
+    def schema_save(body: SchemaIn):
+        try:
+            return infos.save_schema(body.title.strip() or "schéma", body.svg)
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
 
     @app.post("/api/v2/prompt/expand")
     def expand(body: Expand):

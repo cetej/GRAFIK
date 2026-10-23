@@ -233,3 +233,41 @@ export const stylesApi = {
   describe: (img: StyleImages, confirm: boolean) =>
     post<Omit<StyleFields, 'palette'> & { palette: PaletteColor[] }>('/api/v2/styles/describe', { ...img, confirm_cost: confirm }),
 }
+
+// -- G5 infographics -----------------------------------------------------------
+export interface InfoLabel { text: string; small: string; anchor: [number, number]; pos: [number, number]; align?: 'left' | 'right' }
+export interface InfoFact { value: string; text: string }
+export interface InfoSchema { title: string; svg: string }
+
+export interface Infographic {
+  id: string
+  base: string
+  title: string
+  subtitle: string
+  template: 'dark' | 'light'
+  size: '1280x990' | '1920x1080' | '1080x1350'
+  accent: string
+  labels: InfoLabel[]
+  facts: InfoFact[]
+  schema: InfoSchema | null
+  sources: string
+  ai_note: string
+  reviewed_by: string | null
+  reviewed_at: string | null
+  updated: string
+  exports: string[]
+}
+
+export const infoApi = {
+  list: () => call<Infographic[]>('/api/v2/infographics'),
+  create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
+  get: (id: string) => call<Infographic>(`/api/v2/infographics/${id}`),
+  save: (doc: Infographic) => send<Infographic>('PUT', `/api/v2/infographics/${doc.id}`, doc),
+  remove: (id: string) => send<{ moved_to: string }>('DELETE', `/api/v2/infographics/${id}`),
+  export: (id: string, svg: string, format: 'png' | 'svg' | 'pdf') =>
+    post<{ file: string; url: string; bytes: number }>(`/api/v2/infographics/${id}/export`, { svg, format }),
+  suggest: (id: string, confirm: boolean) =>
+    post<{ labels: { text: string; small: string; anchor: [number, number] }[] }>(`/api/v2/infographics/${id}/suggest-labels`, { confirm_cost: confirm }),
+  schemas: () => call<{ slug: string; title: string; svg: string }[]>('/api/v2/schemas'),
+  saveSchema: (title: string, svg: string) => post<{ slug: string }>('/api/v2/schemas', { title, svg }),
+}

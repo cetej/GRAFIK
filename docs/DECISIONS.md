@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — G5 infografiky
+
+- **Náčrt G5 schválen** („Schvaluji náčrt G5, stavěj.“): záložka Infografiky (obsah vlevo, živý náhled uprostřed, vzhled, kontrola a export vpravo), vstupy z kroku 5 Průvodce a tlačítkem „→ Infografika“, návrh popisků od Claude jen na kliknutí s cenou. Vzor: kvinquerema `overlay_quinq3.html` (do ~5 popisků, čáry mimo objekt, 3 fakta, vektorové schéma, tmavé pozadí, patička se zdroji a AI).
+- **Text v infografice nikdy z modelu**: popisky, fakta i schéma píše redakce v editoru; Claude navrhuje jen názvy částí a místa, ne fakta.
+- **Označení AI v patičce se doplní z provenience a nejde smazat**; export bez něj Engine odmítne. Kontrola člověkem (jméno) se zapíše do provenience exportu.
+- **Jeden renderer:** studio kreslí SVG, Engine ho jen vyčistí (bez skriptů a odkazů ven) a převede na PNG/PDF stejným Chromiem. Exporty v `library/infographics/<id>/exports/`.
+- Operátor 23. 10.: „Kloun? To je snad zobec“ a napojit ověření překladu na termdb (`BIOLIB/termdb.db`). Rozsah se domlouvá, viz STAV.
+
 ## 2026-10-23 — G4 styly
 
 - **Náčrt G4 schválen** (`docs/spikes/img/g4-nacrt-1.png`, `-2.png`): záložka „Styly“ (knihovna vlevo, karta stylu vpravo), dialog „Nový styl z obrázků“ a výběr stylu v zadání ve studiu. Zadání předala zakládající session („pokračuj G4 … nejdřív mi ukaž náčrt UI“), schválení operátor dal přímo: „Schvaluji náčrt G4, stavěj.“
