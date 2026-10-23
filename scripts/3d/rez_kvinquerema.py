@@ -18,9 +18,10 @@ scene = bpy.context.scene
 
 ROOM, ROOMS = 0.98, 3                     # interscalmium (oar spacing) and slice length in rooms
 LEN = ROOM * ROOMS + 0.3
-KEEL_Z, DECK_Z = -1.25, 2.85
+KEEL_Z, DECK_Z = -1.25, 3.0
+WD, OUT = 2.9, 3.5     # deck half-width, outer face of the outrigger (lod_kvinquerema.py)
 # outer half-width of the hull at height z (flared U, widest at the oar ports)
-PROFILE = [(-1.25, 0.25), (-0.9, 1.1), (-0.5, 1.75), (0.0, 2.25), (0.6, 2.5), (1.4, 2.6), (2.3, 2.6)]
+PROFILE = [(-1.25, 0.25), (-0.9, 1.35), (-0.5, 2.05), (0.0, 2.5), (0.6, 2.75), (1.4, 2.88), (2.3, 2.9)]
 WALL = 0.12
 
 
@@ -100,22 +101,22 @@ for i in range(14):
     ball((0.2 + (i * 0.37) % LEN, -0.25 + (i % 3) * 0.25, -1.05), 0.12 + (i % 2) * 0.04)
 
 # --- deck, bulwark, shields, outriggers ------------------------------------------------------
-box((LEN / 2, 0, DECK_Z), (LEN, 2 * 2.6, 0.1))
+box((LEN / 2, 0, DECK_Z), (LEN, 2 * WD, 0.1))
 for i in range(ROOMS + 1):
-    box((0.2 + i * ROOM, 0, DECK_Z - 0.15), (0.14, 2 * 2.55, 0.2))     # deck beams
+    box((0.2 + i * ROOM, 0, DECK_Z - 0.15), (0.14, 2 * WD - 0.1, 0.2))     # deck beams
 for s in (-1, 1):
-    box((LEN / 2, s * 2.55, DECK_Z + 0.5), (LEN, 0.08, 1.0))           # bulwark
+    box((LEN / 2, s * WD, DECK_Z + 0.5), (LEN, 0.08, 1.0))           # bulwark
     for i in range(4):
-        rod((0.45 + i * 0.8, s * 2.61, DECK_Z + 0.55), (0.45 + i * 0.8, s * 2.66, DECK_Z + 0.55), 0.38, 24)
+        rod((0.45 + i * 0.8, s * (WD + 0.06), DECK_Z + 0.55), (0.45 + i * 0.8, s * (WD + 0.11), DECK_Z + 0.55), 0.38, 24)
     # outrigger (parexeiresia) carrying the top oars
-    box((LEN / 2, s * 3.0, 2.25), (LEN, 0.8, 0.1))
-    box((LEN / 2, s * 3.38, 2.0), (LEN, 0.08, 0.5))
-    box((LEN / 2, s * 2.62, 2.55), (LEN, 0.08, 0.5))
+    box((LEN / 2, s * (WD + OUT) / 2, 2.25), (LEN, OUT - WD, 0.1))
+    box((LEN / 2, s * OUT, 2.0), (LEN, 0.08, 0.5))
+    box((LEN / 2, s * WD, 2.55), (LEN, 0.08, 0.5))
     for i in range(ROOMS + 1):
-        box((0.2 + i * ROOM, s * 3.0, 2.0), (0.08, 0.8, 0.08))
+        box((0.2 + i * ROOM, s * (WD + OUT) / 2, 2.0), (0.08, OUT - WD, 0.08))
 # side wall between outrigger and deck
 for s in (-1, 1):
-    box((LEN / 2, s * 2.6, (2.3 + DECK_Z) / 2), (LEN, WALL, DECK_Z - 2.3))
+    box((LEN / 2, s * WD, (2.3 + DECK_Z) / 2), (LEN, WALL, DECK_Z - 2.3))
 
 # --- rowers ------------------------------------------------------------------------------------
 def rower(seat, hand):
@@ -133,7 +134,7 @@ def rower(seat, hand):
 
 
 # (thole y, thole z, slope, men, seat height above thole, x stagger)
-LEVELS = {"thranite": (3.38, 1.95, 0.33, 2, -0.2, 0.0),
+LEVELS = {"thranite": (OUT, 1.95, 0.33, 2, -0.2, 0.0),
           "zygite": (half_width(1.2), 1.2, 0.35, 2, -0.2, 0.0),
           "thalamite": (half_width(0.45), 0.45, 0.42, 1, -0.2, ROOM / 2)}
 for name, (ty, tz, slope, men, seat_dz, stagger) in LEVELS.items():
@@ -186,7 +187,8 @@ sea.use_nodes = True
 sea.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.16, 0.26, 0.36, 1)
 for o in scene.objects:
     if o.type == "MESH":
-        o.data.materials.append(sea if o is water else clay)
+        o.data.materials.clear()   # the boolean leaves an empty slot that the faces point to
+        o.data.materials.append(sea if o.name == water.name else clay)
 
 engines = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
 scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
@@ -194,11 +196,12 @@ scene.render.resolution_x, scene.render.resolution_y = 1280, 900
 scene.render.film_transparent = True
 scene.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("w"); scene.world = world; world.use_nodes = True
-world.node_tree.nodes["Background"].inputs[1].default_value = 1.6
+world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN")); scene.collection.objects.link(sun)
-sun.data.energy = 4.0
+sun.data.energy = 1.6
+sun.data.use_shadow = False
 fill = bpy.data.objects.new("fill", bpy.data.lights.new("fill", "AREA")); scene.collection.objects.link(fill)
-fill.data.energy, fill.data.size = 2500, 6
+fill.data.energy, fill.data.size = 250, 8
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); scene.collection.objects.link(cam); scene.camera = cam
 cam.data.lens = 35
 target = Vector((1.0, 0, 0.9))

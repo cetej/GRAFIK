@@ -286,7 +286,7 @@ water.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0
 water.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.6
 for o in scene.objects:
     if o.type == "MESH":
-        o.data.materials.append(water if o is sea else clay)
+        o.data.materials.append(water if o.name == sea.name else clay)
 
 engines = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
 scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
