@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Generátor zvětšuje postavy; měřítko hlídat kótami a promptem
+
+Nano Banana Pro podle hliněného renderu držel tvar lodi, ale postavy si zvětšil asi o polovinu. Pomohlo: výška člověka v metrech a jako zlomek délky lodi přímo v promptu („a man is 1.7 metres tall, about one twenty-sixth of the ship's length … do not enlarge them“). Před placenou kresbou ukázat ortogonální půdorys a bokorys s kótami a kontrolní postavou (`scripts/3d/dims_overlay.py`); úzkou loď tak operátor uvidí dřív, než se zaplatí.
+
 ## 2026-10-23 — Hliněný render jako předloha: stíny se mění v předměty, poměry jen z čísel
 
 - Vržený stín plachty na palubě v hliněném renderu FLUX.2 pro „vysvětlil“ jako spuštěný můstek přes palubu. Do předloh renderovat bez vržených stínů (měkké světlo) nebo stín výslovně popsat.
