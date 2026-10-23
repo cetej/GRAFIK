@@ -28,4 +28,4 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 
 ## Starý GRAFIK (v1)
 
-Unified Editor M2–M6-UX1 (`grafik/`, `ui-web/`) — funkční, API :8301, UI :5173. Jen reference; o archivaci rozhodne operátor.
+Odstraněn 2026-10-23 na pokyn operátora; kód (`grafik/`, `ui/`, `ui-web/`, testy a skripty v1) je pod git tagem `v1-final`. Data projektů v1 (`projects/`) zůstala na disku.
