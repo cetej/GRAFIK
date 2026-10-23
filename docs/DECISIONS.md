@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — Poznatky z PromptEnhancer (cetej/GRAFIK#9)
+
+Zadání operátora přes session „PromptEnhancer analýza“ (ta byla mezitím archivovaná): co je nové oproti GRAFIK, připravit k testování a implementovat v projektu. Z Tencent PromptEnhancer přebíráme jen principy, vlastními slovy; kód ani text jejich promptů ne (licence v EU neplatí). Dataset T2I-Keypoints-Eval je apache-2.0.
+
+- **C, překlad bez tichého pádu do češtiny:** prázdný překlad nebo překlad, ve kterém zůstala čeština, se neuloží do mezipaměti a úloha skončí čitelnou chybou. Za češtinu se počítá víc než pětina slov s diakritikou mimo uvozovky, takže místní jména („Kutná Hora“) a citované nápisy projdou.
+- **Text v uvozovkách se nepřekládá** (#9 bod 1): nápis, který má být v obrázku, zůstává v původním jazyce a pravopisu v dvojitých uvozovkách. Platí pro překlad i „Rozepsat zadání“.
+- **D, „Rozepsat zadání“ má pevnou stavbu:** celek → části v daném prostorovém pořadí s výslovnými slovy (vzadu, vlevo, před) → zase celek; poslední věta jmenuje styl a typ obrázku. K tomu pravidla z #9 bodu 2: fyzikální soudržnost, jen viditelné (žádné „krásný“), přesné počty, vágní přání → konkrétní změna.
+- **B, překlad pokynu k úpravě vidí výřez rámečku** (≤ 512 px): objekt se pojmenuje podle toho, co v rámečku opravdu je, ne jen podle slova operátora. Klíč mezipaměti zahrnuje otisk výřezu. Výřez je v odhadu jako položka 0,002 USD (Haiku 5.5 za ~350 tokenů reálně ~0,0001 USD, odhad je s rezervou).
+- **A, měření klíčových bodů** je skript `scripts/eval_keypoints.py`, ne funkce studia: vzorek anglických promptů, lokální FLUX zdarma, soudce Claude po bodech (verdikt = poslední accept/reject). Placený, bez `--confirm-cost` jen vypíše odhad. Při 20–30 promptech nečíst rozdíly pod ~10 p. b.
+
 ## 2026-10-23 — G3 předlohy a průvodce, karta Nastavení
 
 - **Náčrty G3 schváleny:** okno „Přidat předlohu“ (Wikimedia Commons, Schránka předloh, soubor) a záložka „Průvodce“ historickým objektem (předlohy → bokorys → oprava v rámečku → natočený pohled 3/4 shora → popisky v G5).

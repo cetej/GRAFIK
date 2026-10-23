@@ -213,6 +213,7 @@ class Worker:
         original = req
         req, translations = self.translator.apply(req)
         paid_translations = sum(t["paid"] for t in translations)
+        paid_crops = sum(t["paid"] and t["crop"] for t in translations)
 
         refs_meta, image_refs, described = [], [], {}
         for i, ref in enumerate(req.refs):
@@ -246,7 +247,7 @@ class Worker:
             # ref 0 is the parent (the API prepends it); outside the box the parent stays unchanged
             gen.images = [paste_back(image_refs[0], img, req.edit) for img in gen.images]
 
-        est = estimate_usd(req, backend, paid_translations)
+        est = estimate_usd(req, backend, paid_translations, paid_crops)
         files = []
         for n, data in enumerate(gen.images):
             name = f"image-{n}.png"

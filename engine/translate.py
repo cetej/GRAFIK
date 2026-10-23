@@ -9,14 +9,18 @@ results are cached, a repeated text costs nothing.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
 import threading
+from io import BytesIO
 from pathlib import Path
 
-from engine.backends import claude_text
-from engine.models import ImageRequest
+from PIL import Image
+
+from engine.backends import BackendError, claude_text
+from engine.models import EditSpec, ImageRequest
 
 TRANSLATE_USD = 0.01
 CZECH = re.compile(r"[ěščřžýáíéůúťďňóĚŠČŘŽÝÁÍÉŮÚŤĎŇÓ]")
@@ -30,11 +34,23 @@ FAMILY_GUIDE = {
 KIND_GUIDE = {
     "prompt": "Translate the Czech image description into one English prompt.",
     "edit": ("Translate the Czech image-edit instruction into one short, concrete English phrase that names the object "
-             "and the desired result (e.g. 'the fox has silver-grey fur like an arctic fox')."),
+             "and the desired result (e.g. 'the fox has silver-grey fur like an arctic fox'). For a swap write "
+             "'replace X with Y'; turn a vague wish into a concrete visible change."),
     "style": "Translate the Czech style description into English style descriptors.",
 }
-RULES = ("Keep every fact and do not add new objects, people or historical details. Keep tags such as <ref_image_0> "
-         "or <edit_1> exactly as they are. Answer with the English text only.\n\nCzech text:\n")
+# Sent with an edit instruction together with a crop of the edited box (PromptEnhancer analysis,
+# cetej/GRAFIK#9): the user's Czech word for the object may not match what the box really shows.
+CROP_GUIDE = ("The attached picture is the area of the image that will be edited. Name the object by what is actually "
+              "visible in it (its kind, colour, material), not only by the word the user chose. Everything outside "
+              "this area stays unchanged, so describe only the change inside it.")
+# Text that should appear in the image (signs, captions) is in quotes; it must stay in its own language
+# and spelling, otherwise the generator paints the English word (cetej/GRAFIK#9, point 1).
+RULES = ("Keep every fact and do not add new objects, people or historical details. Text in quotation marks is "
+         "lettering that must appear in the image: copy it unchanged, in its original language and spelling, inside "
+         "double quotes. Keep tags such as <ref_image_0> or <edit_1> exactly as they are. Answer with the English "
+         "text only.\n\nCzech text:\n")
+QUOTED = re.compile(r'"[^"]*"|„[^“”"]*[“”"]|“[^”]*”')
+CROP_MAX_EDGE = 512
 
 
 def family(backend: str) -> str:
@@ -45,21 +61,44 @@ def is_czech(text: str | None) -> bool:
     return bool(text and CZECH.search(text))
 
 
-def fields(req: ImageRequest) -> list[tuple[str, str, str]]:
-    """(path, kind, text) of every Czech text field; path tells apply() where to write it back."""
+def still_czech(en: str) -> bool:
+    """A translation that did not happen: empty, or Czech outside the quoted lettering. A place name with
+    diacritics ("Kutná Hora") may stay, so it takes more than a fifth of the words to count as Czech."""
+    words = QUOTED.sub(" ", en).split()
+    if not words:
+        return not en.strip()
+    return sum(bool(CZECH.search(w)) for w in words) > len(words) / 5
+
+
+def edit_crop(path: str, edit: EditSpec) -> bytes:
+    """The edited box of the parent image, at most CROP_MAX_EDGE px, as PNG."""
+    img = Image.open(path).convert("RGB")
+    w, h = img.size
+    top, left, bottom, right = edit.bbox
+    crop = img.crop((round(left * w / 1000), round(top * h / 1000), round(right * w / 1000), round(bottom * h / 1000)))
+    crop.thumbnail((CROP_MAX_EDGE, CROP_MAX_EDGE))
+    out = BytesIO()
+    crop.save(out, "PNG")
+    return out.getvalue()
+
+
+def fields(req: ImageRequest) -> list[tuple[str, str, str, bytes | None]]:
+    """(path, kind, text, image) of every Czech text field; path tells apply() where to write it back.
+    An edit instruction carries the crop of its box (the API puts the parent first in refs)."""
     if req.translate == "off":
         return []
     out = []
     if req.edit:
         if is_czech(req.edit.instruction):
-            out.append(("edit", "edit", req.edit.instruction))
+            parent = req.refs[0].path if req.refs and req.refs[0].path else None
+            out.append(("edit", "edit", req.edit.instruction, edit_crop(parent, req.edit) if parent else None))
     elif is_czech(req.prompt):
-        out.append(("prompt", "prompt", req.prompt))
+        out.append(("prompt", "prompt", req.prompt, None))
     if is_czech(req.style):
-        out.append(("style", "style", req.style))
+        out.append(("style", "style", req.style, None))
     for i, r in enumerate(req.refs):
         if r.role == "style" and is_czech(r.text):
-            out.append((f"ref:{i}", "style", r.text))
+            out.append((f"ref:{i}", "style", r.text, None))
     return out
 
 
@@ -75,19 +114,35 @@ class Translator:
                     self._cache[e["key"]] = e["en"]
 
     @staticmethod
-    def key(backend: str, kind: str, text: str) -> str:
-        return hashlib.sha256(f"{family(backend)}|{kind}|{text.strip()}".encode()).hexdigest()
+    def key(backend: str, kind: str, text: str, image: bytes | None = None) -> str:
+        base = f"{family(backend)}|{kind}|{text.strip()}"
+        if image:  # same words over a different box are a different translation
+            base += "|" + hashlib.sha256(image).hexdigest()
+        return hashlib.sha256(base.encode()).hexdigest()
 
-    def pending(self, req: ImageRequest) -> int:
-        """How many fields would be paid for (Czech and not cached)."""
-        return sum(self.key(req.backend, kind, text) not in self._cache for _, kind, text in fields(req))
+    def pending(self, req: ImageRequest) -> tuple[int, int]:
+        """(fields that would be paid for, how many of them send a crop) - Czech and not cached."""
+        crops = [image is not None for _, kind, text, image in fields(req)
+                 if self.key(req.backend, kind, text, image) not in self._cache]
+        return len(crops), sum(crops)
 
-    def translate(self, backend: str, kind: str, text: str) -> tuple[str, bool]:
-        """(English text, paid?)"""
-        k = self.key(backend, kind, text)
+    def translate(self, backend: str, kind: str, text: str, image: bytes | None = None) -> tuple[str, bool]:
+        """(English text, paid?). Raises BackendError when the answer is empty or still Czech; such an
+        answer is never cached, so the next attempt asks again."""
+        k = self.key(backend, kind, text, image)
         if k in self._cache:
             return self._cache[k], False
-        en = claude_text(f"{FAMILY_GUIDE[family(backend)]} {KIND_GUIDE[kind]} {RULES}{text}", 600, "překlad zadání")
+        instruction = f"{FAMILY_GUIDE[family(backend)]} {KIND_GUIDE[kind]} {RULES}{text}"
+        if image:
+            content = [{"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                                    "data": base64.b64encode(image).decode()}},
+                       {"type": "text", "text": f"{CROP_GUIDE} {instruction}"}]
+        else:
+            content = instruction
+        en = claude_text(content, 600, "překlad zadání")
+        if still_czech(en):
+            raise BackendError(f"překlad zadání selhal: odpověď je {'prázdná' if not en.strip() else 'pořád česky'} "
+                               f"({en[:80]!r}); nic se negenerovalo, zkuste to znovu nebo zadání napište anglicky")
         with self._lock:
             self._cache[k] = en
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -99,9 +154,9 @@ class Translator:
     def apply(self, req: ImageRequest) -> tuple[ImageRequest, list[dict]]:
         """Request with Czech fields replaced by English, plus a record of what was translated."""
         done, update, refs = [], {}, list(req.refs)
-        for path, kind, text in fields(req):
-            en, paid = self.translate(req.backend, kind, text)
-            done.append({"field": path, "cs": text, "en": en, "paid": paid})
+        for path, kind, text, image in fields(req):
+            en, paid = self.translate(req.backend, kind, text, image)
+            done.append({"field": path, "cs": text, "en": en, "paid": paid, "crop": image is not None})
             if path == "prompt":
                 update["prompt"] = en
             elif path == "style":
