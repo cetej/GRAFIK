@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — GRAFIK v1 z repa pryč
+
+Operátor: „Starého grafika nepotřebuji.“
+
+- Kód v1 (`grafik/`, `ui/`, `ui-web/`, `.streamlit/`, testy a skripty v1) odebrán; historie pod tagem `v1-final`.
+- `start-grafik.bat` spouští jen Engine :8300 a Studio :5174; `pyproject.toml` balí jen `engine` (bez streamlit, typer, opencv).
+- Uživatelská data (`projects/`, `library/`, `styles/`, `run/`, `logs/`) zůstala beze změny.
+
 ## 2026-10-23 — Zásady infografik místo kopírování vzoru
 
 Operátor: „nejde o to sekat infografiky stejné jedna jako druhá, jako Baťa cvičky … jde o to pochopit, okoukat čistý grafický styl, rovnováhu, informační hodnotu a čtenářský zážitek.“ Pak „Dobře dotáhni to“.
