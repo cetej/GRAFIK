@@ -6,6 +6,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // IPv4: Command Center checks the port on 127.0.0.1; vite would otherwise bind only [::1]
+    host: '127.0.0.1',
     port: 5174,
     strictPort: true,
     proxy: { '/api': 'http://127.0.0.1:8300' },
