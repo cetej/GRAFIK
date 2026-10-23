@@ -95,3 +95,16 @@ Operátor: loď moc úzká, postavy moc velké. Postavy v modelu měly 1,7 m, al
 ![Nano Banana Pro, poměry](img/2026-10-23-3d/15-nbpro-pomery-1.jpg)
 
 Útrata spike celkem: 0,30 (TRELLIS) + 0,36 (FLUX.2 pro) + 0,15 + 0,30 (Nano Banana Pro) = 1,11 USD.
+
+## Iterace 5: barevný řez (0,30 USD)
+
+Hliněný řez (`scripts/3d/rez_kvinquerema.py`, rozměry sladěné s `lod_kvinquerema.py`) → Nano Banana Pro přes fal, 2 obrázky 1280×896 (výstup 2528×1696), job `20261023-125019-976b50`. Engine chce rozměry v násobcích 16 (1280×900 odmítl s 422, nic nezaplaceno).
+
+- Drží: proříznutý trup s žebry a kýlem, tři patra veslařů na boku, nástavec s horními vesly, podpalubí se zátěží, paluba s vojáky a věží, moře proříznuté v téže rovině.
+- Obrázek 1 je lepší: džbány a kameny jsou v podpalubí. Na obrázku 0 přesunul džbány na podlahu mezi veslaře.
+- Chyby: část veslařů sedí bez vesla v rukou, rozdělení 2–2–1 na veslo není jednoznačně čitelné; vojáci na palubě vychází asi o čtvrtinu větší (≈ 2,1 m podle výšky paluby 3 m).
+- Další krok pro přesnost: v modelu dát rukám veslařů jasný úchop vesla a zvýraznit dvojice; popisky doplní editor infografiky.
+
+![řez, Nano Banana Pro](img/2026-10-23-3d/17-rez-nbpro-1.jpg)
+
+Útrata spike celkem: 1,41 USD.
