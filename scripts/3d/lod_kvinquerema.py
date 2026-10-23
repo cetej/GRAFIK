@@ -1,5 +1,5 @@
 # Roman quinquereme built from reconstruction numbers (free):
-#   blender -b -P scripts/3d/lod_kvinquerema.py -- out_prefix [--cutaway]
+#   blender -b -P scripts/3d/lod_kvinquerema.py -- out_prefix [--cutaway] [--nosea]
 # --cutaway opens a window in the near (-y) side amidships, like the cutaway in a ship infographic:
 # three levels of rowers on their oars (2-2-1, Morrison), floor, hold with water jars and ballast.
 # Every size is in DIM (metres) with its source; "odhad" = our estimate, no published figure found.
@@ -38,6 +38,7 @@ DIM = {
 
 args = sys.argv[sys.argv.index("--") + 1:]
 prefix, CUTAWAY = args[0], "--cutaway" in args[1:]
+NOSEA = "--nosea" in args[1:]   # ship alone on a transparent background (infographic: labels stay readable)
 WINDOW = (-10.0, 8.0)     # x range of the cutaway window
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -328,6 +329,11 @@ scale_figure = [o for o in scene.objects if o not in before]
 # --- sea, clay, light, camera ------------------------------------------------------------------
 bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, 0))
 sea = bpy.context.active_object
+if NOSEA:
+    sea.hide_render = True
+    scene.render.film_transparent = True
+    for s_ in (-1, 1):   # painted waterline instead of the sea
+        path([(x, s_ * (hw(0.02, x) + 0.02), 0.02) for x in range(-21, 22, 1)], 0.05)
 if CUTAWAY:   # open the sea in front of the window too, so the hold below the waterline shows
     cutter = box(((WINDOW[0] + WINDOW[1]) / 2, -6.0, 0.0), (WINDOW[1] - WINDOW[0], 12.0, 1.0))
     mod = sea.modifiers.new("cutaway", "BOOLEAN")
