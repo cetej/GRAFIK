@@ -258,7 +258,7 @@ class Worker:
                 "prompt_original": original.edit.instruction if original.edit else original.prompt,
                 "prompt_sent": prompt, "translations": translations,
                 "refs": refs_meta, "layout": [i.model_dump(by_alias=True, exclude_none=True) for i in req.layout],
-                "style": req.style, "caller": req.caller,
+                "style": req.style, "style_id": req.style_id, "caller": req.caller,
                 "parent": req.parent, "edit": req.edit.model_dump() if req.edit else None,
                 "ai_generated": True, "reviewed_by": None,
                 "cost_usd": round(est["total_usd"] / len(gen.images), 4),

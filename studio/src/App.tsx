@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  api, fileToB64, imageUrl, isCzech, onlyTranslation, PaymentRequired, refsApi,
-  type Backend, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role,
+  api, fileToB64, imageUrl, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
+  type Backend, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
 import { HistoryPanel, Lightbox } from './panels.tsx'
 import RefPicker, { storeDrop, type PickerTab } from './RefPicker.tsx'
 import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
+import Styles, { Swatches } from './Styles.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
 const FORMATS: Record<string, string> = {
@@ -43,7 +44,7 @@ export default function App() {
   const [backends, setBackends] = useState<Backend[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [spentToday, setSpentToday] = useState(0)
-  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'settings'>('studio')
+  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'settings'>('studio')
   const [picker, setPicker] = useState<PickerTab | null>(null)
   const [inboxNew, setInboxNew] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -60,6 +61,10 @@ export default function App() {
   const [backend, setBackend] = useState('flux-local')
   const [estimate, setEstimate] = useState<Estimate | null>(null)
   const [expanding, setExpanding] = useState(false)
+  const [styleCards, setStyleCards] = useState<StyleCard[]>([])
+  const [styleSel, setStyleSel] = useState('') // '' = bez stylu, '__custom' = vlastní text, jinak slug karty
+  const [styleText, setStyleText] = useState('')
+  const [detectOpen, setDetectOpen] = useState(false)
   const pendingSelect = useRef<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -110,9 +115,11 @@ export default function App() {
       refs: refs.map(({ b64, ref_id, role, text, source }) => ({ b64, ref_id, role, text, source })),
       supersample: canSupersample && detail ? SUPERSAMPLE : null,
       translate: translate ? 'auto' : 'off',
+      style: styleSel === '__custom' ? styleText.trim() || null : styleSel || null,
+      style_id: styleSel && styleSel !== '__custom' ? styleSel : null,
       caller: 'studio',
     }),
-    [prompt, backend, format, n, refs, detail, canSupersample, translate],
+    [prompt, backend, format, n, refs, detail, canSupersample, translate, styleSel, styleText],
   )
 
   useEffect(() => {
@@ -146,6 +153,23 @@ export default function App() {
         })
       } else setToast(String((e as Error).message))
     }
+  }, [refresh])
+
+  useEffect(() => {
+    if (tab === 'studio') stylesApi.list().then(setStyleCards).catch(() => {})
+  }, [tab])
+  const styleCard = styleCards.find((c) => c.slug === styleSel) ?? null
+
+  // Style tab: submit and return the job id (translation-only costs confirmed by the click, like the studio button).
+  const submitForStyle = useCallback(async (req: ImageRequest): Promise<string | null> => {
+    try {
+      return (await api.submit(req)).job_id
+    } catch (e) {
+      if (e instanceof PaymentRequired && onlyTranslation(e.items)) {
+        try { return (await api.submit({ ...req, confirm_cost: true })).job_id } catch (e2) { setToast((e2 as Error).message) }
+      } else setToast((e as Error).message)
+      return null
+    } finally { refresh() }
   }, [refresh])
 
   const variant = useCallback(async (ref: string) => {
@@ -231,7 +255,7 @@ export default function App() {
           <button className={tab === 'studio' ? 'on' : ''} onClick={() => setTab('studio')}>Studio</button>
           <button className={tab === 'guide' ? 'on' : ''} onClick={() => setTab('guide')}>Průvodce</button>
           <button className={tab === 'library' ? 'on' : ''} onClick={() => setTab('library')}>Knihovna</button>
-          <span className="off" title="Fáze G4">Styly</span>
+          <button className={tab === 'styles' ? 'on' : ''} onClick={() => setTab('styles')}>Styly</button>
           <span className="off" title="Fáze G5">Infografiky</span>
           <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Nastavení</button>
         </nav>
@@ -246,6 +270,10 @@ export default function App() {
 
       {tab === 'settings' ? (
         <Settings onError={setToast} />
+      ) : tab === 'styles' ? (
+        <Styles onError={setToast} onSubmit={submitForStyle} selectedImage={selected}
+          openDetect={detectOpen} onDetectOpen={() => setDetectOpen(true)} onDetectClosed={() => setDetectOpen(false)}
+          onUse={(slug) => { setStyleSel(slug); setTab('studio') }} />
       ) : tab === 'guide' ? (
         <Wizard jobs={jobs} onOpen={setLightbox} onSubmit={submit} setConfirm={setConfirm} onError={setToast}
           onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} />
@@ -311,6 +339,27 @@ export default function App() {
             <p className="hint">Předmět, tvar a scéna jdou do generátoru jako obraz. Styl jen slovy: přenos stylu obrazem FLUX neumí.</p>
             {!usesRefs && refs.length > 0 && <p className="warn">Zvolený generátor předlohy neumí.</p>}
 
+            <h3>Styl</h3>
+            {styleCard ? (
+              <div className="style-pick">
+                {styleCard.sample_urls[0] ? <img src={styleCard.sample_urls[0]} alt="" /> : <span className="ph" />}
+                <div className="grow"><b>{styleCard.label}</b><Swatches palette={styleCard.palette} small /></div>
+              </div>
+            ) : styleSel === '__custom' ? (
+              <input className="search full" value={styleText} onChange={(e) => setStyleText(e.target.value)}
+                placeholder="styl slovy, např. tužková kresba" aria-label="Vlastní styl slovy" />
+            ) : null}
+            <select className="full" value={styleSel} onChange={(e) => setStyleSel(e.target.value)} aria-label="Styl">
+              <option value="">bez stylu</option>
+              {styleCards.map((c) => <option key={c.slug} value={c.slug}>{c.label}</option>)}
+              <option value="__custom">vlastní text…</option>
+            </select>
+            <div className="row">
+              <button className="btn small" onClick={() => { setDetectOpen(true); setTab('styles') }}>+ styl z obrázku</button>
+              <button className="btn small" onClick={() => setTab('styles')}>Knihovna stylů</button>
+            </div>
+            <p className="hint">Styl se k zadání připojí slovy. Obrázek stylu se generátoru nikdy neposílá.</p>
+
             <h3>Formát</h3>
             <div className="seg">
               {Object.keys(FORMATS).map((f) => <button key={f} className={format === f ? 'on' : ''} onClick={() => setFormat(f)}>{f}</button>)}
@@ -341,6 +390,8 @@ export default function App() {
             onVariant={variant}
             onReuse={(j) => {
               setPrompt(j.request.prompt)
+              const sid = (j.request as ImageRequest).style_id
+              if (sid) setStyleSel(sid)
               const f = Object.entries(FORMATS).find(([, s]) => s === j.request.size)
               if (f) setFormat(f[0])
             }}

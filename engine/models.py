@@ -89,7 +89,10 @@ class ImageRequest(BaseModel):
     steps: int | None = Field(default=None, ge=1, le=50)
     refs: list[Ref] = []
     layout: list[LayoutItem] = []
-    style: str | None = None            # free text until the style library (G4)
+    # Free text, or the slug of a style card in the library (G4): the API swaps a slug for the card's words
+    # and keeps the slug in style_id for the provenance.
+    style: str | None = None
+    style_id: str | None = None
     no_text: bool = True
     # Render at size × supersample (capped by the 8 GB ceiling) and downscale with
     # Lanczos — small figures deform less (verified 2026-10-22). flux-local only.

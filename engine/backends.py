@@ -5,8 +5,10 @@ another one."""
 from __future__ import annotations
 
 import base64
+import json
 import math
 import random
+import re
 from io import BytesIO
 from dataclasses import dataclass
 
@@ -188,6 +190,46 @@ STYLE_INSTRUCTION = (
     "subject: medium, technique, colour palette, lighting, line quality, texture, rendering, composition "
     "habits. Do not describe the subject or content. One English paragraph, at most 80 words."
 )
+
+
+# Style card from 1–5 sample images (G4 sc-20): the same price as a style description, the images go
+# downscaled to 768 px (~800 tokens each, Haiku 5.5 ~0.0005 USD for five).
+STYLE_CARD_MAX_IMAGES = 5
+STYLE_CARD_INSTRUCTION = (
+    "These images share one visual style. Describe only that style so an image generator can reproduce it on "
+    "any other subject; never describe what the images show. Answer with a JSON object and nothing else, keys:\n"
+    '"label": a short Czech name for the style (2-4 words),\n'
+    '"note": one Czech sentence saying what the style is good for,\n'
+    '"medium": English, medium and technique (for example "watercolour on rough paper, loose wet-in-wet washes"),\n'
+    '"light": English, lighting,\n'
+    '"line": English, line quality, edges and surface texture,\n'
+    '"composition": English, typical framing, background and use of space,\n'
+    '"avoid": English, what would break the style,\n'
+    '"signature": Czech, 3 short features that tell this style apart, separated by " · ".\n'
+    "Each English value at most 25 words. Do not name colours, the palette is measured from the pixels."
+)
+
+
+def describe_style_card(images: list[bytes]) -> dict:
+    content = []
+    for data in images[:STYLE_CARD_MAX_IMAGES]:
+        img = Image.open(BytesIO(data)).convert("RGB")
+        img.thumbnail((768, 768))
+        buf = BytesIO()
+        img.save(buf, "PNG")
+        content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                                    "data": base64.b64encode(buf.getvalue()).decode()}})
+    content.append({"type": "text", "text": STYLE_CARD_INSTRUCTION})
+    text = claude_text(content, 900, "popis stylu")
+    m = re.search(r"\{.*\}", text, re.S)
+    try:
+        card = json.loads(m.group(0)) if m else None
+    except json.JSONDecodeError:
+        card = None
+    if not isinstance(card, dict):
+        raise BackendError(f"popis stylu: odpověď není JSON ({text[:120]!r})")
+    return {k: str(card.get(k) or "").strip() for k in
+            ("label", "note", "medium", "light", "line", "composition", "avoid", "signature")}
 
 
 def claude_text(content, max_tokens: int, what: str, model: str = CLAUDE_MODEL) -> str:

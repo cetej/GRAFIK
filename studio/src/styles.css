@@ -213,3 +213,46 @@ main.settings ol { padding-left: 18px; margin: 6px 0; }
 main.settings li { margin-bottom: 8px; }
 table.services { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.services td { padding: 5px 6px 5px 0; border-bottom: 1px solid #eee; vertical-align: top; }
+
+/* --- G4: styly (náčrt schválený 2026-10-23, docs/spikes/img/g4-nacrt-*.png) --- */
+main.styles { display: grid; grid-template-columns: 540px minmax(0, 1fr); gap: 12px; padding: 12px; height: calc(100vh - 46px); }
+main.styles > .card { overflow: auto; }
+.row.between { justify-content: space-between; }
+.row.tight { margin: 0; }
+h3.inline { margin: 0; }
+input.full { width: 100%; margin: 6px 0 10px; }
+.style-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.style-item { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; text-align: left; padding: 8px; border: 1px solid var(--line);
+  border-radius: 10px; background: #fff; cursor: pointer; }
+.style-item:hover { border-color: #8d929b; }
+.style-item.sel { border: 2px solid var(--accent); padding: 7px; }
+.style-item img, .style-item .ph { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 7px; display: flex; align-items: flex-end;
+  padding: 6px; color: #fff; font-size: 11px; text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
+.swatches { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.swatches .sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, .15); }
+.swatches.small .sw { width: 15px; height: 15px; border-radius: 4px; }
+.style-editor { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 18px; align-content: start; }
+.samples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.sample { position: relative; width: 92px; height: 60px; border-radius: 6px; overflow: hidden; background: #e9e7e1; }
+.sample.big { width: 100%; height: auto; aspect-ratio: 16 / 10; }
+.sample img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sample .x, .swedit .x { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #b9bcc3;
+  background: #fff; cursor: pointer; line-height: 1; padding: 0; }
+.swedit { position: relative; display: inline-flex; }
+.swedit input[type=color] { width: 36px; height: 36px; padding: 2px; border: 1px solid #b9bcc3; border-radius: 8px; background: #fff; cursor: pointer; }
+.swedit .x { top: -8px; right: -8px; width: 18px; height: 18px; font-size: 11px; }
+label.field { display: block; font-size: 12px; color: var(--muted); margin: 9px 0 0; }
+label.field input, label.field textarea { display: block; width: 100%; margin-top: 3px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px;
+  font-size: 14px; color: var(--ink); background: #fff; }
+label.field textarea { height: 58px; resize: vertical; }
+label.field input:disabled { background: #f1f0ec; color: var(--muted); }
+.style-pick { display: flex; gap: 8px; align-items: center; padding: 7px; border: 2px solid var(--accent); border-radius: 10px; margin-bottom: 6px; }
+.style-pick img, .style-pick .ph { width: 64px; height: 42px; object-fit: cover; border-radius: 5px; background: #e9e7e1; flex: none; }
+.dialog.detect { width: min(1120px, 94vw); max-height: 90vh; overflow: auto; }
+.detect-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.detect-cols .sample { width: 150px; height: 92px; }
+
+/* UI podlaha: vypnuté tlačítko mění výplň, písmo i kurzor; fokus z klávesnice je vidět; stisk má odezvu */
+:where(a, button, input, select, textarea, label.btn, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled, .btn.go:disabled, .btn.pay:disabled, .btn.primary:disabled { opacity: 1; background: #eceef1; border-color: #d3d6db; color: #8a8f97; box-shadow: none; }
+.btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }

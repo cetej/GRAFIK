@@ -1,0 +1,37 @@
+{
+  "slug": "ng-infografika-3d",
+  "label": "NG infografika 3D",
+  "note": "Technické a přírodovědné vysvětlující obrázky s řezem, na které se doplní popisky.",
+  "origin": "default",
+  "medium": "clean 3D render like a museum infographic, matte materials, cutaway sections that reveal the inside",
+  "light": "soft even studio light from the upper left, gentle ambient occlusion, no harsh shadows",
+  "line": "no outlines, smooth bevelled edges, fine surface detail",
+  "composition": "single subject centred on a plain warm light-grey background, generous empty margins for labels",
+  "avoid": "photographic noise, lens flare, dramatic sky",
+  "signature": "řez ukazuje vnitřek · teplá šedá plocha · tlumené barvy s jedním zlatým akcentem",
+  "palette": [
+    {
+      "hex": "#1b2a3a",
+      "name": "navy"
+    },
+    {
+      "hex": "#e8b23a",
+      "name": "ochre"
+    },
+    {
+      "hex": "#d9d4c7",
+      "name": "warm light grey"
+    },
+    {
+      "hex": "#4f7a8c",
+      "name": "steel blue"
+    },
+    {
+      "hex": "#a8432c",
+      "name": "rust"
+    }
+  ],
+  "puvod": "výchozí styl GRAFIK (spec sc-23), karta napsaná ručně 2026-10-23",
+  "created": "2026-10-23T10:37:06",
+  "updated": "2026-10-23T10:37:06"
+}

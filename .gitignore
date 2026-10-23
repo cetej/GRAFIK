@@ -36,3 +36,6 @@ library/
 run/
 refs/
 workflows/
+
+# G4: smazané styly (koš), karty samotné jsou v gitu
+styles/.trash/
