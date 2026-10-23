@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Hliněný render jako předloha: stíny se mění v předměty, poměry jen z čísel
+
+- Vržený stín plachty na palubě v hliněném renderu FLUX.2 pro „vysvětlil“ jako spuštěný můstek přes palubu. Do předloh renderovat bez vržených stínů (měkké světlo) nebo stín výslovně popsat.
+- TRELLIS kopíruje poměry předlohy i s chybami (stavebnicová hračka → tlustý stěžeň, tenké ráhno). Na správné poměry stavět model z rozměrů rekonstrukce (`scripts/3d/lod_kvinquerema.py`, každé číslo se zdrojem).
+- Na finální kresbu podle hliněného renderu je Nano Banana Pro věrnější než FLUX.2 pro (nic nepřidává); lokální Klein jen na náčrty. `nb-pro` přímo přes Google vrátil 402 Payment Required (fakturace účtu), `fal:fal-ai/nano-banana-pro` funguje.
+
 ## 2026-10-23 — Tvar složitého objektu: 3D model jako předloha, ne prompt
 
 FLUX 3 Klein bez předlohy kreslil kvinqueremu deformovaně (dva stěžně, vesla různé délky a směru). Model z TRELLIS 2 (jeden obrázek čistého modelu lodi) vyrenderovaný v Blenderu a poslaný jako `role: geometry` předloha tvar udržel: jeden stěžeň, pravidelná vesla. TRELLIS ale věrně kopíruje předlohu, takže historickou správnost určuje volba předlohy. Render z TRELLIS je tmavý lesklý plast: světlejší svět a `view_transform = Standard`.

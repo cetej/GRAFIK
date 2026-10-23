@@ -51,3 +51,33 @@ Operátor: věž a padací most se slily, styl má zůstat původní („nechci 
 ![realistická ilustrace](img/2026-10-23-3d/7-realisticka-ilustrace.jpg)
 
 Zbývá: plachta, rozměry podle rekonstrukce (vesla jsou zatím odhad), řez lodí (TRELLIS dělá jen skořepinu, vnitřek se musí postavit v Blenderu).
+
+## Iterace 3: loď z rozměrů rekonstrukce + silnější modely (0,51 USD)
+
+Operátor: realistická ilustrace z lokálního FLUX „stojí za hovno“ (stěžeň jako sloup, ráhno jako párátko). Příčiny: poměry ze stavebnicové předlohy (TRELLIS je věrně okopíroval) a malý lokální model. Schválil stavbu v Blenderu z rozměrů a srovnání 2× FLUX.2 pro + 2× Nano Banana Pro do 0,65 USD.
+
+`scripts/3d/lod_kvinquerema.py`: celá loď z čísel, každé číslo se zdrojem v `DIM`.
+
+| Rozměr | Hodnota | Zdroj |
+|---|---|---|
+| délka | 45 m | Coates 1995, s. 138 |
+| šířka u hladiny | 5 m | Coates 1995 |
+| paluba nad vodou | 3 m | Coates 1995 |
+| ponor | 1,3 m | odhad (Olympias 1,25 m) |
+| vesla | 3 patra, 30 v řadě, 90 na bok, 2–2–1 veslaři | Morrison 1995, s. 69 |
+| rozestup vesel | 0,98 m | odhad (Olympias 0,89 m) |
+| stěžeň / ráhno / plachta | 13 m / 14 m / 12 × 8 m | odhad |
+| korvus | sloup 7,2 m, most 10,8 × 1,2 m | Polybios 1.22 |
+| kloun | 2,4 m, tři žebra | odhad (Athlit 2,26 m) |
+
+Srovnání na stejném hliněném renderu (`8-model-z-rozmeru.jpg`):
+- **FLUX.2 pro** (fal, 2 × 0,18 USD): bohatý detail, ale z vrženého stínu plachty na palubě udělal vymyšlený spuštěný můstek přes celou palubu a přidal falešný podpis vpravo dole.
+- **Nano Banana Pro** přes Google (`nb-pro`): 402 Payment Required (fakturace účtu Google), nic nestál. Přes fal (`fal:fal-ai/nano-banana-pro`, 0,15 USD) jen 1 obrázek, aby se nepřekročil schválený strop: **nejvěrnější tvar** (tři řady vesel, nástavec, věž, korvus, kloun se žebry), nic nepřidal, čistá kresba, výstup 2752 × 1536.
+
+![model z rozměrů](img/2026-10-23-3d/8-model-z-rozmeru.jpg)
+![FLUX.2 pro](img/2026-10-23-3d/10-flux2pro-a.jpg)
+![Nano Banana Pro](img/2026-10-23-3d/12-nbpro.jpg)
+
+Řez (`scripts/3d/rez_kvinquerema.py`): hliněný model hotový (trup s žebry a kýlem, 3 patra veslařů 2–2–1, podpalubí, paluba, věž), světlo ještě doladit, pak stejnou cestou přes Nano Banana Pro.
+
+![řez v hlíně](img/2026-10-23-3d/13-rez-hlina.jpg)
