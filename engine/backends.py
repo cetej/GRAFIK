@@ -327,12 +327,12 @@ EXPAND_INSTRUCTION = (
     "judgements such as 'beautiful' or 'sad'; give exact counts of objects and people; if people or small figures "
     "appear, state their size and distance; turn vague wishes into concrete visible changes. Lettering in quotation "
     "marks must appear in the image: copy it unchanged, in its original language and spelling, inside double quotes. "
-    "No other text in the image. Answer with the prompt only.\n\nBrief: "
+    "No other text in the image. Keep it to one paragraph of at most 180 words. Answer with the prompt only.\n\nBrief: "
 )
 
 
 def expand_prompt(text: str) -> str:
-    return claude_text(EXPAND_INSTRUCTION + text, 500, "rozepsání zadání")
+    return claude_text(EXPAND_INSTRUCTION + text, 900, "rozepsání zadání")
 
 
 def make_backends(settings: Settings, server: SdServer) -> dict:
