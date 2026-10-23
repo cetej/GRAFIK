@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Živé ověření větve: Engine z worktree nad daty hlavního checkoutu (G4)
+
+Na jedné GPU smí běžet jen jeden Engine a jeden sd-server. Kód z větve se ověří tak, že se Engine na :8300 (jen vlastní PID, prázdná fronta) nahradí procesem z worktree s `GRAFIK_DATA_DIR=<hlavní checkout>`: převezme `run/sd-server.json` (stejný sd-server), frontu i knihovnu. Studio z větve běží vedle na :5175 (`npm --prefix studio run dev -- --port 5175`). Soubory, které tím vzniknou v hlavním checkoutu (např. `styles/`), se před `git pull` po merge smažou, jinak pull skončí na „untracked files would be overwritten“. Po merge Engine znovu z hlavního checkoutu.
+
 ## 2026-10-23 — Claude Haiku 5.5 přemýšlí ve výchozím stavu a sní tím max_tokens
 
 První živé „Rozepsat zadání“ s delší instrukcí (celek → části → celek) vrátilo **prázdný text a stálo 0,01 USD**. Haiku 5.5 má adaptivní přemýšlení zapnuté, i když se `thinking` nepošle, a přemýšlení se počítá do `max_tokens` (500): na text nezbylo nic. Engine prázdnou odpověď vrátil jako úspěch.

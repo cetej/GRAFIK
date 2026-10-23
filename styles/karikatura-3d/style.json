@@ -1,0 +1,33 @@
+{
+  "slug": "karikatura-3d",
+  "label": "Karikatura 3D",
+  "note": "Postavy a zvířata s nadsazenými proporcemi pro odlehčené články a děti.",
+  "origin": "default",
+  "medium": "stylised 3D cartoon render, exaggerated proportions with large heads and expressive faces, soft clay-like materials",
+  "light": "bright cheerful key light with a soft rim light",
+  "line": "rounded shapes, smooth surfaces, no outlines",
+  "composition": "character-focused framing on a simple, softly blurred background",
+  "avoid": "realistic skin texture, gloomy lighting",
+  "signature": "velká hlava a výrazná tvář · měkké hliněné materiály · jasné veselé světlo",
+  "palette": [
+    {
+      "hex": "#5b3c8f",
+      "name": "purple"
+    },
+    {
+      "hex": "#f07c3b",
+      "name": "orange"
+    },
+    {
+      "hex": "#2fb3c2",
+      "name": "turquoise"
+    },
+    {
+      "hex": "#f4e1c1",
+      "name": "cream"
+    }
+  ],
+  "puvod": "výchozí styl GRAFIK (spec sc-23), karta napsaná ručně 2026-10-23",
+  "created": "2026-10-23T10:37:06",
+  "updated": "2026-10-23T10:37:06"
+}

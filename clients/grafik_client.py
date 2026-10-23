@@ -66,6 +66,15 @@ def health() -> dict:
     return _request("GET", "/api/v2/health")[1]
 
 
+def styles() -> list[dict]:
+    """Style cards from GRAFIK's library. Pass a card's `slug` as generate(..., style=slug):
+    the Engine adds the card's words to the prompt (never the sample images)."""
+    status, data = _request("GET", "/api/v2/styles")
+    if status != 200:
+        raise GrafikError(f"knihovnu stylů se nepodařilo načíst ({status})")
+    return data
+
+
 def add_ref(url: str, page_url: str | None = None, title: str | None = None, author: str | None = None,
             license: str | None = None) -> dict:
     """Put an image into GRAFIK's reference library ("Schránka předloh"). `url` may be the image

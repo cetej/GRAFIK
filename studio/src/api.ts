@@ -17,6 +17,8 @@ export interface ImageRequest {
   parent?: string | null
   edit?: { action: EditAction; bbox: Box; target_bbox?: Box | null; instruction: string } | null
   translate?: 'auto' | 'off'
+  style?: string | null
+  style_id?: string | null
   caller?: string
   confirm_cost?: boolean
 }
@@ -72,6 +74,7 @@ export interface Provenance {
   cost_usd: number
   timing_s: { queue: number; generate: number }
   translations?: { field: string; cs: string; en: string; paid: boolean }[]
+  style_id?: string | null
   ai_generated: boolean
   reviewed_by: string | null
   reviewed_at?: string
@@ -188,3 +191,45 @@ export async function fileToB64(file: Blob): Promise<string> {
 // Czech diacritics -> the Engine will translate (engine/translate.py uses the same test)
 export const isCzech = (t: string) => /[ěščřžýáíéůúťďňóĚŠČŘŽÝÁÍÉŮÚŤĎŇÓ]/.test(t)
 export const onlyTranslation = (items: CostItem[]) => items.length > 0 && items.every((i) => i.kind === 'translation')
+
+// -- G4 style library --------------------------------------------------------
+export interface PaletteColor { hex: string; name?: string; share?: number }
+
+export interface StyleFields {
+  label: string
+  note: string
+  medium: string
+  light: string
+  line: string
+  composition: string
+  avoid: string
+  signature: string
+  palette: PaletteColor[]
+  origin?: 'default' | 'detected' | 'manual'
+  puvod?: string
+}
+
+export interface StyleCard extends StyleFields {
+  slug: string
+  samples: string[]
+  sample_urls: string[]
+  prompt: string
+  updated: string
+}
+
+export interface StyleImages { b64?: string[]; jobs?: string[]; ref_ids?: string[] }
+
+const send = <T>(method: string, path: string, data?: unknown) =>
+  call<T>(path, { method, body: data === undefined ? undefined : JSON.stringify(data) })
+
+export const stylesApi = {
+  list: () => call<StyleCard[]>('/api/v2/styles'),
+  create: (f: StyleFields) => post<StyleCard>('/api/v2/styles', f),
+  save: (slug: string, f: StyleFields) => send<StyleCard>('PUT', `/api/v2/styles/${slug}`, f),
+  remove: (slug: string) => send<{ moved_to: string }>('DELETE', `/api/v2/styles/${slug}`),
+  addSample: (slug: string, body: { b64?: string; job?: string }) => post<StyleCard>(`/api/v2/styles/${slug}/samples`, body),
+  removeSample: (slug: string, name: string) => send<StyleCard>('DELETE', `/api/v2/styles/${slug}/samples/${name}`),
+  palette: (img: StyleImages) => post<{ palette: PaletteColor[] }>('/api/v2/styles/palette', img),
+  describe: (img: StyleImages, confirm: boolean) =>
+    post<Omit<StyleFields, 'palette'> & { palette: PaletteColor[] }>('/api/v2/styles/describe', { ...img, confirm_cost: confirm }),
+}

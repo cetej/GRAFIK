@@ -63,6 +63,10 @@ class Settings:
         return self.data_dir / "refs" / "library"
 
     @property
+    def styles_dir(self) -> Path:
+        return self.data_dir / "styles"
+
+    @property
     def translations_path(self) -> Path:
         return self.library_dir / "translations.jsonl"
 

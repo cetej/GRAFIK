@@ -56,6 +56,7 @@ export function HistoryPanel({ selected, jobs, onSelect }: {
             <dt>Cena</dt><dd><span className={`tag ${prov.cost_usd ? 'paid' : 'free'}`}>{fmtUsd(prov.cost_usd)}</span></dd>
             <dt>Rozměr</dt><dd>{prov.params.size}{prov.params.render_size && prov.params.render_size !== prov.params.size ? ` (vykresleno ${prov.params.render_size})` : ''}</dd>
             <dt>Seed</dt><dd>{prov.seed ?? '—'}</dd>
+            {prov.style_id && <><dt>Styl</dt><dd>{prov.style_id}</dd></>}
             <dt>Předlohy</dt>
             <dd>{prov.refs.length ? prov.refs.map((r, i) => <div key={i}>{r.source ?? 'obrázek'} ({r.role}{r.license ? `, ${r.license}` : ''})</div>) : '—'}</dd>
             <dt>Čas</dt><dd>{Math.round(prov.timing_s.generate)} s{prov.timing_s.queue > 2 ? ` + ${Math.round(prov.timing_s.queue)} s ve frontě` : ''}</dd>

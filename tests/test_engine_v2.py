@@ -824,3 +824,111 @@ def test_settings_status_never_exposes_key_values(api, monkeypatch):
     assert fal["connected"] is True
     assert next(x for x in st["services"] if x["id"] == "pinterest")["note"].startswith("bez účtu")
     assert st["flux_local"]["min_free_vram_mib"] == 4600 and "today_usd" in st["costs"]
+
+
+# -- G4: style library (sc-20 … sc-23) ---------------------------------------
+
+STYLE_CARD = {"label": "Akvarel přírodovědný", "medium": "watercolour on rough cotton paper, loose washes",
+              "light": "soft diffuse daylight", "line": "fine sepia ink contours",
+              "composition": "single specimen on a white page", "avoid": "photographic detail",
+              "signature": "zrnitý papír · sépiová linka", "palette": [{"hex": "#c46a2c"}, {"hex": "#6F7D5A"}]}
+
+
+def test_palette_kmeans_finds_the_colours():
+    from io import BytesIO
+
+    from PIL import Image
+
+    from engine.styles import palette
+    img = Image.new("RGB", (100, 100), (200, 30, 30))
+    img.paste((30, 60, 200), (0, 0, 100, 25))
+    buf = BytesIO()
+    img.save(buf, "PNG")
+    p = palette([buf.getvalue()], k=2)
+    assert [c["hex"] for c in p] == ["#c81e1e", "#1e3cc8"]
+    assert p[0]["share"] == 0.75 and p[0]["name"] == "red" and p[1]["name"] == "blue"
+
+
+def test_style_card_files_and_prompt_words(api, settings):
+    r = api.post("/api/v2/styles", json=STYLE_CARD)
+    assert r.status_code == 201, r.text
+    card = r.json()
+    assert card["slug"] == "akvarel-prirodovedny" and card["origin"] == "manual"
+    d = settings.styles_dir / "akvarel-prirodovedny"
+    assert json.loads((d / "style.json").read_text(encoding="utf-8"))["palette"][1]["hex"] == "#6f7d5a"
+    md = (d / "STYLE.md").read_text(encoding="utf-8")
+    assert md.startswith("# Akvarel přírodovědný") and "## Podpisové znaky" in md and "Style: Watercolour" in md
+    assert card["prompt"].startswith("Watercolour on rough cotton paper") and "terracotta #c46a2c" in card["prompt"]
+    assert api.post("/api/v2/styles", json=STYLE_CARD).status_code == 409
+    assert api.post("/api/v2/styles", json={"label": "Prázdný"}).status_code == 400
+    assert [c["slug"] for c in api.get("/api/v2/styles").json()] == ["akvarel-prirodovedny"]
+
+
+def test_style_slug_goes_to_prompt_as_words_never_as_image(api, tmp_path, monkeypatch):
+    import base64
+    log = tmp_path / "sd.log"
+    monkeypatch.setenv("FAKE_SD_LOG", str(log))
+    api.post("/api/v2/styles", json=STYLE_CARD)
+    api.post("/api/v2/styles/akvarel-prirodovedny/samples", json={"b64": base64.b64encode(_png_bytes()).decode()})
+    r = api.post("/api/v2/images", json={"prompt": "A heron", "size": "256x256", "style": "akvarel-prirodovedny"})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    assert "Style: Watercolour on rough cotton paper" in job["result"]["prompt_sent"]
+    assert not json.loads(log.read_text().splitlines()[-1]).get("ref_images")  # sc-21: the sample never goes as pixels
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["style_id"] == "akvarel-prirodovedny"
+    # free text stays text, an unknown style_id is an error
+    r = api.post("/api/v2/estimate", json={"prompt": "x", "style": "pencil sketch"})
+    assert r.status_code == 200
+    assert api.post("/api/v2/images", json={"prompt": "x", "style_id": "nope"}).status_code == 404
+
+
+def test_style_samples_from_job_and_trash(api, settings):
+    api.post("/api/v2/styles", json=STYLE_CARD)
+    base = _first_image(api)
+    card = api.post("/api/v2/styles/akvarel-prirodovedny/samples", json={"job": f"{base['job_id']}/0"}).json()
+    assert card["samples"] == ["1.jpg"] and card["sample_urls"][0].endswith("/samples/1.jpg")
+    assert api.get(card["sample_urls"][0]).headers["content-type"] == "image/jpeg"
+    assert api.delete("/api/v2/styles/akvarel-prirodovedny/samples/1.jpg").json()["samples"] == []
+    moved = api.delete("/api/v2/styles/akvarel-prirodovedny").json()["moved_to"]
+    assert ".trash" in moved and (Path(moved) / "style.json").exists()
+    assert api.get("/api/v2/styles/akvarel-prirodovedny").status_code == 404
+    assert api.get("/api/v2/styles/../etc").status_code in (400, 404)
+
+
+def test_style_palette_free_describe_paid(api, settings, monkeypatch):
+    import base64
+
+    from engine import app as app_mod
+    imgs = [base64.b64encode(_png_bytes((200, 30, 30))).decode(), base64.b64encode(_png_bytes((30, 60, 200))).decode()]
+    pal = api.post("/api/v2/styles/palette", json={"b64": imgs}).json()["palette"]
+    assert {c["hex"] for c in pal} == {"#c81e1e", "#1e3cc8"}
+    calls = []
+    monkeypatch.setattr(app_mod, "describe_style_card", lambda images: calls.append(len(images)) or {
+        "label": "Test", "note": "", "medium": "flat vector", "light": "", "line": "", "composition": "",
+        "avoid": "", "signature": ""})
+    r = api.post("/api/v2/styles/describe", json={"b64": imgs})
+    assert r.status_code == 402 and r.json()["estimate_usd"] == 0.01 and calls == []
+    d = api.post("/api/v2/styles/describe", json={"b64": imgs, "confirm_cost": True}).json()
+    assert calls == [2] and d["medium"] == "flat vector" and d["origin"] == "detected" and len(d["palette"]) == 2
+    assert api.get("/api/v2/costs").json()["entries"][-1]["backend"] == "claude:style-card"
+    assert api.post("/api/v2/styles/palette", json={}).status_code == 400
+    assert api.post("/api/v2/styles/palette", json={"b64": imgs * 3}).status_code == 400
+
+
+def test_describe_style_card_parses_json(monkeypatch):
+    import base64
+
+    from engine import backends
+    sent = []
+    monkeypatch.setattr(backends, "claude_text", lambda content, mt, what: sent.append(content) or
+                        'Here: {"label": "Akvarel", "medium": "watercolour", "light": "soft"}')
+    card = backends.describe_style_card([_png_bytes(size=(2000, 1000))])
+    assert card["medium"] == "watercolour" and card["avoid"] == ""
+    from io import BytesIO
+
+    from PIL import Image
+    assert max(Image.open(BytesIO(base64.b64decode(sent[0][0]["source"]["data"]))).size) == 768
+    monkeypatch.setattr(backends, "claude_text", lambda *a: "no json")
+    with pytest.raises(backends.BackendError, match="není JSON"):
+        backends.describe_style_card([_png_bytes()])

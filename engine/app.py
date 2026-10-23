@@ -16,7 +16,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from engine.backends import EXPAND_USD, BackendError, estimate_usd, expand_prompt, make_backends
+from engine.backends import (EXPAND_USD, STYLE_CARD_MAX_IMAGES, STYLE_DESCRIBE_USD, BackendError, describe_style_card,
+                             estimate_usd, expand_prompt, make_backends)
 from engine.config import Settings
 from engine.gpu import free_vram_mib
 from engine.keys import get_key
@@ -25,6 +26,7 @@ from engine.models import ImageRequest, Ref
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
+from engine.styles import StyleError, StyleLibrary, palette, slugify
 from engine.translate import Translator
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
 
@@ -63,6 +65,32 @@ class CommonsImport(BaseModel):
     file: str                       # "File:Name.jpg" or "Name.jpg"
 
 
+class StyleIn(BaseModel):
+    label: str
+    note: str = ""
+    medium: str = ""
+    light: str = ""
+    line: str = ""
+    composition: str = ""
+    avoid: str = ""
+    signature: str = ""
+    palette: list[dict] = []
+    origin: str | None = None       # default | detected | manual
+    puvod: str = ""
+
+
+class StyleImages(BaseModel):
+    b64: list[str] = []             # uploaded images
+    jobs: list[str] = []            # "<job_id>/<n>" images from the library
+    ref_ids: list[str] = []         # reference library
+    confirm_cost: bool = False
+
+
+class StyleSample(BaseModel):
+    b64: str | None = None
+    job: str | None = None          # "<job_id>/<n>"
+
+
 class Expand(BaseModel):
     text: str
     confirm_cost: bool = False
@@ -77,6 +105,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     bk = backends or make_backends(s, sd)
     translator = Translator(s.translations_path)
     reflib = RefLibrary(s.reflib_dir)
+    stylelib = StyleLibrary(s.styles_dir)
     workflows = WorkflowStore(s.data_dir / "workflows")
     worker = Worker(s, store, bk, translator=translator)
 
@@ -120,6 +149,17 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                         "license": r.license or meta.get("license"), "author": r.author or meta.get("author")})
                 refs.append(r)
             req = req.model_copy(update={"refs": refs})
+        if req.style_id or req.style:
+            # a library slug in `style` (spec § 5) or `style_id` -> the card's words; free text stays as it is
+            slug = req.style_id or req.style.strip()
+            try:
+                card = stylelib.get(slug)
+            except StyleError:
+                card = None
+            if card:
+                req = req.model_copy(update={"style": card["prompt"], "style_id": slug})
+            elif req.style_id:
+                raise HTTPException(404, f"styl {req.style_id} v knihovně neexistuje")
         if req.edit:
             parent = store.image_path(req.parent)
             if parent is None:
@@ -396,6 +436,133 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         prov["reviewed_at"] = datetime.now().isoformat(timespec="seconds")
         prov_path.write_text(json.dumps(prov, ensure_ascii=False, indent=2), encoding="utf-8")
         return prov
+
+    # -- style library (G4) -------------------------------------------------
+    def _style_public(card: dict) -> dict:
+        base = f"/api/v2/styles/{card['slug']}/samples/"
+        return {**card, "sample_urls": [base + n for n in card["samples"]]}
+
+    def _style_or_404(slug: str) -> dict:
+        try:
+            card = stylelib.get(slug)
+        except StyleError as e:
+            raise HTTPException(400, str(e)) from e
+        if card is None:
+            raise HTTPException(404, f"styl {slug} neexistuje")
+        return card
+
+    def _style_images(body: StyleImages) -> list[bytes]:
+        out = []
+        try:
+            out += [base64.b64decode(b.split(",", 1)[-1]) for b in body.b64]
+        except ValueError as e:
+            raise HTTPException(400, f"neplatné base64 ({e})") from e
+        for ref in body.jobs:
+            path = store.image_path(ref)
+            if path is None:
+                raise HTTPException(404, f"obrázek {ref} neexistuje")
+            out.append(path.read_bytes())
+        for ref_id in body.ref_ids:
+            path = reflib.image_path(ref_id)
+            if path is None:
+                raise HTTPException(404, f"předloha {ref_id} neexistuje")
+            out.append(path.read_bytes())
+        if not out:
+            raise HTTPException(400, "pošlete aspoň jeden obrázek")
+        if len(out) > STYLE_CARD_MAX_IMAGES:
+            raise HTTPException(400, f"nejvýš {STYLE_CARD_MAX_IMAGES} obrázků")
+        return out
+
+    @app.get("/api/v2/styles")
+    def styles():
+        return [_style_public(c) for c in stylelib.list()]
+
+    @app.get("/api/v2/styles/{slug}")
+    def style(slug: str):
+        return _style_public(_style_or_404(slug))
+
+    @app.post("/api/v2/styles", status_code=201)
+    def style_create(body: StyleIn):
+        slug = slugify(body.label)
+        if stylelib.get(slug):
+            raise HTTPException(409, f"styl {slug} už existuje, zvolte jiný název")
+        try:
+            return _style_public(stylelib.save(slug, body.model_dump()))
+        except StyleError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.put("/api/v2/styles/{slug}")
+    def style_save(slug: str, body: StyleIn):
+        _style_or_404(slug)
+        try:
+            return _style_public(stylelib.save(slug, body.model_dump()))
+        except StyleError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/v2/styles/{slug}")
+    def style_delete(slug: str):
+        _style_or_404(slug)
+        return {"moved_to": stylelib.delete(slug)}
+
+    @app.get("/api/v2/styles/{slug}/samples/{name}")
+    def style_sample(slug: str, name: str):
+        _style_or_404(slug)
+        path = stylelib.sample_path(slug, name)
+        if path is None:
+            raise HTTPException(404, "ukázka neexistuje")
+        return FileResponse(path, media_type="image/jpeg")
+
+    @app.post("/api/v2/styles/{slug}/samples", status_code=201)
+    def style_add_sample(slug: str, body: StyleSample):
+        _style_or_404(slug)
+        if body.job:
+            path = store.image_path(body.job)
+            if path is None:
+                raise HTTPException(404, f"obrázek {body.job} neexistuje")
+            data = path.read_bytes()
+        elif body.b64:
+            data = base64.b64decode(body.b64.split(",", 1)[-1])
+        else:
+            raise HTTPException(400, "pošlete b64 nebo job")
+        try:
+            return _style_public(stylelib.add_sample(slug, data))
+        except StyleError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.delete("/api/v2/styles/{slug}/samples/{name}")
+    def style_remove_sample(slug: str, name: str):
+        _style_or_404(slug)
+        try:
+            return _style_public(stylelib.remove_sample(slug, name))
+        except StyleError as e:
+            raise HTTPException(404, str(e)) from e
+
+    @app.post("/api/v2/styles/palette")
+    def style_palette(body: StyleImages):
+        """Free: k-means over the pixels."""
+        return {"palette": palette(_style_images(body))}
+
+    @app.post("/api/v2/styles/describe")
+    def style_describe(body: StyleImages):
+        """Paid: Claude looks at the samples and writes the card (draft, nothing is saved)."""
+        images = _style_images(body)
+        if not body.confirm_cost:
+            return JSONResponse(status_code=402, content={
+                "detail": "Popis stylu je placený (Claude) — pošlete znovu s confirm_cost=true.",
+                "estimate_usd": STYLE_DESCRIBE_USD,
+                "items": [{"what": f"popis stylu z {len(images)} obrázků (Claude Haiku)", "usd": STYLE_DESCRIBE_USD}]})
+        try:
+            card = describe_style_card(images)
+        except BackendError as e:
+            raise HTTPException(502, str(e)) from e
+        s.library_dir.mkdir(parents=True, exist_ok=True)
+        with open(s.costs_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "job_id": None,
+                                "caller": "studio", "backend": "claude:style-card", "n": len(images),
+                                "usd": STYLE_DESCRIBE_USD,
+                                "items": [{"what": "popis stylu z obrázků", "usd": STYLE_DESCRIBE_USD}]},
+                               ensure_ascii=False) + "\n")
+        return {**card, "palette": palette(images), "origin": "detected", "usd": STYLE_DESCRIBE_USD}
 
     @app.post("/api/v2/prompt/expand")
     def expand(body: Expand):

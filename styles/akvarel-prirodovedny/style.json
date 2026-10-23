@@ -1,0 +1,37 @@
+{
+  "slug": "akvarel-prirodovedny",
+  "label": "Akvarel přírodovědný",
+  "note": "Rostliny, zvířata a přírodniny jako tabule z atlasu nebo terénní příručky.",
+  "origin": "default",
+  "medium": "natural-history watercolour illustration on rough cotton paper, transparent layered washes, fine sepia ink contours",
+  "light": "soft diffuse daylight, no cast shadow on the background",
+  "line": "delicate ink lines, visible paper grain, soft wet edges",
+  "composition": "single specimen isolated on an off-white paper background, like a plate in a field guide",
+  "avoid": "photographic realism, hard digital gradients",
+  "signature": "zrnitý papír · sépiová linka · jeden exemplář na prázdné stránce",
+  "palette": [
+    {
+      "hex": "#f3efe6",
+      "name": "off-white paper"
+    },
+    {
+      "hex": "#c46a2c",
+      "name": "rust"
+    },
+    {
+      "hex": "#6f7d5a",
+      "name": "moss green"
+    },
+    {
+      "hex": "#9fb3c4",
+      "name": "pale sky blue"
+    },
+    {
+      "hex": "#3b3a36",
+      "name": "charcoal"
+    }
+  ],
+  "puvod": "výchozí styl GRAFIK (spec sc-23), karta napsaná ručně 2026-10-23",
+  "created": "2026-10-23T10:37:06",
+  "updated": "2026-10-23T10:37:06"
+}

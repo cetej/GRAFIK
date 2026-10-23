@@ -2,6 +2,13 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — G4 styly
+
+- **Náčrt G4 schválen** (`docs/spikes/img/g4-nacrt-1.png`, `-2.png`): záložka „Styly“ (knihovna vlevo, karta stylu vpravo), dialog „Nový styl z obrázků“ a výběr stylu v zadání ve studiu. Zadání předala zakládající session („pokračuj G4 … nejdřív mi ukaž náčrt UI“), schválení operátor dal přímo: „Schvaluji náčrt G4, stavěj.“
+- **Styl jde do generátoru jen slovy**, ukázky slouží k náhledu a detekci. Paleta se měří z pixelů zdarma; popis slovy od Claude je placený (0,01 USD) a spustí ho jen tlačítko s cenou, kliknutí je souhlas jako u překladu.
+- **`style.json` je zdroj pravdy**, `STYLE.md` se z něj přepisuje při každém uložení (upravovat ve studiu nebo ve `style.json`). Smazaný styl jde do `styles/.trash/`, ne pryč.
+- Projekty posílají `style: "<slug>"`; volný text ve `style` zůstává volným textem.
+
 ## 2026-10-23 — Poznatky z PromptEnhancer (cetej/GRAFIK#9)
 
 Zadání operátora přes session „PromptEnhancer analýza“ (ta byla mezitím archivovaná): co je nové oproti GRAFIK, připravit k testování a implementovat v projektu. Z Tencent PromptEnhancer přebíráme jen principy, vlastními slovy; kód ani text jejich promptů ne (licence v EU neplatí). Dataset T2I-Keypoints-Eval je apache-2.0.
