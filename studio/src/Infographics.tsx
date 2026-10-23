@@ -109,11 +109,14 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
       <defs>
         <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" /><stop offset=".9" stopColor="#fff" /><stop offset="1" stopColor="#000" /></linearGradient>
         <mask id="fade-mask"><rect width={W} height={imgH} fill="url(#fade)" /></mask>
+        {/* behind the title: keeps it readable over a light sky or sea */}
+        <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity=".85" /><stop offset="1" stopColor={t.bg} stopOpacity="0" /></linearGradient>
         <filter id="halo"><feDropShadow dx="0" dy={1 * k} stdDeviation={2 * k} floodColor={t.shadow} floodOpacity=".95" /></filter>
       </defs>
       <rect width={W} height={H} fill={t.bg} />
       <image href={href} x="0" y="0" width={W} height={imgH} preserveAspectRatio="xMidYMid slice" mask="url(#fade-mask)"
         onClick={ed ? (e) => { const [x, y] = svgPoint(e); ed.onImageClick(x, y) } : undefined} style={ed ? { cursor: 'crosshair' } : undefined} />
+      <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />
       <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily="Palatino Linotype, Book Antiqua, serif" fontWeight="700" fontSize={34 * k} letterSpacing={1.4 * k}>{doc.title.toUpperCase()}</text>
       {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily="Segoe UI, sans-serif" fontSize={15 * k}>{doc.subtitle}</text>}
 
@@ -125,7 +128,7 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
           <g key={i} fontFamily="Segoe UI, sans-serif">
             <polyline points={`${ax},${ay} ${px},${py}`} stroke={t.lead} strokeWidth={k} fill="none" />
             <circle cx={ax} cy={ay} r={2.5 * k} fill={t.dot} />
-            <g filter="url(#halo)">
+            <g filter="url(#halo)" stroke={t.shadow} strokeWidth={3 * k} strokeLinejoin="round" paintOrder="stroke">
               <text x={px} y={py + 13 * k} textAnchor={anchorEnd} fill={t.ink} fontSize={13 * k} fontWeight="600">{l.text}</text>
               {l.small && <text x={px} y={py + 28 * k} textAnchor={anchorEnd} fill={t.muted} fontSize={11.5 * k}>{l.small}</text>}
             </g>
