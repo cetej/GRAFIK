@@ -31,7 +31,7 @@ DIM = {
     "marines": 120,          # Polybius 1.26 (Ecnomus): 300 rowers and 120 soldiers a ship
     "corvus_pole": 7.2,      # Polybius 1.22: 24 ft
     "corvus_bridge": (10.8, 1.2),    # Polybius 1.22: 36 ft long, 4 ft wide
-    "ram_l": 2.4,            # odhad (Athlit ram 2.26 m)
+    "ram_l": 1.0,            # Egadi rams (241 BC): ~0.9-1.0 m long, ~125 kg (RPM Nautical Foundation)
     "shield_d": 0.9,         # odhad
     "man": 1.72,             # odhad: height of a soldier or sailor
 }
@@ -221,15 +221,15 @@ path([(L - 0.9, 0, -0.6), (L - 0.4, 0, 1.0), (L - 0.2, 0, 2.6), (L - 0.3, 0, 3.8
 rod((L - 1.0, 0, 1.6), (L + 1.2, 0, 1.6), 0.22, 0.18, 10)
 rl = DIM["ram_l"]
 bm = bmesh.new()
-base = [bm.verts.new((L - 0.8, y, z)) for y, z in ((-0.4, -0.5), (0.4, -0.5), (0.4, 0.4), (-0.4, 0.4))]
-tipv = [bm.verts.new((L - 0.8 + rl, y, z)) for y, z in ((-0.3, -0.35), (0.3, -0.35), (0.3, 0.25), (-0.3, 0.25))]
+base = [bm.verts.new((L - 0.4, y, z)) for y, z in ((-0.26, -0.3), (0.26, -0.3), (0.26, 0.26), (-0.26, 0.26))]
+tipv = [bm.verts.new((L - 0.4 + rl, y, z)) for y, z in ((-0.17, -0.2), (0.17, -0.2), (0.17, 0.16), (-0.17, 0.16))]
 for j in range(4):
     bm.faces.new((base[j], base[(j + 1) % 4], tipv[(j + 1) % 4], tipv[j]))
 bm.faces.new(list(reversed(base)))
 bm.faces.new(tipv)
 link(bm, "ram")
-for z in (-0.25, 0.0, 0.22):
-    box((L - 0.8 + rl - 0.45, 0, z), (0.9, 0.9, 0.05))
+for z in (-0.16, 0.0, 0.14):
+    box((L - 0.4 + rl - 0.2, 0, z), (0.4, 0.55, 0.035))
 
 # --- stern: curved sternpost with the fan (aplustre), two steering oars ------------------------
 post = [(-L + 1.2, 0, -0.4), (-L + 0.5, 0, 1.6), (-L + 0.1, 0, 3.2), (-L - 0.2, 0, 4.8), (-L - 0.1, 0, 6.0), (-L + 0.6, 0, 7.0), (-L + 1.4, 0, 7.3)]

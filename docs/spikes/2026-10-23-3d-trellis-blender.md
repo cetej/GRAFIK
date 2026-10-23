@@ -122,3 +122,16 @@ Vzor operátora (vložený 22. 10.): „Anatomie langskipu“ – celá loď v �
 ![bez řezu](img/2026-10-23-3d/21-infografika-bez-okna.jpg)
 
 Útrata spike celkem: 1,71 USD.
+
+## Iterace 7: reálie posádky, bez věže, kloun podle Egadských nálezů (0,45 USD)
+
+- Věž a bojové stroje pro 1. punskou válku doložené nejsou (věže na lodích se spojují až s Agrippou, ~31 př. n. l.) → z modelu lodi i řezu odstraněny.
+- Posádka podle Polybia 1.22–1.26: kormidelník mezi dvěma kormidelními vesly pod stříškou, velitel s důstojníky na zádi, praporec u aplustre, 28 legionářů u korvusu (120 na lodi), hlídka na přídi.
+- Kloun 1,0 m místo 2,4 m: bronzové klouny od Egadských ostrovů (241 př. n. l.) měří ~0,9–1,0 m a váží ~125 kg (RPM Nautical Foundation).
+- Pozadí bez moře (`--nosea`) – popisky infografiky jsou čitelné; vzor „Anatomie langskipu“ má loď také na prostém pozadí.
+- Srovnání na předloze bez stínů: lokální FLUX Klein drží tvar, ale je hrubší; konečná kresba Nano Banana Pro. Obecný postup: hlína z Blenderu → iterace lokálně zdarma → finál placeným modelem.
+- Známá nepřesnost: v kresbě řezu mají legionáři obdélné štíty s křídly a blesky (styl 1. stol. n. l.), pro 260 př. n. l. patří oválný štít.
+
+![finál](img/2026-10-23-3d/22-infografika-final.jpg)
+
+Útrata spike celkem: 2,16 USD.
