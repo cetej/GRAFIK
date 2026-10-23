@@ -26,6 +26,7 @@ SVG_NS = "http://www.w3.org/2000/svg"
 XLINK = "{http://www.w3.org/1999/xlink}href"
 FORMATS = ("png", "svg", "pdf")
 SIZES = {"1280x990": (1280, 990), "1920x1080": (1920, 1080), "1080x1350": (1080, 1350)}
+LAYOUTS = ("klasika", "pruh")   # docs/infografiky-zasady.md
 BACKEND_NAMES = {"flux-local": "FLUX 3 Klein", "nb-pro": "Nano Banana Pro",
                  "fal:fal-ai/nano-banana-pro": "Nano Banana Pro", "fal:fal-ai/flux-2-pro": "FLUX.2 pro",
                  "fal:fal-ai/flux-pro/v1.1": "FLUX 1.1 pro", "fal:fal-ai/flux/krea": "FLUX Krea"}
@@ -76,7 +77,8 @@ def ai_note(prov: dict | None) -> str:
 def new_doc(base: str, title: str, prov: dict | None) -> dict:
     return {
         "id": datetime.now().strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2),
-        "base": base, "title": title, "subtitle": "", "template": "dark", "size": "1280x990", "accent": "#dcb062",
+        "base": base, "title": title, "subtitle": "", "template": "dark", "layout": "pruh", "size": "1920x1080",
+        "accent": "#dcb062",
         "labels": [], "facts": [], "schema": None, "sources": "", "ai_note": ai_note(prov),
         "reviewed_by": None, "reviewed_at": None,
         "created": datetime.now().isoformat(timespec="seconds"), "updated": datetime.now().isoformat(timespec="seconds"),
@@ -141,6 +143,9 @@ class InfographicStore:
         doc["created"] = (old or data)["created"]
         if doc.get("size") not in SIZES:
             raise InfoError(f"neznámý formát {doc.get('size')!r}")
+        doc.setdefault("layout", "klasika")   # documents from before the bar layout keep their look
+        if doc["layout"] not in LAYOUTS:
+            raise InfoError(f"neznámé rozvržení {doc['layout']!r}")
         if doc.get("schema") and doc["schema"].get("svg"):
             # a schema may hold a raster picture too (e.g. a cross-section render next to the main image)
             doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"], allow_data_images=True)}
