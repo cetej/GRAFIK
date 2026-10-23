@@ -181,6 +181,8 @@ class NanoBananaPro:
 # any paid step). Estimate: one image (~1.6k input tokens) + ~250 output tokens.
 CLAUDE_MODEL = "claude-haiku-5-5"
 STYLE_DESCRIBE_USD = 0.01
+# Edit translation sends the box crop (<= 512 px, ~350 input tokens) on top of the text.
+CROP_TRANSLATE_USD = 0.002
 STYLE_INSTRUCTION = (
     "Describe only the visual STYLE of this image so an image generator can reproduce it on a different "
     "subject: medium, technique, colour palette, lighting, line quality, texture, rendering, composition "
@@ -188,7 +190,7 @@ STYLE_INSTRUCTION = (
 )
 
 
-def claude_text(content, max_tokens: int, what: str) -> str:
+def claude_text(content, max_tokens: int, what: str, model: str = CLAUDE_MODEL) -> str:
     """One Claude Messages call -> text. Paid: callers gate it behind a shown estimate."""
     key = get_key("ANTHROPIC_API_KEY")
     if not key:
@@ -197,7 +199,7 @@ def claude_text(content, max_tokens: int, what: str) -> str:
         r = httpx.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-            json={"model": CLAUDE_MODEL, "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]},
+            json={"model": model, "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]},
             timeout=120,
         )
         r.raise_for_status()
@@ -303,11 +305,20 @@ class FalBackend:
 # "Rozepsat zadání": short (often Czech) brief -> richer English FLUX prompt. Paid like any
 # Claude call; the UI shows the estimate first. Same per-call estimate as describe_style.
 EXPAND_USD = 0.01
+# Structure and rules follow the PromptEnhancer analysis (cetej/GRAFIK#9), written in our own words.
 EXPAND_INSTRUCTION = (
-    "Rewrite this image brief as one English prompt for the FLUX image model. Describe the scene concretely: "
-    "subject, setting, composition and camera viewpoint, medium and rendering, lighting, colour palette, level of "
-    "detail. Keep every fact from the brief, invent nothing historical that is not implied. If people or small "
-    "figures appear, state their size and distance. No text in the image. Answer with the prompt only.\n\nBrief: "
+    "Rewrite this image brief as one English prompt for the FLUX image model. Build it in three steps. First one "
+    "sentence with the whole picture: main subject, setting, camera viewpoint. Then the parts, in a fixed spatial "
+    "order from background to foreground (or left to right), naming each position with explicit words such as "
+    "'in the background', 'on the left', 'in front of': objects, materials, colours, lighting, level of detail. "
+    "Then close with one sentence about the whole again; this last sentence names the overall style and type of "
+    "image (for example 'a museum-style technical illustration' or 'a documentary photograph'). "
+    "Rules: keep every fact from the brief and invent nothing historical that is not implied; keep the scene "
+    "physically consistent (light direction, shadows, scale, perspective); describe only what can be seen, no "
+    "judgements such as 'beautiful' or 'sad'; give exact counts of objects and people; if people or small figures "
+    "appear, state their size and distance; turn vague wishes into concrete visible changes. Lettering in quotation "
+    "marks must appear in the image: copy it unchanged, in its original language and spelling, inside double quotes. "
+    "No other text in the image. Answer with the prompt only.\n\nBrief: "
 )
 
 
@@ -321,12 +332,16 @@ def make_backends(settings: Settings, server: SdServer) -> dict:
     return backends
 
 
-def estimate_usd(req: ImageRequest, backend, translations: int = 0) -> dict:
-    """Cost estimate shown before anything paid runs. `translations` = Czech fields not in the cache."""
+def estimate_usd(req: ImageRequest, backend, translations: int = 0, crops: int = 0) -> dict:
+    """Cost estimate shown before anything paid runs. `translations` = Czech fields not in the cache,
+    `crops` = how many of them send the crop of the edited box along."""
     items = []
     if translations:
         items.append({"what": f"překlad zadání do angličtiny (Claude) × {translations}", "usd": 0.01 * translations,
                       "kind": "translation"})
+    if crops:
+        items.append({"what": f"výřez rámečku k překladu pokynu (Claude) × {crops}",
+                      "usd": round(CROP_TRANSLATE_USD * crops, 4), "kind": "translation"})
     usd = backend.usd_for(req)
     if usd:
         items.append({"what": f"{backend.name} × {req.n}", "usd": round(usd, 4)})

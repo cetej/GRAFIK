@@ -524,7 +524,8 @@ def fake_claude(monkeypatch):
 
     def fake(content, max_tokens, what):
         calls.append(content)
-        return "the fox has silver-grey fur" if "image-edit" in content else "A red lighthouse on a rocky coast in a storm."
+        text = content if isinstance(content, str) else content[-1]["text"]
+        return "the fox has silver-grey fur" if "image-edit" in text else "A red lighthouse on a rocky coast in a storm."
     monkeypatch.setattr(translate, "claude_text", fake)
     return calls
 
@@ -571,7 +572,89 @@ def test_translation_guide_per_generator(fake_claude, tmp_path):
     t.translate("nb-pro", "prompt", "Červený maják")
     t.translate("fal:fal-ai/flux-2-pro", "prompt", "Červený maják")
     assert "Gemini" in fake_claude[0] and "FLUX" in fake_claude[1]
-    assert Translator(tmp_path / "t.jsonl").pending(ImageRequest(prompt="Červený maják", backend="nb-pro")) == 0
+    assert Translator(tmp_path / "t.jsonl").pending(ImageRequest(prompt="Červený maják", backend="nb-pro")) == (0, 0)
+
+
+def test_failed_translation_is_not_cached_and_fails_readably(monkeypatch, tmp_path):
+    from engine import translate
+    from engine.backends import BackendError
+    answers, calls = ["", "maják"], []
+    monkeypatch.setattr(translate, "claude_text", lambda c, m, w: calls.append(c) or answers[len(calls) - 1])
+    t = translate.Translator(tmp_path / "t.jsonl")
+    for expected in ("prázdná", "pořád česky"):
+        with pytest.raises(BackendError, match=expected):
+            t.translate("flux-local", "prompt", "Červený maják")
+        assert not (tmp_path / "t.jsonl").exists() and t._cache == {}
+    assert len(calls) == 2  # the second call went to the API again
+    assert t.pending(ImageRequest(prompt="Červený maják")) == (1, 0)
+
+
+def test_failed_translation_fails_the_job(api, monkeypatch):
+    from engine import translate
+    monkeypatch.setattr(translate, "claude_text", lambda c, m, w: "Červený maják na pobřeží")
+    r = api.post("/api/v2/images", json={"prompt": "Červený maják", "size": "256x256", "confirm_cost": True})
+    job = wait_done(api, r.json()["job_id"])
+    assert job["status"] == "failed" and "pořád česky" in job["error"]
+
+
+def test_still_czech_allows_place_names_and_quoted_lettering():
+    from engine.translate import still_czech
+    assert not still_czech("A Gothic cathedral in Kutná Hora at dusk, seen from the river bank")
+    assert not still_czech('A shop sign reading "Pekařství U Zlatého klasu" above the door')
+    assert still_czech("Červený maják") and still_czech("  ")
+
+
+def test_rules_keep_quoted_lettering_verbatim(fake_claude, tmp_path):
+    from engine.backends import EXPAND_INSTRUCTION
+    from engine.translate import Translator
+    Translator(tmp_path / "t.jsonl").translate("flux-local", "prompt", 'Cedule s nápisem „Pekárna“')
+    for text in (fake_claude[0], EXPAND_INSTRUCTION):
+        assert "original language and spelling" in text
+
+
+def test_expand_instruction_whole_parts_whole_and_style_last():
+    from engine.backends import EXPAND_INSTRUCTION
+    i = EXPAND_INSTRUCTION
+    assert i.index("whole picture") < i.index("background to foreground") < i.index("whole again")
+    assert "last sentence names the overall style and type of image" in i
+    for rule in ("physically consistent", "no judgements", "exact counts", "concrete visible changes"):
+        assert rule in i
+
+
+def test_eval_keypoints_verdict_is_last_occurrence():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("eval_keypoints", Path(__file__).parents[1] / "scripts" / "eval_keypoints.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.verdict("I could accept the sky, but the logo is missing.\nreject") == "reject"
+    assert mod.verdict("No reason to reject: the hat is red.\nAccept") == "accept"
+    assert mod.verdict("unclear") is None
+    sample = [{"points": [("a", "x")] * 4}] * 24
+    assert mod.estimate(sample, "claude-haiku-5-5", False) < mod.estimate(sample, "claude-sonnet-5-5", False) < 2
+
+
+def test_edit_translation_sends_crop_of_box_and_keys_cache_by_it(api, fake_claude):
+    base = _first_image(api)
+    parent = f"{base['job_id']}/0"
+    edit = {"action": "recolor", "bbox": [100, 100, 600, 900], "instruction": "přebarvi lišku na stříbrnou"}
+    body = {"prompt": "-", "parent": parent, "edit": edit}
+    est = api.post("/api/v2/estimate", json=body).json()
+    assert [i["kind"] for i in est["items"]] == ["translation", "translation"] and 0.01 < est["total_usd"] < 0.02
+    job = wait_done(api, api.post("/api/v2/images", json={**body, "confirm_cost": True}).json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    content = fake_claude[-1]
+    assert content[0]["type"] == "image" and "actually visible" in content[1]["text"]
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    crop = Image.open(BytesIO(base64.b64decode(content[0]["source"]["data"])))
+    assert max(crop.size) <= 512
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["translations"][0]["crop"] is True
+    # same words: cached for the same box, paid again for another box
+    assert api.post("/api/v2/estimate", json=body).json()["total_usd"] == 0
+    other = {**body, "edit": {**edit, "bbox": [0, 0, 300, 300]}}
+    assert api.post("/api/v2/estimate", json=other).json()["total_usd"] > 0
 
 
 # -- G3: reference library, Commons, Pinterest, historical-object workflow -----

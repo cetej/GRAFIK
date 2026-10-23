@@ -147,7 +147,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     @app.post("/api/v2/estimate")
     def estimate(req: ImageRequest):
         req, backend = prepare(req)
-        est = estimate_usd(req, backend, translator.pending(req))
+        est = estimate_usd(req, backend, *translator.pending(req))
         eta = backend.eta_s(req) if hasattr(backend, "eta_s") else None
         render = backend.render_size(req) if hasattr(backend, "render_size") else (req.width, req.height)
         return {**est, "eta_s": eta, "size": req.size, "render_size": f"{render[0]}x{render[1]}"}
@@ -185,7 +185,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     @app.post("/api/v2/images", status_code=202)
     def submit(req: ImageRequest):
         req, backend = prepare(req)
-        est = estimate_usd(req, backend, translator.pending(req))
+        est = estimate_usd(req, backend, *translator.pending(req))
         if est["total_usd"] > 0 and not req.confirm_cost:
             return JSONResponse(status_code=402, content={
                 "detail": "Placená operace — nic nespuštěno. Pošlete znovu s confirm_cost=true.",
