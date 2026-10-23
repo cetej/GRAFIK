@@ -157,7 +157,16 @@ def main(argv=None) -> int:
              f"**Obrázky se všemi body: {all_ok}/{a.n} ({100 * all_ok / a.n:.0f} %).** "
              f"Při {a.n} promptech je nejistota kolem ±10 p. b.; menší rozdíly mezi běhy nečíst."
              + (f" Bez verdiktu: {undecided} bodů (počítáno jako zamítnuto)." if undecided else ""), "",
-             "| Kategorie | Přijato | Úspěšnost |", "|---|---|---|"]
+             "Podle hlavní skupiny (část názvu kategorie před pomlčkou):", "",
+             "| Skupina | Přijato | Úspěšnost |", "|---|---|---|"]
+    groups = defaultdict(lambda: [0, 0])
+    for cat, (acc, tot) in per_cat.items():
+        groups[cat.split("-")[0]][0] += acc
+        groups[cat.split("-")[0]][1] += tot
+    for g, (acc, tot) in sorted(groups.items(), key=lambda kv: kv[1][0] / kv[1][1]):
+        lines.append(f"| {g} | {acc}/{tot} | {100 * acc / tot:.0f} % |")
+    lines += ["", "Jednotlivé kategorie (mají jen pár bodů, procenta orientační):", "",
+              "| Kategorie | Přijato | Úspěšnost |", "|---|---|---|"]
     for cat, (acc, tot) in sorted(per_cat.items(), key=lambda kv: kv[1][0] / kv[1][1]):
         lines.append(f"| {cat} | {acc}/{tot} | {100 * acc / tot:.0f} % |")
     lines += ["", f"Podrobnosti po bodech: `{stem.name}.json`."]

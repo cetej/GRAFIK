@@ -1,0 +1,822 @@
+{
+  "label": "raw-sonnet",
+  "n": 24,
+  "seed": 7,
+  "image_seed": 1,
+  "size": "1024x1024",
+  "judge_model": "claude-sonnet-5-5",
+  "expand": false,
+  "estimate_usd": 1.1088,
+  "results": [
+    {
+      "ind": 5013,
+      "prompt": "Inside a sun-drenched, high-tech gymnasium, a muscular and athletic personal trainer with a cybernetic arm demonstrates a complex exercise to his client. The trainer leans forward at the waist, pointing with his organic hand towards a holographic projection of a human musculature floating between them. The client, a person of a slender build, mirrors the trainer's gaze, looking intently at the projection, absorbing the information without any physical contact.",
+      "prompt_sent": "Inside a sun-drenched, high-tech gymnasium, a muscular and athletic personal trainer with a cybernetic arm demonstrates a complex exercise to his client. The trainer leans forward at the waist, pointing with his organic hand towards a holographic projection of a human musculature floating between them. The client, a person of a slender build, mirrors the trainer's gaze, looking intently at the projection, absorbing the information without any physical contact.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094059-276ce8-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Attribute-Body Type",
+          "point": "muscular and athletic personal trainer",
+          "verdict": "accept",
+          "answer": "The image shows a man in a gym who is clearly muscular. His forearms, biceps, and legs are well-defined, and his shoulders and torso look broad and athletic under a fitted t-shirt. He is leaning forward at the waist and pointing with his organic hand toward a holographic muscular figure. This is the kind of instructional posture a trainer would take with a client. He faces a woman in a gray t-shirt who appears to be the client, and the setting is a gym with equipment in the background. One of his arms is cybernetic, which fits the prompt's description of the trainer.\n\nNothing in the image, such as a uniform, a badge, or a clipboard, says outright that he is a personal trainer. Still, his posture, the gym setting, and the client opposite him all point to that role, and the muscular, athletic build is clearly visible.\n\naccept"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Half Body Movement",
+          "point": "leans forward at the waist, pointing",
+          "verdict": "accept",
+          "answer": "The man on the left, who appears to be the trainer, bends forward at the waist. His torso is angled toward the woman and the hologram. His right arm, which is cybernetic, hangs along his side/forward, and his other arm extends with the index finger pointing toward the center of the scene. That hand looks organic. The pointing direction is toward the space between them, near the hologram, though the finger points slightly toward the woman and the lower-left edge of the hologram.\n\nThe required element is \"leans forward at the waist, pointing.\" The lean is visible: his upper body is tilted forward and his head is pushed out ahead of his hips. The pointing gesture is clearly visible with an extended index finger.\n\nOne caveat is that the cybernetic arm seems to be the one extended with the pointing hand attached at its wrist. The prompt says he should point with his organic hand. The arm is metallic from the elbow to the wrist and the hand at the end looks organic, so the pointing hand is arguably organic. The required element, though, is only the lean and the pointing, and both are present.\n\naccept"
+        },
+        {
+          "category": "Action-Non-contact Interaction Between Entities",
+          "point": "looking intently at the projection, absorbing the information without any physical contact",
+          "verdict": "reject",
+          "answer": "In the image, a muscular man with a cybernetic forearm leans forward and points with his other hand. A glowing holographic human muscle figure floats between him and a slender woman on the right. There is no physical contact between the two.\n\nThe required element is the client looking intently at the projection. The woman's face is turned toward the man, and her eyes seem to be directed at him or straight ahead, not at the hologram. Her expression is stern and focused, but on him. The man is not looking at the hologram either. He is looking at the woman and pointing in her direction. The hologram sits between them and neither is observing it, so the element of looking intently at the projection is not shown.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 4304,
+      "prompt": "Amidst a torrential downpour that streaks across the night sky, a somber and introspective atmosphere fills the interior of a vintage car. A lone man sits in the passenger seat, his face etched with an expression of profound melancholy and contemplation as he gazes outward. His weary visage is clearly reflected in the rain-streaked glass of the window, merging with the blurred neon lights of the distant, sleeping city.",
+      "prompt_sent": "Amidst a torrential downpour that streaks across the night sky, a somber and introspective atmosphere fills the interior of a vintage car. A lone man sits in the passenger seat, his face etched with an expression of profound melancholy and contemplation as he gazes outward. His weary visage is clearly reflected in the rain-streaked glass of the window, merging with the blurred neon lights of the distant, sleeping city.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094151-119b7b-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Action-Natural Phenomenon",
+          "point": "a torrential downpour that streaks across the night sky",
+          "verdict": "accept",
+          "answer": "The image shows a man in the interior of a car at night, looking out of the side window. Outside, rain is visible as bright streaks and droplets against a dark background. The glass is covered in water drops and runs. Blurred red, green, and white lights sit in the distance. The rain looks heavy, with long streaks falling across the window area and the dark scene beyond.\n\nThe required element is \"a torrential downpour that streaks across the night sky.\" The rain streaks are clearly visible, and the setting is clearly night. Heavy rain is shown through dense streaking and water on the glass. The \"sky\" itself is not really visible, since the view is framed by the window and the background is a dark city street, but the rain streaking across the dark night view is clearly shown. The downpour reads as heavy and the night setting is unambiguous, so the element is reasonably present.\n\naccept"
+        },
+        {
+          "category": "Composite-Scene Atmosphere",
+          "point": "a somber and introspective atmosphere",
+          "verdict": "accept",
+          "answer": "The image shows a man in profile inside a car at night, looking out of a rain-covered window. His expression is weary and downcast, with a furrowed brow, a slightly frowning mouth, stubble, and disheveled hair. Heavy rain streaks run across the glass, and blurred red, green, and white lights glow in the background. The lighting is dark and moody with a cool, desaturated palette. His gaze is distant and pensive. Together these details create a somber, introspective atmosphere.\n\nThe prompt also mentions a reflection of his face in the glass and the passenger seat, but the required element is only the atmosphere, and that is clearly present.\n\naccept"
+        },
+        {
+          "category": "Relationship-Reflection/Mirror",
+          "point": "His weary visage is clearly reflected in the rain-streaked glass of the window",
+          "verdict": "reject",
+          "answer": "The image shows a man in profile inside a car at night, with rain streaking the window and blurred red, green, and white lights outside. His expression is weary and somber, and he looks out toward the window.\n\nThe required element is his face being clearly reflected in the rain-streaked glass. I can see his actual face directly in profile, but no mirrored or ghosted second image of it appears on the window. The glass shows raindrops and bokeh lights, with no visible reflection of his features. The side mirror at right shows only a vague, indistinct surface, not his face. The reflection is therefore not visible, and the scene only implies it.\n\nreject"
+        },
+        {
+          "category": "Grammar-Consistency",
+          "point": "Amidst a torrential downpour that streaks across the night sky, a somber and introspective atmosphere fills the interior of a vintage car.",
+          "verdict": "reject",
+          "answer": "The image shows a man in profile inside a car at night. His expression is somber and weary. Rain streaks heavily down the window and across the glass, and blurred red, green, and white lights appear in the background. The mood is dark, moody, and introspective.\n\nThe car interior is visible: a seat headrest, a door panel, a side mirror, and a roof liner. Nothing clearly marks it as vintage. The door panel and mirror are plain, and there is no distinctive retro dashboard, chrome, or bench seat. The car could be of any era, so the \"vintage\" quality is not evident.\n\nThe torrential downpour is clearly visible as heavy streaks and droplets on the glass. The rain also appears to streak against the dark outside. The somber atmosphere is clearly present.\n\nThe required element is the whole sentence: a torrential downpour at night with a somber, introspective atmosphere inside a vintage car. Everything except \"vintage\" is clearly present. The vintage detail is not confirmed by anything visible, and I should not credit it from the scene's general feel. The car looks like an ordinary, possibly older, car interior with no definitive vintage features.\n\nBecause the vintage car is not clearly shown, the element is not clearly present as described.\n\nreject"
+        },
+        {
+          "category": "Attribute-Expression",
+          "point": "an expression of profound melancholy and contemplation",
+          "verdict": "accept",
+          "answer": "The image shows a man in profile inside a car at night. Rain streaks the window, and blurred red, green, and white lights glow behind him. His brow is slightly furrowed and drawn together, and his eyes look outward, slightly downcast and unfocused. His mouth is closed and turned slightly down, and his stubbled face looks tired. His hair is damp and disheveled. Together these features read as sad, weary, and pensive. He appears lost in thought as he looks out the window, so the expression of melancholy and contemplation is clearly visible.\n\nThe prompt also mentions a reflection in the glass and the passenger seat, but the required element is only the expression, and that is present.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 5304,
+      "prompt": "A close-up shot of a teenage skater with spiky, electric blue dyed hair and multiple silver ear piercings, poised at the lip of a massive concrete skate bowl. He is wearing a faded, deep crimson red hoodie over a black t-shirt. His face is a canvas of conflicting feelings, showing a look of fierce determination mixed with a hint of nervous excitement. He grips his well-worn skateboard, its underside prominently featuring the dynamic, lightning-bolt 'Volt-Rush' energy drink logo.",
+      "prompt_sent": "A close-up shot of a teenage skater with spiky, electric blue dyed hair and multiple silver ear piercings, poised at the lip of a massive concrete skate bowl. He is wearing a faded, deep crimson red hoodie over a black t-shirt. His face is a canvas of conflicting feelings, showing a look of fierce determination mixed with a hint of nervous excitement. He grips his well-worn skateboard, its underside prominently featuring the dynamic, lightning-bolt 'Volt-Rush' energy drink logo.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094252-cdfdb2-0.png",
+      "all_ok": true,
+      "points": [
+        {
+          "category": "Attribute-Character Appearance",
+          "point": "a teenage skater with spiky, electric blue dyed hair and multiple silver ear piercings",
+          "verdict": "accept",
+          "answer": "The image shows a young person, who looks like a teenager or young adult, at a skate bowl. His hair is bright electric blue and styled in spikes. He has several silver piercings in his ears: at least two in the left ear (a small hoop and a stud) and multiple in the right ear, including a hoop and studs along the upper ear. He is holding a skateboard and wearing a crimson hoodie, and he is at a concrete skate bowl, so he reads as a skater.\n\nAll parts of the required element are visible: a teenage skater, spiky electric blue hair, and multiple silver ear piercings.\n\naccept"
+        },
+        {
+          "category": "Attribute-Color",
+          "point": "deep crimson red hoodie",
+          "verdict": "accept",
+          "answer": "The image shows a young person with spiky blue hair and ear piercings, crouched at the edge of a concrete skate bowl and holding a skateboard. They wear a hooded sweatshirt with a drawstring hood and a black shirt underneath. The hoodie is a dark red, close to crimson or burgundy, with a slightly faded, washed look. That matches \"deep crimson red,\" and the hoodie is clearly visible and prominent.\n\naccept"
+        },
+        {
+          "category": "Composite-Emotional Expression",
+          "point": "a look of fierce determination mixed with a hint of nervous excitement",
+          "verdict": "accept",
+          "answer": "The relevant element is the facial expression. The skater's brows are drawn down and furrowed, and his eyes are intense and focused, looking off to the side. This reads as determination. His mouth is open, with the teeth showing in a slightly strained, grimacing way. That could read as nervous tension or anxious excitement. The raised, tense features, with wrinkles on the forehead and between the brows, add apprehension to the intensity. Together these give a mixed look of resolve and nervousness, and the setting at the lip of the bowl supports it, though the expression itself carries the reading.\n\nOne could argue the expression looks more like worry or distress than excitement. Even so, the furrowed brows and fixed gaze convey determination, and the open mouth and tension convey nervous energy. The blend is reasonably clear.\n\naccept"
+        },
+        {
+          "category": "Attribute-Props",
+          "point": "his well-worn skateboard",
+          "verdict": "accept",
+          "answer": "The image shows a young person with spiky blue hair and ear piercings, wearing a crimson hoodie, at the edge of a concrete skate bowl. He grips a skateboard with both hands, and its underside faces the viewer. The deck is visibly worn: the graphic is scuffed and chipped, there are scratches and pale patches where the paint has worn off, and dirt is caked on the surface. The wheels look dingy, and the trucks and hardware look used. The \"Volt-Rush\" logo with lightning bolts is printed on the underside. This matches the required element of a well-worn skateboard that he is holding.\n\naccept"
+        },
+        {
+          "category": "logo",
+          "point": "the dynamic, lightning-bolt 'Volt-Rush' energy drink logo",
+          "verdict": "accept",
+          "answer": "The image shows a teenage skater with spiky blue hair and several ear piercings. He wears a faded crimson hoodie over a black shirt and crouches at the edge of a concrete skate bowl. He grips a worn skateboard with its underside facing the viewer. The deck graphic reads \"Volt-Rush\" in bold yellow lettering with a red outline. Red lightning-bolt shapes frame the text, and blue crackling lightning streaks run across the background of the deck. The logo is clearly legible and its style is dynamic and lightning-themed.\n\nThe required element is the lightning-bolt \"Volt-Rush\" logo. Its energy-drink nature is not explicitly shown, since there is no can or other drink branding. But the logo itself is clearly present, with the correct name and a lightning-bolt design, and it is prominently displayed on the skateboard underside as described.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 6353,
+      "prompt": "From a low-angle shot over a father's shoulder, we see his young son kneeling on the sandy shore at sunset. The father watches his son, his face filled with a look of gentle adoration and quiet pride as the boy carefully balances a stack of stones. The shallow depth of field keeps the father-son pair in sharp focus, while the distant, hazy waves and setting sun blur into a soft bokeh background.",
+      "prompt_sent": "From a low-angle shot over a father's shoulder, we see his young son kneeling on the sandy shore at sunset. The father watches his son, his face filled with a look of gentle adoration and quiet pride as the boy carefully balances a stack of stones. The shallow depth of field keeps the father-son pair in sharp focus, while the distant, hazy waves and setting sun blur into a soft bokeh background.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094350-b4ef2f-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Attribute-Perspective",
+          "point": "a low-angle shot over a father's shoulder",
+          "verdict": "accept",
+          "answer": "The image shows a man in the left foreground, seen from behind and in profile, with his head and shoulder large and partly out of focus. A young boy kneels on the sand in the middle distance, stacking stones. The camera sits behind the man and looks past his shoulder toward the boy, which gives a clear over-the-shoulder composition.\n\nThe horizon is high in the frame, at about the boy's head level or just below it. This means the camera is close to the ground, roughly at the boy's chest or kneeling height, and looks slightly up toward the child and sky. The sand texture in the foreground is also seen from a low vantage. Together these point to a low-angle viewpoint.\n\nThe father's shoulder and head frame the shot, and the camera is low. The required perspective is clearly present.\n\naccept"
+        },
+        {
+          "category": "Relationship-Kinship",
+          "point": "father-son pair",
+          "verdict": "accept",
+          "answer": "I see an adult man in the foreground, shown in profile from behind his shoulder, looking down toward a young boy. The boy kneels on the sand and stacks smooth stones. The sunset and waves are behind them.\n\nThe required element is a father-son pair. The adult male and the young boy are clearly shown together, and the man is watching the boy's activity attentively. That fits the described dynamic. Nothing visible states that they are related, such as a caption. Still, the composition matches the prompt: an adult man over whose shoulder we see a child, with the man's gaze fixed on the boy. The man looks adult and the boy looks about 5–7 years old, which is consistent with a father and son. Family relationships can't be confirmed from appearance alone, but the scene depicts the pair as described, with an adult male and a young boy sharing an intimate, attentive moment.\n\nThe pair is clearly present as a father and son in the way the image portrays them.\n\naccept"
+        },
+        {
+          "category": "Attribute-Pose",
+          "point": "son kneeling on the sandy shore",
+          "verdict": "accept",
+          "answer": "The image shows a young boy on a sandy beach at sunset, with waves and a low sun behind him. He is balancing a stack of stones. His body is low to the ground, and his right knee is planted in the sand, with the lower leg and bare foot tucked behind him. His other leg is bent, and he leans forward over the stones. The pose reads as kneeling, or at least a kneeling or crouching position with a knee on the sand. An adult in the foreground is seen from behind and the side, which matches the over-the-shoulder framing.\n\nThe boy's knee is clearly on the sand, and the ground is clearly a beach shore, so the required element is present.\n\naccept"
+        },
+        {
+          "category": "Attribute-Emotion",
+          "point": "a look of gentle adoration and quiet pride",
+          "verdict": "reject",
+          "answer": "The image shows a man in the foreground, seen from behind and the side, with his face in partial profile. A young boy kneels on the sand and stacks stones. A sunset and waves sit in the background.\n\nThe man's face is turned toward the boy, so he is clearly watching him. His expression is only partly visible. The visible cheek, jaw, and the corner of his mouth look calm and neutral. His eye is hidden, and the brow and mouth are not clear enough to show a smile, softened eyes, or any other sign of adoration or pride. His attentive gaze toward the child fits the scene, but the emotion itself is only suggested by the setup (a father watching his son). It cannot be read from his face.\n\nBecause the required element is a specific facial emotion, and the face is too obscured and neutral to show it clearly, the element is not clearly present.\n\nreject"
+        },
+        {
+          "category": "Attribute-Depth of Field",
+          "point": "The shallow depth of field",
+          "verdict": "accept",
+          "answer": "The image shows a man in the left foreground, seen from behind and over his shoulder, and a young boy kneeling on the sand and stacking stones. The boy, the stones, and the man's face and profile are in crisp focus. The man's shoulder and sleeve in the nearest foreground are slightly soft. Behind them, the waves, horizon, and sky are clearly blurred, and the sand also softens as it recedes. The sun is a soft glowing disc. This gives a sharp subject plane against a blurred background, which is the look of a shallow depth of field. The background blur is moderate rather than heavy bokeh, but the focus separation is still clearly visible.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 3884,
+      "prompt": "In a cluttered, magical workshop filled with half-finished automatons and glowing crystal tools, an elderly gnome inventor with a magnificent white beard guides his young human apprentice. The apprentice, her brow furrowed in concentration, carefully uses a pair of fine-tipped pliers in her right hand to lower a tiny, iridescent hummingbird gear into the intricate brass mechanism of a celestial orrery. The old gnome points with a weathered finger, offering silent guidance as they work together on the complex device, a single, shared moment in their ambitious project to map the heavens.",
+      "prompt_sent": "In a cluttered, magical workshop filled with half-finished automatons and glowing crystal tools, an elderly gnome inventor with a magnificent white beard guides his young human apprentice. The apprentice, her brow furrowed in concentration, carefully uses a pair of fine-tipped pliers in her right hand to lower a tiny, iridescent hummingbird gear into the intricate brass mechanism of a celestial orrery. The old gnome points with a weathered finger, offering silent guidance as they work together on the complex device, a single, shared moment in their ambitious project to map the heavens.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094456-09514b-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Relationship-Collaboration",
+          "point": "offering silent guidance as they work together on the complex device",
+          "verdict": "accept",
+          "answer": "The image shows an elderly man with a large white beard and wild white hair leaning in beside a young woman. His weathered right hand extends toward the brass orrery, with his index finger pointing at the mechanism. His mouth is closed and his expression is focused, so the guidance reads as silent. The young woman holds two fine-tipped pliers over the device, and her brow is furrowed in concentration as she lowers a tiny iridescent piece into the center. Both are looking at the same spot on the device. The workshop around them is cluttered with brass automatons and crystals.\n\nThe required element is the old man silently guiding the apprentice while they work together on the device. His pointing gesture toward the exact spot of her work, his closed mouth, and the shared attention and close positioning all show this. The two are clearly collaborating on the orrery.\n\naccept"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Half Body Movement",
+          "point": "carefully uses a pair of fine-tipped pliers in her right hand to lower a tiny, iridescent hummingbird gear",
+          "verdict": "reject",
+          "answer": "The image shows a young woman with dark hair leaning over a brass orrery-like mechanism. She holds two tools, one in each hand. In the hand on the left side of the image (her right hand), she holds pliers with tips pointing down toward the mechanism, and a small iridescent, greenish item seems to hang at the tips just above the device. In her other hand (her left), she holds a second pair of pliers or tweezers pointing toward the center. Her brow is slightly furrowed in concentration. The old bearded man points toward the device.\n\nIssues:\n- The object held by the pliers is a tiny iridescent speck. It does not clearly read as a hummingbird-shaped gear.\n- She uses two pliers, not one in her right hand only. The right-hand pliers are fine-tipped and seem to be lowering something, which partly matches.\n- The iridescent bit is small and ambiguous. I cannot confirm it is a gear, let alone a hummingbird gear.\n\nThe element requires a hummingbird gear that is iridescent and being lowered with fine-tipped pliers in her right hand. The pliers and lowering action are present, but the hummingbird gear is not clearly visible.\n\nreject"
+        },
+        {
+          "category": "Composite-Story Sense",
+          "point": "a single, shared moment in their ambitious project to map the heavens",
+          "verdict": "accept",
+          "answer": "The image shows an elderly man with a large white beard and a young woman working over a brass orrery-like device. She holds two pairs of fine pliers over the mechanism and lowers a tiny iridescent piece toward the center. Her brow is slightly furrowed, and she looks focused. The old man points a finger toward the device. The workshop is cluttered with brass automaton parts and glowing crystals.\n\nThe required element is \"a single, shared moment in their ambitious project to map the heavens.\" The two are clearly working on one task together at the same instant. Both look at the device, and his pointing suggests guidance. The celestial orrery is the visible link to mapping the heavens. The scene reads as one collaborative moment within a larger project.\n\nSome details are not perfect. The man doesn't look obviously like a gnome, and the woman holds pliers in both hands. Neither affects the shared-moment element. The collaborative moment and the orrery context are both clearly visible.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 3983,
+      "prompt": "A powerful queen, depicted in a dramatic oil-on-canvas Baroque style, stands over a young knight who is kneeling on one knee before her. The knight is positioned directly in front of the queen's grand throne. With a look of solemn purpose, the queen's hands gently tap the knight's shoulder with the flat of a longsword, performing a traditional accolade ceremony. The scene is rich with chiaroscuro lighting, emphasizing the textures of velvet, steel, and gold.",
+      "prompt_sent": "A powerful queen, depicted in a dramatic oil-on-canvas Baroque style, stands over a young knight who is kneeling on one knee before her. The knight is positioned directly in front of the queen's grand throne. With a look of solemn purpose, the queen's hands gently tap the knight's shoulder with the flat of a longsword, performing a traditional accolade ceremony. The scene is rich with chiaroscuro lighting, emphasizing the textures of velvet, steel, and gold.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094551-d74a2a-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Relationship-Spatial",
+          "point": "knight is positioned directly in front of the queen's grand throne",
+          "verdict": "accept",
+          "answer": "The image shows a large, ornate gold-and-velvet throne in the background, with a tall carved backrest, red cushioned seat, and armrests on both sides. A young knight in dark blue and gold armor kneels on one knee in the foreground, facing right toward the queen. His body overlaps the left half of the throne's backrest and the front of its seat and steps. He is therefore between the viewer and the throne, in front of it. The queen stands to his right, in front of the throne's right side. The knight is somewhat left of the throne's center, but he is clearly in front of the throne rather than beside it or away from it.\n\naccept"
+        },
+        {
+          "category": "Style",
+          "point": "dramatic oil-on-canvas Baroque style",
+          "verdict": "reject",
+          "answer": "The image shows a queen in an ornate gold-embroidered dark gown standing beside a kneeling young knight in front of a gilded throne with red velvet drapery. It looks like a painting, with rich textures in the velvet, metal, and gold, and visible brushwork-like rendering.\n\nAgainst the required element of a dramatic oil-on-canvas Baroque style:\n- **Oil-on-canvas look:** The image convincingly imitates a traditional oil painting, with a painterly finish and a warm, aged palette.\n- **Baroque qualities:** The deep reds, the gold, and the opulent costume and setting fit the Baroque taste for richness. The lighting is fairly even, though. It lacks strong chiaroscuro, with no deep shadows or spotlighting that would create theatrical contrast. The composition is also fairly static and posed, without Baroque diagonal energy or movement. The costume and the crisp, detailed rendering look more like 19th-century academic or historicist painting (Pre-Raphaelite or Victorian) than Baroque.\n- **Dramatic quality:** The scene is moderately dramatic, but it is not intensely so in the Baroque sense.\n\nThe oil-painting look is clearly present, but the \"dramatic Baroque\" part is only partly met. The chiaroscuro is weak and the style leans toward academic historicism, so the element is not clearly present as described.\n\nreject"
+        },
+        {
+          "category": "Action-Contact Interaction Between Entities",
+          "point": "queen's hands gently tap the knight's shoulder with the flat of a longsword",
+          "verdict": "reject",
+          "answer": "What I see: a queen in ornate dark and gold garments stands beside a throne. A young knight kneels on one knee in front of it. The queen's right hand (on the left side of the image) extends toward the knight and holds or touches the dark blade of a sword near his shoulder. Her other hand holds the hilt of a longsword, whose silvery blade points diagonally down and away toward the floor.\n\nThe sword appears twice or is split in an odd way. One blade is a short dark segment near the knight's shoulder, and a separate long, bright blade points toward the floor in her other hand. The long sword is not touching the knight. Her extended hand seems to be gripping or pointing at the dark blade tip, not holding a sword flat on his shoulder. There is no clear contact between the flat of a longsword and the shoulder. The queen's hands are not both engaged in a tapping action. Instead, one sword points at the floor and the other segment is ambiguous.\n\nThe required action is a gentle tap on the shoulder with the flat of a longsword. The image does not clearly show that. The contact is ambiguous, and the visible longsword is held down and away from the knight.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 5881,
+      "prompt": "On a blustery, overcast day, a young man with unkempt, long dreadlocks stands on a rocky coastline. A sudden gust of wind whips across the scene, causing him to raise his arm to shield his eyes. In a moment of connection, a small, brave sparrow lands on his outstretched hand, clinging tightly to his fingers for stability against the gale.",
+      "prompt_sent": "On a blustery, overcast day, a young man with unkempt, long dreadlocks stands on a rocky coastline. A sudden gust of wind whips across the scene, causing him to raise his arm to shield his eyes. In a moment of connection, a small, brave sparrow lands on his outstretched hand, clinging tightly to his fingers for stability against the gale.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094648-883a01-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Action-Contact Interaction Between Entities",
+          "point": "a small, brave sparrow lands on his outstretched hand",
+          "verdict": "accept",
+          "answer": "The image shows a young man with long dreadlocks on a rocky coast under an overcast sky, with rough sea behind him. One arm is raised to his forehead, shielding his eyes. His other arm is extended to the side with the hand open and fingers slightly curled. A small sparrow, brown and gray with a black bib and a white cheek, is perched on the back of his fingers. Its feet touch his fingers, and it appears to grip them. The bird is clearly a sparrow, small, and looks alert.\n\nThe sparrow is on his outstretched hand, in contact with the fingers, which matches the required element. The \"landing\" is shown as the bird already perched, which is a reasonable depiction of it having landed.\n\naccept"
+        },
+        {
+          "category": "Action-State",
+          "point": "clinging tightly to his fingers",
+          "verdict": "reject",
+          "answer": "The image shows a young man with long dreadlocks on a rocky coast under an overcast sky. He raises one hand to shade his eyes. His other arm is extended, and a sparrow is perched on the back of that hand, near the base of his fingers.\n\nThe required element is the sparrow \"clinging tightly to his fingers.\" The bird's feet rest on the hand, and its toes appear to sit on or near the knuckles or fingers. Its posture looks like ordinary perching. The toes don't visibly curl or grip around the fingers, and nothing shows tension or effort against wind. The bird's body is upright and calm, and its tail is angled back. It is standing on the hand, not visibly gripping the fingers. The bird is also mostly over the back of the hand and knuckles, not clearly on the fingers.\n\nThe tight clinging is therefore only suggested by the prompt's context and is not clearly visible.\n\nreject"
+        },
+        {
+          "category": "Action-Natural Phenomenon",
+          "point": "A sudden gust of wind whips across the scene",
+          "verdict": "accept",
+          "answer": "The image shows a young man with long dreadlocks on a rocky shore under an overcast sky. His hair streams sideways and upward to the left, which strongly suggests strong wind. His right hand is raised to his forehead in a shielding or looking-out gesture. A sparrow perches on the fingers of his other hand. The sea behind him is choppy with whitecaps, and the clouds look turbulent.\n\nThe wind is shown through the blowing hair, which is clearly visible and horizontal. The sparrow's feathers look mostly smooth, and the jacket doesn't show much flutter, but the hair and rough sea are enough to read as a gusty, windy moment. The \"sudden gust whipping across the scene\" is conveyed visually by the windswept hair and the stormy coastal setting.\n\naccept"
+        },
+        {
+          "category": "Attribute-Hairstyle",
+          "point": "unkempt, long dreadlocks",
+          "verdict": "accept",
+          "answer": "The man in the image has long dreadlocks that reach well past his shoulders, with some strands hanging down his chest. The wind is blowing them around, and they look messy and loose. Their loose ends, uneven thickness, and flyaway look read as unkempt. The setting is a rocky, overcast coastline.\n\nThe required element, unkempt long dreadlocks, is clearly visible.\n\naccept"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Upper Body Movement",
+          "point": "raise his arm to shield his eyes",
+          "verdict": "accept",
+          "answer": "The man stands on a rocky coastline under an overcast sky. His right arm (on the left side of the image) is bent and raised, with the hand held flat against his forehead, just above his eyes, in a classic shielding or visor pose. His gaze is directed outward, and his dreadlocks are blown by the wind. His other arm is extended with a sparrow perched on his fingers. The raised arm and hand over the brow clearly show the action of shielding his eyes.\n\naccept"
+        },
+        {
+          "category": "Attribute-Weather",
+          "point": "blustery, overcast day",
+          "verdict": "accept",
+          "answer": "The sky is covered in thick gray clouds with no visible blue or sun, so the day is clearly overcast. The man's long dreadlocks are blown sideways and upward, which shows strong wind. The sea behind him is choppy, with whitecaps and surf breaking over the dark rocks. The lighting is flat and muted, as it would be on a stormy, gray day. Together these details show a blustery, overcast day.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 4072,
+      "prompt": "From a low-angle perspective looking up, a serene ancient forest is captured at the exact moment of dawn. A gentle morning fog rolls through the trees, its tendrils clinging to the moss-covered bark. Countless tiny dewdrops glitter on a spiderweb stretched between two colossal redwood trunks, catching the first golden rays of sunlight.",
+      "prompt_sent": "From a low-angle perspective looking up, a serene ancient forest is captured at the exact moment of dawn. A gentle morning fog rolls through the trees, its tendrils clinging to the moss-covered bark. Countless tiny dewdrops glitter on a spiderweb stretched between two colossal redwood trunks, catching the first golden rays of sunlight.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094749-1c0327-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Attribute-Quantity",
+          "point": "Countless tiny dewdrops",
+          "verdict": "accept",
+          "answer": "The image shows a large spiderweb stretched between two massive, moss-covered redwood-like trunks. The web's strands are lined with many small, bright beads that look like dewdrops. They appear in a dense, regular pattern along both the radial and spiral threads, with a clear glittering effect where the golden sunlight hits the left side. Beads are also visible hanging from the lower edge of the web. The number of droplets is very large, well beyond what could be counted easily, which fits \"countless.\" They are tiny relative to the web and the trees. Fog and sunbeams are present in the background, but the dewdrops are clearly visible on the web itself.\n\naccept"
+        },
+        {
+          "category": "Attribute-Time",
+          "point": "at the exact moment of dawn",
+          "verdict": "accept",
+          "answer": "The image shows a low-angle view of a redwood forest. Warm golden sunlight enters low from the left, between the trees, and creates visible light shafts through mist. Fog hangs in the mid-ground and near the forest floor. A dew-covered spiderweb stretches between two mossy trunks, and its droplets catch the light. The sky at the top is pale blue. The sun is low, with warm, directional light and a hazy glow, and the dew and fog are typical of early morning. This matches a sunrise or dawn moment. The sun's disk is not visible, but the low golden light, mist, and dew clearly convey the first rays of the day.\n\nThe \"exact moment of dawn\" is shown through the low sun angle, the golden glow, and the fog and dew. Nothing contradicts it, such as harsh midday light or a dark night scene.\n\naccept"
+        },
+        {
+          "category": "Attribute-Perspective",
+          "point": "From a low-angle perspective looking up",
+          "verdict": "accept",
+          "answer": "The required element is a low-angle perspective looking up.\n\nThe image shows two massive tree trunks in the foreground, one on each side. They converge slightly toward the top, which is typical of a worm's-eye view. The tall trees in the background extend upward toward a small patch of sky at the top center. The viewpoint is near the forest floor, and the ground with ferns and undergrowth is visible at the bottom. The web hangs above the viewer's eye level, and the trunks loom overhead. The canopy and sky are seen from below. All of this shows a clear upward-looking, low-angle viewpoint.\n\naccept"
+        },
+        {
+          "category": "Action-Natural Phenomenon",
+          "point": "A gentle morning fog rolls through the trees",
+          "verdict": "accept",
+          "answer": "The image shows a low-angle view of a redwood forest at dawn. Between the two large mossy trunks in the foreground hangs a dew-covered spiderweb. Behind it, a soft, hazy mist fills the mid-ground and lower forest. It is most visible near the forest floor on the right and in the center, where it looks like drifting, layered wisps. Golden sunlight streams through the haze and forms visible light shafts, which shows there are suspended particles of fog or mist. The fog appears gentle and diffuse and moves between the trees in the background. It reads as rolling through the forest, not as a single static haze. The prompt also mentions tendrils clinging to the bark. That detail is less distinct, but the required element is only the gentle morning fog rolling through the trees, and that is clearly visible.\n\naccept"
+        },
+        {
+          "category": "Relationship-Environmental",
+          "point": "its tendrils clinging to the moss-covered bark",
+          "verdict": "reject",
+          "answer": "The required element is fog tendrils clinging to moss-covered bark.\n\nThe image shows two large redwood-like trunks with thick green moss on their bark, especially on the right trunk and the lower left trunk. Fog is visible in the middle distance and at the forest floor, where it drifts between the background trees and catches the light shafts. The fog does not touch the moss-covered trunks in the foreground. The bark of those trunks is clear and sharply defined, with no wisps curling around it or lying against it. The fog stays in the background, around the distant trunks and the lower center. Moss-covered bark is clearly present, but fog tendrils clinging to it are not. The scene only loosely suggests the fog and bark interacting.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 5184,
+      "prompt": "In a sun-drenched, dusty workshop, an anthropomorphic fox inventor wearing a leather apron examines a complex mechanical schematic. The fox is thoughtfully tapping a single claw against its chin, deducing the final placement for a series of gears. On the workbench in front of it lie exactly three polished copper cogs, waiting to be fitted into the intricate clockwork device.",
+      "prompt_sent": "In a sun-drenched, dusty workshop, an anthropomorphic fox inventor wearing a leather apron examines a complex mechanical schematic. The fox is thoughtfully tapping a single claw against its chin, deducing the final placement for a series of gears. On the workbench in front of it lie exactly three polished copper cogs, waiting to be fitted into the intricate clockwork device.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094847-3dab99-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Logical Reasoning",
+          "point": "deducing the final placement for a series of gears",
+          "verdict": "accept",
+          "answer": "The image shows an anthropomorphic fox in a leather apron in a sunlit, dusty workshop. Its paw is raised to its chin in a thoughtful pose, and its gaze is directed toward the clockwork machine. The machine is intricate and has many gears. Three polished copper cogs lie on the workbench in front of it.\n\nThe required element is \"deducing the final placement for a series of gears.\" The fox's contemplative pose, its focus on the machine, and the three unmounted cogs on the bench all fit this idea. It looks like the fox is considering where the cogs should go. However, the fox's eyes appear to look off toward the machine, or perhaps slightly past it, rather than clearly at a specific spot. Nothing visible, such as a schematic, shows the deduction itself. Still, the thinking pose combined with the unfitted gears and the machine conveys the intended action well enough. The pose is not a single-claw tap against the chin, but the element asked about is the deduction, not the claw detail.\n\nThe scene reasonably and clearly shows a fox pondering gear placement.\n\naccept"
+        },
+        {
+          "category": "Attribute-Quantity",
+          "point": "exactly three polished copper cogs",
+          "verdict": "reject",
+          "answer": "The fox inventor in a leather apron stands at a workbench in a sunlit workshop. Beside it is a complex gear machine, which has several copper gears already mounted.\n\nOn the bench surface, I count three large, polished copper cogs in the foreground (left, center and right). A fourth, smaller copper cog lies flat on the bench behind them, to the right of the machine, at about the middle of the image. That makes four loose copper cogs on the workbench, not three. The mounted gears on the machine add still more copper cogs.\n\nThe required element is exactly three polished copper cogs, and the image shows four loose ones, so the quantity is wrong.\n\nreject"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Partial Movement",
+          "point": "tapping a single claw against its chin",
+          "verdict": "reject",
+          "answer": "The image shows an anthropomorphic fox in a leather apron, standing at a workbench in a sunlit workshop. Beside a clockwork machine on the bench are three copper cogs. The fox's right paw is raised toward its chin with the fingers curled. Several claws on that paw are visible and look dark and pointed. The paw sits near or just under the chin and muzzle.\n\nThe required element is tapping a single claw against the chin. The pose reads as a thoughtful hand-to-chin gesture. However, it does not clearly show one claw touching the chin. Multiple fingers are curled in, and it looks like the paw or knuckles are near the chin rather than a single extended claw making contact. The gesture is a general chin-stroking pose, not a distinct single-claw tap.\n\nBecause a single claw touching the chin is not clearly shown, the element is not clearly present as described.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 6074,
+      "prompt": "In a dimly lit spaceship hangar, a grizzled space mechanic with oil stains on his face leans his back wearily against the massive, rusted chassis of his robotic companion. The robot, its towering body covered in dents and patches of mismatched plating, has its single large optical sensor glowing a soft, warm blue, expressing a look of calm contentment as it observes its tired friend.",
+      "prompt_sent": "In a dimly lit spaceship hangar, a grizzled space mechanic with oil stains on his face leans his back wearily against the massive, rusted chassis of his robotic companion. The robot, its towering body covered in dents and patches of mismatched plating, has its single large optical sensor glowing a soft, warm blue, expressing a look of calm contentment as it observes its tired friend.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-094940-ef0f20-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Relationship-Physical",
+          "point": "leans his back wearily against the massive, rusted chassis of his robotic companion",
+          "verdict": "reject",
+          "answer": "The image shows a weathered man in a utility jumpsuit with harness straps. His eyes are closed and his head is tilted back, which reads as tired. His back and shoulder are against a large, rusted, curved metal surface on the left. Beside him stands a tall, dented, rusty robot with one glowing eye.\n\nThe question is whether the surface he leans on is the robot's chassis. The rusted structure he leans against looks like a separate large cylindrical or tank-like object, perhaps a pod or hull section. It is not part of the robot's body. The robot stands to the right of the man. Its arm hangs near him, but he is not touching the robot. His back is against the other object, not the robot.\n\nThe required element is that he leans against the robot's chassis, and that is not shown. He leans against a separate rusted structure next to the robot.\n\nreject"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Facial Expression",
+          "point": "expressing a look of calm contentment",
+          "verdict": "reject",
+          "answer": "The required element is the robot \"expressing a look of calm contentment.\"\n\nWhat I see: a large, weathered robot with a single round optical sensor on its head. The sensor glows a pale white-blue with a warm center. The robot is standing upright, and its head is turned slightly toward the man. The sensor is a fixed circular lens with no eyelids, brows, mouth, or other features that could change shape to show emotion. Its posture is neutral and stiff, with arms hanging at its sides. Nothing in its form or pose conveys contentment. A viewer could read it as calm or attentive, but that comes from the story context, not from anything visible in the robot.\n\nThe man leans back with his eyes closed and looks tired or peaceful. That is not the robot's expression, and the element refers to the robot. The robot's glow is soft, and the head tilt suggests it is looking at him, but the image gives no clear sign of a contented look. Credit for that expression would be an assumption drawn from the prompt.\n\nThe element is not clearly present.\n\nreject"
+        },
+        {
+          "category": "Attribute-Entity Features",
+          "point": "its towering body covered in dents and patches of mismatched plating",
+          "verdict": "accept",
+          "answer": "The image shows a tall humanoid robot standing beside a man who leans against a large rusted metal structure. The robot is clearly taller than the man. Its body is weathered, with rust patches, scuffs, exposed hoses and wiring, and visible rivets and panel seams. Different areas show different colors and finishes: some panels are lighter gray, some are rust-brown, and the shoulder plates look differently weathered.\n\nThe required element is \"towering body covered in dents and patches of mismatched plating.\" The towering height is present. The weathering and rust are clear, and the panels differ in tone and wear. Dents are only faintly visible, mostly as general scuffing and surface irregularity, not distinct dents. The mismatched plating is moderately present, since the panels vary in color and corrosion and look pieced together. Nothing contradicts the description, and the overall impression is of a battered, patchwork robot.\n\nThe prompt describes the man leaning on the robot's chassis, but the image shows him leaning on a separate rusted object. That is a different requirement, though, and not part of this element.\n\nThe robot's body is tall, battered, and made of visibly varied, worn plating, which matches the element reasonably well.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 3924,
+      "prompt": "In a whimsical, sun-drenched meadow, a feeling of pure, unadulterated joy permeates the atmosphere. An anthropomorphic, fluffy white rabbit wearing a tiny blue waistcoat is winking one eye cheekily at the viewer. Nearby, a whirlwind of sparkling, golden pollen particles is dancing and swirling in the gentle breeze, catching the afternoon light.",
+      "prompt_sent": "In a whimsical, sun-drenched meadow, a feeling of pure, unadulterated joy permeates the atmosphere. An anthropomorphic, fluffy white rabbit wearing a tiny blue waistcoat is winking one eye cheekily at the viewer. Nearby, a whirlwind of sparkling, golden pollen particles is dancing and swirling in the gentle breeze, catching the afternoon light.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095033-901cf0-0.png",
+      "all_ok": true,
+      "points": [
+        {
+          "category": "Action-Character/Anthropomorphic Facial Movement",
+          "point": "winking one eye cheekily",
+          "verdict": "accept",
+          "answer": "The image shows a fluffy white anthropomorphic rabbit in a blue waistcoat standing in a sunlit meadow. Its right eye (on the viewer's left) is wide open and looks toward the viewer. Its other eye (on the viewer's right) is closed and curved into a wink. The mouth is open in a broad, playful grin, and the head has a slight tilt, so the expression reads as cheeky. Golden pollen sparkles swirl nearby. The one-eyed wink is clearly visible and has the requested playful tone.\n\naccept"
+        },
+        {
+          "category": "Action-Other Entity Movement",
+          "point": "a whirlwind of sparkling, golden pollen particles is dancing and swirling",
+          "verdict": "accept",
+          "answer": "The image shows a white, fluffy anthropomorphic rabbit in a blue waistcoat, winking in a sunlit meadow. To the left of the rabbit, a large cloud of golden glittering particles hangs in the air. The cloud is dense and sparkly, and it catches the sunlight. It rises in a curved, column-like shape and thins into scattered specks, which suggests movement and swirling. The rabbit's outstretched arm points toward the cloud, as if it had just released or flung the particles.\n\nWhether this counts as a \"whirlwind\" is the question. The cloud has a vertical, curving, swirling form, with particles spiraling and dispersing. It reads as a swirling plume of golden sparkles, close enough to a whirlwind of dancing pollen. It is golden, sparkling and particulate, and it appears to be in motion. The shape is more of a drifting plume or burst than a tightly rotating vortex, but the swirling quality is visible.\n\nThe element is reasonably clearly present.\n\naccept"
+        },
+        {
+          "category": "Composite-Scene Atmosphere",
+          "point": "a feeling of pure, unadulterated joy permeates the atmosphere",
+          "verdict": "accept",
+          "answer": "The image shows a fluffy white anthropomorphic rabbit in a blue waistcoat, standing in a sunlit meadow of green grass and yellow and pink wildflowers. The rabbit is winking one eye and has a wide open-mouthed smile. One arm is stretched toward a swirling cloud of golden sparkles, which glows in the warm backlight. The sun flares through the trees in the upper left, and the colors are bright and saturated. The rabbit's expression, the glowing light, the spring flowers, and the playful sparkles together create a cheerful, delighted mood that is clearly visible in the scene.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 5765,
+      "prompt": "In a cavernous, otherworldly forge, a burly, broad-shouldered artisan and a sentient golem are working in perfect synchrony to craft a celestial sword. The fantastical golem is an imaginative fusion, possessing a body of shimmering, faceted crystal that captures the firelight, combined with the translucent, pulsating form and trailing bioluminescent tentacles of a giant jellyfish. As the artisan holds the glowing blade on the anvil, the golem gently wraps its glowing tendrils around the artisan's hammer, guiding the strike with otherworldly precision and infusing the metal with starlight.",
+      "prompt_sent": "In a cavernous, otherworldly forge, a burly, broad-shouldered artisan and a sentient golem are working in perfect synchrony to craft a celestial sword. The fantastical golem is an imaginative fusion, possessing a body of shimmering, faceted crystal that captures the firelight, combined with the translucent, pulsating form and trailing bioluminescent tentacles of a giant jellyfish. As the artisan holds the glowing blade on the anvil, the golem gently wraps its glowing tendrils around the artisan's hammer, guiding the strike with otherworldly precision and infusing the metal with starlight.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095126-6f708d-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Composite-Different Entity Feature Matching",
+          "point": "a body of shimmering, faceted crystal... combined with the translucent, pulsating form and trailing bioluminescent tentacles of a giant jellyfish",
+          "verdict": "accept",
+          "answer": "The image shows a large humanoid golem standing beside the anvil. Its body is translucent and glassy, with iridescent blues, purples, and greens, plus sparkling internal points of light. The limbs and torso have angular, segmented plates, such as the faceted shoulder pauldron and the armored forearms and legs. These read as crystalline and catch the light. The head is a large jellyfish bell, translucent and domed, with glowing internal veins. Long thin tentacles trail from the bell and body down toward the ground and out to the sides, and they look bioluminescent. The overall form is translucent, and the glow suggests a pulsating, jellyfish-like quality.\n\nThe golem therefore combines a faceted crystal body with the translucent form, bell, and trailing tentacles of a jellyfish. The prompt also describes the tendrils wrapping around the hammer, but the required element does not include that detail. The element is clearly present.\n\naccept"
+        },
+        {
+          "category": "Composite-Imagination",
+          "point": "The fantastical golem is an imaginative fusion",
+          "verdict": "accept",
+          "answer": "The image shows a burly bearded artisan at an anvil in a cavern forge, holding a glowing blade and a hammer. Beside him stands a large humanoid golem. Its body is translucent and crystalline, with faceted, angular armor-like plates on the shoulders, forearms, and legs. Iridescent colors and sparkles run through it, like light caught in crystal. It also has a jellyfish bell-shaped dome for a head, and long trailing tendrils that hang from the head and arms. The form is glassy and bioluminescent. The result is a clear fusion of a crystal golem and a jellyfish, with a humanoid body that has jellyfish anatomy.\n\nSome details in the prompt are not exactly met. The tendrils do not clearly wrap around the hammer, and the golem's hand is near the blade rather than guiding the hammer. The required element, though, is only that the golem is an imaginative fusion of crystal and jellyfish. That is clearly visible.\n\naccept"
+        },
+        {
+          "category": "Attribute-Body Type",
+          "point": "a burly, broad-shouldered artisan",
+          "verdict": "accept",
+          "answer": "The image shows a man at an anvil in a forge, holding a glowing blade and a hammer. He is large and heavily muscled, with thick arms, a broad chest and shoulders, and a full beard. He wears a leather vest and bracers, which fits the look of an artisan or blacksmith. His build reads clearly as burly and broad-shouldered. Beside him is a translucent jellyfish-crystal golem, but that figure is separate from the required element.\n\nThe artisan is clearly present and matches the description.\n\naccept"
+        },
+        {
+          "category": "Relationship-Collaboration",
+          "point": "working in perfect synchrony",
+          "verdict": "reject",
+          "answer": "The image shows a burly bearded smith at an anvil. He holds a glowing blade with one hand and grips a hammer raised in the other. Next to him stands a translucent crystalline golem with a jellyfish bell for a head and long trailing tentacles.\n\nWhether the two are \"working in perfect synchrony\" depends on visible coordination. The smith is focused on the blade, and sparks fly where the hammer meets the metal. The golem is leaning toward the anvil with one hand reaching out near the blade and hammer. However, its tendrils are not wrapped around the hammer, and its hands do not touch the tool or the blade. Its other hand hangs down. Its gaze is not clearly directed at the work. It looks more like a large figure standing or looming nearby than a partner guiding the strike. The smith's squinting, intent expression is directed at the blade, not at the golem, so no mutual coordination is visible.\n\nThe scene does hint at collaboration through the golem's proximity, its reaching gesture, and the shared focus on the blade. But the specific interaction of guiding the hammer is missing, and the synchrony is only suggested by the setting, not clearly shown.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 4566,
+      "prompt": "A portrait of an old, grizzled sea captain, his stoic and weathered personality etched into his face, standing at the helm of his ship. A very shallow depth of field keeps his face in sharp focus, while the stormy sea and distant churning waves behind him are rendered as a painterly blur. All around him, a flurry of glowing, ethereal jellyfish drift and pulse through the air, their tentacles trailing like ghostly ribbons. Fine, detailed cracks are visible in the worn wooden spokes of the ship's wheel he grips.",
+      "prompt_sent": "A portrait of an old, grizzled sea captain, his stoic and weathered personality etched into his face, standing at the helm of his ship. A very shallow depth of field keeps his face in sharp focus, while the stormy sea and distant churning waves behind him are rendered as a painterly blur. All around him, a flurry of glowing, ethereal jellyfish drift and pulse through the air, their tentacles trailing like ghostly ribbons. Fine, detailed cracks are visible in the worn wooden spokes of the ship's wheel he grips.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095223-a7958d-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Attribute-Personality",
+          "point": "stoic and weathered personality",
+          "verdict": "accept",
+          "answer": "The image shows an elderly man with a gray beard, a flat cap, and a heavy, worn brown coat. He grips a wooden ship's wheel and looks off to the side with a steady, serious expression. His brow is slightly furrowed, and his gaze is calm and unflinching even with a stormy sea and glowing jellyfish around him. His face is deeply lined and sun-worn, and his hands are rough and veined. His coat is cracked and weathered. Together these details convey a stoic, hardened, weathered character. He shows no fear or surprise at the surreal scene, which reinforces the stoic impression.\n\nThe stoic and weathered personality is clearly visible in his expression, posture, and appearance.\n\naccept"
+        },
+        {
+          "category": "Attribute-Depth of Field",
+          "point": "A very shallow depth of field keeps his face in sharp focus, while the stormy sea and distant churning waves behind him are rendered as a painterly blur",
+          "verdict": "reject",
+          "answer": "The image shows an old bearded sea captain gripping a wooden ship's wheel, with glowing jellyfish floating around him and a stormy sea behind.\n\nHis face is sharp, with fine detail in the skin, beard, and cap. His coat and hands are also sharp, and so is the wheel in the foreground.\n\nThe required element is a very shallow depth of field, with the stormy sea and distant waves rendered as a painterly blur. The background does not meet that description. The waves are fairly well defined, with visible whitecaps, foam, and crisp wave crests. The sea reads as a detailed, in-focus backdrop, not a soft blur. The jellyfish are also sharply rendered at several depths. The distant ones are slightly smaller and softer, but that is mild atmospheric perspective, not a strong shallow-depth-of-field effect. The mast and rigging on the left are somewhat soft, but the overall image has deep focus, with the subject and background both fairly detailed.\n\nThe subject is sharp, but the background is not blurred in a painterly way, so the shallow depth of field is not clearly present.\n\nreject"
+        },
+        {
+          "category": "Action-Other Entity Movement",
+          "point": "a flurry of glowing, ethereal jellyfish drift and pulse through the air",
+          "verdict": "accept",
+          "answer": "The image shows an old bearded sea captain in a weathered coat and cap, gripping a wooden ship's wheel in front of a stormy sea. Around him, about a dozen or more translucent, glowing purple-blue jellyfish float in the air, not in the water. They appear at varied sizes and distances: large ones in the foreground at the lower left and right, and smaller ones receding into the background sky. Their bells glow from within, and their long tentacles trail behind them like ghostly ribbons. They are spread all around the figure, which gives the impression of a drifting swarm. The glow and the translucent look read as ethereal. The pulsing is a motion quality that a still image can only imply, but the bell shapes and trailing tentacles convey drifting and pulsing well.\n\nThe required element is clearly present.\n\naccept"
+        },
+        {
+          "category": "Attribute-Details",
+          "point": "Fine, detailed cracks are visible in the worn wooden spokes of the ship's wheel",
+          "verdict": "reject",
+          "answer": "The image shows an old bearded sea captain in a weathered coat gripping a dark wooden ship's wheel. Glowing jellyfish float around him against a stormy sea. The coat has clearly visible fine cracking, and the wheel looks aged, with some darkened wear and faint grain along the rim and handles.\n\nThe required element is fine, detailed cracks in the wheel's wooden spokes. The spokes that are visible, mainly the lower and right ones and the handle-ends, look fairly smooth. They show only soft grain and general wear, with no distinct cracks or splits. The crack detail is on the coat, not the wheel, and I shouldn't credit the wheel for it. The wheel also sits slightly soft in the foreground, which makes any fine cracking harder to see.\n\nBecause fine cracks in the spokes are not clearly visible, the element is not clearly present.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 3840,
+      "prompt": "In an ethereal, minimalist chamber, a majestic statue of a griffin stands solitary. The statue is a study in stark contrast: its left side is carved from rough, weathered sandstone, crumbling slightly at the edges, while its right side is made of smooth, flawless black obsidian, gleaming with an inner light. The entire statue stands on a floor of perfectly still, black water, which creates a flawless, mirror-like reflection of the griffin, showing both its ancient, decaying half and its pristine, modern half in perfect reverse.",
+      "prompt_sent": "In an ethereal, minimalist chamber, a majestic statue of a griffin stands solitary. The statue is a study in stark contrast: its left side is carved from rough, weathered sandstone, crumbling slightly at the edges, while its right side is made of smooth, flawless black obsidian, gleaming with an inner light. The entire statue stands on a floor of perfectly still, black water, which creates a flawless, mirror-like reflection of the griffin, showing both its ancient, decaying half and its pristine, modern half in perfect reverse.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095319-b72ede-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Attribute-Contrast",
+          "point": "its left side is carved from rough, weathered sandstone... while its right side is made of smooth, flawless black obsidian",
+          "verdict": "reject",
+          "answer": "The image shows a griffin statue on a still black reflective surface. The split between materials is front to back. The head, mane, chest and front legs are glossy black obsidian. The hindquarters, hind leg, tail base and the visible wing are rough, weathered sandstone. The griffin faces right, so the viewer sees its right side, and that side is both materials: obsidian at the front and sandstone at the back. The wing on that side is sandstone, not obsidian.\n\nThe required element is a left-versus-right split, with the whole left side sandstone and the whole right side obsidian. The image doesn't show that. The sandstone and obsidian are present and contrast well, but they are divided front/back, not left/right. The far side of the statue is hidden, so a left/right division can't be confirmed either.\n\nreject"
+        },
+        {
+          "category": "Grammar-Consistency",
+          "point": "The entire statue stands on a floor of perfectly still, black water, which creates a flawless, mirror-like reflection of the griffin",
+          "verdict": "reject",
+          "answer": "The image shows a griffin statue, part sandstone and part black obsidian, on a dark, reflective water surface. The surface has visible ripples in the foreground and midground, so it isn't perfectly still. The reflection is reasonably clear, but it is distorted by those ripples and not flawless.\n\nThe statue also doesn't stand entirely on the water. Its base is a sandstone slab that sits on or in the water, and the obsidian front paws rest on small dark plinths. The prompt says the entire statue stands on a floor of water, which is only partly met.\n\nThe reflection is also not a perfect mirror. The obsidian front appears to reflect, but the reflected shapes are broken up by the ripples. The sandstone side reflects as well, though it is wavy.\n\nThe element requires perfectly still water and a flawless mirror-like reflection. The visible ripples and distortion mean it isn't clearly present as described.\n\nreject"
+        },
+        {
+          "category": "Relationship-Reflection/Mirror",
+          "point": "a flawless, mirror-like reflection of the griffin",
+          "verdict": "reject",
+          "answer": "The image shows a griffin statue standing on a sandstone base over dark water. The back half and wing are rough, weathered sandstone, and the front half (head, chest, forelegs) is glossy black obsidian. Below it, the water shows a reflection of the statue that includes both the sandstone wing and body and the black front.\n\nThe reflection is not flawless or mirror-perfect, though. The water has visible horizontal ripples that distort and break up the reflected image. The reflection is also cropped and does not match the statue closely. The griffin's head is mostly missing from it, and it appears to show only a bottom portion of the chest or mane. The sandstone wing in the reflection looks larger and is placed differently than the original wing. The reflection is clearly present and roughly corresponds to the statue, but it is rippled and incomplete, not the \"flawless, mirror-like\" reflection that was required.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 4039,
+      "prompt": "In the heart of an ancient, moss-covered forest, a majestic stag stands against a raging thunderstorm. Its antlers are not bone, but are formed from branching, crackling bolts of solid lightning, glowing with electric energy. The scene presents a stark contrast: the quiet, enduring stillness of the ancient woods against the violent, fleeting chaos of the storm as torrential rain lashes down.",
+      "prompt_sent": "In the heart of an ancient, moss-covered forest, a majestic stag stands against a raging thunderstorm. Its antlers are not bone, but are formed from branching, crackling bolts of solid lightning, glowing with electric energy. The scene presents a stark contrast: the quiet, enduring stillness of the ancient woods against the violent, fleeting chaos of the storm as torrential rain lashes down.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095416-25720c-0.png",
+      "all_ok": true,
+      "points": [
+        {
+          "category": "Composite-Different Entity Feature Matching",
+          "point": "Its antlers are not bone, but are formed from branching, crackling bolts of solid lightning",
+          "verdict": "accept",
+          "answer": "The image shows a stag standing on a forest path among moss-covered trees in heavy rain. Its antlers are drawn as branching, glowing white-blue lightning. The branches fork and crackle outward, with small tendrils of electricity around them. They look like electric bolts, not bone. Near the base the antler structure is slightly darker and looks a little like real antler, but the overall impression is of lightning forming the antlers. A separate lightning bolt in the background strikes down near the stag, and it visually connects to the antlers.\n\nThe antlers are clearly made of branching, crackling lightning and glow with electric energy, which matches the required element.\n\naccept"
+        },
+        {
+          "category": "Composite-Contrast Sense",
+          "point": "a stark contrast: the quiet, enduring stillness of the ancient woods against the violent, fleeting chaos of the storm",
+          "verdict": "accept",
+          "answer": "The image shows a stag standing still and facing the viewer on a muddy forest path. Thick, moss-covered trunks frame it on both sides, and the surrounding trees look old and dim. These give the scene a quiet, enduring feel. The stag's antlers are drawn as branching lightning, glowing white-blue. A large lightning bolt also strikes down through the background. Rain is visible throughout, and the sky and fog look stormy.\n\nThe contrast is clearly visible. The motionless, ancient, mossy woods and the calm stag sit against the bright, jagged, momentary lightning and the falling rain. The lightning is the brightest, most dynamic part of the picture, while the muted greens and browns of the forest stay steady. Both sides of the contrast can be seen directly, not just implied.\n\nOne minor point is that the rain and fog make the forest slightly less \"quiet.\" Even so, the trees and the stag's posture read as stillness against the storm's energy.\n\naccept"
+        },
+        {
+          "category": "Action-Natural Phenomenon",
+          "point": "a raging thunderstorm... as torrential rain lashes down",
+          "verdict": "accept",
+          "answer": "The image shows a stag in a dark, moss-covered forest. Its antlers are drawn as branching, glowing lightning. A large lightning bolt also cuts down through the background behind the stag. Rain is visible as many thin diagonal streaks across the whole frame, most clearly against the dark trees. The sky is dark and overcast, and mist hangs between the trees. The ground looks wet and muddy.\n\nThe element requires a raging thunderstorm with torrential rain lashing down. The lightning is clearly there, in the antlers and in the large background bolt. The rain is visible and fairly dense, and the stormy atmosphere is clear. The rain could look heavier or more violent, since it reads as steady and moderate in places. Still, it is plainly visible across the scene and fits the storm described, so the element is present.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 5463,
+      "prompt": "A split-panel composition telling a generational story. On the left, a weathered oil painting depicts an old-world male scholar with a sharp jawline, silver-streaked hair, and a unique, crescent-shaped scar above his right eyebrow, poring over ancient celestial maps. On the right, a crisp, modern photograph shows his great-grandson, an astrophysicist, who shares the exact same sharp jawline and the identical, faint crescent-shaped scar above his right eyebrow, looking at a holographic star chart.",
+      "prompt_sent": "A split-panel composition telling a generational story. On the left, a weathered oil painting depicts an old-world male scholar with a sharp jawline, silver-streaked hair, and a unique, crescent-shaped scar above his right eyebrow, poring over ancient celestial maps. On the right, a crisp, modern photograph shows his great-grandson, an astrophysicist, who shares the exact same sharp jawline and the identical, faint crescent-shaped scar above his right eyebrow, looking at a holographic star chart.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095510-1aac8d-0.png",
+      "all_ok": true,
+      "points": [
+        {
+          "category": "Composite-Story Sense",
+          "point": "A split-panel composition telling a generational story",
+          "verdict": "accept",
+          "answer": "The image is divided into two panels by a thin vertical white line.\n\n**Left panel:** An oil-painting-style portrait of an older man with silver-streaked hair and a dark robe. He holds a stylus over an ancient celestial or astrolabe-type map. A crescent-shaped mark is visible on his forehead.\n\n**Right panel:** A photo-realistic image of a younger, dark-haired man in a blazer and white shirt. A glowing holographic star chart with data panels is in front of him. He has a similar crescent mark on his forehead, a similar sharp jaw, and a similar stern expression.\n\n**Generational story:** The two panels are clearly paired. Both men have the same facial structure, the same crescent mark, and a similar pose and expression. The left panel shows old-world scholarship with a parchment star map, and the right shows modern astrophysics with a holographic chart. The contrast between painting and photograph, and between ancient and futuristic celestial charts, conveys a lineage and the passing down of a calling across generations.\n\nThe element required is the split-panel composition telling a generational story. The split layout is clearly present, and the visual parallels carry the generational narrative. (The scar sits on the forehead and is arguably not exactly above the eyebrow, but that detail is not part of this required element.)\n\naccept"
+        },
+        {
+          "category": "Attribute-Character Physical Appearance",
+          "point": "an old-world male scholar with a sharp jawline, silver-streaked hair, and a unique, crescent-shaped scar above his right eyebrow",
+          "verdict": "accept",
+          "answer": "**Left panel:** An oil-painted older man in a dark robe leans over an old celestial map with a stylus, which fits an old-world scholar.\n- **Hair:** It is swept back and mostly silver-gray with some darker streaks, so it reads as silver-streaked.\n- **Scar:** A distinct crescent-shaped curved mark sits on his forehead above the eyebrow on the viewer's left, which is the subject's right side. It reads as a crescent scar, although it is placed fairly high on the forehead.\n- **Jawline:** His face is gaunt, with defined cheekbones and a tapering, angular jaw and chin. That is reasonably sharp for an aged face.\n\nAll the required attributes are visible in the painted scholar.\n\naccept"
+        },
+        {
+          "category": "Relationship-Similarity",
+          "point": "his great-grandson, an astrophysicist, who shares the exact same sharp jawline and the identical, faint crescent-shaped scar",
+          "verdict": "accept",
+          "answer": "**Left panel:** An oil painting shows an elderly man with silver-streaked hair and a defined jaw. He wears dark robes and draws on an old celestial map. A small crescent-shaped scar sits on his forehead above his right eyebrow (the left side of the image).\n\n**Right panel:** A photographic-style image shows a younger man with dark hair, stubble, and a sharp, angular jawline. He wears a navy blazer over a white shirt. A glowing holographic star chart with orbital rings and data panels is in front of him, which fits an astrophysicist. A crescent-shaped mark of the same shape and orientation sits above his right eyebrow, in the same position as the old man's scar. Both faces have similar structure, including the jaw, the brow, and the serious expression.\n\nThe similarity in scar, jawline, and placement is clear, and the star chart supports the astrophysicist role. The great-grandson relationship can't be seen directly, but the matching features convey it as the prompt asks.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 5399,
+      "prompt": "In an Art Deco futurism style, a dramatic low-angle shot depicts a pivotal moment from an alternate history of the Apollo 11 mission. A sleek, anthropomorphic fox astronaut in a silver suit is performing a zero-gravity leap from the lunar lander towards the moon's surface, its body arched in a dynamic pose. The lander is adorned with a prominent, stylized eagle logo representing the 'Aether Exploration Corps'. The entire scene is bathed in the harsh, high-contrast light of space, creating a tense yet awe-inspiring atmosphere against the backdrop of a star-filled cosmos.",
+      "prompt_sent": "In an Art Deco futurism style, a dramatic low-angle shot depicts a pivotal moment from an alternate history of the Apollo 11 mission. A sleek, anthropomorphic fox astronaut in a silver suit is performing a zero-gravity leap from the lunar lander towards the moon's surface, its body arched in a dynamic pose. The lander is adorned with a prominent, stylized eagle logo representing the 'Aether Exploration Corps'. The entire scene is bathed in the harsh, high-contrast light of space, creating a tense yet awe-inspiring atmosphere against the backdrop of a star-filled cosmos.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095609-994262-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "logo",
+          "point": "adorned with a prominent, stylized eagle logo",
+          "verdict": "reject",
+          "answer": "The lander on the left has a dark, angular panel with a large silver-white emblem. The emblem is a symmetrical fan of vertical, feather-like or blade-like shapes that point upward and converge in a V at the bottom. It has an Art Deco look. Curved text, mostly illegible, runs along its sides. The emblem is large and easy to see on the lander's body.\n\nThe question is whether it reads as an eagle logo. I don't see a head, beak, eye, talons, or a clear wing silhouette. It looks like a deco fan or sunburst, or possibly a stylized wing or feather motif. A viewer could read it as abstracted wings, but nothing in it clearly signals an eagle. Since the element must be clearly present as described, and an eagle is only loosely suggested, this falls short.\n\nreject"
+        },
+        {
+          "category": "World Knowledge",
+          "point": "alternate history of the Apollo 11 mission",
+          "verdict": "reject",
+          "answer": "The image shows a lunar-module-style lander on a gray, rocky moonscape under a starry sky with the Milky Way. An astronaut with a fox-like face (orange snout visible in the helmet) leaps in a dynamic pose away from the lander. The lander carries a stylized winged or fan-shaped emblem with illegible, garbled text. A small structure sits on the right horizon.\n\nThe required element is an \"alternate history of the Apollo 11 mission.\" Nothing visible identifies Apollo 11. There is no legible mission name, no American flag, no \"Apollo\" or \"Eagle\" text, and no readable \"Aether Exploration Corps\" lettering. The lander resembles the Apollo LM in general form, and the fox astronaut and fictional-looking emblem hint at something fantastical. But that is only a suggestion from the scene. The picture does not clearly depict an alternate-history version of Apollo 11 as a specific event. The emblem is a fan or feather shape rather than a clearly recognizable eagle, and its text is unreadable. The concept is therefore not clearly conveyed.\n\nreject"
+        },
+        {
+          "category": "Style",
+          "point": "In an Art Deco futurism style",
+          "verdict": "reject",
+          "answer": "The required element is an Art Deco futurism style.\n\nWhat I see: a lunar lander on a gray, rocky moon surface, with a fox-faced astronaut in a silver suit leaping through a starry sky. The lander carries a fan-shaped emblem, with radiating vertical blades inside a diamond or chevron shape. This is a geometric, symmetrical, Deco-like motif, and it has gold or brass trim and stylized lettering. The lander's gold-orange struts add a little metallic, ornamental flavor.\n\nStill, the overall rendering is photorealistic, with realistic lunar regolith, a realistic Milky Way, and cinematic lighting. The lander is a fairly standard Apollo-style design with industrial detail. Apart from the one emblem, there are no Art Deco elements such as streamlined forms, stepped geometry, sunburst patterns, bold symmetry, ornamental linework, or a stylized palette. The scene does not read as Art Deco futurism. The style is mostly realistic sci-fi, with a single Deco-inspired logo.\n\nThe style is only weakly suggested by that one emblem, and the image as a whole does not clearly show it.\n\nreject"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Full Body Movement",
+          "point": "A sleek, anthropomorphic fox astronaut...performing a zero-gravity leap...its body arched in a dynamic pose",
+          "verdict": "reject",
+          "answer": "The image shows a figure in a white or silver spacesuit with a helmet, leaping through the air beside a lunar lander above a rocky, gray lunar surface. The body is stretched out horizontally. One arm extends up and back, the other forward, and the legs are split in a wide, dynamic leap, with a slight arch. The pose does read as a zero-gravity leap.\n\nThe fox character is the weak point. Inside the helmet there is an orange-tan shape at the face, which could be read as a fox snout or muzzle, and there may be a small ear-like shape on top. At this size, though, the face is small and ambiguous. It reads more as a visor reflection or an orange-tinted visor than as a clearly anthropomorphic fox. There is no visible tail, no distinct fox ears, and no clear fox facial features. The suit is a standard human astronaut suit with a human body shape, so the fox identity depends only on the faint orange snout-like shape.\n\nThe leap and the dynamic pose are clearly present. The \"anthropomorphic fox\" part is only weakly suggested and not clearly shown.\n\nreject"
+        },
+        {
+          "category": "Composition-Perspective",
+          "point": "a dramatic low-angle shot",
+          "verdict": "accept",
+          "answer": "The image shows a lunar lander on the left and a fox-faced astronaut leaping through the air against a starry sky with the Milky Way. The lunar surface is in the foreground and right.\n\nFor camera angle, the horizon sits fairly low, around 65–70% down the frame on the right. The camera appears to be positioned close to the ground, roughly at the lander's footpad level. The lander looms above on the left, and the astronaut is framed against the sky above the horizon. Rocks in the foreground are close to the lens, which suggests a camera held near the ground and tilted slightly upward. This gives the lander and astronaut a looming, heroic scale against the sky, so the shot reads as a low-angle perspective. It is not extreme, but it is noticeable and fairly dramatic because of the sky-dominated framing and the lander's towering presence.\n\nThe low vantage point is clear enough to count as a dramatic low-angle shot.\n\naccept"
+        },
+        {
+          "category": "Composite-Scene Atmosphere",
+          "point": "a tense yet awe-inspiring atmosphere",
+          "verdict": "accept",
+          "answer": "The image shows a lunar lander with gold struts on gray, rocky regolith. A fox-faced astronaut in a silver suit leaps through the air beside it. The sky is black with a dense starfield and a visible Milky Way band. The lander carries a stylized emblem, and the lighting is high-contrast, with deep shadows under the lander.\n\nFor the required element, awe comes from the vast star-filled cosmos, the Milky Way, and the dramatic leap against the barren lunar landscape. Tension comes from the astronaut being mid-air and unanchored, the stark shadows, and the isolation of the setting. The low camera angle and the dark, high-contrast lighting add to the dramatic mood. The scene reads as both tense and awe-inspiring, matching the description.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 3973,
+      "prompt": "At a dining table, an elderly grandmother and her young granddaughter share a quiet moment, looking through an old photo album. The grandmother, whose expression is one of wise and patient kindness, smiles gently. The warm lamplight catches the scene, casting a soft glow on both their faces, which are mirrored in the polished, dark wood surface of the table.",
+      "prompt_sent": "At a dining table, an elderly grandmother and her young granddaughter share a quiet moment, looking through an old photo album. The grandmother, whose expression is one of wise and patient kindness, smiles gently. The warm lamplight catches the scene, casting a soft glow on both their faces, which are mirrored in the polished, dark wood surface of the table.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095721-6d7cf0-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Relationship-Kinship",
+          "point": "an elderly grandmother and her young granddaughter share a quiet moment",
+          "verdict": "accept",
+          "answer": "The image shows an elderly woman with white hair, a gentle smile, and a cardigan with a pendant necklace. Beside her sits a young girl with shoulder-length brown hair in a pink cardigan. They sit close together at a polished wooden table and look down at an open, old-looking photo album. The girl touches the page and the woman rests her hand on the album. Both look calm and content. A lamp glows warmly behind them and the room is quiet, with no distractions.\n\nTheir kinship can't be confirmed from the image alone. But the large age gap, the closeness between them, and the affectionate, shared focus on the album clearly present an elderly grandmother and young granddaughter sharing a quiet moment.\n\naccept"
+        },
+        {
+          "category": "Attribute-Personality",
+          "point": "wise and patient kindness",
+          "verdict": "accept",
+          "answer": "The image shows an elderly woman with white-gray hair and a deeply lined face, seated at a polished wooden table beside a young girl. They are looking at an open, old-looking photo album. The woman has a soft, closed-mouth smile and relaxed, lowered eyes directed at the album and child. Her expression is calm and warm, and her posture is unhurried, with one hand resting gently on the album page. She seems content to let the child explore at her own pace. Together, the gentle smile, serene gaze, and relaxed manner read as patient kindness. Her age and the calm, attentive look also come across as wise. This comes from her visible expression and demeanor, not only from the setting.\n\naccept"
+        },
+        {
+          "category": "Relationship-Reflection",
+          "point": "faces, which are mirrored in the polished, dark wood surface of the table",
+          "verdict": "reject",
+          "answer": "The image shows an elderly woman with white hair and a gentle smile sitting beside a young girl. They are looking at an open photo album on a glossy, dark wooden table, and a lamp glows warmly behind them.\n\nThe table is clearly polished and reflective. In the lower part of the image I can see blurred reflections of the grandmother's hand and forearm on the left, and a pink patch on the right that matches the girl's sleeve. The album and the angle of view hide where the faces would be reflected. I can't see either person's face mirrored in the wood. Only the hands and clothing are reflected, so the faces are not \"mirrored in the polished, dark wood surface\" as required.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 4672,
+      "prompt": "In a studio that fuses rustic wooden beams with floating holographic color palettes, an artist stands frozen, their face a complex mask of terrified fascination. The air is thick with the scent of turpentine and ozone, creating an atmosphere of chaotic creation where magic and art collide. Before them, a painted seascape on an easel comes to life as swirls of vibrant cyan paint lift off the canvas, dancing in the air like weightless ribbons.",
+      "prompt_sent": "In a studio that fuses rustic wooden beams with floating holographic color palettes, an artist stands frozen, their face a complex mask of terrified fascination. The air is thick with the scent of turpentine and ozone, creating an atmosphere of chaotic creation where magic and art collide. Before them, a painted seascape on an easel comes to life as swirls of vibrant cyan paint lift off the canvas, dancing in the air like weightless ribbons.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095818-396e2a-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Composite-Scene Atmosphere",
+          "point": "an atmosphere of chaotic creation where magic and art collide",
+          "verdict": "accept",
+          "answer": "The image shows a rustic studio with exposed wooden beams. A long-haired man in a dark jacket stands to the left with wide eyes and an open mouth, which reads as fear mixed with fascination. In front of him, a seascape painting sits on an easel. Vivid cyan paint ribbons lift off the canvas and swirl through the air, with droplets and sparks scattered around them. Glowing, glitchy holographic color panels float in the background on the left. Thin smoke or haze drifts near the rafters. The workspace is cluttered with paint jars, brushes, and splattered surfaces, and his clothes are paint-stained.\n\nTogether, these details give the scene a clear atmosphere of chaotic creation in which magic and art collide. The paint behaves in a supernatural way, the holographic elements sit against the rustic setting, and the artist's reaction and the messy studio add to the sense of disorder.\n\naccept"
+        },
+        {
+          "category": "Composite-Emotional Expression",
+          "point": "their face a complex mask of terrified fascination",
+          "verdict": "accept",
+          "answer": "The image shows a long-haired, bearded man in a dark jacket standing in a rustic wooden-beamed studio. Beside him is an easel holding a seascape painting, with cyan paint ribbons lifting off the canvas.\n\nHis face is the relevant part. His eyes are wide and he looks up and toward the paint swirls. His brows are raised and slightly drawn together, and his mouth hangs open as if in a gasp. This reads as shock or fear. The fixed gaze on the spectacle and the slightly awed look also suggest fascination. Together the expression reads as a mix of alarm and wonder, which matches \"terrified fascination.\" His body is stiff and his hands are loosely open at his sides, which fits the \"frozen\" idea.\n\nThe expression is clearly visible and fits the required mix of fear and fascination.\n\naccept"
+        },
+        {
+          "category": "Composite-Conceptual Design",
+          "point": "a studio that fuses rustic wooden beams with floating holographic color palettes",
+          "verdict": "reject",
+          "answer": "The studio has rustic wooden beams across the ceiling, with exposed rafters and plank walls. That part of the element is clearly present.\n\nThe holographic color palettes are less clear. On the left there is a glowing, glitchy rectangle of rainbow color, and there are faint bluish glows on the right. These look like digital screens or light panels. I see no floating palettes, such as palette shapes hovering in the air, and nothing that reads clearly as a holographic color palette. The only other floating elements are the cyan paint ribbons and some sparkles, and those belong to the painting coming to life rather than to a palette.\n\nThe wooden beams are present, but the floating holographic color palettes are not clearly shown. The element as described is only partly met.\n\nreject"
+        },
+        {
+          "category": "Attribute-Emotion",
+          "point": "fascination",
+          "verdict": "reject",
+          "answer": "The image shows a long-haired, bearded man in a dark jacket standing in a rustic wooden-beamed studio. Beside him is an easel holding a painted seascape. Ribbons of cyan paint are lifting off the canvas and swirling in the air, and colorful holographic panels glow in the background.\n\nHis face is the relevant part. His eyes are wide, his eyebrows are raised, and his mouth is slightly open. This clearly reads as shock or fear. His body also looks tense and frozen, with his hands loose and slightly spread.\n\nThe required element is fascination. His wide-eyed gaze is directed toward the magical paint, which gives some sense of attention to it. But the expression leans toward alarm or astonishment. Nothing in it shows the mix of curiosity, awe, or captivated interest that would make fascination clearly visible. There is no hint of a smile, no look of wonder, and no lean toward the phenomenon. His head is turned partly away, and he looks startled and recoiling rather than drawn in. The fascination is implied only by the scene and the prompt, not by the face itself.\n\nThe expression shows fear or shock more than fascination, so the element is not clearly present as described.\n\nreject"
+        },
+        {
+          "category": "Action-Other Entity Movement",
+          "point": "swirls of vibrant cyan paint lift off the canvas, dancing in the air",
+          "verdict": "accept",
+          "answer": "The image shows an artist with long hair standing in a rustic wooden-beamed studio. He looks startled, with wide eyes and an open mouth. Beside him is an easel holding a painted seascape of ocean and clouds. Ribbons of vibrant cyan and turquoise paint rise from the canvas surface and curl and swirl in the air around it. Some of them extend well beyond the canvas edges, and small droplets and splashes are suspended in the air. The ribbons look fluid and weightless, as if dancing. This matches the required element.\n\naccept"
+        },
+        {
+          "category": "Attribute-Color",
+          "point": "vibrant cyan paint",
+          "verdict": "accept",
+          "answer": "The image shows a rustic studio with exposed wooden beams. An artist with long hair stands at left, looking startled. On the easel is a painted seascape with clouds and waves. Ribbons of bright turquoise-cyan paint swirl off the canvas and into the air, with small droplets splattering around them. The ribbons are saturated and luminous, a vibrant cyan that reads clearly against the muted gray-blue painting and the dark background. They look like glossy liquid paint, which matches the required element.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 4058,
+      "prompt": "A medium shot of a suave anthropomorphic fox mascot for a tech company, dressed in a smart blazer. The fox is in mid-action, leaning forward slightly from the waist. With one paw, it's gesturing towards a floating holographic interface, its fingers elegantly spread. The fox has a confident, knowing smirk on its face, as if sharing a secret with the viewer. The background is a sleek, minimalist office, and a state of shimmering energy is emanating from the hologram. The company's 'Innovatech' logo is subtly visible on a pin on the fox's lapel.",
+      "prompt_sent": "A medium shot of a suave anthropomorphic fox mascot for a tech company, dressed in a smart blazer. The fox is in mid-action, leaning forward slightly from the waist. With one paw, it's gesturing towards a floating holographic interface, its fingers elegantly spread. The fox has a confident, knowing smirk on its face, as if sharing a secret with the viewer. The background is a sleek, minimalist office, and a state of shimmering energy is emanating from the hologram. The company's 'Innovatech' logo is subtly visible on a pin on the fox's lapel.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-095921-80cdcb-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Action-Character/Anthropomorphic Partial Movement",
+          "point": "leaning forward slightly from the waist",
+          "verdict": "accept",
+          "answer": "The relevant element is the fox's posture. The fox is shown from roughly mid-thigh up, wearing a navy suit. Its head and upper torso are angled toward the right of the frame, toward the hologram. The head is tilted down and forward, and the gaze goes sideways at the viewer. The shoulders and chest slant forward and to the right. The torso looks slightly bent forward rather than upright, and the suit jacket hangs forward as though the body is inclined. The arm is extended toward the hologram.\n\nThe lean is subtle. It could be read partly as a head tilt and a rotation of the body toward the hologram. The lower body is cropped, so the waist hinge is not fully visible. Even so, the upper body's overall forward slant and the way the jacket hangs suggest a slight forward lean from the waist, which is what the prompt asks for (\"slightly\").\n\nThe pose is not clearly upright. The forward inclination is visible, though modest.\n\naccept"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Hand Movement",
+          "point": "With one paw, it's gesturing towards a floating holographic interface, its fingers elegantly spread",
+          "verdict": "reject",
+          "answer": "The image shows an anthropomorphic fox in a navy suit, white shirt, and black tie, standing in a minimalist office. It leans slightly forward. On the right side of the frame is a floating, glowing holographic interface with circular patterns and sparkles.\n\nThe fox's right arm is raised toward the hologram. The paw is a brown, mitten-like shape with a rounded, curled form. The fingers are not visibly separated or spread. The paw looks closed or cupped, like a fuzzy mitten with a thumb-like lump, and I can't make out distinct, elegantly spread fingers. The gesture is directed toward the hologram, but the \"fingers elegantly spread\" detail is not clearly met.\n\nThe paw is gesturing toward the hologram, but the required element specifically includes elegantly spread fingers, and the paw is clumped and curled with no distinct fingers.\n\nreject"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Facial Expression",
+          "point": "The fox has a confident, knowing smirk on its face",
+          "verdict": "accept",
+          "answer": "The image shows an anthropomorphic fox in a dark navy suit with a white shirt and black tie. It leans forward slightly and extends one paw toward a floating holographic display. The fox's mouth is closed and curves upward on one side, forming a slight smile. Its eyebrows are angled down and its eyes are narrowed and glancing sideways. Together these give a sly, self-assured look, as if it knows something. The expression reads as a confident, knowing smirk.\n\nThe fox is looking toward the hologram rather than directly at the viewer. The prompt's \"sharing a secret with the viewer\" is a flourish, though, and the required element is only the confident, knowing smirk, which is clearly present.\n\naccept"
+        },
+        {
+          "category": "Attribute-Composition",
+          "point": "A medium shot of a suave anthropomorphic fox mascot",
+          "verdict": "accept",
+          "answer": "The image shows an anthropomorphic fox with orange fur, a white muzzle and chest, and dark-tipped ears. It wears a navy blazer, a white shirt, and a black tie. The fox has a confident, knowing smirk with slanted eyebrows, which reads as suave. The framing runs from the head to roughly the hips or upper thighs, which is a medium shot. The fox is also the clear main subject, and it is styled as a corporate mascot in an office setting with a holographic display.\n\nThe element required is a medium shot of a suave anthropomorphic fox mascot. The fox is anthropomorphic, upright, and dressed in clothes. Its expression is suave, and the framing is medium. All of this is clearly visible.\n\naccept"
+        },
+        {
+          "category": "Action-State",
+          "point": "a state of shimmering energy is emanating from the hologram",
+          "verdict": "accept",
+          "answer": "The image shows an anthropomorphic fox in a navy blazer and tie, leaning slightly forward. It gestures with one paw toward a translucent floating holographic panel on the right. The panel shows concentric circular patterns and glowing blue lines. Small sparkling particles and light points are scattered across and around the hologram, especially at its top and edges. A few bright blue glints also sit near the fox's paw, so the glow seems to reach outward from the interface. The overall effect reads as shimmering, energetic light coming from the hologram.\n\nThe required element is a state of shimmering energy emanating from the hologram. The glowing swirls, sparkles, and luminous particles show this clearly.\n\naccept"
+        },
+        {
+          "category": "logo",
+          "point": "The company's 'Innovatech' logo is subtly visible on a pin",
+          "verdict": "reject",
+          "answer": "The image shows an anthropomorphic fox in a navy suit with a white shirt and black tie, leaning slightly forward. It gestures toward a floating holographic interface with one paw. On the left lapel there is a small round pin with a circular emblem and some small text beside it. The text looks like \"innovatech\" or something close, but it is tiny and blurry, and its letters are not clearly legible. The pin and a logo-like mark are visible. However, I cannot verify that the text actually spells \"Innovatech,\" and the rendering looks garbled, as is common in generated text.\n\nThe element requires the 'Innovatech' logo to be visible on a pin. A pin with a logo-like badge is present and placed correctly, but the name cannot be clearly confirmed as \"Innovatech.\" The text is ambiguous and may not match. Because the required logo is not clearly legible as Innovatech, I can't say it is clearly present as described.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 5944,
+      "prompt": "Just after dawn, a vintage leather satchel rests on a wet cobblestone street in a quiet European alley. Emblazoned on the front of the satchel is a faded, embossed logo of a roaring lion. A large puddle on the street captures a perfect, shimmering reflection of the satchel and the soft, early morning light filtering between the old buildings.",
+      "prompt_sent": "Just after dawn, a vintage leather satchel rests on a wet cobblestone street in a quiet European alley. Emblazoned on the front of the satchel is a faded, embossed logo of a roaring lion. A large puddle on the street captures a perfect, shimmering reflection of the satchel and the soft, early morning light filtering between the old buildings.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-100048-bec841-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Attribute-Props",
+          "point": "a vintage leather satchel",
+          "verdict": "accept",
+          "answer": "The image shows a brown leather satchel sitting on a wet cobblestone street in a narrow alley lined with old buildings. The bag has a top handle, a shoulder strap on the left side, two front buckle straps, a flap closure, and visible stitching. The leather looks worn and scuffed, which gives it an aged, vintage look. An embossed, faded lion emblem is on the front. The satchel is reflected in a puddle below it.\n\nThe required element is a vintage leather satchel, and it is clearly visible.\n\naccept"
+        },
+        {
+          "category": "logo",
+          "point": "a faded, embossed logo of a roaring lion",
+          "verdict": "accept",
+          "answer": "The image shows a vintage brown leather satchel on a wet cobblestone street, with old buildings on both sides and a puddle in front that reflects the bag. The front flap carries a lion emblem in a pale, tan-gold tone. The lion is rampant: it stands on its hind legs, one forepaw raised, its tail curled up, and its mouth open as if roaring. The emblem looks muted and worn, so it reads as faded. It also appears pressed or stamped into the leather, and the surface texture and soft shading suggest embossing. The reflection in the puddle repeats the lion.\n\nAll parts of the required element are visible: a lion, a roaring pose, a faded look, and an embossed look.\n\naccept"
+        },
+        {
+          "category": "Relationship-Reflection",
+          "point": "A large puddle on the street captures a perfect, shimmering reflection of the satchel",
+          "verdict": "accept",
+          "answer": "The satchel sits on wet cobblestones in a narrow alley. A large puddle spreads across the street directly in front of it and extends toward the lower right. The puddle holds a clear, inverted reflection of the satchel, including the buckled straps, the shoulder strap on the left, the top handle at the bottom of the reflection, and the lion emblem, which is fainter. The reflection lines up with the real bag, and the surrounding buildings are mirrored in the water too. It is slightly darker and softer than the bag, as a real puddle reflection would be, but it is faithful and the water surface looks glossy. The puddle is large and the reflection clearly captures the satchel.\n\naccept"
+        },
+        {
+          "category": "Attribute-Time",
+          "point": "Just after dawn",
+          "verdict": "reject",
+          "answer": "**What I see:** A brown leather satchel with a lion emblem sits on a wet cobblestone street in a narrow European-style alley. A large puddle reflects the bag and the buildings. The light is soft, muted, and diffuse. The sky at the top is pale and overcast, and the tones are cool and slightly dim. A small light that may be a street lamp glows in the distance.\n\n**Relevance to \"just after dawn\":** Nothing in the image specifically marks dawn. There is no visible sun, no warm golden or pink light on the buildings, no low-angle light raking across the cobblestones, and no long shadows or sunrise colors in the sky. The flat, soft lighting would look the same on an overcast morning, an overcast afternoon, or dusk. The distant lamp could suggest early or late hours, but it does not point to dawn. Dawn is only one possible reading of the scene, not something clearly shown.\n\nreject"
+        }
+      ]
+    },
+    {
+      "ind": 5425,
+      "prompt": "A close-up cinematic shot captures an android historian examining an ancient human artifact. Its metallic fingers gently trace the object's faded engravings, a gesture that reveals a long-forgotten secret from the past. A single optic lens whirs and adjusts, zooming in on the detail, while its head tilts slightly to the side in a pensive pose. The android, a sophisticated model known for its analytical prowess, finally processes the data; it then raises a hand to its chin, a programmed mimicry of human contemplation.",
+      "prompt_sent": "A close-up cinematic shot captures an android historian examining an ancient human artifact. Its metallic fingers gently trace the object's faded engravings, a gesture that reveals a long-forgotten secret from the past. A single optic lens whirs and adjusts, zooming in on the detail, while its head tilts slightly to the side in a pensive pose. The android, a sophisticated model known for its analytical prowess, finally processes the data; it then raises a hand to its chin, a programmed mimicry of human contemplation.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-100201-029cdc-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Composite-Story Sense",
+          "point": "a gesture that reveals a long-forgotten secret from the past",
+          "verdict": "reject",
+          "answer": "The image shows a metallic android with a single green optic lens. Its head tilts slightly to the side. One hand is raised to its chin in a contemplative pose. The other hand rests on an ancient stone tablet covered in faded engravings.\n\nThe required element is \"a gesture that reveals a long-forgotten secret from the past.\" The android's hand does rest on the tablet, but it is placed flat near the top edge, away from the text. It is not tracing the engravings. The chin-on-hand pose suggests contemplation, but nothing visible shows a secret being revealed. The engravings are illegible, and there is no visual cue of a discovery, such as a highlighted passage, a glowing symbol, or a hidden compartment. A revelation of a secret can only be inferred from the prompt, not seen in the image. The gestures are thoughtful and fit the scene, but none of them visibly reveals a secret.\n\nreject"
+        },
+        {
+          "category": "Composition-Close-up",
+          "point": "A close-up cinematic shot",
+          "verdict": "accept",
+          "answer": "The image shows an android's head, upper torso, and hands in tight framing. A stone tablet with engraved text takes up the lower left. The android's head is tilted, and one hand rests on the tablet while the other is raised toward its chin. A single glowing green lens serves as its eye, and a second lens sits on the side of the head. The background is blurred and shallow in depth of field, with warm, dramatic lighting and rich texture detail. The subject fills most of the frame, with no wide environment visible. These traits match a close-up with a cinematic look: shallow focus, moody lighting, and tight composition on the subject and artifact.\n\naccept"
+        },
+        {
+          "category": "Grammar-Pronoun Reference",
+          "point": "The android... it then raises a hand",
+          "verdict": "accept",
+          "answer": "The image shows a metallic android with a head tilted slightly to the side. It has a single large green-blue optic lens on its face, plus a separate camera-like lens on the side of its head. In front of it is a stone slab with faded engraved text.\n\nThe android has two hands visible. One hand rests on the stone slab, with its fingers spread on the surface. The other hand is raised, with its forearm angled up and its metallic fingers pressed against or near its chin and jaw. This matches the \"raises a hand to its chin\" pose, a contemplative gesture.\n\nThe required element is the android raising a hand, and that is clearly visible. The hand at the chin is lifted, and the android is the one doing it.\n\naccept"
+        },
+        {
+          "category": "Attribute-Pose",
+          "point": "its head tilts slightly to the side in a pensive pose",
+          "verdict": "accept",
+          "answer": "The image shows a metallic android with a single green-blue optic lens. It looks down toward a stone tablet carrying engraved text. One hand rests on the tablet. The other hand is raised near its chin or jaw in a thinking gesture.\n\nThe head is angled. It is turned toward the tablet and tipped downward and slightly sideways, so the face appears in three-quarter view with the top of the head leaning to the viewer's left. The raised hand at the chin adds to the pensive, contemplative look. The tilt is visible and reads as a thoughtful pose, not a neutral upright one.\n\nThe element is present: the head is tilted slightly and the pose looks pensive.\n\naccept"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Facial Movement",
+          "point": "A single optic lens whirs and adjusts, zooming in on the detail",
+          "verdict": "accept",
+          "answer": "The android's face has one eye, a round glowing green lens with visible concentric glass elements. Its head tilts down and to the side toward the engraved stone tablet, so the lens appears aimed at the inscriptions. This matches the \"single optic lens\" focused on the artifact detail. A second, larger lens-like camera sits on the side of the head near the temple. It reads as a separate sensor or ear unit, not as a second eye, so the face still has a single eye lens.\n\nWhirring and zooming are motion and sound, which a still image cannot show. The lens does have a detailed, multi-ring look and is pointed at the tablet, which fits the idea of a lens focusing on detail.\n\naccept"
+        },
+        {
+          "category": "Action-Character/Anthropomorphic Upper Body Movement",
+          "point": "it then raises a hand to its chin",
+          "verdict": "accept",
+          "answer": "The image shows a metallic android with a single green optic lens on the left side of its face and a camera-like lens at the side of its head. Its head is tilted slightly. One robotic hand rests on a stone tablet with engraved text. The other hand is raised, with its forearm angled upward and its fingers curled near the lower face and jaw area.\n\nThe key question is whether that raised hand is at the chin. The fingertips point up toward the jaw and seem to touch or sit very close to the chin or lower face, in a thoughtful pose. The hand looks to be at or just below the chin and reads as a contemplative gesture. It is not clearly pressed against the chin, but the hand is raised toward it and the pose matches \"hand to chin.\"\n\nThe hand is raised and positioned at the chin/jaw, forming a pensive gesture.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 3929,
+      "prompt": "A celestial entity, its slender and elongated form composed of swirling nebulae and captured starlight, awakens from a cosmic slumber. Positioned off-center in a vast, dark void, it reaches a delicate hand towards the upper right corner, where its touch sparks the birth of a new, vibrant spiral galaxy. This moment of divine creation is captured with a sense of profound narrative, as if witnessing the first page of a universal myth.",
+      "prompt_sent": "A celestial entity, its slender and elongated form composed of swirling nebulae and captured starlight, awakens from a cosmic slumber. Positioned off-center in a vast, dark void, it reaches a delicate hand towards the upper right corner, where its touch sparks the birth of a new, vibrant spiral galaxy. This moment of divine creation is captured with a sense of profound narrative, as if witnessing the first page of a universal myth.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-100313-64ed88-0.png",
+      "all_ok": false,
+      "points": [
+        {
+          "category": "Composite-Imagination",
+          "point": "its form composed of swirling nebulae and captured starlight",
+          "verdict": "accept",
+          "answer": "The image shows a female-shaped figure floating in a dark starfield. She is off-center to the left and reaches her right arm toward a spiral galaxy in the upper right. Her body is semi-translucent and filled with glittering stars, with blue, violet, and amber nebula-like colors and dusty textures running through the torso, arms, and legs. Her hair and lower body trail off into wispy streams of nebular gas dotted with starlight. The figure is clearly made of cosmic material instead of just being placed in front of a cosmic background. The form is slender and elongated, and the nebula and starlight composition is visible throughout it.\n\naccept"
+        },
+        {
+          "category": "Composite-Story Sense",
+          "point": "awakens from a cosmic slumber... as if witnessing the first page of a universal myth",
+          "verdict": "reject",
+          "answer": "**What I see:** A translucent, elongated female figure is filled with nebula-like colors and scattered stars. Her hair and lower body trail off in glowing, flowing wisps. She floats off-center in a dark starfield, with one arm stretched toward the upper right. Her fingertips almost touch the bright core of a spiral galaxy. The whole picture has a reverent, mythic, creation-story tone.\n\n**Relevant assessment:** The mythic mood and the creation gesture are present. The specific idea of awakening from a cosmic slumber is not clearly shown, though. Her eyes are closed and her face is serene, as if she were dreaming or asleep. Nothing visible marks a transition from sleep to waking, such as opening eyes, stirring, or a rousing motion. Her reaching pose is purposeful, but it doesn't show waking up. That reading would have to be inferred from the prompt rather than seen in the image. The \"first page of a universal myth\" feeling is conveyed by the style, but the \"awakens\" part is only loosely suggested.\n\nreject"
+        },
+        {
+          "category": "Attribute-Composition",
+          "point": "Positioned off-center... it reaches a delicate hand towards the upper right corner",
+          "verdict": "accept",
+          "answer": "The image shows a humanoid figure made of star-flecked, nebula-like material, floating in a dark starfield. Its body is slender and stretches diagonally from the lower left toward the upper right. The figure's center of mass sits left of and below the middle of the frame, so it is off-center. Its right arm extends up and to the right, and the hand is open with delicate, spread fingers. The hand reaches toward a glowing spiral galaxy in the upper right of the image, at about x≈590, y≈160 in a 768-pixel frame. The fingertips touch or nearly touch the galaxy's bright core.\n\nEach part of the required element is visible: the figure is off-center, and its delicate hand reaches toward the upper right, where the galaxy is.\n\naccept"
+        },
+        {
+          "category": "Attribute-Body Type",
+          "point": "slender and elongated form",
+          "verdict": "accept",
+          "answer": "The image shows a humanoid figure made of star-speckled, nebula-like material, floating in a dark starfield. The figure sits left of center and reaches its right arm toward a spiral galaxy in the upper right. The body is slim, with narrow shoulders, a tapering waist, and long thin limbs. The lower body narrows and flows into long, trailing, tapered wisps that stretch toward the bottom left. Long hair streams out behind the head. Taken together, the silhouette reads as elongated and slender, not bulky or compact.\n\nThe form is clearly slender, and the trailing lower body and extended arm add to the elongation. The figure is also visibly made of nebulae and starlight, which fits the description.\n\naccept"
+        }
+      ]
+    },
+    {
+      "ind": 6003,
+      "prompt": "In the heart of a roiling, purple-hued maelstrom, a colossal, ancient obsidian monolith is struck by a jagged fork of brilliant white lightning. The raw energy of the strike causes a celestial map of lost constellations to blaze across the monolith's surface in shimmering golden light. The view is a close-up on the intricate, glowing filigree of a single, complex spiral galaxy symbol etched into the stone, its delicate lines pulsating with captured power.",
+      "prompt_sent": "In the heart of a roiling, purple-hued maelstrom, a colossal, ancient obsidian monolith is struck by a jagged fork of brilliant white lightning. The raw energy of the strike causes a celestial map of lost constellations to blaze across the monolith's surface in shimmering golden light. The view is a close-up on the intricate, glowing filigree of a single, complex spiral galaxy symbol etched into the stone, its delicate lines pulsating with captured power.",
+      "image": "C:\\Users\\stock\\Documents\\000_NGM\\GRAFIK\\library\\eval\\raw-sonnet\\20261023-100417-2e9f70-0.png",
+      "all_ok": true,
+      "points": [
+        {
+          "category": "Action-Natural Phenomenon",
+          "point": "monolith is struck by a jagged fork of brilliant white lightning",
+          "verdict": "accept",
+          "answer": "The image shows a large, dark, rocky monolith with glowing golden constellation lines and a spiral galaxy pattern etched across its surface. The background is a stormy purple sky full of cloud-like lightning.\n\nAt the upper left, a branching, jagged bolt of brilliant white lightning comes down from the top left. It reaches the monolith's upper-left edge near the peak, where there is a bright flash of contact. The bolt forks into several branches and is clearly white. The point of contact is visible, so the monolith appears to be struck by the lightning rather than the lightning simply being nearby.\n\nThe monolith is rough and rock-like rather than a smooth slab, but it is dark and could pass as obsidian. That detail doesn't affect the required element, which is the strike by a jagged fork of white lightning, and that is clearly visible.\n\naccept"
+        },
+        {
+          "category": "Relationship-Mapping",
+          "point": "a celestial map of lost constellations to blaze across the monolith's surface",
+          "verdict": "accept",
+          "answer": "The image shows a dark, rocky monolith, partly obsidian-like, set against a stormy purple sky. A white lightning bolt strikes near its upper left edge. Golden glowing lines and points cover the surface. In the upper part they form constellation-like networks of nodes joined by thin lines, with brighter star-like points at the junctions. A large golden spiral galaxy sits in the lower center, ringed by scattered golden dots that resemble stars.\n\nThe constellation-like line-and-star patterns spread across the monolith's surface and glow gold, which fits a celestial map of constellations blazing across the stone. The lightning strike is next to the monolith, so the glow plausibly reads as a response to it. The \"lost\" quality can't be verified from the image, but the patterns are unfamiliar and look like invented constellations. The map is clearly visible, golden, and covers the surface.\n\naccept"
+        },
+        {
+          "category": "Relationship-Compositional",
+          "point": "the intricate, glowing filigree of a single, complex spiral galaxy symbol etched into the stone",
+          "verdict": "accept",
+          "answer": "The image shows a dark, rocky monolith set against a purple, stormy sky. A white lightning bolt strikes its upper left edge. Thin golden lines and glowing points cover the surface, forming constellation-like networks in the upper part. In the lower center there is one large golden spiral made of many concentric, swirling lines, with scattered glowing dots along the arms. It looks like a spiral galaxy. The lines are fine and filigree-like, they appear etched into or inlaid on the stone, and they glow gold. The spiral is the dominant single motif, and the constellation lines around it support the celestial-map theme without competing with it.\n\nThe spiral is clearly present, glowing, intricate, and on the stone surface. It is a single complex spiral galaxy symbol, as the element requires.\n\naccept"
+        }
+      ]
+    }
+  ]
+}
