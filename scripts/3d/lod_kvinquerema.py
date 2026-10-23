@@ -28,7 +28,7 @@ DIM = {
     "yard_l": 14.0,          # odhad
     "sail_w": 12.0, "sail_h": 8.0,   # odhad
     "artemon_l": 7.0,        # odhad: raked foremast
-    "tower": (3.0, 3.0, 3.5),        # odhad: w, d, h above deck
+    "marines": 120,          # Polybius 1.26 (Ecnomus): 300 rowers and 120 soldiers a ship
     "corvus_pole": 7.2,      # Polybius 1.22: 24 ft
     "corvus_bridge": (10.8, 1.2),    # Polybius 1.22: 36 ft long, 4 ft wide
     "ram_l": 2.4,            # odhad (Athlit ram 2.26 m)
@@ -77,14 +77,17 @@ def path(points, r, r2=None):
         rod(a, b, ra, rb, 12)
 
 
-def person(x, y, z):
-    """A standing man DIM['man'] tall: legs, torso, head, spear."""
+def person(x, y, z, spear=True, shield=False):
+    """A standing man DIM['man'] tall: legs, torso, head; a spear and an oval shield for legionaries."""
     m = DIM["man"]
     for dy in (-0.1, 0.1):
         rod((x, y + dy, z), (x, y + dy, z + 0.47 * m), 0.075, 0.09, 8)
     rod((x, y, z + 0.47 * m), (x, y, z + 0.82 * m), 0.17, 0.2, 10)
     ball((x, y, z + 0.92 * m), 0.12)
-    rod((x + 0.25, y, z + 0.3), (x + 0.25, y, z + 1.3 * m), 0.02, None, 6)
+    if spear:
+        rod((x + 0.25, y, z + 0.3), (x + 0.25, y, z + 1.3 * m), 0.02, None, 6)
+    if shield:
+        box((x - 0.25, y - 0.2, z + 0.55 * m), (0.06, 0.6, 1.05))
 
 
 def rower(seat, hand):
@@ -242,7 +245,7 @@ for s in (-1, 1):
     bl = box(blade, (0.08, 0.6, 2.0))
     bl.rotation_euler = (b - a).to_track_quat("Z", "Y").to_euler()
 
-# --- deck furniture: mast, yard, sail, rigging, artemon, tower, corvus, marines ----------------
+# --- deck furniture: mast, yard, sail, rigging, artemon, corvus --------------------------------
 mx, top = DIM["mast_x"], H + DIM["mast_h"]
 rod((mx, 0, H), (mx, 0, top), DIM["mast_d"] / 2, DIM["mast_d"] / 3, 16)
 yz = top - 0.8
@@ -271,14 +274,6 @@ rod(ab, at, 0.18, 0.1, 12)
 for s in (-1, 1):
     rod(at + Vector((0.2, 0, -0.3)), at + Vector((0.2, s * 2.5, -0.3)), 0.08, 0.04, 8)
 
-tw, td, th = DIM["tower"]
-tx = 7.0
-box((tx, 0, H + th / 2), (tw, td, th))
-for k in range(5):
-    off = -tw / 2 + tw * (k + 0.5) / 5
-    for x, y in ((tx + off, td / 2 - 0.15), (tx + off, -td / 2 + 0.15), (tx + tw / 2 - 0.15, off), (tx - tw / 2 + 0.15, off)):
-        box((x, y, H + th + 0.3), (0.32, 0.32, 0.6))
-
 px = L - 3.0
 pole_top = Vector((px, 0, H + DIM["corvus_pole"]))
 rod((px, 0, H), pole_top, 0.22, 0.16, 12)
@@ -295,10 +290,29 @@ ctip = pivot + d * bl_
 rod(ctip, ctip - Vector((0, 0, 0.8)), 0.08, 0.02, 8)          # iron spike
 rod(pole_top, ctip + Vector((0, 0, 0.2)), 0.04, None, 6)      # hauling rope
 
-for k, (x, y) in enumerate([(-12, -1.2), (-10, 0.8), (-7, -0.5), (-4, 1.3), (-2, -1.6), (3, 1.0), (4, -1.3),
-                            (10, 0.6), (11, -1.0), (13, 1.4), (15, -0.4), (-15, 0.2), (-16, -1.3), (12.5, 0)]):
-    z = sheer(x)
-    person(x, y, z)
+# --- crew on deck (no tower and no artillery: neither attested at Mylae or Ecnomus) -------------
+# stern: helmsman between the two steering-oar tillers under a small awning, commander and officers
+hx = -L + 4.4
+person(hx, 0, sheer(hx), spear=False)
+for s_ in (-1, 1):
+    rod((hx - 0.2, s_ * 0.3, sheer(hx) + 1.0), (-L + 3.5, s_ * 2.3, sheer(-L + 3.5) + 0.6), 0.05, None, 6)   # tillers
+    for dx in (-0.9, 0.9):
+        rod((hx + dx, s_ * 1.2, sheer(hx + dx)), (hx + dx, s_ * 1.2, sheer(hx + dx) + 2.3), 0.05, None, 6)
+box((hx, 0, sheer(hx) + 2.35), (2.0, 2.6, 0.06))                                                       # awning
+for x, y in ((-L + 7.0, -0.6), (-L + 7.4, 0.7), (-L + 8.2, -1.2), (-L + 8.5, 0.2)):
+    person(x, y, sheer(x), spear=False)                                                               # commander, officers
+pt = Vector((-L + 1.4, 0, 7.3))
+rod(pt, pt + Vector((0, 0, 1.6)), 0.04, None, 6)
+box(pt + Vector((-0.7, 0, 1.3)), (1.4, 0.03, 0.5))                                                     # pennant
+# bow: legionaries massed by the corvus, ready to cross; a lookout at the stem
+for i in range(28):
+    x = 11.5 + (i % 7) * 0.8
+    y = -1.8 + (i // 7) * 1.2
+    person(x, y, sheer(x), shield=True)
+person(L - 1.6, 0, sheer(L - 1.6), spear=False)
+# a few deck hands at the mast
+for x, y in ((DIM["mast_x"] - 1.2, 0.8), (DIM["mast_x"] + 1.0, -0.9), (-6.0, 0.4)):
+    person(x, y, sheer(x), spear=False)
 
 # --- cutaway: open the near side amidships, show the floor, hold, frames and deck beams ---------
 if CUTAWAY:
