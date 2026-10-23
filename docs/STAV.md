@@ -12,11 +12,11 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 - **Klient** `clients/grafik_client.py`: `generate`, `add_ref`, CLI `ref-add` (pro Claude in Chrome).
 - Pinterest: návod [`pinterest.md`](pinterest.md).
 - **Poznatky z PromptEnhancer** (#9): neúspěšný překlad = chyba místo tiché češtiny, citovaný nápis se nepřekládá, „Rozepsat zadání“ ve stavbě celek → části → celek se stylem na konci, překlad pokynu k úpravě vidí výřez rámečku, skript `scripts/eval_keypoints.py` (měření klíčových bodů, placený soudce, jen po schválení ceny).
-- Testy: celá sada 271.
+- Ověřeno naostro ([spike](spikes/2026-10-23-prompt-enhancer.md)): rozepsání ve stavbě celek → části → celek s nápisem beze změny; úprava s výřezem přebarvila lišku celou, bez výřezu zůstaly oranžové tváře; měření klíčových bodů na 24 promptech 5/24 obrázků se všemi body, 68/99 bodů.
+- Testy: celá sada 272.
 
 ## Další krok
 
-- **Čeká na schválení ceny:** ruční běh „Rozepsat zadání“ (Engine ukazuje 0,01 USD, Haiku 5.5 reálně ~0,001), A/B úpravy s výřezem a bez (dva překlady, odhad 0,02 USD), měření klíčových bodů (24 promptů: soudce Sonnet 5.5 ~1,1 USD, Haiku 5.5 ~0,06 USD).
 - **G4 styly:** karty stylu ve formátu POHYB, detekce z obrázku, knihovna přes API.
 - **G5 infografiky:** vrstva českých popisků HTML/SVG nad výsledkem průvodce, export PNG/SVG/PDF.
 - Napojení projektů (KLAPKA, NG-ROBOT…) až na pokyn operátora.
