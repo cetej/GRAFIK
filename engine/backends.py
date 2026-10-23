@@ -195,17 +195,26 @@ def claude_text(content, max_tokens: int, what: str, model: str = CLAUDE_MODEL) 
     key = get_key("ANTHROPIC_API_KEY")
     if not key:
         raise BackendError(f"{what}: chybí ANTHROPIC_API_KEY")
+    body = {"model": model, "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]}
+    if "haiku" in model:
+        # Haiku 5.5 thinks by default and the thinking counts against max_tokens: a 500-token expand
+        # came back with no text at all (2026-10-23). Short rewrites need no thinking.
+        body["thinking"] = {"type": "disabled"}
     try:
         r = httpx.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-            json={"model": model, "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]},
+            json=body,
             timeout=120,
         )
         r.raise_for_status()
     except httpx.HTTPError as e:
         raise BackendError(f"{what} selhalo: {e}") from e
-    return "".join(b.get("text", "") for b in r.json().get("content", [])).strip()
+    data = r.json()
+    text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text").strip()
+    if not text:
+        raise BackendError(f"{what}: Claude nevrátil žádný text (stop_reason={data.get('stop_reason')})")
+    return text
 
 
 def describe_style(png: bytes) -> str:

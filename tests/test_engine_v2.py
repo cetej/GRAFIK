@@ -621,6 +621,30 @@ def test_expand_instruction_whole_parts_whole_and_style_last():
         assert rule in i
 
 
+def test_claude_text_disables_haiku_thinking_and_rejects_empty_answer(monkeypatch):
+    from engine import backends
+    from engine.backends import BackendError
+    sent, replies = [], [{"content": [{"type": "thinking", "thinking": ""}], "stop_reason": "max_tokens"},
+                         {"content": [{"type": "text", "text": " A harbour. "}], "stop_reason": "end_turn"}]
+
+    class R:
+        def __init__(self, data):
+            self.data = data
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self.data
+
+    monkeypatch.setattr(backends, "get_key", lambda name: "test")
+    monkeypatch.setattr(backends.httpx, "post", lambda url, headers, json, timeout: sent.append(json) or R(replies.pop(0)))
+    with pytest.raises(BackendError, match="žádný text.*max_tokens"):
+        backends.claude_text("x", 500, "rozepsání zadání")
+    assert backends.claude_text("x", 500, "soudce", model="claude-sonnet-5-5") == "A harbour."
+    assert sent[0]["thinking"] == {"type": "disabled"} and "thinking" not in sent[1]
+
+
 def test_eval_keypoints_verdict_is_last_occurrence():
     import importlib.util
     spec = importlib.util.spec_from_file_location("eval_keypoints", Path(__file__).parents[1] / "scripts" / "eval_keypoints.py")
