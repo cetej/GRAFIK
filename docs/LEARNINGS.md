@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Claude Haiku 5.5 přemýšlí ve výchozím stavu a sní tím max_tokens
+
+První živé „Rozepsat zadání“ s delší instrukcí (celek → části → celek) vrátilo **prázdný text a stálo 0,01 USD**. Haiku 5.5 má adaptivní přemýšlení zapnuté, i když se `thinking` nepošle, a přemýšlení se počítá do `max_tokens` (500): na text nezbylo nic. Engine prázdnou odpověď vrátil jako úspěch.
+- `claude_text` u Haiku posílá `thinking: {"type": "disabled"}` (povoleno do effort `high`, výchozí je `medium`). U Sonnet 5.5 se `disabled` nesmí poslat (400), tam dát velké `max_tokens` (soudce 4000).
+- Prázdná odpověď z Claude je vždy `BackendError` s `stop_reason`, nikdy prázdný výsledek.
+- Překlady z G2 prošly, protože krátký úkol se do 600 tokenů vešel i s přemýšlením. Na to nespoléhat.
+
 ## 2026-10-23 — FLUX na 8 GB: předlohy v nativním rozlišení a cizí programy na GPU (G3)
 
 **Kontext:** průvodce historickým objektem, bokorys 1920×640 se dvěma předlohami (pin 736×387 + Commons foto 2048×1028); souběžně běžel Illustrator (Beta) a aplikace ChatGPT (~2,5 GB VRAM).
