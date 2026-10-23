@@ -17,6 +17,7 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 
 ## Další krok
 
+- **3D cesta ověřena** (spike `docs/spikes/2026-10-23-3d-trellis-blender.md`): předloha → TRELLIS 2 (fal, 0,30 USD) → Blender render → lokální FLUX s renderem jako `geometry` předlohou drží tvar lodi. Skripty `scripts/3d/`, model `library/3d/kvinquerema-trellis2/`. Zbývá: napojit do Engine a Studia (3D úloha, prohlížeč GLB, volba kamery), vesla ve více řadách doplnit v Blenderu.
 - **Termdb napojená** (`engine/termdb.py`, `BIOLIB/termdb.db`, jen čtení, zdarma): jednoznačné odborné termíny jdou do překladu jako nápověda („Rys ostrovid = Eurasian lynx (Lynx lynx)“), kontrola infografiky ukazuje nalezené, nejednoznačné a „není v termdb“. Lodní termíny (kloun, kvinquerema) v termdb chybí; doplnění termdb je věc NG-ROBOT.
 - Infografiky: „Navrhnout popisky“ přes Claude naostro neklikáno (čeká na schválení útraty).
 - Napojení projektů (KLAPKA, NG-ROBOT…) až na pokyn operátora.
