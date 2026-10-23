@@ -1,5 +1,7 @@
 # Roman quinquereme built from reconstruction numbers (free):
-#   blender -b -P scripts/3d/lod_kvinquerema.py -- out_prefix
+#   blender -b -P scripts/3d/lod_kvinquerema.py -- out_prefix [--cutaway]
+# --cutaway opens a window in the near (-y) side amidships, like the cutaway in a ship infographic:
+# three levels of rowers on their oars (2-2-1, Morrison), floor, hold with water jars and ballast.
 # Every size is in DIM (metres) with its source; "odhad" = our estimate, no published figure found.
 # Rendered as matte clay so the image model takes shape and proportions from it, never texture.
 # Axes: x towards the bow (ship centred on x = 0), y across, z up, waterline z = 0.
@@ -34,7 +36,9 @@ DIM = {
     "man": 1.72,             # odhad: height of a soldier or sailor
 }
 
-prefix = sys.argv[sys.argv.index("--") + 1]
+args = sys.argv[sys.argv.index("--") + 1:]
+prefix, CUTAWAY = args[0], "--cutaway" in args[1:]
+WINDOW = (-10.0, 8.0)     # x range of the cutaway window
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 L, H = DIM["length"] / 2, DIM["deck_z"]
@@ -80,6 +84,20 @@ def person(x, y, z):
     rod((x, y, z + 0.47 * m), (x, y, z + 0.82 * m), 0.17, 0.2, 10)
     ball((x, y, z + 0.92 * m), 0.12)
     rod((x + 0.25, y, z + 0.3), (x + 0.25, y, z + 1.3 * m), 0.02, None, 6)
+
+
+def rower(seat, hand):
+    """Seated rower facing the stern (-x), hands on the oar loom."""
+    x, y, z = seat
+    box((x, y, z - 0.08), (0.45, 0.42, 0.06))                      # bench
+    hip, sh = Vector((x, y, z + 0.1)), Vector((x + 0.12, y, z + 0.6))
+    rod(hip, sh, 0.15, 0.13, 10)
+    ball((x + 0.14, y, z + 0.78), 0.11)
+    knee, foot = Vector((x - 0.42, y, z + 0.12)), Vector((x - 0.5, y, z - 0.35))
+    for dy in (-0.1, 0.1):
+        rod(hip + Vector((0, dy, 0)), knee + Vector((0, dy, 0)), 0.06, None, 8)
+        rod(knee + Vector((0, dy, 0)), foot + Vector((0, dy, 0)), 0.05, None, 8)
+        rod(sh + Vector((0, dy * 1.7, -0.02)), Vector(hand) + Vector((0, dy, 0)), 0.04, None, 8)
 
 
 def ball(c, r):
@@ -144,8 +162,11 @@ hull = link(bm, "hull")
 # wales, bulwark with shields, eyes
 for s in (-1, 1):
     for z in (0.35, 1.1):
-        pts = [(x, s * (hw(z, x) + 0.1), z) for x in range(-19, 21, 2)]
-        path(pts, 0.1)
+        xs = list(range(-19, 21, 2))
+        runs = [xs] if not (CUTAWAY and s < 0) else [[x for x in xs if x <= WINDOW[0]], [x for x in xs if x >= WINDOW[1]]]
+        for run in runs:
+            if len(run) > 1:
+                path([(x, s * (hw(z, x) + 0.1), z) for x in run], 0.1)
     rail = [(x, s * WD * taper(x), sheer(x) + 0.9) for x in range(-18, 20, 1)]
     path(rail, 0.06)
     for x in range(-17, 19):
@@ -158,9 +179,12 @@ for s in (-1, 1):
 
 # outriggers (parexeiresia) carrying the top oars
 oar_x0 = -DIM["files"] * DIM["room"] / 2
+near_outrigger = []
 for s in (-1, 1):
-    box((0, s * (DIM["outrigger_y"] + WD) / 2, 2.25), (DIM["files"] * DIM["room"] + 1.5, DIM["outrigger_y"] - WD + 0.1, 0.35))
-    box((0, s * DIM["outrigger_y"], 2.05), (DIM["files"] * DIM["room"] + 1.5, 0.12, 0.5))
+    a = box((0, s * (DIM["outrigger_y"] + WD) / 2, 2.25), (DIM["files"] * DIM["room"] + 1.5, DIM["outrigger_y"] - WD + 0.1, 0.35))
+    b = box((0, s * DIM["outrigger_y"], 2.05), (DIM["files"] * DIM["room"] + 1.5, 0.12, 0.5))
+    if s < 0:
+        near_outrigger += [a, b]
 
 # --- oars: 3 levels x 30 files a side, identical per level ------------------------------------
 LEVELS = [  # (thole y, thole z, outboard length to the blade tip, drop to the water)
@@ -175,10 +199,18 @@ for s in (-1, 1):
             tip = Vector((x - 0.9, s * (ty + math.sqrt(max(out ** 2 - (tz + 0.15) ** 2, 1))), -0.15))
             thole = Vector((x, s * ty, tz))
             u = (tip - thole).normalized()
-            rod(thole - u * 0.6, tip, 0.06, 0.05, 8)
-            blade = tip - u * 0.75
-            b = box(blade, (0.04, 1.5, 0.22))
-            b.rotation_euler = u.to_track_quat("Y", "Z").to_euler()
+            in_window = CUTAWAY and s < 0 and WINDOW[0] + 0.6 < x < WINDOW[1] - 0.6
+            if not in_window:   # cutaway convention: the outboard oars in front of the window are left out
+                rod(thole - u * 0.6, tip, 0.06, 0.05, 8)
+                blade = tip - u * 0.75
+                b = box(blade, (0.04, 1.5, 0.22))
+                b.rotation_euler = u.to_track_quat("Y", "Z").to_euler()
+            if in_window:
+                men = 1 if lvl == 2 else 2
+                rod(thole - u * 0.6, thole - u * (1.05 + 0.55 * men), 0.06, 0.06, 8)   # loom inside
+                for m in range(men):
+                    hand = thole - u * (1.0 + 0.55 * m)
+                    rower((hand.x + 0.55, hand.y, hand.z - 0.5), hand)
 
 # --- bow: stem, proembolion, ram with three fins -----------------------------------------------
 path([(L - 0.9, 0, -0.6), (L - 0.4, 0, 1.0), (L - 0.2, 0, 2.6), (L - 0.3, 0, 3.8), (L - 0.8, 0, 4.6), (L - 1.4, 0, 4.8)], 0.38, 0.16)
@@ -267,6 +299,26 @@ for k, (x, y) in enumerate([(-12, -1.2), (-10, 0.8), (-7, -0.5), (-4, 1.3), (-2,
     z = sheer(x)
     person(x, y, z)
 
+# --- cutaway: open the near side amidships, show the floor, hold, frames and deck beams ---------
+if CUTAWAY:
+    x0, x1 = WINDOW
+    cutter = box(((x0 + x1) / 2, -2.6, 0.85), (x1 - x0, 5.2, 3.7))      # y -5.2 .. 0, z -1.0 .. 2.7
+    for o in [hull] + near_outrigger:
+        mod = o.modifiers.new("cutaway", "BOOLEAN")
+        mod.operation, mod.object = "DIFFERENCE", cutter
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.modifier_apply(modifier="cutaway")
+    bpy.data.objects.remove(cutter)
+    box(((x0 + x1) / 2, -1.2, -0.2), (x1 - x0, 2.4, 0.08))              # rowers' floor
+    for i in range(int((x1 - x0) / DIM["room"])):
+        x = x0 + 0.5 + i * DIM["room"]
+        box((x, -1.4, 2.62), (0.16, 2.9, 0.16))                          # deck beams
+        box((x + 0.45, -0.02, 0.85), (0.14, 0.1, 3.6))                   # frames on the cut face
+        rod((x, -0.7, -0.95), (x, -0.7, -0.35), 0.17, 0.12, 14)          # water jars in the hold
+        ball((x, -0.7, -0.32), 0.08)
+        ball((x + 0.5, -0.35, -0.85), 0.16)                              # ballast stones
+        ball((x + 0.3, -1.0, -0.8), 0.13)
+
 # --- scale figure on a float beside the bow, for the dimension check ---------------------------
 before = set(scene.objects)
 box((L + 4.0, -6.0, 0.05), (2.0, 2.0, 0.1))
@@ -276,6 +328,13 @@ scale_figure = [o for o in scene.objects if o not in before]
 # --- sea, clay, light, camera ------------------------------------------------------------------
 bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, 0))
 sea = bpy.context.active_object
+if CUTAWAY:   # open the sea in front of the window too, so the hold below the waterline shows
+    cutter = box(((WINDOW[0] + WINDOW[1]) / 2, -6.0, 0.0), (WINDOW[1] - WINDOW[0], 12.0, 1.0))
+    mod = sea.modifiers.new("cutaway", "BOOLEAN")
+    mod.operation, mod.object = "DIFFERENCE", cutter
+    bpy.context.view_layer.objects.active = sea
+    bpy.ops.object.modifier_apply(modifier="cutaway")
+    bpy.data.objects.remove(cutter)
 clay = bpy.data.materials.new("clay")
 clay.use_nodes = True
 clay.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.6, 0.58, 0.54, 1)
@@ -286,10 +345,15 @@ water.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0
 water.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.6
 for o in scene.objects:
     if o.type == "MESH":
+        o.data.materials.clear()   # a boolean leaves an empty slot that the faces point to
         o.data.materials.append(water if o.name == sea.name else clay)
 
+if CUTAWAY:   # path tracing: sky light shades the inside of the window without hard cast shadows
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 64
 engines = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
-scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
+if not CUTAWAY:
+    scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
 scene.render.resolution_x, scene.render.resolution_y = 1280, 720
 scene.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("w"); scene.world = world; world.use_nodes = True
@@ -301,7 +365,7 @@ sun.data.use_shadow = False   # cast shadows turn into invented objects in the i
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); scene.collection.objects.link(cam); scene.camera = cam
 cam.data.lens = 50
 target = Vector((0, 0, 4.0))
-VIEWS = {"tri": (300, 24, 72.0), "bok": (270, 6, 80.0)}   # azimuth, elevation, distance
+VIEWS = {"tri": (300, 13 if CUTAWAY else 24, 72.0), "bok": (270, 6, 80.0)}   # azimuth, elevation, distance
 for o in scale_figure:
     o.hide_render = True
 for name, (az, el, dist) in VIEWS.items():
