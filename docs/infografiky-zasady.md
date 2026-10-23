@@ -5,7 +5,7 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 ## Čtyři zásady
 
 1. **Čistý styl.** Jedna písmová rodina ve dvou řezech: tučný řez akcentovou barvou pro názvy a klíče, obyčejný řez světlou barvou pro vysvětlení a hodnoty. Kontrast vzniká tloušťkou a barvou, ne střídáním písem. V editoru: Bahnschrift, zúžený řez (je ve Windows, takže ho má náhled i export přes Playwright).
-2. **Rovnováha.** Obraz, popisky a fakta tvoří jeden celek. Žádné prázdné pásy. Nadpis a podtitulek tam, kde má obraz volné místo (u kvinqueremy vlevo nahoře). Dole jen krátká fakta v jednom řádku a zdroje; lišta je nízká a nezakrývá hlavní objekt. Doplňkový výřez (řez, detail) leží volně na obraze, bez rámečku a panelu, okraje splývají s pozadím, popisky v něm na vodítkách jako u hlavního obrazu.
+2. **Rovnováha.** Obraz, popisky a fakta tvoří jeden celek. Žádné prázdné pásy. Nadpis a podtitulek tam, kde má obraz volné místo (u kvinqueremy vlevo nahoře). Krátká fakta dole vlevo, každé na vlastním řádku, zarovnaná na prapor; podklad jen za nimi, ne pruh přes celý obraz. Doplňkový výřez (řez, detail) leží volně na obraze bez rámečku a panelu: obrázek vyříznutý s průhledným pozadím a ostrými okraji (nerozmazávat), popisky v něm na vodítkách jako u hlavního obrazu.
 3. **Informační hodnota.** Každý popisek odpovídá na otázku, kterou si čtenář u té části položí. Každý výřez (řez, detail) musí ukázat něco, co hlavní obraz neukáže. Řez bokem lodi, který jen opakuje příčný řez, informační hodnotu nemá. Co nemá doklad, do obrazu nepatří (věž na lodi z 1. punské války).
 4. **Čtenářský zážitek.** Popisek leží u věci, kterou popisuje. Vodítko je krátké, raději svislé nebo vodorovné (jednou zalomené), nekříží jiná vodítka a nevede přes to důležité. Písmo popisku čitelné na pozadí.
 
@@ -27,3 +27,4 @@ Měření: `scratchpad` skript `measure.py` z 23. 10. (vodítka vzoru odečtena 
 Po úpravě (export `20261023-141248.png`, rozvržení „Lišta přes obraz“, 1920×1080): vodítka a písmo splňují prahy. Prázdná plocha 39 % je dána obrazem (loď leží diagonálně na jednolitém pozadí), ne rozvržením; lišta i výřez už žádný prázdný pás nepřidávají. Lišta podkládá jen text (do ~70 % šířky), dál prosvítá obraz, aby nezakryla příď a kloun.
 
 Operátor 23. 10. večer k verzi s lištou: řez ve „debilním boxu“ a natlačená fakta dole. Opraveno: výřez bez rámečku s vinětou, popisky řezu na vodítkách, nadpis vlevo nahoře, fakta jako krátké dvojice hodnota + slovo v jednom řádku (export `20261023-200046.png`). Vzor se nekopíruje: neber jeho rozvržení, ber z něj princip.
+Druhá oprava týž večer: okraje řezu nerozmazávat, ale vyříznout pozadí i vodu (`scratchpad rez2/cut.py`: flood fill od okraje); fakta pod sebou, zarovnaná na prapor (export `20261023-200812.png`).

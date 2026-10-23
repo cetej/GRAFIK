@@ -124,26 +124,17 @@ interface EditorHooks {
   onImageClick: (x: number, y: number) => void
 }
 
-/** Facts flowed into lines across the bar ("value text | value text"), then the bar's top edge. */
+/** Facts one per line, flush left (ragged right), in a block at the bottom left: only that block gets a backing. */
 function factBar(doc: Infographic, W: number, H: number, k: number, pad: number) {
-  const items = doc.facts.filter((f) => f.value || f.text)
-  // readable measure (~100 characters) that also leaves the bar's right end to the picture
-  const maxW = Math.min(W - 2 * pad, 0.7 * W)
+  const lines = doc.facts.filter((f) => f.value || f.text).map((f) => [f])
   const width = (f: { value: string; text: string }) => (f.value.length * 8 + (f.text ? f.text.length * 7.3 + 5 : 0)) * k   // Bahnschrift semi-condensed at 18 px, measured
-  const lines: { value: string; text: string }[][] = []
-  let cur: { value: string; text: string }[] = []
-  let w = 0
-  for (const f of items) {
-    const fw = width(f) + (cur.length ? 30 * k : 0)
-    if (cur.length && w + fw > maxW) { lines.push(cur); cur = []; w = 0 }
-    cur.push(f)
-    w += width(f) + (cur.length > 1 ? 30 * k : 0)
-  }
-  if (cur.length) lines.push(cur)
-  const footerH = 30 * k
-  const top = H - (16 * k + lines.length * 26 * k + footerH)
-  return { top, lines }
+  const w = Math.min(Math.max(0, ...lines.map(([f]) => width(f))), W - 2 * pad)
+  const footerH = 34 * k
+  const top = H - (12 * k + lines.length * LINE * k + footerH)
+  return { top, lines, w }
 }
+
+const LINE = 30   // fact line spacing at 1280 width
 
 export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
   doc: Infographic; href: string; iw: number; ih: number; svgRef?: RefObject<SVGSVGElement | null>; ed?: EditorHooks
@@ -192,14 +183,14 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
 
       {bar && (
         <g fontFamily={FONT} fontStretch="semi-condensed">
-          <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".45" stopColor={t.bg} stopOpacity=".72" /><stop offset="1" stopColor={t.bg} stopOpacity=".88" /></linearGradient>
-            {/* the bar backs only the text: past its measure the picture shows through (bow, ram) */}
-            <linearGradient id="bar-h"><stop offset=".68" stopColor="#fff" /><stop offset=".86" stopColor="#fff" stopOpacity="0" /></linearGradient>
+          <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".4" stopColor={t.bg} stopOpacity=".72" /><stop offset="1" stopColor={t.bg} stopOpacity=".86" /></linearGradient>
+            {/* backing only behind the fact block, fading out to the right; the footer gets a thin strip of its own */}
+            <linearGradient id="bar-h" gradientUnits="userSpaceOnUse" x1={pad + bar.w} y1="0" x2={pad + bar.w + 220 * k} y2="0"><stop offset="0" stopColor="#fff" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
             <mask id="bar-mask"><rect x="0" y="0" width={W} height={H} fill="url(#bar-h)" /></mask></defs>
-          <rect x="0" y={bar.top - 40 * k} width={W} height={H - bar.top + 40 * k} fill="url(#bar)" mask="url(#bar-mask)" />
-          <line x1={pad} y1={bar.top} x2={0.7 * W} y2={bar.top} stroke={t.rule} strokeWidth="1" />
+          <rect x="0" y={bar.top - 30 * k} width={W} height={H - bar.top + 30 * k} fill="url(#bar)" mask="url(#bar-mask)" />
+          <rect x="0" y={H - 40 * k} width={W} height={40 * k} fill="url(#bar)" />
           {bar.lines.map((line, j) => (
-            <text key={j} x={pad} y={bar.top + 30 * k + j * 26 * k} fontSize={18 * k}>
+            <text key={j} x={pad} y={bar.top + 22 * k + j * LINE * k} fontSize={18 * k}>
               {line.map((f, n) => (
                 <tspan key={n}>
                   {n > 0 && <tspan fill={t.rule}>{'   |   '}</tspan>}
@@ -239,20 +230,15 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
       ))}
       {schema && doc.schema && pruh && (() => {
         const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number)
-        const iw2 = 0.32 * W
+        const iw2 = 0.36 * W
         const ih2 = (iw2 * vh) / vw
         const x = W - pad - iw2
         const y = pad
         return (
-          // no frame or panel: the inset sits on the picture and its edges fade into it (docs/infografiky-zasady.md)
+          // no frame or panel: the inset is a cut-out picture (transparent background) lying on the main one (docs/infografiky-zasady.md)
           <g fontFamily={FONT} fontStretch="semi-condensed">
-            <defs>
-              {/* vignette in each picture's own box: only the raster fades, the labels drawn in the schema stay sharp */}
-              <radialGradient id="inset-vig" cx=".5" cy=".5" r=".5"><stop offset=".78" stopColor="#fff" /><stop offset="1" stopColor="#000" /></radialGradient>
-              <mask id="inset-fade" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#inset-vig)" /></mask>
-            </defs>
             <text x={x} y={y + 14 * k} fill={doc.accent} fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema!.title.toUpperCase()}</text>
-            <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner.replace(/<image /g, '<image mask="url(#inset-fade)" ') }} />
+            <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
           </g>
         )
       })()}
