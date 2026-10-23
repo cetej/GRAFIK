@@ -26,8 +26,12 @@ SVG_NS = "http://www.w3.org/2000/svg"
 XLINK = "{http://www.w3.org/1999/xlink}href"
 FORMATS = ("png", "svg", "pdf")
 SIZES = {"1280x990": (1280, 990), "1920x1080": (1920, 1080), "1080x1350": (1080, 1350)}
-BACKEND_NAMES = {"flux-local": "FLUX 3 Klein", "nb-pro": "Nano Banana Pro"}
+BACKEND_NAMES = {"flux-local": "FLUX 3 Klein", "nb-pro": "Nano Banana Pro",
+                 "fal:fal-ai/nano-banana-pro": "Nano Banana Pro", "fal:fal-ai/flux-2-pro": "FLUX.2 pro",
+                 "fal:fal-ai/flux-pro/v1.1": "FLUX 1.1 pro", "fal:fal-ai/flux/krea": "FLUX Krea"}
 
+# embedded raster images only (an SVG data URI could carry its own scripts)
+RASTER_DATA = ("data:image/png", "data:image/jpeg", "data:image/webp")
 ET.register_namespace("", SVG_NS)
 ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
@@ -55,7 +59,7 @@ def clean_svg(svg: str, allow_data_images: bool = False) -> str:
             v = el.attrib[k].strip()
             if k.lower().startswith("on"):
                 del el.attrib[k]
-            elif k in ("href", XLINK) and not (v.startswith("#") or (allow_data_images and v.startswith("data:image/"))):
+            elif k in ("href", XLINK) and not (v.startswith("#") or (allow_data_images and v.startswith(RASTER_DATA))):
                 del el.attrib[k]
     return ET.tostring(root, encoding="unicode")
 
@@ -138,7 +142,8 @@ class InfographicStore:
         if doc.get("size") not in SIZES:
             raise InfoError(f"neznámý formát {doc.get('size')!r}")
         if doc.get("schema") and doc["schema"].get("svg"):
-            doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"])}
+            # a schema may hold a raster picture too (e.g. a cross-section render next to the main image)
+            doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"], allow_data_images=True)}
         doc["updated"] = datetime.now().isoformat(timespec="seconds")
         doc.pop("exports", None)
         with self._lock:
