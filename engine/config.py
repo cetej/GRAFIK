@@ -33,9 +33,9 @@ class Settings:
     idle_timeout_s: float = field(default_factory=lambda: _env("IDLE_TIMEOUT_S", 600.0))
     start_timeout_s: float = 120.0
     job_timeout_s: float = 900.0
-    # sd-server log showed "budget 6585 MiB" on a 7097 MiB-free card; below this
-    # someone else (dubbing, Whisper) holds the GPU.
-    min_free_vram_mib: int = field(default_factory=lambda: _env("MIN_FREE_VRAM_MIB", 6300))
+    # FLUX Q4 needs ~4.45 GB of device memory per image (sd-server log 2026-10-23, auto-fit offloads
+    # the rest); below this someone else (dubbing, Whisper, Illustrator) holds the GPU.
+    min_free_vram_mib: int = field(default_factory=lambda: _env("MIN_FREE_VRAM_MIB", 4600))
     gpu_lock_path: Path = field(default_factory=lambda: _env("GPU_LOCK", Path.home() / ".gpu-lock"))
     gpu_lock_wait_s: float = 600.0
     # Q4 weights on 8 GB: 1920x1088 is the measured ceiling.
@@ -57,6 +57,10 @@ class Settings:
     @property
     def db_path(self) -> Path:
         return self.run_dir / "jobs.sqlite"
+
+    @property
+    def reflib_dir(self) -> Path:
+        return self.data_dir / "refs" / "library"
 
     @property
     def translations_path(self) -> Path:

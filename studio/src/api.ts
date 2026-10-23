@@ -4,7 +4,7 @@ export type Role = 'subject' | 'geometry' | 'scene' | 'style'
 export type EditAction = 'add' | 'remove' | 'move' | 'recolor'
 export type Box = [number, number, number, number] // [top, left, bottom, right], 0–1000
 
-export interface RefIn { b64: string; role: Role; text?: string; source?: string }
+export interface RefIn { b64?: string; ref_id?: string; role: Role; text?: string; source?: string }
 
 export interface ImageRequest {
   prompt: string
@@ -110,6 +110,68 @@ export const api = {
   review: (ref: string, who: string) => post<Provenance>(`/api/v2/jobs/${ref.replace('/', '/images/')}/review`, { reviewed_by: who }),
   expand: (text: string, confirm: boolean) => post<{ prompt: string; usd: number }>('/api/v2/prompt/expand', { text, confirm_cost: confirm }),
   costs: () => call<{ total_usd: number; entries: { ts: string; usd: number }[] }>('/api/v2/costs?limit=500'),
+}
+
+export interface RefMeta {
+  id: string
+  origin: 'commons' | 'pinterest' | 'web' | 'upload'
+  title: string
+  source_url: string | null
+  page_url: string | null
+  author: string | null
+  license: string | null
+  width: number
+  height: number
+  added: string
+  seen: boolean
+  image: string
+}
+
+export interface CommonsItem {
+  title: string
+  file: string
+  thumb: string
+  page_url: string
+  author: string | null
+  license: string | null
+  description: string
+  width: number
+  height: number
+}
+
+export interface Workflow {
+  id: string
+  object: string
+  refs: { ref_id: string; role: Role }[]
+  side_job: string | null
+  side_pick: string | null
+  fixed: string | null
+  rotate_job: string | null
+  pick: string | null
+  view: string
+  background: string
+  updated: string
+}
+
+export const refsApi = {
+  list: () => call<RefMeta[]>('/api/v2/refs'),
+  addUrl: (url: string, page_url?: string, title?: string) => post<RefMeta>('/api/v2/refs', { url, page_url, title }),
+  addB64: (b64: string, title: string) => post<RefMeta>('/api/v2/refs', { b64, title, origin: 'upload' }),
+  seen: (id: string) => post<RefMeta>(`/api/v2/refs/${id}/seen`, {}),
+  commons: (q: string) => call<CommonsItem[]>(`/api/v2/commons/search?q=${encodeURIComponent(q)}`),
+  commonsImport: (file: string) => post<RefMeta>('/api/v2/commons/import', { file }),
+}
+
+export const wfApi = {
+  list: () => call<Workflow[]>('/api/v2/workflows'),
+  create: (object: string, refs: Workflow['refs']) => post<Workflow>('/api/v2/workflows/historical', { object, refs }),
+  get: (id: string) => call<Workflow>(`/api/v2/workflows/${id}`),
+  patch: (id: string, body: Partial<Pick<Workflow, 'object' | 'refs' | 'side_pick' | 'fixed' | 'pick'>>) =>
+    call<Workflow>(`/api/v2/workflows/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  side: (id: string, n: number, opts: { estimate_only?: boolean; confirm_cost?: boolean } = {}) =>
+    post<Estimate & { job_id?: string }>(`/api/v2/workflows/${id}/side`, { n, ...opts }),
+  rotate: (id: string, body: { view: string; background: string; n: number }, opts: { estimate_only?: boolean; confirm_cost?: boolean } = {}) =>
+    post<Estimate & { job_id?: string }>(`/api/v2/workflows/${id}/rotate`, { ...body, ...opts }),
 }
 
 export const imageUrl = (ref: string, w?: number) =>

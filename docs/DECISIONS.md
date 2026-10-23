@@ -2,6 +2,12 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — G3 předlohy a průvodce, karta Nastavení
+
+- **Náčrty G3 schváleny:** okno „Přidat předlohu“ (Wikimedia Commons, Schránka předloh, soubor) a záložka „Průvodce“ historickým objektem (předlohy → bokorys → oprava v rámečku → natočený pohled 3/4 shora → popisky v G5).
+- **Karta Nastavení** na přání operátora: ukazuje připojené služby a stav generátoru. Hesla ani klíče se v GRAFIK nezadávají ani nezobrazují; Pinterest nepotřebuje účet v GRAFIK, protože piny jdou přes operátorův přihlášený Chrome (přes Google) záložkou „→ GRAFIK“ nebo Claude in Chrome.
+- Pinterest obrázky mají licenci „neznámá — jen předloha“: slouží jen jako předloha, nikdy jako součást výstupu.
+
 ## 2026-10-23 — G2 studio, čeština, cena v tlačítku
 
 - **Náčrt studia schválen** (`docs/spikes/img/g2-nacrt.png`): vlevo zadání a předlohy, uprostřed náhled s porovnáním a úpravou v rámečku, dole fronta a galerie, vpravo historie verzí a údaje o obrázku.

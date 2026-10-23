@@ -1,5 +1,20 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — FLUX na 8 GB: předlohy v nativním rozlišení a cizí programy na GPU (G3)
+
+**Kontext:** průvodce historickým objektem, bokorys 1920×640 se dvěma předlohami (pin 736×387 + Commons foto 2048×1028); souběžně běžel Illustrator (Beta) a aplikace ChatGPT (~2,5 GB VRAM).
+
+**Poučení:**
+1. sd-server posílá předlohy do modelu **v jejich vlastním rozlišení** (`preprocess ref[1]: 2048x1028 … output=2048x1028`). Velká fotka z Commons tak sežere paměť. Engine teď dává všem předlohám dohromady rozpočet ~1,1 MP (`FluxLocal.fit_refs`); ověřený test z 22. 10. měl předlohu 1100×350.
+2. Out-of-memory se ukáže až u **druhého** obrázku úlohy (první prošel za 149 s, druhý spadl za 0,2 s: `need 4453 MB device / 3941 MB budget`). Paměť se mezi obrázky fragmentuje → Engine při OOM restartuje vlastní sd-server a zkusí obrázek znovu (`SdServer.generate`).
+3. FLUX Q4 potřebuje ~4,45 GB zařízení na obrázek; zbytek auto-fit odloží. Práh volné VRAM pro start proto 4,6 GB (dřív 6,3 GB byl zbytečně přísný a se zapnutým Illustratorem by FLUX vůbec nespustil).
+
+## 2026-10-23 — Wikimedia Commons a Pinterest jako zdroje předloh (G3)
+
+1. Hledání v Commons (`generator=search`, namespace 6) bez `filetype:bitmap` vrací napřed naskenované knihy (PDF/DjVu). S filtrem jen obrázky. Licence a autor jsou v `extmetadata` (`LicenseShortName`, `Artist` jako HTML → odstranit značky). Import přes `iiurlwidth=2048` stáhne zmenšenou verzi, ne 10 MB originál.
+2. Pinterest bez přihlášení ukáže jen přihlašovací zeď; robotům (Engine, vestavěný prohlížeč) pin nevydá spolehlivě. Obrázky na `i.pinimg.com` jsou ale veřejné. Proto: záložka „→ GRAFIK“ a Claude in Chrome běží v operátorově přihlášeném Chrome a předávají Engine adresu obrázku; Engine stránku pinu jen zkusí přes `og:image`.
+3. Záložka nesmí volat `fetch` na localhost ze stránky Pinterestu (CORS + Private Network Access). Otevírá studio s `#addref=…` a obrázek uloží studio.
+
 ## 2026-10-23 — FLUX 3 Klein a čeština: překládat, ne doufat (G2)
 
 **Kontext:** úprava v rámečku a text → obraz ve studiu, `docs/spikes/2026-10-23-g2-studio.md`.

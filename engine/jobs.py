@@ -227,7 +227,8 @@ class Worker:
             refs_meta.append({
                 "index": i, "role": ref.role, "sha256": sha256(png) if png else None,
                 "source": ref.source or ref.url or ref.path or ("b64" if ref.b64 else None),
-                "license": ref.license, "text": ref.text or described.get(i),
+                "license": ref.license, "author": ref.author, "ref_id": ref.ref_id,
+                "text": ref.text or described.get(i),
                 "sent_as": "image" if ref.role in ("subject", "geometry", "scene") else "words",
             })
 

@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  api, fileToB64, imageUrl, isCzech, onlyTranslation, PaymentRequired,
-  type Backend, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type Role,
+  api, fileToB64, imageUrl, isCzech, onlyTranslation, PaymentRequired, refsApi,
+  type Backend, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role,
 } from './api.ts'
 import Stage from './Stage.tsx'
 import { HistoryPanel, Lightbox } from './panels.tsx'
+import RefPicker, { storeDrop, type PickerTab } from './RefPicker.tsx'
+import Wizard from './Wizard.tsx'
+import Settings from './Settings.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
 const FORMATS: Record<string, string> = {
   '1:1': '1024x1024', '16:9': '1344x768', '3:2': '1248x832', '4:3': '1152x864', '3:4': '864x1152',
 }
-const ROLE_LABEL: Record<Role, string> = { subject: 'předmět', geometry: 'tvar', scene: 'scéna', style: 'styl' }
+export const ROLE_LABEL: Record<Role, string> = { subject: 'předmět', geometry: 'tvar', scene: 'scéna', style: 'styl' }
 const SUPERSAMPLE = 1.875
+
+export type FormRef = RefIn & { name: string; preview: string; meta?: string }
+
+export const refFromMeta = (m: RefMeta, role: Role = 'geometry'): FormRef => ({
+  ref_id: m.id, role, name: m.title, preview: `${m.image}?w=256`,
+  meta: [m.origin === 'commons' ? 'Commons' : m.origin === 'pinterest' ? 'Pinterest' : m.origin === 'web' ? 'web' : 'soubor', m.license].filter(Boolean).join(' · '),
+})
 
 export interface Confirm { title: string; items: { what: string; usd: number }[]; total: number; onOk: () => Promise<void> }
 
@@ -33,14 +43,16 @@ export default function App() {
   const [backends, setBackends] = useState<Backend[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [spentToday, setSpentToday] = useState(0)
-  const [tab, setTab] = useState<'studio' | 'library'>('studio')
+  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'settings'>('studio')
+  const [picker, setPicker] = useState<PickerTab | null>(null)
+  const [inboxNew, setInboxNew] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const [lightbox, setLightbox] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
   const [prompt, setPrompt] = useState('')
-  const [refs, setRefs] = useState<(RefIn & { name: string; preview: string })[]>([])
+  const [refs, setRefs] = useState<FormRef[]>([])
   const [format, setFormat] = useState('16:9')
   const [n, setN] = useState(1)
   const [detail, setDetail] = useState(false)
@@ -95,7 +107,7 @@ export default function App() {
       backend,
       size: FORMATS[format],
       n,
-      refs: refs.map(({ b64, role, text, source }) => ({ b64, role, text, source })),
+      refs: refs.map(({ b64, ref_id, role, text, source }) => ({ b64, ref_id, role, text, source })),
       supersample: canSupersample && detail ? SUPERSAMPLE : null,
       translate: translate ? 'auto' : 'off',
       caller: 'studio',
@@ -169,13 +181,31 @@ export default function App() {
     setConfirm({ title: 'Rozepsat zadání (Claude)', items: [{ what: 'rozepsání zadání do anglického promptu', usd: 0.01 }], total: 0.01, onOk: run })
   }
 
-  const addFiles = async (files: FileList | File[]) => {
-    const added = await Promise.all(
-      [...files].filter((f) => f.type.startsWith('image/')).map(async (f) => ({
-        b64: await fileToB64(f), role: 'subject' as Role, name: f.name, preview: URL.createObjectURL(f), source: f.name,
-      })),
-    )
-    setRefs((r) => [...r, ...added].slice(0, 10))
+  const pickRef = useCallback((m: RefMeta) => setRefs((r) => (r.some((x) => x.ref_id === m.id) ? r : [...r, refFromMeta(m)].slice(0, 10))), [])
+  const countInbox = useCallback(() => {
+    refsApi.list().then((l) => setInboxNew(l.filter((m) => !m.seen && m.origin !== 'upload').length)).catch(() => {})
+  }, [])
+  useEffect(countInbox, [countInbox])
+
+  // Bookmarklet "→ GRAFIK" opens the studio as /#addref=<image>&page=<page>&title=<title>
+  useEffect(() => {
+    const h = new URLSearchParams(location.hash.slice(1))
+    const url = h.get('addref')
+    if (!url) return
+    history.replaceState(null, '', location.pathname)
+    refsApi.addUrl(url, h.get('page') ?? undefined, h.get('title') ?? undefined)
+      .then(() => { setToast('Předloha je ve schránce.'); countInbox(); setPicker('inbox') })
+      .catch((e) => setToast(`Předlohu se nepodařilo uložit: ${e.message}`))
+  }, [countInbox])
+
+  const dropRefs = async (dt: DataTransfer) => {
+    try {
+      const metas = await storeDrop(dt)
+      if (!metas.length) setToast('V přetaženém není obrázek ani jeho adresa.')
+      metas.forEach(pickRef)
+    } catch (e) {
+      setToast(String((e as Error).message))
+    }
   }
 
   const useAsRef = async (ref: string) => {
@@ -199,9 +229,11 @@ export default function App() {
         <b>GRAFIK Studio</b>
         <nav>
           <button className={tab === 'studio' ? 'on' : ''} onClick={() => setTab('studio')}>Studio</button>
+          <button className={tab === 'guide' ? 'on' : ''} onClick={() => setTab('guide')}>Průvodce</button>
           <button className={tab === 'library' ? 'on' : ''} onClick={() => setTab('library')}>Knihovna</button>
           <span className="off" title="Fáze G4">Styly</span>
           <span className="off" title="Fáze G5">Infografiky</span>
+          <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Nastavení</button>
         </nav>
         <div className="status">
           <span className={`chip ${engineDown ? 'bad' : ''}`}><span className={`dot ${health?.sd_server ?? 'off'}`} />{fluxState}</span>
@@ -212,7 +244,12 @@ export default function App() {
 
       {engineDown && <div className="banner">GRAFIK Engine na :8300 neodpovídá. Spusťte <code>start-grafik.bat</code>.</div>}
 
-      {tab === 'library' ? (
+      {tab === 'settings' ? (
+        <Settings onError={setToast} />
+      ) : tab === 'guide' ? (
+        <Wizard jobs={jobs} onOpen={setLightbox} onSubmit={submit} setConfirm={setConfirm} onError={setToast}
+          onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} />
+      ) : tab === 'library' ? (
         <main className="library">
           {doneImages.length === 0 && <p className="empty">Knihovna je prázdná.</p>}
           {doneImages.map(({ ref, job }) => (
@@ -242,8 +279,9 @@ export default function App() {
             <h3>Předlohy</h3>
             <div className="refs">
               {refs.map((r, i) => (
-                <div className="ref" key={i}>
+                <div className="ref" key={i} title={r.name}>
                   <img src={r.preview} alt="" />
+                  {r.meta && <div className="refmeta">{r.meta}</div>}
                   <button className="x" title="Odebrat" onClick={() => setRefs(refs.filter((_, j) => j !== i))}>×</button>
                   <select value={r.role} onChange={(e) => setRefs(refs.map((x, j) => (j === i ? { ...x, role: e.target.value as Role } : x)))}>
                     {(Object.keys(ROLE_LABEL) as Role[]).map((k) => <option key={k} value={k}>{ROLE_LABEL[k]}</option>)}
@@ -255,11 +293,20 @@ export default function App() {
                 </div>
               ))}
               {refs.length < 10 && (
-                <label className="drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files) }}>
+                <label className="drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); dropRefs(e.dataTransfer) }}>
                   + Přetáhněte obrázek nebo klikněte
-                  <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+                  <input type="file" accept="image/*" multiple hidden onChange={(e) => {
+                    const dt = new DataTransfer()
+                    ;[...(e.target.files ?? [])].forEach((f) => dt.items.add(f))
+                    dropRefs(dt)
+                    e.target.value = ''
+                  }} />
                 </label>
               )}
+            </div>
+            <div className="sources">
+              <button className="btn small" onClick={() => setPicker('commons')}>Hledat ve Wikimedia Commons</button>
+              <button className="btn small" onClick={() => setPicker('inbox')}>Schránka předloh{inboxNew ? <span className="tag new">{inboxNew} nové</span> : null}</button>
             </div>
             <p className="hint">Předmět, tvar a scéna jdou do generátoru jako obraz. Styl jen slovy: přenos stylu obrazem FLUX neumí.</p>
             {!usesRefs && refs.length > 0 && <p className="warn">Zvolený generátor předlohy neumí.</p>}
@@ -320,6 +367,7 @@ export default function App() {
       )}
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
+      {picker && <RefPicker initialTab={picker} onPick={pickRef} onError={setToast} onClose={() => { setPicker(null); countInbox() }} />}
       {confirm && <ConfirmDialog c={confirm} onClose={() => setConfirm(null)} />}
       {toast && <div className="toast" onClick={() => setToast(null)}>{toast} <b>×</b></div>}
     </>

@@ -8,6 +8,7 @@ Univerzální nástroj pro práci s obrázky rozloženými na RGBA vrstvy pomoc�
 - `engine/` — GRAFIK Engine :8300 `/api/v2` (jediný uživatel GPU pro všechny projekty; lokální FLUX 3 Klein výchozí, 0 USD; placené jen `backend=` + `confirm_cost`, nikdy fallback). sd-server :8390 spouští a vypíná jen podle vlastního PID (`run/sd-server.json`).
 - `clients/grafik_client.py` — klient pro projekty (jen stdlib), kopírovat do projektu.
 - `studio/` — GRAFIK Studio (React + Vite) na :5174, `/api` proxy na Engine; spuštění `npm --prefix studio run dev` nebo `start-grafik.bat`. Česká zadání překládá Engine (`engine/translate.py`), cena v tlačítku = souhlas (DECISIONS 2026-10-23).
+- Předlohy: knihovna `refs/library/` (`engine/reflib.py`), Wikimedia Commons (`engine/commons.py`, vždy `filetype:bitmap`), Pinterest přes operátorův Chrome (`docs/pinterest.md`); průvodce historickým objektem `engine/workflows.py`. Předlohy pro lokální FLUX mají dohromady rozpočet ~1,1 MP (VRAM, LEARNINGS 2026-10-23).
 - Testy v2: `rtk proxy python -m pytest tests/test_engine_v2.py -q`. Živé ověření: `docs/spikes/2026-10-22-g1-engine.md`.
 - Starý kód níže (`grafik/`, `ui/`, `ui-web/`) = v1, jen reference; nemazat bez souhlasu operátora.
 

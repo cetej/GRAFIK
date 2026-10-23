@@ -24,6 +24,10 @@ class SdServerError(RuntimeError):
     pass
 
 
+class SdOutOfMemory(SdServerError):
+    pass
+
+
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
@@ -180,6 +184,15 @@ class SdServer:
 
     # -- generation -------------------------------------------------------
     def generate(self, payload: dict) -> list[bytes]:
+        """One image job. Out of VRAM (seen 2026-10-23: the 2nd image after a successful 1st, with
+        Illustrator holding ~2.5 GB) -> restart our own sd-server to free fragmented memory, retry once."""
+        try:
+            return self._generate_once(payload)
+        except SdOutOfMemory:
+            self.stop("málo paměti na GPU, restart a nový pokus")
+            return self._generate_once(payload)
+
+    def _generate_once(self, payload: dict) -> list[bytes]:
         with self._lock:
             self._busy += 1
         try:
@@ -195,6 +208,10 @@ class SdServer:
                 if st.get("status") == "completed":
                     break
                 if st.get("status") in ("failed", "cancelled"):
+                    if "enough memory" in self._log_tail(40):
+                        raise SdOutOfMemory(
+                            f"sd-server úloha selhala: {st.get('error')}. Na grafice nezbylo dost paměti: zavřete "
+                            "programy, které GPU používají (např. Illustrator), nebo zmenšete rozměr či počet předloh.")
                     raise SdServerError(f"sd-server úloha selhala: {st.get('error')}")
                 if time.monotonic() > deadline:
                     raise SdServerError(f"sd-server úloha nedoběhla do {int(self.s.job_timeout_s)} s")
