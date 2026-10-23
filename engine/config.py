@@ -59,5 +59,9 @@ class Settings:
         return self.run_dir / "jobs.sqlite"
 
     @property
+    def translations_path(self) -> Path:
+        return self.library_dir / "translations.jsonl"
+
+    @property
     def costs_path(self) -> Path:
         return self.library_dir / "costs.jsonl"

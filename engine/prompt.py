@@ -26,15 +26,42 @@ def style_words(req: ImageRequest, described: dict[int, str] | None = None) -> l
     return out
 
 
+EDIT_TEMPLATES = {
+    "remove": ("In <ref_image_0>, remove <edit_1> ({i}) and fill the area where it was with the surrounding "
+               "background, so it looks as if it had never been there. Keep everything else exactly as it is."),
+    "add": "In <ref_image_0>, add <edit_1>: {i}, inside the marked area. Keep everything else exactly as it is.",
+    "move": ("In <ref_image_0>, move <edit_1> ({i}) from its current place to the target area, and fill the place "
+             "where it stood with the surrounding background. Keep everything else exactly as it is."),
+    "recolor": ("In <ref_image_0>, change <edit_1>: {i}. Keep its shape, position and lighting, and keep "
+                "everything else exactly as it is."),
+}
+
+
+def edit_layout(req: ImageRequest) -> list[dict]:
+    """Same JSON shape as the verified edit prompt (models/flux3-klein/prompt_edit.txt):
+    src_bbox = where the object is in ref_image_0, tgt_bbox = where it should end up, null = gone."""
+    e = req.edit
+    src = {"remove": e.bbox, "add": None, "move": e.bbox, "recolor": e.bbox}[e.action]
+    tgt = {"remove": None, "add": e.bbox, "move": e.target_bbox, "recolor": e.bbox}[e.action]
+    return [{"id": "edit_1", "from": "ref_image_0", "src_bbox": src, "tgt_bbox": tgt, "desc": e.instruction}]
+
+
 def build_prompt(req: ImageRequest, described: dict[int, str] | None = None) -> str:
-    parts = [req.prompt.strip()]
+    if req.edit:
+        parts = [EDIT_TEMPLATES[req.edit.action].format(i=req.edit.instruction.strip().rstrip("."))]
+    else:
+        parts = [req.prompt.strip()]
+    if parts[0] and parts[0][-1] not in ".!?":
+        parts[0] += "."
     styles = style_words(req, described)
     if styles:
         parts.append("Style: " + " ".join(s.rstrip(".") + "." for s in styles))
     if req.no_text and "no text" not in req.prompt.lower():
         parts.append(NO_TEXT)
     text = " ".join(parts)
-    if req.layout:
+    if req.edit:
+        text += " " + json.dumps(edit_layout(req), ensure_ascii=False)
+    elif req.layout:
         items = []
         for item in req.layout:
             d = {"id": item.id}

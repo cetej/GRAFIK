@@ -1,7 +1,8 @@
 @echo off
 rem GRAFIK — jednoklikove spusteni.
 rem   8300 = GRAFIK Engine v2 (obrazova sluzba pro vsechny projekty, lokalni FLUX)
-rem   8301 + 5173 = stary editor v1 (API + React UI), do konce G2 (rozhodnuti 2026-10-22, Q5)
+rem   5174 = GRAFIK Studio v2 (React, /api -> 8300)
+rem   8301 + 5173 = stary editor v1 (API + React UI), do rozhodnuti operatora o archivaci
 rem Bezici sluzby nespousti znovu (kontrola portu), takze je bezpecne pustit opakovane.
 cd /d "%~dp0"
 if not exist logs mkdir logs
@@ -30,5 +31,14 @@ if errorlevel 1 (
   echo GRAFIK UI uz bezi.
 )
 
+netstat -ano | findstr ":5174 " | findstr "LISTENING" >nul
+if errorlevel 1 (
+  echo Spoustim GRAFIK Studio na portu 5174...
+  if not exist studio\node_modules call npm --prefix studio install --no-audit --no-fund
+  start "GRAFIK Studio" /min cmd /c "npm --prefix studio run dev"
+) else (
+  echo GRAFIK Studio uz bezi.
+)
+
 timeout /t 3 /nobreak >nul
-start http://localhost:5173
+start http://localhost:5174

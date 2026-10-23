@@ -1,5 +1,18 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — FLUX 3 Klein a čeština: překládat, ne doufat (G2)
+
+**Kontext:** úprava v rámečku a text → obraz ve studiu, `docs/spikes/2026-10-23-g2-studio.md`.
+
+**Poučení:**
+1. Encoder Qwen3-VL-4B češtinu „trochu“ chápe: barvy, náladu a médium trefí, ale klíčová podstatná jména ztrácí (maják → dům) a české pokyny k úpravě skoro neprovede (rozdíl v rámečku 6,7 vs 13,8 u téhož pokynu anglicky). Řešení: překlad v Engine (`engine/translate.py`), ne rada „pište anglicky“.
+2. Úprava s předlohou trvá ~1,9× déle než text → obraz stejné velikosti; odhady časů to musí počítat, jinak průběh v UI lže.
+3. Paste-back drží okolí přesně (mimo rámeček 0,000 i po přeložení pokynu); změna se projeví jen uvnitř rámečku + 2 % okraje.
+
+## 2026-10-23 — Python heredoc v Bash: `\n` v náhradním textu se stane skutečným koncem řádku
+
+Čtyřikrát za session: `python - <<'EOF'` s `s.replace(..., """... "\n" ...""")` zapsal do zdrojáku skutečný konec řádku uprostřed řetězce → `SyntaxError: unterminated string literal` (a v bat souboru `studio\node_modules` → `studio` + nový řádek). Víceřádkové úpravy kódu dělat nástrojem Edit/Write, ne Pythonem v heredocu; když už heredoc, psát `\\n`.
+
 ## 2026-10-22 — sd-server (stable-diffusion.cpp): stdout do souboru, defaulty přepsat, procesy jen podle vlastního PID (G1)
 
 **Kontext:** GRAFIK Engine spravuje `sd-server.exe` pro lokální FLUX 3 Klein. Živé ověření `docs/spikes/2026-10-22-g1-engine.md`, API `docs/capabilities/sd-server-master-987.md`.

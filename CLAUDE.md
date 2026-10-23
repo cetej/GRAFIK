@@ -7,6 +7,7 @@ Univerzální nástroj pro práci s obrázky rozloženými na RGBA vrstvy pomoc�
 **Nová práce jde sem.** Rozhodnutí: `docs/DECISIONS.md` · stav: `docs/STAV.md` · spec: `docs/plans/2026-10-22-grafik-v2-greenfield.md`.
 - `engine/` — GRAFIK Engine :8300 `/api/v2` (jediný uživatel GPU pro všechny projekty; lokální FLUX 3 Klein výchozí, 0 USD; placené jen `backend=` + `confirm_cost`, nikdy fallback). sd-server :8390 spouští a vypíná jen podle vlastního PID (`run/sd-server.json`).
 - `clients/grafik_client.py` — klient pro projekty (jen stdlib), kopírovat do projektu.
+- `studio/` — GRAFIK Studio (React + Vite) na :5174, `/api` proxy na Engine; spuštění `npm --prefix studio run dev` nebo `start-grafik.bat`. Česká zadání překládá Engine (`engine/translate.py`), cena v tlačítku = souhlas (DECISIONS 2026-10-23).
 - Testy v2: `rtk proxy python -m pytest tests/test_engine_v2.py -q`. Živé ověření: `docs/spikes/2026-10-22-g1-engine.md`.
 - Starý kód níže (`grafik/`, `ui/`, `ui-web/`) = v1, jen reference; nemazat bez souhlasu operátora.
 
@@ -155,6 +156,7 @@ E2E důkaz: `docs/spikes/2026-08-15-m6ux1-e2e.md` (reálný Chrome, ~$0.49 dle l
 
 - **Jedním klikem**: `start-grafik.bat` (Engine v2 :8300 + starý API :8301 + UI :5173, jen pokud neběží; vše s `--access-log` do `logs/`)
 - **Engine v2**: `python -m uvicorn engine.app:app --port 8300 --access-log`
+- **Studio v2**: `npm --prefix studio run dev` → port 5174
 - **API v1**: `uvicorn grafik.api.app:app --port 8301` (od 2026-10-22; ui-web s `VITE_API_URL=http://localhost:8301`)
 - **ui-web (React editor)**: `npm --prefix ui-web run dev` → port 5173 (primární UI)
 - **UI (Streamlit, frozen)**: `streamlit run ui/app.py --server.port 8501` nebo `grafik ui`

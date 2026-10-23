@@ -42,6 +42,13 @@ class FluxLocal:
     def usd_for(self, req: ImageRequest) -> float:
         return 0.0
 
+    def eta_s(self, req: ImageRequest) -> int:
+        """Rough generation time on the RTX 4060: measured 0.59 MP 26 s, 1.05 MP 40 s (cold), 2.06 MP 85 s;
+        with an image ref ~1.9x (1.03 MP edit 79-84 s)."""
+        w, h = self.render_size(req)
+        ref_factor = 1.9 if any(r.role != "style" for r in req.refs) else 1.0
+        return round((5 + 38 * w * h / 1e6 * ref_factor) * req.n)
+
     def validate(self, req: ImageRequest) -> None:
         if req.width * req.height > self.s.max_pixels:
             raise BackendError(
@@ -153,7 +160,7 @@ class NanoBananaPro:
 
 # Image-only style refs are turned into words by Claude Haiku (paid, opt-in like
 # any paid step). Estimate: one image (~1.6k input tokens) + ~250 output tokens.
-STYLE_MODEL = "claude-haiku-5-5"
+CLAUDE_MODEL = "claude-haiku-5-5"
 STYLE_DESCRIBE_USD = 0.01
 STYLE_INSTRUCTION = (
     "Describe only the visual STYLE of this image so an image generator can reproduce it on a different "
@@ -162,24 +169,28 @@ STYLE_INSTRUCTION = (
 )
 
 
-def describe_style(png: bytes) -> str:
+def claude_text(content, max_tokens: int, what: str) -> str:
+    """One Claude Messages call -> text. Paid: callers gate it behind a shown estimate."""
     key = get_key("ANTHROPIC_API_KEY")
     if not key:
-        raise BackendError("popis stylu: chybí ANTHROPIC_API_KEY")
+        raise BackendError(f"{what}: chybí ANTHROPIC_API_KEY")
     try:
         r = httpx.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
-            json={"model": STYLE_MODEL, "max_tokens": 300, "messages": [{"role": "user", "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": "image/png",
-                                             "data": base64.b64encode(png).decode()}},
-                {"type": "text", "text": STYLE_INSTRUCTION}]}]},
+            json={"model": CLAUDE_MODEL, "max_tokens": max_tokens, "messages": [{"role": "user", "content": content}]},
             timeout=120,
         )
         r.raise_for_status()
     except httpx.HTTPError as e:
-        raise BackendError(f"popis stylu selhal: {e}") from e
+        raise BackendError(f"{what} selhalo: {e}") from e
     return "".join(b.get("text", "") for b in r.json().get("content", [])).strip()
+
+
+def describe_style(png: bytes) -> str:
+    return claude_text([
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": base64.b64encode(png).decode()}},
+        {"type": "text", "text": STYLE_INSTRUCTION}], 300, "popis stylu")
 
 
 # fal endpoints we allow, schemas from raw OpenAPI and prices from GET api.fal.ai/v1/models/pricing
@@ -270,15 +281,33 @@ class FalBackend:
         return Generated(images, seeds, endpoint, {k: v for k, v in args.items() if k not in ("prompt", "image_urls")})
 
 
+# "Rozepsat zadání": short (often Czech) brief -> richer English FLUX prompt. Paid like any
+# Claude call; the UI shows the estimate first. Same per-call estimate as describe_style.
+EXPAND_USD = 0.01
+EXPAND_INSTRUCTION = (
+    "Rewrite this image brief as one English prompt for the FLUX image model. Describe the scene concretely: "
+    "subject, setting, composition and camera viewpoint, medium and rendering, lighting, colour palette, level of "
+    "detail. Keep every fact from the brief, invent nothing historical that is not implied. If people or small "
+    "figures appear, state their size and distance. No text in the image. Answer with the prompt only.\n\nBrief: "
+)
+
+
+def expand_prompt(text: str) -> str:
+    return claude_text(EXPAND_INSTRUCTION + text, 500, "rozepsání zadání")
+
+
 def make_backends(settings: Settings, server: SdServer) -> dict:
     backends = {"flux-local": FluxLocal(settings, server), "nb-pro": NanoBananaPro()}
     backends.update({f"fal:{e}": FalBackend(e) for e in FAL_CATALOG})
     return backends
 
 
-def estimate_usd(req: ImageRequest, backend) -> dict:
-    """Cost estimate shown before anything paid runs."""
+def estimate_usd(req: ImageRequest, backend, translations: int = 0) -> dict:
+    """Cost estimate shown before anything paid runs. `translations` = Czech fields not in the cache."""
     items = []
+    if translations:
+        items.append({"what": f"překlad zadání do angličtiny (Claude) × {translations}", "usd": 0.01 * translations,
+                      "kind": "translation"})
     usd = backend.usd_for(req)
     if usd:
         items.append({"what": f"{backend.name} × {req.n}", "usd": round(usd, 4)})
