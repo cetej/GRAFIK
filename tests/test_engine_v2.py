@@ -932,3 +932,16 @@ def test_describe_style_card_parses_json(monkeypatch):
     monkeypatch.setattr(backends, "claude_text", lambda *a: "no json")
     with pytest.raises(backends.BackendError, match="není JSON"):
         backends.describe_style_card([_png_bytes()])
+
+
+def test_czech_style_card_is_translated_before_the_prompt(api, fake_claude):
+    api.post("/api/v2/styles", json={"label": "Tužka", "medium": "tužková kresba na drsném papíře"})
+    body = {"prompt": "A heron", "size": "256x256", "style": "tuzka"}
+    est = api.post("/api/v2/estimate", json=body).json()
+    assert [i["kind"] for i in est["items"]] == ["translation"]
+    job = wait_done(api, api.post("/api/v2/images", json={**body, "confirm_cost": True}).json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    assert "style descriptors" in fake_claude[0] and "Tužková kresba" in fake_claude[0]
+    prov = api.get(job["images"][0] + "/provenance").json()
+    assert prov["style_id"] == "tuzka" and prov["translations"][0]["field"] == "style"
+    assert "užková" not in prov["prompt_sent"]

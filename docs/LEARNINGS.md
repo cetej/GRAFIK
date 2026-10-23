@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Servery spuštěné z Claude session zmizí s její obnovou
+
+Dvakrát za den Engine (:8300), jeho sd-server a studio (:5174) zmizely bez záznamu v logu (poslední řádek běžný `GET /health`). Společné: všechny byly spuštěné z této Claude session (`Start-Process` z nástroje PowerShell), a zmizely po obnovení session. Procesy jsou ve stromu session a s ní končí. Trvalý provoz: spouštět `start-grafik.bat` ručně (nebo z Plánovače úloh), ne z Claude. Po obnovení session vždy nejdřív ověřit :8300 a :5174 a teprve pak tvrdit „běží“.
+
 ## 2026-10-23 — Živé ověření větve: Engine z worktree nad daty hlavního checkoutu (G4)
 
 Na jedné GPU smí běžet jen jeden Engine a jeden sd-server. Kód z větve se ověří tak, že se Engine na :8300 (jen vlastní PID, prázdná fronta) nahradí procesem z worktree s `GRAFIK_DATA_DIR=<hlavní checkout>`: převezme `run/sd-server.json` (stejný sd-server), frontu i knihovnu. Studio z větve běží vedle na :5175 (`npm --prefix studio run dev -- --port 5175`). Soubory, které tím vzniknou v hlavním checkoutu (např. `styles/`), se před `git pull` po merge smažou, jinak pull skončí na „untracked files would be overwritten“. Po merge Engine znovu z hlavního checkoutu.
