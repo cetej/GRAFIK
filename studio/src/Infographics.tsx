@@ -230,14 +230,14 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
       ))}
       {schema && doc.schema && pruh && (() => {
         const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number)
-        const iw2 = 0.36 * W
+        const iw2 = 0.38 * W
         const ih2 = (iw2 * vh) / vw
         const x = W - pad - iw2
         const y = pad
         return (
           // no frame or panel: the inset is a cut-out picture (transparent background) lying on the main one (docs/infografiky-zasady.md)
           <g fontFamily={FONT} fontStretch="semi-condensed">
-            <text x={x} y={y + 14 * k} fill={doc.accent} fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema!.title.toUpperCase()}</text>
+            <text x={x + iw2} y={y + 14 * k} textAnchor="end" fill={doc.accent} fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema!.title.toUpperCase()}</text>
             <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
           </g>
         )
