@@ -36,3 +36,18 @@ Blender 5.2.3 LTS portable: `C:/Users/stock/tools/blender-5.2.3-windows-x64/blen
 ## Data
 
 Model a předloha: `library/3d/kvinquerema-trellis2/` (`model.glb`, `model.json` s proveniencí, `predloha.png`, `render-az225.png`).
+
+## Iterace 2: hliněný render, opravený korvus, věž a vesla (zdarma)
+
+Operátor: věž a padací most se slily, styl má zůstat původní („nechci styl plastikové hračky z Blenderu“), korvus má mířit k boku (otočný), vesla mají divný tvar.
+
+- `render_glb.py --clay`: všechny materiály nahradí jedna matná šedá, takže render nese jen tvar a poměry. Styl dodá prompt (muzejní model / realistická malba), ne textura z TRELLIS.
+- `scripts/3d/edits_kvinquerema.py` (`--edit`): výška paluby paprsky shora; vyřízne slitý panel u přídě a stavebnicová vesla (|y| > 0,118); postaví korvus podle Polybia 1.22 (sloup na přídi, most zvednutý na 70° lanem z vrcholu sloupu, natočený o 35° k boku), čtvercovou věž s cimbuřím před stěžněm a tři řady rovných vesel (22 na řadu a bok, porty přesazené, listy v jedné čáře na hladině).
+- Pohled azimut 300°, elevace 25°: příď vpravo jako v původní infografice.
+- Lokální FLUX s hliněným renderem jako `geometry` předlohou: muzejní model (job `20261023-121208-3e0076`) i realistická malba na moři (job `20261023-121455-0b517a`) drží tvar, korvus i pravidelná vesla. 0 USD.
+
+![hlína](img/2026-10-23-3d/5-hlina-opraveno.jpg)
+![muzejní model](img/2026-10-23-3d/6-muzejni-model.jpg)
+![realistická ilustrace](img/2026-10-23-3d/7-realisticka-ilustrace.jpg)
+
+Zbývá: plachta, rozměry podle rekonstrukce (vesla jsou zatím odhad), řez lodí (TRELLIS dělá jen skořepinu, vnitřek se musí postavit v Blenderu).
