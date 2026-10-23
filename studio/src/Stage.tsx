@@ -17,12 +17,13 @@ interface Props {
   onSubmit: (req: ImageRequest, what: string) => Promise<void>
   onReuse: (job: Job) => void
   onVariant: (ref: string) => void
+  onInfographic: (ref: string) => void
   footer: ReactNode
 }
 
 type Mode = 'view' | 'compare' | 'box'
 
-export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, footer }: Props) {
+export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, footer }: Props) {
   const [mode, setMode] = useState<Mode>('view')
   const parent = job?.request.parent ?? null
   // "before" = the parent version, else the first image reference (image-to-image)
@@ -56,6 +57,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
         <button className="btn" onClick={() => onUseAsRef(selected)}>→ Použít jako předlohu</button>
         {job && !job.request.edit && <button className="btn" onClick={() => onReuse(job)}>✎ Upravit zadání</button>}
         <a className="btn" href={src} download={`grafik-${selected.replace('/', '-')}.png`}>⤓ Stáhnout PNG</a>
+        <button className="btn go" onClick={() => onInfographic(selected)}>→ Infografika</button>
       </div>
       <div className="canvas">
         {mode === 'compare' && before ? (

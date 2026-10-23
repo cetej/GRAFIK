@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  api, fileToB64, imageUrl, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
+  api, fileToB64, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
   type Backend, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
@@ -9,6 +9,7 @@ import RefPicker, { storeDrop, type PickerTab } from './RefPicker.tsx'
 import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
 import Styles, { Swatches } from './Styles.tsx'
+import Infographics from './Infographics.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
 const FORMATS: Record<string, string> = {
@@ -44,7 +45,7 @@ export default function App() {
   const [backends, setBackends] = useState<Backend[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [spentToday, setSpentToday] = useState(0)
-  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'settings'>('studio')
+  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'info' | 'settings'>('studio')
   const [picker, setPicker] = useState<PickerTab | null>(null)
   const [inboxNew, setInboxNew] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -65,6 +66,7 @@ export default function App() {
   const [styleSel, setStyleSel] = useState('') // '' = bez stylu, '__custom' = vlastní text, jinak slug karty
   const [styleText, setStyleText] = useState('')
   const [detectOpen, setDetectOpen] = useState(false)
+  const [infoId, setInfoId] = useState<string | null>(null)
   const pendingSelect = useRef<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -172,6 +174,13 @@ export default function App() {
     } finally { refresh() }
   }, [refresh])
 
+  const openInfographic = useCallback(async (ref: string, title: string) => {
+    try {
+      setInfoId((await infoApi.create(ref, title)).id)
+      setTab('info')
+    } catch (e) { setToast((e as Error).message) }
+  }, [])
+
   const variant = useCallback(async (ref: string) => {
     const [id, k] = ref.split('/')
     try {
@@ -256,7 +265,7 @@ export default function App() {
           <button className={tab === 'guide' ? 'on' : ''} onClick={() => setTab('guide')}>Průvodce</button>
           <button className={tab === 'library' ? 'on' : ''} onClick={() => setTab('library')}>Knihovna</button>
           <button className={tab === 'styles' ? 'on' : ''} onClick={() => setTab('styles')}>Styly</button>
-          <span className="off" title="Fáze G5">Infografiky</span>
+          <button className={tab === 'info' ? 'on' : ''} onClick={() => setTab('info')}>Infografiky</button>
           <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Nastavení</button>
         </nav>
         <div className="status">
@@ -270,13 +279,16 @@ export default function App() {
 
       {tab === 'settings' ? (
         <Settings onError={setToast} />
+      ) : tab === 'info' ? (
+        <Infographics openId={infoId} setOpenId={setInfoId} selectedImage={selected}
+          recentImages={doneImages.map((d) => d.ref)} onError={setToast} />
       ) : tab === 'styles' ? (
         <Styles onError={setToast} onSubmit={submitForStyle} selectedImage={selected}
           openDetect={detectOpen} onDetectOpen={() => setDetectOpen(true)} onDetectClosed={() => setDetectOpen(false)}
           onUse={(slug) => { setStyleSel(slug); setTab('studio') }} />
       ) : tab === 'guide' ? (
         <Wizard jobs={jobs} onOpen={setLightbox} onSubmit={submit} setConfirm={setConfirm} onError={setToast}
-          onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} />
+          onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} onInfographic={openInfographic} />
       ) : tab === 'library' ? (
         <main className="library">
           {doneImages.length === 0 && <p className="empty">Knihovna je prázdná.</p>}
@@ -388,6 +400,7 @@ export default function App() {
             onUseAsRef={useAsRef}
             onSubmit={submit}
             onVariant={variant}
+            onInfographic={(ref) => openInfographic(ref, (selJob?.request.edit ? '' : selJob?.request.prompt ?? '').slice(0, 60))}
             onReuse={(j) => {
               setPrompt(j.request.prompt)
               const sid = (j.request as ImageRequest).style_id

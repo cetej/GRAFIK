@@ -19,6 +19,7 @@ interface Props {
   setConfirm: (c: Confirm) => void
   onError: (msg: string) => void
   onOpenInStudio: (ref: string) => void
+  onInfographic: (ref: string, title: string) => void
 }
 
 export default function Wizard(props: Props) {
@@ -50,7 +51,7 @@ export default function Wizard(props: Props) {
   return <WizardRun {...props} wf={wf} setWf={setWf} onBack={() => setWf(null)} />
 }
 
-function WizardRun({ wf, setWf, onBack, jobs, onOpen, onSubmit, setConfirm, onError, onOpenInStudio }: Props & {
+function WizardRun({ wf, setWf, onBack, jobs, onOpen, onSubmit, setConfirm, onError, onOpenInStudio, onInfographic }: Props & {
   wf: Workflow; setWf: (w: Workflow) => void; onBack: () => void
 }) {
   const [object, setObject] = useState(wf.object)
@@ -236,9 +237,10 @@ function WizardRun({ wf, setWf, onBack, jobs, onOpen, onSubmit, setConfirm, onEr
         {step === 4 && wf.pick && (
           <div className="card">
             <img className="final" src={imageUrl(wf.pick)} alt="" onClick={() => onOpen(imageUrl(wf.pick!))} />
-            <p>Hotovo. Obrázek je v knihovně i ve stromu verzí (bokorys → opravy → natočený pohled). České popisky jako vektorová vrstva přijdou ve fázi G5.</p>
+            <p>Obrázek je v knihovně i ve stromu verzí (bokorys → opravy → natočený pohled). Popisky, fakta a schéma doplníte v editoru infografiky; text v obrázku nikdy nekreslí model.</p>
             <div className="row">
-              <button className="btn go" onClick={() => onOpenInStudio(wf.pick!)}>Otevřít ve studiu</button>
+              <button className="btn go" onClick={() => onInfographic(wf.pick!, wf.object.split(/[:—–]/)[0].trim())}>Otevřít v editoru infografiky</button>
+              <button className="btn" onClick={() => onOpenInStudio(wf.pick!)}>Otevřít ve studiu</button>
               <a className="btn" href={imageUrl(wf.pick)} download={`grafik-${wf.pick.replace('/', '-')}.png`}>Stáhnout PNG</a>
             </div>
           </div>

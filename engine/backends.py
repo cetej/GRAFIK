@@ -232,6 +232,45 @@ def describe_style_card(images: list[bytes]) -> dict:
             ("label", "note", "medium", "light", "line", "composition", "avoid", "signature")}
 
 
+# Label proposal for an infographic (G5): parts of the object with a point on the image, never facts.
+LABELS_USD = 0.01
+LABELS_INSTRUCTION = (
+    "This image shows: {title}. Propose 4 or 5 labels for an infographic: the most important visible parts of the "
+    "main object. For each give the Czech name of the part (1-3 words), an optional short Czech detail (at most "
+    "5 words, only what is visible, no numbers or dates), and the point on the image where the part is, as x and y "
+    "on a 0-1000 grid of the image width and height (0,0 is the top-left corner). Prefer parts spread over the "
+    "whole object. Answer with a JSON list and nothing else: "
+    '[{{"text": "...", "small": "...", "x": 0, "y": 0}}]'
+)
+
+
+def suggest_labels(png: bytes, title: str) -> list[dict]:
+    img = Image.open(BytesIO(png)).convert("RGB")
+    img.thumbnail((1024, 1024))
+    buf = BytesIO()
+    img.save(buf, "PNG")
+    text = claude_text([
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                     "data": base64.b64encode(buf.getvalue()).decode()}},
+        {"type": "text", "text": LABELS_INSTRUCTION.format(title=title or "an object")}], 900, "návrh popisků")
+    m = re.search(r"\[.*\]", text, re.S)
+    try:
+        items = json.loads(m.group(0)) if m else None
+    except json.JSONDecodeError:
+        items = None
+    if not isinstance(items, list):
+        raise BackendError(f"návrh popisků: odpověď není JSON seznam ({text[:120]!r})")
+    out = []
+    for it in items[:6]:
+        try:
+            x, y = (min(1000, max(0, int(float(it[k])))) for k in ("x", "y"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if str(it.get("text") or "").strip():
+            out.append({"text": str(it["text"]).strip(), "small": str(it.get("small") or "").strip(), "anchor": [x, y]})
+    return out
+
+
 def claude_text(content, max_tokens: int, what: str, model: str = CLAUDE_MODEL) -> str:
     """One Claude Messages call -> text. Paid: callers gate it behind a shown estimate."""
     key = get_key("ANTHROPIC_API_KEY")
