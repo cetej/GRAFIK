@@ -13,12 +13,15 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 - Pinterest: návod [`pinterest.md`](pinterest.md).
 - **Poznatky z PromptEnhancer** (#9): neúspěšný překlad = chyba místo tiché češtiny, citovaný nápis se nepřekládá, „Rozepsat zadání“ ve stavbě celek → části → celek se stylem na konci, překlad pokynu k úpravě vidí výřez rámečku, skript `scripts/eval_keypoints.py` (měření klíčových bodů, placený soudce, jen po schválení ceny).
 - Ověřeno naostro ([spike](spikes/2026-10-23-prompt-enhancer.md)): rozepsání ve stavbě celek → části → celek s nápisem beze změny; úprava s výřezem přebarvila lišku celou, bez výřezu zůstaly oranžové tváře; měření klíčových bodů na 24 promptech 5/24 obrázků se všemi body, 68/99 bodů.
-- Testy: celá sada 286.
+- **Zásady infografik** ([`infografiky-zasady.md`](infografiky-zasady.md), pravidlo `.claude/rules/infografiky.md`, #35): jedna písmová rodina (Bahnschrift) ve dvou řezech, popisky u věci s rovnými nebo jednou lomenými vodítky, rozvržení „Lišta přes obraz“ (výchozí pro nové infografiky, 1920×1080; staré zůstávají „Klasické“), schéma ve výřezu vpravo nahoře. Kontrola v editoru měří medián a maximum délky vodítek a křížení. Kvinquerema po úpravě: medián 4,2 % šířky, max 5,8 %, 0 křížení (export `library/infographics/20261023-133046-2ea6/exports/20261023-141248.png`).
+- **Kvinquerema hotová**: loď z Blenderu podle rozměrů rekonstrukce (`scripts/3d/lod_kvinquerema.py`), bez věže, posádka podle Polybia, kloun ~1 m podle Egadských nálezů, bez moře; řez ve schématu. Konečná kresba přes Nano Banana Pro (0,15 USD za obrázek), pokusy zdarma na lokálním FLUX.
+- Testy: celá sada 290.
 
 ## Další krok
 
 - **3D cesta ověřena** (spike `docs/spikes/2026-10-23-3d-trellis-blender.md`): předloha → TRELLIS 2 (fal, 0,30 USD) → Blender render → lokální FLUX s renderem jako `geometry` předlohou drží tvar lodi. Skripty `scripts/3d/`, model `library/3d/kvinquerema-trellis2/`. Zbývá: napojit do Engine a Studia (3D úloha, prohlížeč GLB, volba kamery), vesla ve více řadách doplnit v Blenderu.
 - **Termdb napojená** (`engine/termdb.py`, `BIOLIB/termdb.db`, jen čtení, zdarma): jednoznačné odborné termíny jdou do překladu jako nápověda („Rys ostrovid = Eurasian lynx (Lynx lynx)“), kontrola infografiky ukazuje nalezené, nejednoznačné a „není v termdb“. Lodní termíny (kloun, kvinquerema) v termdb chybí; doplnění termdb je věc NG-ROBOT.
+- Infografiky: prázdná plocha kvinqueremy 39 % (práh ~30 %) je daná diagonální kompozicí obrazu; editor ji neměří. Legionáři v řezu nesou obdélné scuta pozdější doby (oprava při příští kresbě řezu).
 - Infografiky: „Navrhnout popisky“ přes Claude naostro neklikáno (čeká na schválení útraty).
 - Napojení projektů (KLAPKA, NG-ROBOT…) až na pokyn operátora.
 - Drobnosti: „Rozepsat zadání“ naostro neklikáno; pin přes `og:image` ověřen jen offline (Pinterest robotům ukazuje přihlášení).

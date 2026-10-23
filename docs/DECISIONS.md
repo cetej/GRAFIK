@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — Zásady infografik místo kopírování vzoru
+
+Operátor: „nejde o to sekat infografiky stejné jedna jako druhá, jako Baťa cvičky … jde o to pochopit, okoukat čistý grafický styl, rovnováhu, informační hodnotu a čtenářský zážitek.“ Pak „Dobře dotáhni to“.
+
+- Zásady a měřitelné prahy v `docs/infografiky-zasady.md`, pravidlo `.claude/rules/infografiky.md`; úsudek o celku zůstává na člověku, čísla jen upozorní.
+- Nové infografiky: rozvržení „Lišta přes obraz“ 1920×1080; staré dokumenty beze změny („Klasické“).
+- Co nemá doklad, do obrazu nepatří: věž na lodi z 1. punské války odstraněna; řez boku bez informační hodnoty vynechán; moře pryč, protože zhoršovalo čitelnost popisků.
+- Postup obrázku pro infografiku: model v Blenderu z rozměrů → hliněný render → pokusy na lokálním FLUX zdarma → konečná kresba placeným modelem jen se souhlasem a cenou předem.
+
 ## 2026-10-23 — 3D cesta: TRELLIS 2 + Blender jako předloha pro generátor
 
 Operátor: TRELLIS má z dobrých předloh postavit správné 3D, z něj dostane správné zadání náš generátor; hodí se i pro 3D scény ve spolupráci s Blenderem. Schválil instalaci Blenderu a nejvýš 2 běhy TRELLIS 2 po 0,30 USD.
