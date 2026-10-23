@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-23 — Tvar složitého objektu: 3D model jako předloha, ne prompt
+
+FLUX 3 Klein bez předlohy kreslil kvinqueremu deformovaně (dva stěžně, vesla různé délky a směru). Model z TRELLIS 2 (jeden obrázek čistého modelu lodi) vyrenderovaný v Blenderu a poslaný jako `role: geometry` předloha tvar udržel: jeden stěžeň, pravidelná vesla. TRELLIS ale věrně kopíruje předlohu, takže historickou správnost určuje volba předlohy. Render z TRELLIS je tmavý lesklý plast: světlejší svět a `view_transform = Standard`.
+
 ## 2026-10-23 — Restart Engine z větve nechá osiřelý sd-server
 
 Engine z větve (vlastní `GRAFIK_DATA_DIR`) si sd-server zapsal do `run/sd-server.json` ve worktree. Po zabití toho Engine a startu Engine z hlavního checkoutu držel :8390 osiřelý sd-server a nový Engine ho právem odmítl vypnout („Port 8390 už obsluhuje jiný sd-server“), takže úlohy KLAPKY padaly. Před vypnutím Engine z větve vypni i jeho sd-server podle PID z `<data_dir>/run/sd-server.json` a soubor smaž.

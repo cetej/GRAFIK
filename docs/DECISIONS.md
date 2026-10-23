@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-23 — 3D cesta: TRELLIS 2 + Blender jako předloha pro generátor
+
+Operátor: TRELLIS má z dobrých předloh postavit správné 3D, z něj dostane správné zadání náš generátor; hodí se i pro 3D scény ve spolupráci s Blenderem. Schválil instalaci Blenderu a nejvýš 2 běhy TRELLIS 2 po 0,30 USD.
+
+- TRELLIS 2 běží na fal.ai (`fal-ai/trellis-2`, 0,25/0,30/0,35 USD za 512p/1024p/1536p), lokálně ne (≥16 GB VRAM, Linux). Placený jako ostatní: cena předem, souhlas.
+- Blender 5.2.3 LTS portable v `C:/Users/stock/tools/`, ovládaný skriptem headless; render jde do lokálního FLUX jako `geometry` předloha (zdarma).
+- Spike: `docs/spikes/2026-10-23-3d-trellis-blender.md` (0,30 USD, tvar lodi držel). Napojení do Engine/Studia zatím ne.
+
 ## 2026-10-23 — Termdb v překladu a v kontrole infografiky
 
 Operátor: „Napoj termdb na překlad i na kontrolu infografiky: zdarma a lokálně, jednoznačné termíny předat překladu jako nápovědu, neznámé označit ‚není v termdb‘, bez placeného vyhledávání na webu.“
