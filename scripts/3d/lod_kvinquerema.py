@@ -13,9 +13,11 @@ from mathutils import Vector
 DIM = {
     "length": 45.0,          # Coates 1995, p. 138
     "beam_wl": 5.0,          # Coates 1995: beam at water level
+    "beam_deck": 5.8,        # odhad: sides flare above the water
+    "parallel": 14.0,        # odhad: straight sides along the rowing section (|x| < 14 m)
     "deck_z": 3.0,           # Coates 1995: deck about 3 m above water
     "draught": 1.3,          # odhad, Olympias 1.25 m
-    "outrigger_y": 3.3,      # odhad: hull 2.5 + 0.8 outrigger per side
+    "outrigger_y": 3.5,      # odhad: 7 m over the outriggers, L/B 6.4 like Olympias (36.9 / 5.5 = 6.7)
     "files": 30,             # Morrison 1995: files of 30, 2-2-1 rowers, 90 oars a side
     "room": 0.98,            # odhad: Olympias 0.89 m, widened after the sea trials
     "mast_x": 1.0,           # odhad
@@ -29,6 +31,7 @@ DIM = {
     "corvus_bridge": (10.8, 1.2),    # Polybius 1.22: 36 ft long, 4 ft wide
     "ram_l": 2.4,            # odhad (Athlit ram 2.26 m)
     "shield_d": 0.9,         # odhad
+    "man": 1.72,             # odhad: height of a soldier or sailor
 }
 
 prefix = sys.argv[sys.argv.index("--") + 1]
@@ -69,6 +72,16 @@ def path(points, r, r2=None):
         rod(a, b, ra, rb, 12)
 
 
+def person(x, y, z):
+    """A standing man DIM['man'] tall: legs, torso, head, spear."""
+    m = DIM["man"]
+    for dy in (-0.1, 0.1):
+        rod((x, y + dy, z), (x, y + dy, z + 0.47 * m), 0.075, 0.09, 8)
+    rod((x, y, z + 0.47 * m), (x, y, z + 0.82 * m), 0.17, 0.2, 10)
+    ball((x, y, z + 0.92 * m), 0.12)
+    rod((x + 0.25, y, z + 0.3), (x + 0.25, y, z + 1.3 * m), 0.02, None, 6)
+
+
 def ball(c, r):
     bpy.ops.mesh.primitive_uv_sphere_add(radius=r, location=c, segments=16, ring_count=8)
     return bpy.context.active_object
@@ -76,11 +89,22 @@ def ball(c, r):
 
 # --- hull: lofted from cross-sections ---------------------------------------------------------
 # section half-widths at heights (z, w) amidships; w(0) = beam_wl / 2
-SECTION = [(-1.3, 0.2), (-0.9, 1.25), (-0.45, 1.95), (0.0, 2.5), (0.7, 2.68), (1.5, 2.72), (2.3, 2.7), (3.0, 2.62)]
+WD = DIM["beam_deck"] / 2
+SECTION = [(-1.3, 0.25), (-0.9, 1.35), (-0.45, 2.05), (0.0, 2.5), (0.7, 2.75), (1.5, 2.88), (2.3, WD), (3.0, WD)]
 
 
 def taper(x):
-    return max(0.03, 1 - (abs(x) / (L - 0.4)) ** 2.4) ** 0.75
+    """1 along the parallel rowing section, then fining to the stem and the stern."""
+    u = max(0.0, abs(x) - DIM["parallel"]) / (L - 0.4 - DIM["parallel"])
+    return max(0.03, 1 - min(u, 1.0) ** 1.8) ** 0.7
+
+
+def hw(z, x=0.0):
+    """Outer half-width of the hull at height z (above the water only) and station x."""
+    for (z0, w0), (z1, w1) in zip(SECTION, SECTION[1:]):
+        if z0 <= z <= z1:
+            return (w0 + (w1 - w0) * (z - z0) / (z1 - z0)) * taper(x)
+    return WD * taper(x)
 
 
 def sheer(x):
@@ -120,29 +144,29 @@ hull = link(bm, "hull")
 # wales, bulwark with shields, eyes
 for s in (-1, 1):
     for z in (0.35, 1.1):
-        pts = [(x, s * (2.5 * taper(x) + 0.12) * (1 if z < 1 else 1.08), z) for x in range(-19, 21, 2)]
+        pts = [(x, s * (hw(z, x) + 0.1), z) for x in range(-19, 21, 2)]
         path(pts, 0.1)
-    rail = [(x, s * 2.62 * taper(x), sheer(x) + 0.9) for x in range(-18, 20, 1)]
+    rail = [(x, s * WD * taper(x), sheer(x) + 0.9) for x in range(-18, 20, 1)]
     path(rail, 0.06)
     for x in range(-17, 19):
-        rod((x, s * 2.62 * taper(x), sheer(x)), (x, s * 2.62 * taper(x), sheer(x) + 0.9), 0.05)
+        rod((x, s * WD * taper(x), sheer(x)), (x, s * WD * taper(x), sheer(x) + 0.9), 0.05)
     for k in range(28):
         x = -14 + k * 1.0
-        y = s * (2.62 * taper(x) + 0.06)
+        y = s * (WD * taper(x) + 0.06)
         rod((x, y, sheer(x) + 0.5), (x, y + s * 0.06, sheer(x) + 0.5), DIM["shield_d"] / 2, None, 24)
-    ball((L - 2.6, s * 2.5 * taper(L - 2.6), 1.6), 0.35)
+    ball((L - 2.6, s * hw(1.6, L - 2.6), 1.6), 0.35)
 
 # outriggers (parexeiresia) carrying the top oars
 oar_x0 = -DIM["files"] * DIM["room"] / 2
 for s in (-1, 1):
-    box((0, s * (DIM["outrigger_y"] - 0.3), 2.25), (DIM["files"] * DIM["room"] + 1.5, 0.7, 0.35))
+    box((0, s * (DIM["outrigger_y"] + WD) / 2, 2.25), (DIM["files"] * DIM["room"] + 1.5, DIM["outrigger_y"] - WD + 0.1, 0.35))
     box((0, s * DIM["outrigger_y"], 2.05), (DIM["files"] * DIM["room"] + 1.5, 0.12, 0.5))
 
 # --- oars: 3 levels x 30 files a side, identical per level ------------------------------------
 LEVELS = [  # (thole y, thole z, outboard length to the blade tip, drop to the water)
     (DIM["outrigger_y"], 2.0, 7.2),
-    (2.72, 1.35, 5.4),
-    (2.62, 0.6, 3.6),
+    (hw(1.35), 1.35, 5.4),
+    (hw(0.6), 0.6, 3.6),
 ]
 for s in (-1, 1):
     for lvl, (ty, tz, out) in enumerate(LEVELS):
@@ -204,7 +228,7 @@ link(bm, "sail")
 rigging = [((mx, 0, top), (L - 1.0, 0, sheer(L - 1.0) + 0.5)), ((mx, 0, top), (-L + 3.0, 0, sheer(-L + 3.0) + 0.6))]
 for s in (-1, 1):
     for dx in (-1.5, 1.0):
-        rigging.append(((mx, 0, top - 1.0), (mx + dx, s * 2.6, H + 0.9)))
+        rigging.append(((mx, 0, top - 1.0), (mx + dx, s * WD, H + 0.9)))
     rigging.append(((mx + 0.35, s * half, yz), (mx + 0.6, s * sw / 2, yz - sh - 0.2)))   # sheets/brails
 for a, b in rigging:
     rod(a, b, 0.03, None, 6)
@@ -241,9 +265,13 @@ rod(pole_top, ctip + Vector((0, 0, 0.2)), 0.04, None, 6)      # hauling rope
 for k, (x, y) in enumerate([(-12, -1.2), (-10, 0.8), (-7, -0.5), (-4, 1.3), (-2, -1.6), (3, 1.0), (4, -1.3),
                             (10, 0.6), (11, -1.0), (13, 1.4), (15, -0.4), (-15, 0.2), (-16, -1.3), (12.5, 0)]):
     z = sheer(x)
-    rod((x, y, z), (x, y, z + 1.35), 0.2, 0.17, 10)
-    ball((x, y, z + 1.55), 0.14)
-    rod((x + 0.25, y, z + 0.4), (x + 0.25, y, z + 2.3), 0.025, None, 6)
+    person(x, y, z)
+
+# --- scale figure on a float beside the bow, for the dimension check ---------------------------
+before = set(scene.objects)
+box((L + 4.0, -6.0, 0.05), (2.0, 2.0, 0.1))
+person(L + 4.0, -6.0, 0.1)
+scale_figure = [o for o in scene.objects if o not in before]
 
 # --- sea, clay, light, camera ------------------------------------------------------------------
 bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, 0))
@@ -266,13 +294,16 @@ scene.render.resolution_x, scene.render.resolution_y = 1280, 720
 scene.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("w"); scene.world = world; world.use_nodes = True
 world.node_tree.nodes["Background"].inputs[0].default_value = (0.15, 0.2, 0.25, 1)
-world.node_tree.nodes["Background"].inputs[1].default_value = 1.0
+world.node_tree.nodes["Background"].inputs[1].default_value = 1.4
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN")); scene.collection.objects.link(sun)
-sun.data.energy = 3.5
+sun.data.energy = 3.0
+sun.data.use_shadow = False   # cast shadows turn into invented objects in the image model (LEARNINGS)
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); scene.collection.objects.link(cam); scene.camera = cam
 cam.data.lens = 50
 target = Vector((0, 0, 4.0))
 VIEWS = {"tri": (300, 24, 72.0), "bok": (270, 6, 80.0)}   # azimuth, elevation, distance
+for o in scale_figure:
+    o.hide_render = True
 for name, (az, el, dist) in VIEWS.items():
     a, e = math.radians(az), math.radians(el)
     cam.location = target + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))) * dist
@@ -281,3 +312,13 @@ for name, (az, el, dist) in VIEWS.items():
     sun.rotation_euler.z += math.radians(30)
     scene.render.filepath = f"{prefix}-{name}.png"
     bpy.ops.render.render(write_still=True)
+
+# orthographic plan and side view for the dimension check (px per metre printed for the overlay)
+cam.data.type, cam.data.ortho_scale = "ORTHO", 56.0
+for o in scale_figure:
+    o.hide_render = False
+for name, loc, rot in (("plan", (2.0, 0, 60), (0, 0, 0)), ("profil", (2.0, -60, 4.0), (math.radians(90), 0, 0))):
+    cam.location, cam.rotation_euler = loc, rot
+    scene.render.filepath = f"{prefix}-{name}.png"
+    bpy.ops.render.render(write_still=True)
+print("ortho px_per_m", scene.render.resolution_x / cam.data.ortho_scale, "centre_x", 2.0)
