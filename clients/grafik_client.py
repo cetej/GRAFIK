@@ -11,20 +11,29 @@ name it AND pass confirm_cost=True; without it you get CostConfirmationRequired
 with the estimate and nothing runs. The client never switches backends on its
 own: when the local generator is unavailable you get EngineUnavailable.
 
+ensure_engine() starts the Engine in the background when it is not running (the
+same command as start-grafik.bat, without Studio and the browser). Call it before
+a job; GRAFIK_AUTOSTART=0 turns it off.
+
 CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:role]] [--out DIR]
      python grafik_client.py ref-add <image or pin URL> [--page URL] [--title T]
      python grafik_client.py health
+     python grafik_client.py ensure
 """
 from __future__ import annotations
 
 import base64
 import json
 import os
+import shutil
+import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 ENGINE_URL = os.environ.get("GRAFIK_ENGINE_URL", "http://127.0.0.1:8300")
 
@@ -64,6 +73,73 @@ def _request(method: str, path: str, body: dict | None = None, timeout: float = 
 
 def health() -> dict:
     return _request("GET", "/api/v2/health")[1]
+
+
+_start_lock = threading.Lock()
+
+
+def _engine_up() -> bool:
+    try:
+        return _request("GET", "/api/v2/health", timeout=3)[0] == 200
+    except EngineUnavailable:
+        return False
+
+
+def _grafik_dir() -> Path | None:
+    """GRAFIK_DIR, else a folder GRAFIK next to any parent of this file (works from worktrees too)."""
+    if os.environ.get("GRAFIK_DIR"):
+        return Path(os.environ["GRAFIK_DIR"])
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "GRAFIK" / "engine" / "app.py").is_file():
+            return parent / "GRAFIK"
+    return None
+
+
+def _engine_python() -> str | None:
+    """GRAFIK_PYTHON, else python on PATH outside the caller's venv (GRAFIK's packages are not there)."""
+    if os.environ.get("GRAFIK_PYTHON"):
+        return os.environ["GRAFIK_PYTHON"]
+    venv = Path(sys.prefix).resolve()
+    for name in ("python", "py"):
+        found = shutil.which(name)
+        if found and not Path(found).resolve().is_relative_to(venv):
+            return found
+    return None
+
+
+def ensure_engine(timeout: float = 90) -> None:
+    """Start the Engine in the background when it does not answer; EngineUnavailable when that fails.
+    The Engine runs the GPU itself, so callers only switch the service on."""
+    if _engine_up():
+        return
+    down = f"GRAFIK Engine na {ENGINE_URL} neodpovídá"
+    if os.environ.get("GRAFIK_AUTOSTART", "1") == "0":
+        raise EngineUnavailable(f"{down} (autostart vypnut GRAFIK_AUTOSTART=0). Spusťte start-grafik.bat.")
+    with _start_lock:
+        if _engine_up():            # another thread started it meanwhile
+            return
+        root, python = _grafik_dir(), _engine_python()
+        if root is None or not (root / "engine" / "app.py").is_file() or not python:
+            raise EngineUnavailable(f"{down} a spustit ho nejde (GRAFIK {root or 'nenalezen, nastavte GRAFIK_DIR'}, "
+                                    f"Python {python or 'nenalezen, nastavte GRAFIK_PYTHON'}).")
+        log_path = root / "logs" / "engine.log"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        flags = 0
+        if sys.platform == "win32":
+            flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        with open(log_path, "ab") as out:
+            proc = subprocess.Popen([python, "-m", "uvicorn", "engine.app:app", "--host", "127.0.0.1",
+                                     "--port", str(urlparse(ENGINE_URL).port or 8300), "--access-log"],
+                                    cwd=str(root), stdout=out, stderr=subprocess.STDOUT,
+                                    stdin=subprocess.DEVNULL, creationflags=flags, close_fds=True)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if _engine_up():
+                return
+            if proc.poll() is not None:
+                raise EngineUnavailable(f"{down}: spuštění skončilo kódem {proc.returncode}, detail v {log_path}")
+            time.sleep(1)
+        raise EngineUnavailable(f"{down}: nenaběhl do {int(timeout)} s, detail v {log_path}")
 
 
 def styles() -> list[dict]:
@@ -153,6 +229,7 @@ def _cli(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="grafik_client")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("health")
+    sub.add_parser("ensure", help="spustit Engine na pozadí, když neběží")
     ra = sub.add_parser("ref-add", help="uložit obrázek (nebo pin z Pinterestu) do schránky předloh")
     ra.add_argument("url")
     ra.add_argument("--page", help="adresa stránky, odkud obrázek je (pin)")
@@ -172,6 +249,14 @@ def _cli(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "health":
         print(json.dumps(health(), ensure_ascii=False, indent=2))
+        return 0
+    if a.cmd == "ensure":
+        try:
+            ensure_engine()
+        except GrafikError as e:
+            print(f"CHYBA: {e}", file=sys.stderr)
+            return 1
+        print(f"GRAFIK Engine běží na {ENGINE_URL}")
         return 0
     if a.cmd == "ref-add":
         try:

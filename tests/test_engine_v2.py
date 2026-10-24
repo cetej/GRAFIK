@@ -302,6 +302,66 @@ def test_client_engine_down_raises_unavailable(monkeypatch):
         grafik_client.generate("x")
 
 
+class _FakeProc:
+    def __init__(self, code=None):
+        self.returncode = code
+
+    def poll(self):
+        return self.returncode
+
+
+def _ensure_setup(monkeypatch, tmp_path, *, up_after, code=None):
+    """Engine does not answer the first `up_after` probes; returns the spawned commands."""
+    sys.path.insert(0, str(ROOT / "clients"))
+    import grafik_client
+    (tmp_path / "engine").mkdir()
+    (tmp_path / "engine" / "app.py").write_text("")
+    monkeypatch.setenv("GRAFIK_DIR", str(tmp_path))
+    monkeypatch.setenv("GRAFIK_PYTHON", "python")
+    monkeypatch.delenv("GRAFIK_AUTOSTART", raising=False)
+    monkeypatch.setattr(grafik_client.time, "sleep", lambda s: None)
+    probes, started = [0], []
+
+    def up():
+        probes[0] += 1
+        return probes[0] > up_after
+    monkeypatch.setattr(grafik_client, "_engine_up", up)
+
+    def popen(cmd, **kw):
+        started.append((cmd, kw["cwd"]))
+        return _FakeProc(code)
+    monkeypatch.setattr(grafik_client.subprocess, "Popen", popen)
+    return grafik_client, started
+
+
+def test_client_ensure_engine_starts_it_in_background(monkeypatch, tmp_path):
+    gc, started = _ensure_setup(monkeypatch, tmp_path, up_after=3)
+    gc.ensure_engine()
+    (cmd, cwd), = started
+    assert cmd[:4] == ["python", "-m", "uvicorn", "engine.app:app"] and "8300" in cmd
+    assert cwd == str(tmp_path) and (tmp_path / "logs" / "engine.log").exists()
+
+
+def test_client_ensure_engine_leaves_running_engine_alone(monkeypatch, tmp_path):
+    gc, started = _ensure_setup(monkeypatch, tmp_path, up_after=0)
+    gc.ensure_engine()
+    assert started == []
+
+
+def test_client_ensure_engine_reports_crashed_start(monkeypatch, tmp_path):
+    gc, _ = _ensure_setup(monkeypatch, tmp_path, up_after=99, code=1)
+    with pytest.raises(gc.EngineUnavailable, match="neodpovídá: spuštění skončilo kódem 1"):
+        gc.ensure_engine()
+
+
+def test_client_ensure_engine_respects_autostart_off(monkeypatch, tmp_path):
+    gc, started = _ensure_setup(monkeypatch, tmp_path, up_after=99)
+    monkeypatch.setenv("GRAFIK_AUTOSTART", "0")
+    with pytest.raises(gc.EngineUnavailable, match="neodpovídá"):
+        gc.ensure_engine()
+    assert started == []
+
+
 # -- supersample ------------------------------------------------------------
 
 @pytest.mark.parametrize("size,factor,expected", [
