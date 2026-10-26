@@ -15,7 +15,13 @@ ensure_engine() starts the Engine in the background when it is not running (the
 same command as start-grafik.bat, without Studio and the browser). Call it before
 a job; GRAFIK_AUTOSTART=0 turns it off.
 
+variants() makes N images to pick from instead of iterating one by one: the jobs,
+a manifest.json and varianty.html (zoom, favourites, combine params, copy the pick
+back to the agent). The page comes from variants_page.py (a copy of STOPA
+scripts/manual/variants_page.py) next to this file or in GRAFIK/clients.
+
 CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:role]] [--out DIR]
+     python grafik_client.py variants "prompt" [--count 8] [--style SLUG ...] [--out DIR] [--no-open]
      python grafik_client.py ref-add <image or pin URL> [--page URL] [--title T]
      python grafik_client.py health
      python grafik_client.py ensure
@@ -23,6 +29,7 @@ CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:r
 from __future__ import annotations
 
 import base64
+import importlib.util
 import json
 import os
 import shutil
@@ -32,6 +39,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -224,6 +232,76 @@ def generate(prompt: str, *, out_dir: str | Path = ".", timeout: float = 900, **
     return download(wait(submit(prompt, **kw), timeout=timeout), out_dir)
 
 
+def _variants_page_module():
+    """variants_page.py next to this file, else in GRAFIK/clients; None when neither is there."""
+    root = _grafik_dir()
+    for folder in (Path(__file__).resolve().parent, root / "clients" if root else None):
+        if folder and (folder / "variants_page.py").is_file():
+            spec = importlib.util.spec_from_file_location("variants_page", folder / "variants_page.py")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+    return None
+
+
+def _plan(count: int, styles: list) -> list[tuple]:
+    """count images spread over styles (round-robin share), each style cut into jobs of at most 4."""
+    jobs = []
+    for i, style in enumerate(styles):
+        left = count // len(styles) + (i < count % len(styles))
+        while left > 0:
+            jobs.append((style, min(4, left)))
+            left -= 4
+    return jobs
+
+
+def variants(prompt: str, *, count: int = 8, styles: list | None = None, out_dir: str | Path = "varianty",
+             title: str | None = None, open_page: bool = True, timeout: float = 900, on_status=None,
+             confirm_cost: bool = False, **kw) -> Path:
+    """count images (spread over styles) for picking instead of iterating; writes the PNGs,
+    manifest.json and varianty.html into out_dir and returns the page (or the manifest when
+    variants_page.py is missing). A paid batch needs confirm_cost=True; without it the estimate
+    for the WHOLE batch comes back as CostConfirmationRequired and nothing runs."""
+    if not 1 <= count <= 40:
+        raise GrafikError("počet variant 1–40")
+    plan = _plan(count, list(styles or [kw.pop("style", None)]))
+    total, items = 0.0, []
+    for style, n in plan:
+        body = {**kw, "prompt": prompt, "n": n, "style": style, "refs": [_ref_payload(r) for r in kw.get("refs") or []]}
+        status, est = _request("POST", "/api/v2/estimate", body)
+        if status != 200:
+            raise GrafikError(f"Engine odmítl požadavek ({status}): {est.get('detail')}")
+        total += est["total_usd"]
+        items += est.get("items", [])
+    if total > 0 and not confirm_cost:
+        raise CostConfirmationRequired(round(total, 4), items)
+
+    job_ids = [submit(prompt, n=n, style=style, confirm_cost=confirm_cost, **kw) for style, n in plan]
+    out = Path(out_dir)
+    entries = []
+    for job_id in job_ids:
+        job = wait(job_id, timeout=timeout, on_status=on_status)
+        req, res = job["request"], job["result"] or {}
+        for n, path in enumerate(download(job, out)):
+            params = {"styl": req.get("style_id") or req.get("style") or "bez stylu",
+                      "seed": (res.get("seeds") or [None] * (n + 1))[n], "velikost": req.get("size"),
+                      "backend": job.get("backend"), "kroky": req.get("steps")}
+            entries.append({"id": f"v{len(entries) + 1:02d}", "src": path.name, "label": f"úloha {job_id}/{n}",
+                            "prompt": res.get("prompt_sent") or prompt,
+                            "params": {k: v for k, v in params.items() if v is not None}})
+    manifest = {"title": title or prompt[:80], "note": f"{len(entries)} variant z GRAFIK Engine · zadání: {prompt}",
+                "variants": entries}
+    manifest_path = out / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    page_mod = _variants_page_module()
+    if page_mod is None:
+        return manifest_path
+    page = page_mod.write_page(page_mod.load_manifest(manifest_path), out / "varianty.html")
+    if open_page:
+        webbrowser.open(page.resolve().as_uri())
+    return page
+
+
 def _cli(argv: list[str]) -> int:
     import argparse
     ap = argparse.ArgumentParser(prog="grafik_client")
@@ -246,6 +324,18 @@ def _cli(argv: list[str]) -> int:
     g.add_argument("--backend", default="flux-local")
     g.add_argument("--confirm-cost", action="store_true")
     g.add_argument("--out", default=".")
+    v = sub.add_parser("variants", help="N variant a stránka pro výběr místo iterace")
+    v.add_argument("prompt")
+    v.add_argument("--count", type=int, default=8)
+    v.add_argument("--style", action="append", default=[], help="slug stylu; víc --style = varianty se rozdělí mezi styly")
+    v.add_argument("--size", default="1024x1024")
+    v.add_argument("--steps", type=int)
+    v.add_argument("--supersample", type=float)
+    v.add_argument("--backend", default="flux-local")
+    v.add_argument("--confirm-cost", action="store_true")
+    v.add_argument("--title")
+    v.add_argument("--out", default="varianty")
+    v.add_argument("--no-open", action="store_true", help="stránku neotevírat v prohlížeči")
     a = ap.parse_args(argv)
     if a.cmd == "health":
         print(json.dumps(health(), ensure_ascii=False, indent=2))
@@ -265,6 +355,20 @@ def _cli(argv: list[str]) -> int:
             print(f"CHYBA: {e}", file=sys.stderr)
             return 1
         print(f"předloha {meta['id']} ({meta['origin']}, {meta['width']}x{meta['height']}) je ve schránce")
+        return 0
+    if a.cmd == "variants":
+        try:
+            page = variants(a.prompt, count=a.count, styles=a.style or None, out_dir=a.out, title=a.title,
+                            open_page=not a.no_open, size=a.size, steps=a.steps, supersample=a.supersample,
+                            backend=a.backend, confirm_cost=a.confirm_cost, caller="grafik_client-variants")
+        except CostConfirmationRequired as e:
+            print(f"CHYBA: placená dávka ~{e.estimate_usd} USD, nic nespuštěno. Zopakujte s --confirm-cost.",
+                  file=sys.stderr)
+            return 1
+        except GrafikError as e:
+            print(f"CHYBA: {e}", file=sys.stderr)
+            return 1
+        print(page.resolve())
         return 0
     refs = []
     for r in a.ref:
