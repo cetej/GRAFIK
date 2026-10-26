@@ -21,7 +21,7 @@ from engine.backends import (EXPAND_USD, LABELS_USD, STYLE_CARD_MAX_IMAGES, STYL
 from engine.config import Settings
 from engine.gpu import free_vram_mib
 from engine.keys import get_key
-from engine.jobs import JobStore, Worker
+from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
 from engine.sdserver import SdServer
 from engine import commons
@@ -226,9 +226,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         the operator's own logged-in Chrome (docs/pinterest.md)."""
         def key(*names):
             return any(get_key(n) for n in names)
-        costs = s.costs_path.read_text(encoding="utf-8").splitlines() if s.costs_path.exists() else []
         today = datetime.now().strftime("%Y-%m-%d")
-        spent = [json.loads(line) for line in costs if line]
+        spent = load_costs(s.costs_path)
         return {
             "flux_local": {"model": s.sd_model, "dir": str(s.flux_dir), "exe_found": (s.flux_dir / s.sd_exe).exists(),
                            "model_found": (s.flux_dir / s.sd_model).exists(), "sd_server": sd.status(),
@@ -726,8 +725,9 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def costs(limit: int = 100):
         if not s.costs_path.exists():
             return {"total_usd": 0.0, "entries": []}
-        entries = [json.loads(line) for line in s.costs_path.read_text(encoding="utf-8").splitlines() if line]
-        return {"total_usd": round(sum(e["usd"] for e in entries), 4), "entries": entries[-limit:]}
+        entries = load_costs(s.costs_path)
+        return {"total_usd": round(sum(e["usd"] for e in entries), 4), "entries": entries[-limit:],
+                "pending": [e for e in entries if e.get("status") == "pending"]}
 
     return app
 

@@ -204,6 +204,11 @@ class Worker:
             finally:
                 self.running = None
 
+    def _log_cost(self, row: dict) -> None:
+        self.s.library_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.s.costs_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), **row}, ensure_ascii=False) + "\n")
+
     def process(self, job_id: str, req: ImageRequest, created: float) -> dict:
         backend = self.backends[req.backend]
         t_start = time.time()
@@ -234,11 +239,22 @@ class Worker:
             })
 
         prompt = promptlib.build_prompt(req, described)
+        est = estimate_usd(req, backend, paid_translations, paid_crops)
+        cost_row = {"job_id": job_id, "caller": req.caller, "backend": backend.name, "n": req.n,
+                    "usd": est["total_usd"], "items": est["items"]}
         use_gpu = req.backend == "flux-local"
         if use_gpu:
             self.gpu_lock.acquire(self.s.gpu_lock_wait_s)
         try:
-            gen: Generated = backend.run(req, prompt, image_refs)
+            if est["total_usd"] > 0:
+                # write-ahead: když klient spadne po odeslání, fal si úlohu naúčtuje, a ledger o ní má aspoň tento řádek
+                self._log_cost({**cost_row, "status": "pending"})
+            try:
+                gen: Generated = backend.run(req, prompt, image_refs)
+            except Exception:
+                if est["total_usd"] > 0:
+                    self._log_cost({**cost_row, "status": "failed", "usd": 0.0, "est_usd": est["total_usd"]})
+                raise
         finally:
             if use_gpu:
                 self.gpu_lock.release()
@@ -247,7 +263,6 @@ class Worker:
             # ref 0 is the parent (the API prepends it); outside the box the parent stays unchanged
             gen.images = [paste_back(image_refs[0], img, req.edit) for img in gen.images]
 
-        est = estimate_usd(req, backend, paid_translations, paid_crops)
         files = []
         for n, data in enumerate(gen.images):
             name = f"image-{n}.png"
@@ -268,11 +283,28 @@ class Worker:
             (job_dir / f"image-{n}.json").write_text(json.dumps(prov, ensure_ascii=False, indent=2), encoding="utf-8")
             files.append(str(job_dir / name))
 
-        self.s.library_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.s.costs_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "job_id": job_id,
-                                "caller": req.caller, "backend": backend.name, "n": len(gen.images),
-                                "usd": est["total_usd"], "items": est["items"]}, ensure_ascii=False) + "\n")
+        self._log_cost({**cost_row, "n": len(gen.images), "status": "ok"})
         return {"files": files, "dir": str(job_dir), "prompt_sent": prompt, "seeds": gen.seeds,
                 "cost_usd": est["total_usd"], "timing_s": {"queue": round(t_start - created, 1),
                                                           "generate": round(t_done - t_start, 1)}}
+
+
+def load_costs(path: Path) -> list[dict]:
+    """Řádky costs.jsonl s jedním řádkem na úlohu: `pending` → `ok` / `failed` se zapisují jako nové řádky
+    (soubor je append-only), platí poslední. Nedokončený `pending` zůstává v útratě s odhadnutou cenou."""
+    out: list[dict] = []
+    index: dict[str, int] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line:
+            continue
+        row = json.loads(line)
+        jid = row.get("job_id")
+        if jid and jid in index:
+            out[index[jid]] = row
+        else:
+            if jid:
+                index[jid] = len(out)
+            out.append(row)
+    return out

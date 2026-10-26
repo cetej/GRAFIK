@@ -1005,3 +1005,67 @@ def test_czech_style_card_is_translated_before_the_prompt(api, fake_claude):
     prov = api.get(job["images"][0] + "/provenance").json()
     assert prov["style_id"] == "tuzka" and prov["translations"][0]["field"] == "style"
     assert "užková" not in prov["prompt_sent"]
+
+
+# -- write-ahead cost ledger (GRAFIK#14) --------------------------------------
+
+def _fal_env(api, monkeypatch, subscribe):
+    import fal_client
+    import httpx as _httpx
+
+    class Client(FakeFalClient):
+        def subscribe(self, application, arguments):
+            return subscribe(application, arguments)
+
+    monkeypatch.setattr(fal_client, "SyncClient", Client)
+    monkeypatch.setenv("FAL_KEY", "test-key")
+    real_get = _httpx.get
+    monkeypatch.setattr(_httpx, "get", lambda url, *a, **kw: _httpx.Response(
+        200, content=b"\x89PNG\r\n\x1a\nfal", request=_httpx.Request("GET", url))
+        if url.startswith("https://fal.media/") else real_get(url, *a, **kw))
+    api.app.state.worker.backends.update({f"fal:{e}": FalBackend(e) for e in FAL_CATALOG})
+
+
+def _cost_rows(settings):
+    return [json.loads(line) for line in settings.costs_path.read_text(encoding="utf-8").splitlines() if line]
+
+
+FAL_BODY = {"prompt": "x", "backend": "fal:fal-ai/flux-2-pro", "size": "1024x576", "confirm_cost": True}
+
+
+def test_fal_cost_is_pending_before_the_call_and_ok_after(api, settings, monkeypatch):
+    seen = {}
+
+    def subscribe(application, arguments):
+        seen["during"] = _cost_rows(settings)
+        return {"images": [{"url": "https://fal.media/out.png"}], "seed": 1}
+    _fal_env(api, monkeypatch, subscribe)
+    job = wait_done(api, api.post("/api/v2/images", json=FAL_BODY).json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    assert [r["status"] for r in seen["during"]] == ["pending"]
+    assert seen["during"][0]["backend"] == "fal:fal-ai/flux-2-pro" and seen["during"][0]["usd"] > 0
+    assert [r["status"] for r in _cost_rows(settings)] == ["pending", "ok"]
+    costs = api.get("/api/v2/costs").json()
+    assert costs["total_usd"] == pytest.approx(seen["during"][0]["usd"])  # not counted twice
+    assert costs["pending"] == []
+
+
+def test_fal_exception_leaves_failed_row_with_estimate(api, settings, monkeypatch):
+    def subscribe(application, arguments):
+        raise TimeoutError("spojení spadlo")
+    _fal_env(api, monkeypatch, subscribe)
+    job = wait_done(api, api.post("/api/v2/images", json=FAL_BODY).json()["job_id"])
+    assert job["status"] == "failed"
+    rows = _cost_rows(settings)
+    assert [r["status"] for r in rows] == ["pending", "failed"]
+    assert rows[0]["backend"] == "fal:fal-ai/flux-2-pro" and rows[1]["est_usd"] == rows[0]["usd"] > 0
+    assert api.get("/api/v2/costs").json()["total_usd"] == 0
+
+
+def test_unfinished_pending_row_counts_as_spent(api, settings):
+    settings.library_dir.mkdir(parents=True, exist_ok=True)
+    settings.costs_path.write_text(json.dumps(
+        {"ts": "2026-10-26T10:00:00", "job_id": "j1", "backend": "fal:x", "n": 1, "usd": 0.18, "items": [],
+         "status": "pending"}) + "\n", encoding="utf-8")
+    costs = api.get("/api/v2/costs").json()
+    assert costs["total_usd"] == 0.18 and [p["job_id"] for p in costs["pending"]] == ["j1"]
