@@ -294,6 +294,62 @@ def test_client_end_to_end(settings, sd, tmp_path, monkeypatch):
         t.join(timeout=5)
 
 
+def test_client_stdlib_only_includes_variants_page():
+    tree = ast.parse((ROOT / "clients" / "variants_page.py").read_text(encoding="utf-8"))
+    mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    mods |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level == 0}
+    assert mods <= set(sys.stdlib_module_names) | {"__future__"}, mods - set(sys.stdlib_module_names)
+
+
+def test_client_variants_plan_spreads_over_styles_in_jobs_of_four():
+    sys.path.insert(0, str(ROOT / "clients"))
+    import grafik_client
+    assert grafik_client._plan(10, ["a", "b"]) == [("a", 4), ("a", 1), ("b", 4), ("b", 1)]
+    assert grafik_client._plan(3, [None]) == [(None, 3)]
+    assert grafik_client._plan(5, ["a", "b", "c"]) == [("a", 2), ("b", 2), ("c", 1)]
+
+
+def test_client_variants_writes_manifest_and_page(settings, sd, tmp_path, monkeypatch):
+    port = free_port()
+    app = create_app(settings, backends={"flux-local": FluxLocal(settings, sd), "nb-pro": NanoBananaPro()},
+                     server=sd)
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+    t = threading.Thread(target=server.run, daemon=True)
+    t.start()
+    while not server.started:
+        time.sleep(0.05)
+    try:
+        sys.path.insert(0, str(ROOT / "clients"))
+        import grafik_client
+        monkeypatch.setattr(grafik_client, "ENGINE_URL", f"http://127.0.0.1:{port}")
+        opened = []
+        monkeypatch.setattr(grafik_client.webbrowser, "open", opened.append)
+        out = tmp_path / "var"
+        page = grafik_client.variants("red apple", count=6, styles=["watercolour", "ink"], size="256x256",
+                                      out_dir=out, timeout=30)
+        assert page == out / "varianty.html" and opened == [page.resolve().as_uri()]
+        manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+        vs = manifest["variants"]
+        assert [v["id"] for v in vs] == [f"v0{i}" for i in range(1, 7)]
+        assert [v["params"]["styl"] for v in vs] == ["watercolour"] * 3 + ["ink"] * 3
+        assert all((out / v["src"]).read_bytes()[1:4] == b"PNG" for v in vs)
+        assert len({(v["params"]["styl"], v["params"]["seed"]) for v in vs}) == 6
+        html = page.read_text(encoding="utf-8")
+        assert vs[5]["src"] in html and "v06" in html
+
+        # a paid batch: the estimate covers all 8 images, nothing is queued
+        before = len(grafik_client._request("GET", "/api/v2/jobs")[1])
+        with pytest.raises(grafik_client.CostConfirmationRequired) as exc:
+            grafik_client.variants("x", count=8, backend="nb-pro", out_dir=tmp_path / "paid", open_page=False)
+        one = grafik_client._request("POST", "/api/v2/estimate", {"prompt": "x", "backend": "nb-pro"})[1]["total_usd"]
+        assert exc.value.estimate_usd == pytest.approx(8 * one, rel=0.01)
+        assert len(grafik_client._request("GET", "/api/v2/jobs")[1]) == before
+        assert not (tmp_path / "paid").exists()
+    finally:
+        server.should_exit = True
+        t.join(timeout=5)
+
+
 def test_client_engine_down_raises_unavailable(monkeypatch):
     sys.path.insert(0, str(ROOT / "clients"))
     import grafik_client
