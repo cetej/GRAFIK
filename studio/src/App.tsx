@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   api, fileToB64, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
-  type Backend, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role, type StyleCard,
+  type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
 import { HistoryPanel, Lightbox } from './panels.tsx'
@@ -10,6 +10,7 @@ import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
 import Styles, { Swatches } from './Styles.tsx'
 import Infographics from './Infographics.tsx'
+import { BatchPanel, BatchRow } from './Batch.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
 const FORMATS: Record<string, string> = {
@@ -67,6 +68,12 @@ export default function App() {
   const [styleText, setStyleText] = useState('')
   const [detectOpen, setDetectOpen] = useState(false)
   const [infoId, setInfoId] = useState<string | null>(null)
+  const [batches, setBatches] = useState<Batch[]>(() => {
+    try { return JSON.parse(localStorage.getItem('grafik.batches') ?? '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('grafik.batches', JSON.stringify(batches)) } catch { /* private window */ }
+  }, [batches])
   const pendingSelect = useRef<string | null>(null)
 
   const refresh = useCallback(async () => {
@@ -391,6 +398,10 @@ export default function App() {
             </select>
             <button className="btn primary" disabled={engineDown || !prompt.trim()} onClick={() => submit(formRequest(), 'Vygenerovat')}>{genLabel}</button>
             <p className="hint">Placený generátor se před spuštěním zeptá na cenu.</p>
+            <BatchPanel request={formRequest} styleCards={styleCards} styleSel={styleSel} styleText={styleText}
+              disabled={engineDown || !prompt.trim() || backend !== 'flux-local'}
+              onCreated={(b) => { setBatches((bs) => [b, ...bs].slice(0, 3)); refresh() }}
+              onConfirm={setConfirm} onError={setToast} />
           </section>
 
           <Stage
@@ -410,6 +421,7 @@ export default function App() {
             }}
             footer={
               <div className="queue">
+                {batches.map((b) => <BatchRow key={b.id} batch={b} jobs={jobs} />)}
                 {active.map((j) => <QueueRow key={j.job_id} job={j} onCancel={() => api.cancel(j.job_id).then(refresh)} />)}
                 {recentFailed.map((j) => (
                   <div className="job failed" key={j.job_id}><b>Selhalo</b><span>{j.error}</span></div>

@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-26 — Dávka variant ve Studiu podle náčrtu
+
+Operátor schválil náčrt (session z „Agent workflow best practices“, nápad z článku „How I work with Agents“): místo kol „zkus tohle… ne, tamto“ dávka a stránka pro výběr.
+
+- Ve Studiu sekce „Dávka na výběr“ pod tlačítkem Vygenerovat: počet 6/8/12/16, zaškrtnuté styly, ve frontě řádek s odkazem na stránku výběru.
+- Jen lokální FLUX (0 USD); Engine placený generátor v dávce odmítne. Cena za překlad české předlohy jde přes potvrzovací okno za celou dávku.
+- Stránka je stejná jako z `grafik_client variants` a STOPA `/nano --variants` (`clients/variants_page.py` ze STOPA).
+
 ## 2026-10-23 — GRAFIK v1 z repa pryč
 
 Operátor: „Starého grafika nepotřebuji.“
