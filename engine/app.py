@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
@@ -30,6 +30,7 @@ from engine.styles import StyleError, StyleLibrary, palette, slugify
 from engine.infographics import InfoError, InfographicStore
 from engine.termdb import TermDB
 from engine.translate import Translator
+from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
 
 
@@ -134,6 +135,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     stylelib = StyleLibrary(s.styles_dir)
     infos = InfographicStore(s.library_dir / "infographics", s.data_dir / "schemas")
     workflows = WorkflowStore(s.data_dir / "workflows")
+    batches = VariantStore(s.library_dir / "variants")
     worker = Worker(s, store, bk, translator=translator)
 
     @asynccontextmanager
@@ -276,6 +278,58 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         else:
             raw["parent"] = f"{job_id}/{body.n}"
         return submit(ImageRequest.model_validate(raw))
+
+    # -- batch of variants to pick from ("Dávka na výběr") ----------------
+    @app.post("/api/v2/variants", status_code=201)
+    def create_variants(body: VariantsIn):
+        """count images spread over styles as ordinary jobs; the estimate covers the WHOLE batch.
+        Local FLUX only: a paid generator gets no batch button (operator decision 2026-10-26)."""
+        if body.request.backend != "flux-local":
+            raise HTTPException(400, "dávka variant jen s lokálním FLUX (0 USD)")
+        reqs = [prepare(body.request.model_copy(update={"n": n, "style": style or body.request.style,
+                                                        "style_id": None if style else body.request.style_id}))[0]
+                for style, n in plan(body.count, body.styles or [None])]
+        items, total = [], 0.0
+        for req in reqs:
+            est = estimate_usd(req, bk[req.backend], *translator.pending(req))
+            total += est["total_usd"]
+            items += est["items"]
+        if total > 0 and not body.request.confirm_cost:
+            return JSONResponse(status_code=402, content={
+                "detail": "Placená operace — nic nespuštěno. Pošlete znovu s confirm_cost=true.",
+                "backend": body.request.backend, "estimate_usd": round(total, 4), "items": items})
+        job_ids = [store.add(r) for r in reqs]
+        batch = batches.create(body.title or body.request.prompt[:80], body.request.prompt, job_ids, body.count)
+        return {**batch, "page": f"/api/v2/variants/{batch['id']}/{PAGE}"}
+
+    @app.get("/api/v2/variants/{batch_id}")
+    def variants_status(batch_id: str):
+        batch = batches.get(batch_id)
+        if batch is None:
+            raise HTTPException(404, "dávka neexistuje")
+        statuses = [(store.get(j) or {}).get("status") for j in batch["job_ids"]]
+        return {**batch, "page": f"/api/v2/variants/{batch_id}/{PAGE}", "jobs_total": len(statuses),
+                "jobs_done": sum(st in ("done", "failed", "cancelled") for st in statuses),
+                "jobs_failed": sum(st in ("failed", "cancelled") for st in statuses)}
+
+    @app.get("/api/v2/variants/{batch_id}/{name}")
+    def variants_file(batch_id: str, name: str):
+        batch = batches.get(batch_id)
+        if batch is None:
+            raise HTTPException(404, "dávka neexistuje")
+        if name == PAGE and batches.file(batch_id, PAGE) is None:
+            jobs_ = [store.get(j) for j in batch["job_ids"]]
+            finished = [j for j in jobs_ if j and j["status"] in ("done", "failed", "cancelled")]
+            if len(finished) < len(jobs_):
+                failed = sum(j["status"] != "done" for j in finished)
+                return HTMLResponse(waiting_page(batch, len(finished), len(jobs_), failed))
+            if not any(j["status"] == "done" for j in finished):
+                raise HTTPException(409, "žádná úloha dávky se nepovedla")
+            batches.build_page(batch, finished, store.image_path)
+        path = batches.file(batch_id, name)
+        if path is None:
+            raise HTTPException(404, "soubor dávky neexistuje")
+        return FileResponse(path)
 
     @app.get("/api/v2/jobs")
     def jobs(limit: int = 50):

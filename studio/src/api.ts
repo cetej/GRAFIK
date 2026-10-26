@@ -190,6 +190,14 @@ export async function fileToB64(file: Blob): Promise<string> {
 
 // Czech diacritics -> the Engine will translate (engine/translate.py uses the same test)
 export const isCzech = (t: string) => /[ěščřžýáíéůúťďňóĚŠČŘŽÝÁÍÉŮÚŤĎŇÓ]/.test(t)
+// -- batch of variants to pick from (engine/variants.py) -----------------------
+export interface Batch { id: string; title: string; prompt: string; job_ids: string[]; count: number; page: string }
+
+export const variantsApi = {
+  create: (body: { request: ImageRequest; count: number; styles: (string | null)[]; title?: string }) =>
+    post<Batch>('/api/v2/variants', body),
+}
+
 export const onlyTranslation = (items: CostItem[]) => items.length > 0 && items.every((i) => i.kind === 'translation')
 
 // -- G4 style library --------------------------------------------------------

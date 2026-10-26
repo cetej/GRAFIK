@@ -1125,3 +1125,41 @@ def test_unfinished_pending_row_counts_as_spent(api, settings):
          "status": "pending"}) + "\n", encoding="utf-8")
     costs = api.get("/api/v2/costs").json()
     assert costs["total_usd"] == 0.18 and [p["job_id"] for p in costs["pending"]] == ["j1"]
+
+
+def test_studio_variants_batch_jobs_and_page(api):
+    r = api.post("/api/v2/variants", json={"request": {"prompt": "red apple", "size": "256x256"}, "count": 6,
+                                           "styles": ["watercolour", "ink"], "title": "Jablko"})
+    assert r.status_code == 201, r.text
+    batch = r.json()
+    assert len(batch["job_ids"]) == 2 and batch["count"] == 6 and batch["page"] == f"/api/v2/variants/{batch['id']}/varianty.html"
+    jobs = [api.get(f"/api/v2/jobs/{j}").json() for j in batch["job_ids"]]
+    assert [(j["request"]["style"], j["request"]["n"]) for j in jobs] == [("watercolour", 3), ("ink", 3)]
+    for j in batch["job_ids"]:
+        wait_done(api, j)
+    st = api.get(f"/api/v2/variants/{batch['id']}").json()
+    assert (st["jobs_done"], st["jobs_total"], st["jobs_failed"]) == (2, 2, 0)
+    page = api.get(batch["page"])
+    assert page.status_code == 200 and "v06.png" in page.text and "Jablko" in page.text
+    assert api.get(f"/api/v2/variants/{batch['id']}/v06.png").content[1:4] == b"PNG"
+    assert api.get(f"/api/v2/variants/{batch['id']}/..%2Fbatch.json").status_code == 404
+
+
+def test_studio_variants_waiting_page_until_done(api):
+    batch = api.post("/api/v2/variants", json={"request": {"prompt": "pear", "size": "256x256"},
+                                               "count": 2}).json()
+    first = api.get(batch["page"])
+    assert first.status_code == 200
+    assert "Generuji varianty" in first.text or "v02.png" in first.text
+    for j in batch["job_ids"]:
+        wait_done(api, j)
+    assert "v02.png" in api.get(batch["page"]).text
+
+
+def test_studio_variants_local_only_and_priced_whole(api):
+    before = len(api.get("/api/v2/jobs").json())
+    assert api.post("/api/v2/variants", json={"request": {"prompt": "x", "backend": "nb-pro"}}).status_code == 400
+    r = api.post("/api/v2/variants", json={"request": {"prompt": "červené jablko na stole"}, "count": 8,
+                                           "styles": ["a", "b"]})
+    assert r.status_code == 402 and r.json()["estimate_usd"] > 0
+    assert len(api.get("/api/v2/jobs").json()) == before
