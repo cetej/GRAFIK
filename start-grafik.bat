@@ -21,7 +21,9 @@ if errorlevel 1 (
   echo Spoustim GRAFIK Studio na portu 5174...
   rem npm --prefix install reads the repo root package.json, so install from inside studio\
   if not exist studio\node_modules (pushd studio & call npm install --no-audit --no-fund & popd)
-  start "GRAFIK Studio" /min cmd /c "npm --prefix studio run dev"
+  rem Vystup studia do logs\studio.log s casem startu a konce (s kodem), at je videt, kdy a proc skoncilo.
+  rem Chybi-li radek "konec", byl proces zabit zvenku (taskkill, zavrene okno), ne pad vite.
+  start "GRAFIK Studio" /min cmd /v:on /c "echo === studio start !date! !time! >> logs\studio.log & npm --prefix studio run dev >> logs\studio.log 2>&1 & echo === studio konec !date! !time! kod !errorlevel! >> logs\studio.log"
 ) else (
   echo GRAFIK Studio uz bezi.
 )
