@@ -2,6 +2,23 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D: Hunyuan3D v3 v nabídce
+
+Operátor: „Doplň Hunyuan3D do nabídky.“ Po měření na Tatře, soše, slonovi a mostecké věži (`docs/spikes/2026-10-27-3d-trellis-vs-blender.md`, #51–#53).
+
+Nabídka cest k 3D modelu (TRELLIS zůstává výchozí podle rozhodnutí níže):
+
+| Cesta | Kdy | Cena |
+|---|---|---|
+| TRELLIS 2 (`scripts/3d/trellis_run.py`) | výchozí; jedna dobrá fotka | 0,30 USD |
+| **Hunyuan3D v3 Geometry** (`scripts/3d/hunyuan_run.py`) | jsou fotky z víc stran (zepředu, zezadu, z boku); vrací rovnou bílý model bez úlomků | 0,225 USD z 1 pohledu, 0,375 USD s víc pohledy |
+| Blender z rozměrů (`scripts/3d/lod_*.py`) | záloha; rozhodují poměry ze zdroje | 0 USD |
+| Natažení modelu na rozměry (`scripts/3d/stretch_glb.py`) | doplněk ke generovanému modelu, když rozměry ze zdroje známe | 0 USD |
+
+- Hunyuan3D ze **stavby** jen s víc pohledy (z jednoho si přidal celou věž navíc).
+- U **zvířat** pohledy pokud možno od jednoho jedince; ve fotce zezadu nesmí být mezi zadníma nohama vidět chobot ani ocas (slon dostal pátou končetinu).
+- Placené volání jen s cenou předem a potvrzením; bílý model se před FLUX kontroluje.
+
 ## 2026-10-27 — 3D: TRELLIS primárně, Blender jako záloha
 
 Operátor po měření na třech objektech (`docs/spikes/2026-10-27-3d-trellis-vs-blender.md`, #48) upravil navržené pravidlo: „Trellis primárně, Blender jako záloha.“
