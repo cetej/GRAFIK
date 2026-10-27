@@ -26,7 +26,7 @@ const num = (x: number, d = 0) => x.toLocaleString('cs-CZ', { maximumFractionDig
 type LastRef = { url: string; source: string; model: string }
 let lastRefMemo: LastRef | null = null
 const METHOD_LABEL: Record<string, string> = {
-  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry',
+  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry',
 }
 const STATUS: Record<Model3dVersion['status'], { label: string; cls: string }> = {
   queued: { label: 've frontě', cls: '' }, generating: { label: 'model se tvoří', cls: 'ai' }, model: { label: 'bez prohlížeče', cls: 'ai' },
@@ -154,7 +154,7 @@ export default function Models3d({ onError, onToStudio }: {
     setTarget(null); setTitle(''); setSlots([]); setGlb(null); setMethod(null)
   }
   const newVersionOf = async (m: Model3dVersion) => {
-    setTarget(m.id); setTitle(m.title); setGlb(null); setMethod(m.method === 'fal-trellis2' || m.method === 'fal-hunyuan3d' ? m.method : null)
+    setTarget(m.id); setTitle(m.title); setGlb(null); setMethod(m.method === 'fal-trellis2' || m.method === 'fal-hunyuan3d' || m.method === 'fal-hunyuan31pro' ? m.method : null)
     const loaded: Slot[] = []
     for (const r of m.refs) {
       const b64 = await fileToB64(await (await fetch(m3dApi.file(m.id, m.version, r.file))).blob())
@@ -306,8 +306,9 @@ export default function Models3d({ onError, onToStudio }: {
         <input className="title-in" placeholder="Název modelu (např. Tatra 87)" value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="seg method">
           {[
-            { id: 'fal-hunyuan3d', label: `Hunyuan3D${filled.length > 1 ? ` · ${filled.length} předlohy` : ''}` },
+            { id: 'fal-hunyuan3d', label: `Hunyuan3D v3${filled.length > 1 ? ` · ${filled.length} předlohy` : ''}` },
             { id: 'fal-trellis2', label: 'TRELLIS 2' },
+            { id: 'fal-hunyuan31pro', label: `Hunyuan 3.1 Pro${filled.length > 1 ? ` · ${filled.length} předlohy` : ''}` },
             { id: 'upload', label: 'Nahrát GLB' },
           ].map((o) => {
             const on = (method ?? est?.recommended ?? (filled.length > 1 ? 'fal-hunyuan3d' : 'fal-trellis2')) === o.id
@@ -427,7 +428,7 @@ export default function Models3d({ onError, onToStudio }: {
         {cur && (
           <>
             <dl>
-              <dt>Metoda</dt><dd>{METHOD_LABEL[cur.method] ?? cur.method}{cur.method === 'fal-hunyuan3d' ? ' (tvar bez textury)' : ''}{cur.parent ? ` z ${cur.parent}` : ''}</dd>
+              <dt>Metoda</dt><dd>{METHOD_LABEL[cur.method] ?? cur.method}{cur.method === 'fal-hunyuan3d' || cur.method === 'fal-hunyuan31pro' ? ' (tvar bez textury)' : ''}{cur.parent ? ` z ${cur.parent}` : ''}</dd>
               <dt>Předlohy</dt><dd>{cur.refs.length ? cur.refs.map((r) => <div key={r.view}>{SLOTS.find((s) => s.view === r.view)?.label}: {r.source ?? '?'}{r.license ? `, ${r.license}` : ''}</div>) : (cur.origin ?? '—')}</dd>
               <dt>Cena</dt><dd>{fmtUsd(cur.cost_usd)}</dd>
               {cur.stats?.bbox && <><dt>Rozměry</dt><dd>poměr d:š:v {ratio(cur.stats.bbox)}

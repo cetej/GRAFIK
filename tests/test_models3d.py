@@ -65,7 +65,8 @@ def settings(tmp_path, monkeypatch):
 def api(settings):
     sd = FakeSd(settings)
     fal = {"fal-trellis2": FakeFal("fal-trellis2", "fal-ai/trellis-2"),
-           "fal-hunyuan3d": FakeFal("fal-hunyuan3d", "fal-ai/hunyuan3d-v3/image-to-3d")}
+           "fal-hunyuan3d": FakeFal("fal-hunyuan3d", "fal-ai/hunyuan3d-v3/image-to-3d"),
+           "fal-hunyuan31pro": FakeFal("fal-hunyuan31pro", "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d")}
     app = create_app(settings, backends={"flux-local": FluxLocal(settings, sd)}, server=sd, backends3d=fal)
     with TestClient(app) as c:
         c.fal, c.sd = fal, sd
@@ -95,6 +96,25 @@ def trace(settings) -> list[dict]:
 
 
 # -- sc-2: recommended method, price, 402 ------------------------------------------
+
+def test_hunyuan31pro_price_and_views(api):
+    one = api.post("/api/v2/models3d/estimate", json={"method": "fal-hunyuan31pro", "refs": [{"view": "front"}]}).json()
+    assert one["method"] == "fal-hunyuan31pro" and one["total_usd"] == 0.375
+    two = api.post("/api/v2/models3d/estimate",
+                   json={"method": "fal-hunyuan31pro", "refs": [{"view": "front"}, {"view": "left"}]}).json()
+    assert two["total_usd"] == 0.525
+    no_front = api.post("/api/v2/models3d/estimate", json={"method": "fal-hunyuan31pro", "refs": [{"view": "back"}]})
+    assert no_front.status_code == 400 and "zepředu" in no_front.json()["detail"]
+    # the recommendation stays TRELLIS 2 for one reference (DECISIONS 2026-10-27)
+    assert api.post("/api/v2/models3d/estimate", json={"refs": [{"view": "front"}]}).json()["method"] == "fal-trellis2"
+
+
+def test_hunyuan_arguments_have_no_custom_face_count():
+    """fal bills a custom face count 0.15 USD extra; its default is the same 500k faces."""
+    for method in ("fal-hunyuan3d", "fal-hunyuan31pro"):
+        args = FalModel3d(method, "x", method, 1, 5).arguments({"front": "u-f", "back": "u-b"})
+        assert args == {"input_image_url": "u-f", "generate_type": "Geometry", "back_image_url": "u-b"}
+
 
 def test_recommendation_and_price(api):
     one = api.post("/api/v2/models3d/estimate", json={"refs": [{"view": "front"}]}).json()

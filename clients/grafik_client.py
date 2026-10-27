@@ -408,7 +408,7 @@ def _cli(argv: list[str]) -> int:
     m3.add_argument("--glb")
     m3.add_argument("--ref", action="append", default=[], help="cesta[:pohled], pohled front|back|left|right")
     m3.add_argument("--title", default="")
-    m3.add_argument("--method", help="fal-trellis2 | fal-hunyuan3d; bez volby doporučená")
+    m3.add_argument("--method", help="fal-trellis2 | fal-hunyuan3d | fal-hunyuan31pro; bez volby doporučená")
     m3.add_argument("--confirm-cost", action="store_true")
     vw = sub.add_parser("views", help="stáhnout 8 bílých pohledů modelu")
     vw.add_argument("model_id")

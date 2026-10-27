@@ -2,6 +2,13 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D: Hunyuan 3.1 Pro jako další volba
+
+Operátor: „Dobře přidej tu metodu HunyuanPro jako další volbu.“ (KLAPKA ji 5. 10. vyhodnotila jako nejlepší z jedné fotky, `KLAPKA/docs/figury-3d.md`; návrh společného seznamu `KLAPKA/docs/3d-backendy-navrh.md`.)
+
+- Metoda `fal-hunyuan31pro` (fal `fal-ai/hunyuan-3d/v3.1/pro/image-to-3d`, Geometry): 0,375 USD, s dalšími pohledy +0,15 USD (ceník fal 27. 10.). Ve Studiu je to další tlačítko metody. Doporučení se nemění, výchozí zůstává TRELLIS 2 pro jednu předlohu a Hunyuan3D v3 pro víc předloh.
+- Hunyuan volání přestala posílat `face_count`, protože fal účtuje „vlastní počet ploch“ 0,15 USD navíc. Výchozí počet je stejný (500 tis.). Zda dřívější běhy s `face_count: 500000` fal naúčtoval dráž, není ověřeno.
+
 ## 2026-10-27 — 3D v2: náčrt prohlížeče schválen
 
 Operátor na dotaz k náčrtu `docs/spikes/img/2026-10-27-3d-v2-nacrt-1.png` a `-2.png`: „Schvaluji, stavět“.
