@@ -42,6 +42,12 @@ STRETCH_SCRIPT = REPO_ROOT / "engine" / "blender" / "stretch.py"
 DECIMATE_SCRIPT = REPO_ROOT / "engine" / "blender" / "decimate.py"
 # viewer.glb: enough for the silhouette and the wheels, ~1.2 MB instead of 42 MB (Tatra 87 v2, 500k faces)
 VIEWER_TRIANGLES = 100_000
+# viewer.opt.glb: viewer.glb quantized + meshopt (Tatra 87 v2 1.2 MB -> 0.33 MB). Already decimated, so no
+# simplify. No join and no GPU instancing: joined into one mesh, the Blender ship (993 parts, 50 m) is quantized
+# over its whole length and the thin oars shade differently (3.4 % of pixels, docs/spikes/2026-10-27-gltf-optimize.md).
+# Textures (none in the clay copy today) go to WebP of at most 2048 px.
+OPTIMIZE_ARGS = ["optimize", "--compress", "meshopt", "--simplify", "false", "--join", "false", "--instance", "false",
+                 "--texture-compress", "webp", "--texture-size", "2048"]
 KINDS = ("model3d", "viewer3d", "views3d", "camera3d", "stretch3d")
 VERSION_RE = re.compile(r"^v(\d+)$")
 # A version whose step was running when the Engine stopped.
@@ -386,6 +392,39 @@ def _license_of(source: str | None) -> str | None:
 
 # -- Blender --------------------------------------------------------------------------
 
+class GltfTransform:
+    """glTF Transform CLI (engine/gltf/) as a subprocess with a time limit; output goes to a log like Blender's."""
+
+    def __init__(self, settings: Settings):
+        self.s = settings
+
+    def optimize(self, src: Path, dst: Path, log_path: Path) -> dict:
+        cmd = [*self.s.gltf_transform_cmd, *OPTIMIZE_ARGS[:1], str(src), str(dst), *OPTIMIZE_ARGS[1:]]
+        t0 = time.time()
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=self.s.gltf_transform_timeout_s, stdin=subprocess.DEVNULL,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        except FileNotFoundError as e:
+            raise Model3dError(f"glTF Transform nenalezen ({self.s.gltf_transform_cmd[0]})") from e
+        except subprocess.TimeoutExpired as e:
+            raise Model3dError(f"glTF Transform nedoběhl do {int(self.s.gltf_transform_timeout_s)} s") from e
+        log_path.write_text(f"$ {' '.join(cmd)}\nexit {p.returncode}\n{p.stdout}\n--- stderr ---\n{p.stderr}",
+                            encoding="utf-8")
+        if p.returncode != 0:
+            tail = (p.stderr.strip() or p.stdout.strip()).splitlines()[-2:]
+            raise Model3dError(f"glTF Transform skončil chybou {p.returncode}: {' / '.join(tail)[:300]} (log {log_path.name})")
+        return {"seconds": round(time.time() - t0, 1), "tool": self._version()}
+
+    def _version(self) -> str:
+        try:
+            p = subprocess.run([*self.s.gltf_transform_cmd, "--version"], capture_output=True, text=True, timeout=30,
+                               stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return f"gltf-transform {p.stdout.strip().splitlines()[-1]}" if p.stdout.strip() else "gltf-transform"
+        except (OSError, subprocess.TimeoutExpired):
+            return "gltf-transform"
+
+
 class Blender:
     """Blender as a subprocess with a time limit; stdout+stderr go to a log next to the version."""
 
@@ -434,11 +473,12 @@ class Models3d:
     """Runs the three job kinds for the Worker and holds the library."""
 
     def __init__(self, settings: Settings, store, sd, gpu_lock, backends3d: dict, log_cost,
-                 blender: Blender | None = None):
+                 blender: Blender | None = None, gltf: GltfTransform | None = None):
         self.s, self.store, self.sd, self.gpu_lock = settings, store, sd, gpu_lock
         self.backends = backends3d
         self.log_cost = log_cost
         self.blender = blender or Blender(settings)
+        self.gltf = gltf or GltfTransform(settings)
         self.lib = Model3dLibrary(settings.library_dir / "3d")
 
     def handlers(self) -> dict:
@@ -500,10 +540,16 @@ class Models3d:
 
     # viewer -----------------------------------------------------------------
     def run_viewer(self, job_id: str, req: dict) -> dict:
-        """viewer.glb: decimated geometry for the Studio viewer (CPU only, no render, so no GPU lock)."""
+        """viewer.glb: decimated geometry for the Studio viewer (CPU only, no render, so no GPU lock), then
+        viewer.opt.glb next to it. `optimize_only`: a viewer.glb from before the optimizer gets only the copy."""
         mid, ver = req["model_id"], req["version"]
         d = self.lib.vdir(mid, ver)
-        before = self.lib.read(mid, ver)["status"]
+        meta = self.lib.read(mid, ver)
+        if req.get("optimize_only") and meta.get("viewer") and (d / "viewer.glb").is_file():
+            viewer = {**meta["viewer"], "optimized": self._optimize_viewer(d)}
+            self.lib.update(mid, ver, viewer=viewer)
+            return {"model_id": mid, "version": ver, **viewer}
+        before = meta["status"]
         self.lib.update(mid, ver, status="viewer", error=None)
         t0 = time.time()
         tmp = d / "viewer.tmp.glb"
@@ -523,10 +569,27 @@ class Models3d:
         viewer = {"file": "viewer.glb", "bytes": (d / "viewer.glb").stat().st_size,
                   "triangles": _line_json(stdout, "VIEWER").get("triangles"), "job_id": job_id,
                   "seconds": round(time.time() - t0, 1)}
+        viewer["optimized"] = self._optimize_viewer(d)
         # a model with a sheet already was "ready"; one fresh from fal/upload/stretch becomes ready now
         self.lib.update(mid, ver, status="ready" if before in ("model", "ready", "failed") else before,
                         viewer=viewer, stats=stats, blender=stats.get("blender"))
         return {"model_id": mid, "version": ver, **viewer}
+
+    def _optimize_viewer(self, d: Path) -> dict:
+        """viewer.glb -> viewer.opt.glb (provenance in model.json `viewer.optimized`). A failure is recorded and
+        the job still succeeds: the Studio then loads viewer.glb, which stays as it was."""
+        src, tmp = d / "viewer.glb", d / "viewer.opt.tmp.glb"
+        try:
+            run = self.gltf.optimize(src, tmp, d / "gltf-transform.log")
+            if not tmp.is_file() or not is_glb(tmp.read_bytes()[:4]):
+                raise Model3dError("glTF Transform nezapsal optimalizovaný model (log gltf-transform.log)")
+            tmp.replace(d / "viewer.opt.glb")
+        except Exception as e:
+            tmp.unlink(missing_ok=True)
+            (d / "viewer.opt.glb").unlink(missing_ok=True)   # never an optimized copy of an older viewer.glb
+            return {"error": str(e), "at": _now()}
+        return {"file": "viewer.opt.glb", "source": "viewer.glb", "bytes_before": src.stat().st_size,
+                "bytes": (d / "viewer.opt.glb").stat().st_size, "args": OPTIMIZE_ARGS, **run, "at": _now()}
 
     # views ------------------------------------------------------------------
     def run_views(self, job_id: str, req: dict) -> dict:

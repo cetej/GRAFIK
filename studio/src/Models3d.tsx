@@ -209,6 +209,14 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
     viewerAsked.current.add(key)
     m3dApi.viewer(cur.id, cur.version).then(load).catch((e) => onError(String(e.message)))
   }, [cur, viewerJob, viewerFail, load, onError])
+  // a viewer copy from before glTF Transform: only the optimized copy, once per open (0 USD, ~2 s)
+  useEffect(() => {
+    if (!cur?.viewer || cur.viewer.optimized || viewerJob || cur.status !== 'ready') return
+    const key = `opt:${cur.id}/${cur.version}`
+    if (viewerAsked.current.has(key)) return
+    viewerAsked.current.add(key)
+    m3dApi.viewer(cur.id, cur.version, true).then(load).catch((e) => onError(String(e.message)))
+  }, [cur, viewerJob, load, onError])
 
   const toStudio = async () => {
     const c = viewer.current?.camera()
@@ -353,7 +361,7 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
             )}
             {cur.viewer ? (
               <div className="viewer-wrap">
-                <Viewer3d key={`${cur.id}/${cur.version}`} ref={viewer} url={m3dApi.viewerGlb(cur.id, cur.version, cur.viewer.job_id)}
+                <Viewer3d key={`${cur.id}/${cur.version}`} ref={viewer} {...m3dApi.viewerGlb(cur.id, cur.version, cur.viewer)}
                   lens={lens} onCamera={setCam} onError={onError} />
                 {cam && (
                   <span className="readout">

@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D: optimalizovaná kopie pro prohlížeč přes glTF Transform (cetej/GRAFIK#64)
+
+Zadání operátora přes session „Open source nástroje pro Opus 5.5“ (schválené implementace z posouzení 20 nástrojů): optimalizace modelů glTF Transform, originály se nepřepisují, nic placeného.
+
+- **Optimalizuje se `viewer.glb`, ne `model.glb`.** Prohlížeč modelu i scény načítá jen zmenšenou hliněnou kopii; Blender čte `model.glb`. Vedle `viewer.glb` vzniká `viewer.opt.glb` (meshopt, kvantizace, bez spojení a instancování, textury WebP ≤ 2048 px, kdyby nějaké byly). Kopie je ~3,5× menší (1,2 MB → 0,33 MB).
+- **Prohlížeč ukazuje dál hlínu.** Textury do prohlížeče nepřibyly; srovnání textur proto není, plný model s texturami se neoptimalizuje (žádný spotřebitel).
+- **Selhání nic nezastaví:** chyba se zapíše do `viewer.optimized`, Studio načte `viewer.glb`. Nástroj je Node balíček v `engine/gltf/` (`npm ci` ve složce `engine/gltf`, instaluje i `start-grafik.bat`).
+- Žádná změna UI (stejný prohlížeč, jen menší soubor), proto bez náčrtu.
+
 ## 2026-10-27 — 3D scény: tenká vrstva v GRAFIK, Q2–Q5 podle doporučení
 
 Operátor: „Schvaluji cestu (3) a náčrt, Q2–Q5 podle doporučení. Postav S1–S5.“ Návrh: `docs/plans/2026-10-27-3d-sceny.md`, náčrt `docs/spikes/img/2026-10-27-3d-sceny-nacrt.png`.

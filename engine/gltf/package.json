@@ -1,0 +1,8 @@
+{
+  "name": "grafik-gltf",
+  "private": true,
+  "description": "glTF Transform for the Engine's viewer.opt.glb (engine/models3d.py); install with cd engine/gltf && npm ci",
+  "dependencies": {
+    "@gltf-transform/cli": "4.5.1"
+  }
+}

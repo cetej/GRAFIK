@@ -11,6 +11,8 @@ rem Beh sluzby overuje curl: pod Command Center (bez konzole) netstat nic nevypi
 curl -s -o nul -m 3 http://127.0.0.1:8300/api/v2/health
 if errorlevel 1 (
   echo Spoustim GRAFIK Engine na portu 8300...
+  rem glTF Transform pro viewer.opt.glb (bez nej prohlizec nacita viewer.glb)
+  if not exist engine\gltf\node_modules (pushd engine\gltf & call npm ci --no-audit --no-fund & popd)
   start "GRAFIK Engine" /min cmd /c "python -m uvicorn engine.app:app --port 8300 --host 127.0.0.1 --access-log >> logs\engine.log 2>&1"
 ) else (
   echo GRAFIK Engine uz bezi.

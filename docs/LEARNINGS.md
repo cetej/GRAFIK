@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — glTF Transform: `optimize` s výchozím `join` rozhodí stínování tenkých dílů
+
+- **Spojení meshů + kvantizace = jiné normály.** `gltf-transform optimize` výchozí spojí díly do jednoho meshe a kvantizuje pozice v jeho obálce. Loď z Blenderu (993 dílů, 48 m) tak měla vesla a lana kvantizovaná po ~3 mm a stínovala se jinak (3,4 % pixelů). `--join false` nechá každý díl v jeho vlastní obálce: 0,004 %. Trojúhelníky i obálka přitom seděly, takže rozdíl ukáže jen pixelové srovnání, ne počty.
+- **`--instance` mění počty trojúhelníků.** Opakované díly se stanou `InstancedMesh` a součet `index.count` počítá jen jeden exemplář; prohlížeč podle něj volí `flatShading` (< 20k). Pro prohlížeč `--instance false`.
+- Srovnání originálu a kopie: stejný záběr do vlastního `WebGLRenderer` s `preserveDrawingBuffer`, rozdíl pixelů v prohlížeči (`docs/spikes/2026-10-27-gltf-optimize.md`).
+
 ## 2026-10-27 — 3D scény: co z bílého snímku FLUX drží a co ne
 
 - **Velké tvary drží, drobné ne.** Snímek Loď u mola (kvinquerema 48 m, molo, tři amfory 0,7 m) jako předloha „tvar“: FLUX zachoval stěžeň, plachtu, tři řady vesel, havran i záď. Amfory ale zvětšil asi na 1,2 m a přesunul do popředí a přidal velkou postavu v popředí, přestože zadání obsahovalo větu o měřítku (`docs/spikes/2026-10-27-3d-sceny.md`).

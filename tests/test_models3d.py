@@ -22,6 +22,7 @@ from engine import sdserver
 from engine.config import Settings
 
 FAKE_BLENDER = Path(__file__).with_name("fake_blender.py")
+FAKE_GLTF = Path(__file__).with_name("fake_gltf_transform.py")
 GLB = b"glTF\x02\x00\x00\x00" + b"\x00" * 64
 
 
@@ -58,7 +59,8 @@ def settings(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_BLENDER_LOCK", str(tmp_path / "gpu.lock"))
     return Settings(data_dir=tmp_path, flux_dir=tmp_path, sd_port=free_port(), gpu_lock_path=tmp_path / "gpu.lock",
                     idle_timeout_s=600, start_timeout_s=20, blender_cmd=[sys.executable, str(FAKE_BLENDER)],
-                    blender_timeout_s=10, render_cpu=True)
+                    blender_timeout_s=10, render_cpu=True,
+                    gltf_transform_cmd=[sys.executable, str(FAKE_GLTF)])
 
 
 @pytest.fixture
@@ -345,6 +347,38 @@ def test_viewer_copy_and_crash_keeps_model(api, settings, monkeypatch):
     assert not (d / "viewer.tmp.glb").exists() and (d / "model.glb").read_bytes() == GLB
     assert api.get("/api/v2/models3d/tatra-87/v1/viewer.glb").status_code == 404
     assert api.post("/api/v2/models3d/nic/v1/viewer").status_code == 404
+
+
+def test_viewer_optimized_copy_and_fallback(api, settings, monkeypatch):
+    """glTF Transform writes viewer.opt.glb next to viewer.glb; a failure keeps both originals and the job done."""
+    up = upload(api)
+    assert wait(api, up["job_id"])["status"] == "done"
+    m = api.get("/api/v2/models3d/tatra-87").json()["versions"][0]
+    assert wait(api, m["jobs"][-1]["job_id"])["status"] == "done"
+    d = settings.library_dir / "3d" / "tatra-87" / "v1"
+    opt = api.get("/api/v2/models3d/tatra-87").json()["versions"][0]["viewer"]["optimized"]
+    assert opt["file"] == "viewer.opt.glb" and opt["tool"] == "gltf-transform 0.0.0-fake"
+    assert opt["bytes_before"] == len(GLB) and opt["bytes"] == len(GLB) // 2 and "meshopt" in opt["args"]
+    assert api.get("/api/v2/models3d/tatra-87/v1/viewer.opt.glb").content == GLB[: len(GLB) // 2]
+    assert (d / "viewer.glb").read_bytes() == GLB and (d / "model.glb").read_bytes() == GLB
+
+    # a crash or a non-GLB: recorded, the stale copy goes away, the viewer falls back to viewer.glb
+    for mode, needle in (("crash", "skončil chybou 1"), ("garbage", "nezapsal")):
+        monkeypatch.setenv("FAKE_GLTF_MODE", mode)
+        job = wait(api, api.post("/api/v2/models3d/tatra-87/v1/viewer?optimize_only=true").json()["job_id"])
+        assert job["status"] == "done"
+        v = api.get("/api/v2/models3d/tatra-87").json()["versions"][0]
+        assert needle in v["viewer"]["optimized"]["error"] and v["status"] == "ready"
+        assert not (d / "viewer.opt.glb").exists() and not (d / "viewer.opt.tmp.glb").exists()
+        assert (d / "viewer.glb").read_bytes() == GLB and (d / "model.glb").read_bytes() == GLB
+    assert api.get("/api/v2/models3d/tatra-87/v1/viewer.opt.glb").status_code == 404
+
+    # optimize_only on an older viewer copy: no new decimation in Blender
+    monkeypatch.delenv("FAKE_GLTF_MODE")
+    decimations = len([c for c in trace(settings) if c["script"] == "decimate.py"])
+    job = wait(api, api.post("/api/v2/models3d/tatra-87/v1/viewer?optimize_only=true").json()["job_id"])
+    assert job["status"] == "done" and (d / "viewer.opt.glb").is_file()
+    assert len([c for c in trace(settings) if c["script"] == "decimate.py"]) == decimations
 
 
 def test_review_in_viewer_then_render_from_camera(api, settings):
