@@ -70,7 +70,7 @@ class JobStore:
         return job_id
 
     def add_task(self, kind: str, caller: str, backend: str, request: dict) -> str:
-        """A non-image job (3D: model3d, views3d, stretch3d) in the same FIFO queue."""
+        """A non-image job (3D: model3d, viewer3d, views3d, camera3d, stretch3d) in the same FIFO queue."""
         job_id = new_job_id()
         with self._lock:
             seq = self.db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM jobs").fetchone()[0]

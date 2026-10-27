@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D v2: náčrt prohlížeče schválen
+
+Operátor na dotaz k náčrtu `docs/spikes/img/2026-10-27-3d-v2-nacrt-1.png` a `-2.png`: „Schvaluji, stavět“.
+
+- Prohlížeč modelu je výchozí: pojmenované pohledy, čtvercový výřez předlohy, ohnisko 35/50/85 mm.
+- Sheet 8 pohledů je pod prohlížečem a vzniká na tlačítko.
+- „Použít tento pohled“ vpravo pošle render z kamery prohlížeče a ukáže náhled odeslané předlohy.
+- Knihovna three.js 0.170.0, stejná verze jako KLAPKA `prototypy/threejs-kolo`. Prohlížeč dostává zmenšenou kopii modelu (100 000 trojúhelníků).
+- Výsledek: `docs/spikes/2026-10-27-3d-v2-prohlizec.md`.
+
 ## 2026-10-27 — 3D: otáčení modelu výchozí, sheet pohledů na tlačítko
 
 Operátor: „otáčení i pohledy – by měly existovat vedle sebe. Otáčení jako výchozí, pohledy generování sheetu na tlačítko.“

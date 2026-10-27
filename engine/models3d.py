@@ -1,9 +1,11 @@
-"""3D step v1 (spec docs/plans/2026-10-27-3d-v1.md): models from fal TRELLIS 2 / Hunyuan3D v3 or an
-uploaded GLB, 8 clay views rendered in Blender, operator check, a view goes to the image generator as a
-`geometry` ref.
+"""3D step (spec docs/plans/2026-10-27-3d-v1.md, v2 in docs/plans/2026-10-27-3d-dalsi-zadani.md § A): models
+from fal TRELLIS 2 / Hunyuan3D v3 or an uploaded GLB, a light copy for the Studio orbit viewer, 8 clay views
+on demand (the sheet), operator check, a clay render from the viewer's camera (or a sheet view) goes to the
+image generator as a `geometry` ref.
 
 Library: library/3d/<id>/v<n>/ — every run is a new version, nothing is overwritten; model.json carries
-`schema_version`. Each step is its own queue job (kind `model3d`, `views3d`, `stretch3d`), so a paid model
+`schema_version`. Each step is its own queue job (kind `model3d`, `viewer3d`, `views3d`, `camera3d`,
+`stretch3d`), so a paid model
 is saved the moment it is downloaded and a crash between steps never costs a second payment
 (the fal `request_id` is stored right after submit, `recover` fetches the result again).
 """
@@ -37,9 +39,13 @@ AZIMUTHS = list(range(0, 360, 45))
 PARTS = ("middle", "end-max", "end-min", "all")
 RENDER_SCRIPT = REPO_ROOT / "engine" / "blender" / "render_views.py"
 STRETCH_SCRIPT = REPO_ROOT / "engine" / "blender" / "stretch.py"
+DECIMATE_SCRIPT = REPO_ROOT / "engine" / "blender" / "decimate.py"
+# viewer.glb: enough for the silhouette and the wheels, ~1.2 MB instead of 42 MB (Tatra 87 v2, 500k faces)
+VIEWER_TRIANGLES = 100_000
+KINDS = ("model3d", "viewer3d", "views3d", "camera3d", "stretch3d")
 VERSION_RE = re.compile(r"^v(\d+)$")
 # A version whose step was running when the Engine stopped.
-RUNNING = ("generating", "rendering", "stretching")
+RUNNING = ("generating", "rendering", "stretching", "viewer")
 
 
 class Model3dError(RuntimeError):
@@ -78,6 +84,50 @@ class Model3dIn(BaseModel):
 
 class ViewsIn(BaseModel):
     elevation: int = 20
+
+
+class CameraIn(BaseModel):
+    """The Studio viewer's camera: target in glTF coordinates (Y up), azimuth as on the sheet (0° from +X,
+    90° from -Z), elevation above the target, distance in model units, lens on a 36 mm sensor (square frame)."""
+    target: list[float]
+    azimuth: float
+    elevation: float
+    distance: float
+    lens: float = 50
+
+    @field_validator("target")
+    @classmethod
+    def _target(cls, v: list[float]) -> list[float]:
+        if len(v) != 3:
+            raise ValueError("cíl kamery: tři souřadnice x, y, z")
+        return v
+
+    @field_validator("elevation")
+    @classmethod
+    def _el(cls, v: float) -> float:
+        if not -89 <= v <= 89:
+            raise ValueError("výška kamery musí být mezi -89° a 89°")
+        return v
+
+    @field_validator("distance")
+    @classmethod
+    def _dist(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("vzdálenost kamery musí být kladná")
+        return v
+
+    @field_validator("lens")
+    @classmethod
+    def _lens(cls, v: float) -> float:
+        if not 10 <= v <= 300:
+            raise ValueError("ohnisko musí být mezi 10 a 300 mm")
+        return v
+
+    def key(self) -> str:
+        """Same camera -> same file: a repeated click reuses the render instead of drawing it again."""
+        norm = {"t": [round(x, 4) for x in self.target], "a": round(self.azimuth % 360, 1),
+                "e": round(self.elevation, 1), "d": round(self.distance, 4), "l": round(self.lens, 1)}
+        return "cam-" + hashlib.sha1(json.dumps(norm, sort_keys=True).encode()).hexdigest()[:10]
 
 
 class ReviewIn(BaseModel):
@@ -382,7 +432,8 @@ class Models3d:
         self.lib = Model3dLibrary(settings.library_dir / "3d")
 
     def handlers(self) -> dict:
-        return {"model3d": self.run_model, "views3d": self.run_views, "stretch3d": self.run_stretch}
+        return {"model3d": self.run_model, "viewer3d": self.run_viewer, "views3d": self.run_views,
+                "camera3d": self.run_camera, "stretch3d": self.run_stretch}
 
     def enqueue(self, kind: str, caller: str, backend: str, request: dict) -> str:
         job_id = self.store.add_task(kind, caller, backend, request)
@@ -433,9 +484,39 @@ class Models3d:
             self._fail(req, e)
             raise
         self.lib.update(mid, ver, status="model", glb_bytes=len(glb), timing_s={"model": round(time.time() - t0, 1)})
-        views_job = self.enqueue("views3d", req.get("caller", "studio"), "blender",
-                                 {"model_id": mid, "version": ver, "elevation": 20})
-        return {"model_id": mid, "version": ver, "glb": str(d / "model.glb"), "views_job": views_job, "cost_usd": usd}
+        # the viewer copy, not the sheet: the sheet is on a button (DECISIONS 2026-10-27)
+        viewer_job = self.enqueue("viewer3d", req.get("caller", "studio"), "blender", {"model_id": mid, "version": ver})
+        return {"model_id": mid, "version": ver, "glb": str(d / "model.glb"), "viewer_job": viewer_job, "cost_usd": usd}
+
+    # viewer -----------------------------------------------------------------
+    def run_viewer(self, job_id: str, req: dict) -> dict:
+        """viewer.glb: decimated geometry for the Studio viewer (CPU only, no render, so no GPU lock)."""
+        mid, ver = req["model_id"], req["version"]
+        d = self.lib.vdir(mid, ver)
+        before = self.lib.read(mid, ver)["status"]
+        self.lib.update(mid, ver, status="viewer", error=None)
+        t0 = time.time()
+        tmp = d / "viewer.tmp.glb"
+        try:
+            stdout = self.blender.run(DECIMATE_SCRIPT, [str(d / "model.glb"), str(tmp), str(VIEWER_TRIANGLES)],
+                                      d / "blender-viewer.log")
+            stats = _line_json(stdout, "STATS")
+            if not stats.get("verts"):
+                raise Model3dError("model nemá žádné vrcholy (prázdný nebo poškozený GLB)")
+            if not tmp.is_file() or not is_glb(tmp.read_bytes()[:4]):
+                raise Model3dError("Blender nezapsal zmenšený model pro prohlížeč (log blender-viewer.log)")
+            tmp.replace(d / "viewer.glb")   # derived from model.glb, which stays untouched
+        except Exception as e:
+            tmp.unlink(missing_ok=True)
+            self._fail(req, e, status="model")
+            raise
+        viewer = {"file": "viewer.glb", "bytes": (d / "viewer.glb").stat().st_size,
+                  "triangles": _line_json(stdout, "VIEWER").get("triangles"), "job_id": job_id,
+                  "seconds": round(time.time() - t0, 1)}
+        # a model with a sheet already was "ready"; one fresh from fal/upload/stretch becomes ready now
+        self.lib.update(mid, ver, status="ready" if before in ("model", "ready", "failed") else before,
+                        viewer=viewer, stats=stats, blender=stats.get("blender"))
+        return {"model_id": mid, "version": ver, **viewer}
 
     # views ------------------------------------------------------------------
     def run_views(self, job_id: str, req: dict) -> dict:
@@ -463,7 +544,7 @@ class Models3d:
                 stdout = self.blender.run(RENDER_SCRIPT, args, out / "blender.log")
             finally:
                 self.gpu_lock.release()
-            stats = next((json.loads(line[6:]) for line in stdout.splitlines() if line.startswith("STATS ")), {})
+            stats = _line_json(stdout, "STATS")
             if not stats.get("verts"):
                 raise Model3dError("model nemá žádné vrcholy (prázdný nebo poškozený GLB)")
             files = []
@@ -475,7 +556,8 @@ class Models3d:
                     raise Model3dError(f"pohled {az}° je prázdný: model je mimo záběr nebo neviditelný")
                 files.append(p.name)
         except Exception as e:
-            self._fail(req, e, status="model")
+            # a failed sheet leaves the model as it was: still in the viewer (v2) or still without views
+            self._fail(req, e, status="ready" if self.lib.read(mid, ver).get("viewer") else "model")
             raise
         meta = self.lib.read(mid, ver)
         views = {**meta["views"], str(el): {"dir": out.name, "files": files, "job_id": job_id, "rendered": _now(),
@@ -483,6 +565,39 @@ class Models3d:
                                            "engine": "cycles-cpu" if self.s.render_cpu else "eevee"}}
         self.lib.update(mid, ver, status="ready", views=views, stats=stats, blender=stats.get("blender"))
         return {"model_id": mid, "version": ver, "elevation": el, "dir": str(out), "files": files}
+
+    # one view from the viewer's camera ----------------------------------------------
+    def run_camera(self, job_id: str, req: dict) -> dict:
+        mid, ver, key, camera = req["model_id"], req["version"], req["key"], CameraIn(**req["camera"])
+        out = self.lib.vdir(mid, ver) / "camera"
+        out.mkdir(exist_ok=True)
+        png = out / f"{key}.png"
+        if png.is_file():   # the same camera was rendered meanwhile (double click): never overwrite
+            return {"model_id": mid, "version": ver, "key": key, "file": f"camera/{png.name}"}
+        tmp = out / f"{key}.tmp.png"
+        args = [str(self.lib.vdir(mid, ver) / "model.glb"), str(tmp), "--camera", json.dumps(camera.model_dump())] + (
+            ["--cpu"] if self.s.render_cpu else [])
+        t0 = time.time()
+        try:
+            self.gpu_lock.acquire(self.s.gpu_lock_wait_s)   # the same rules as the sheet (run_views)
+            try:
+                if not self.s.render_cpu:
+                    self.sd.stop("3D render v Blenderu (EEVEE)")
+                self.blender.run(RENDER_SCRIPT, args, out / f"{key}.log")
+            finally:
+                self.gpu_lock.release()
+            if not tmp.is_file():
+                raise Model3dError(f"Blender nevyrenderoval pohled z kamery (log camera/{key}.log)")
+            if opaque_share(tmp) < 0.005:
+                raise Model3dError("pohled z kamery je prázdný: model je mimo záběr (vraťte výchozí pohled)")
+            tmp.replace(png)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+        info = {**camera.model_dump(), "key": key, "file": f"camera/{png.name}", "job_id": job_id, "rendered": _now(),
+                "seconds": round(time.time() - t0, 1), "engine": "cycles-cpu" if self.s.render_cpu else "eevee"}
+        (out / f"{key}.json").write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"model_id": mid, "version": ver, **info}
 
     # stretch ----------------------------------------------------------------
     def run_stretch(self, job_id: str, req: dict) -> dict:
@@ -502,9 +617,12 @@ class Models3d:
         bbox = next((json.loads(line[5:]) for line in stdout.splitlines() if line.startswith("BBOX ")), None)
         self.lib.update(mid, ver, status="model", glb_bytes=(d / "model.glb").stat().st_size,
                         stretch={**self.lib.read(mid, ver).get("stretch", {}), "bbox": bbox})
-        views_job = self.enqueue("views3d", req.get("caller", "studio"), "blender",
-                                 {"model_id": mid, "version": ver, "elevation": 20})
-        return {"model_id": mid, "version": ver, "views_job": views_job, "bbox": bbox}
+        viewer_job = self.enqueue("viewer3d", req.get("caller", "studio"), "blender", {"model_id": mid, "version": ver})
+        return {"model_id": mid, "version": ver, "viewer_job": viewer_job, "bbox": bbox}
+
+
+def _line_json(stdout: str, tag: str) -> dict:
+    return next((json.loads(line[len(tag) + 1:]) for line in stdout.splitlines() if line.startswith(tag + " ")), {})
 
 
 def decode_png(b64: str) -> bytes:

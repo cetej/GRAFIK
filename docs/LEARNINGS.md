@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — 3D v2: zmenšení GLB, test prohlížeče, srovnání obrysů
+
+- **Generované GLB nejsou svařené.** Hunyuan3D dává 3 vrcholy na plochu (Tatra v2: 1,5 M vrcholů na 500k ploch). Decimace bez svaření dala 8,4 MB, se svařením (`bmesh.ops.remove_doubles`) a bez normál 1,2 MB. Normály si prohlížeč spočítá sám (`computeVertexNormals`), u ručních low-poly modelů (< 20k trojúhelníků) `flatShading`, jinak se hrany rozmažou.
+- **Blender 5.2 glTF export:** parametr je `export_texcoords` (množné číslo), `export_texcoord` spadne na TypeError.
+- **OrbitControls nejde řídit syntetickými `PointerEvent`.** `setPointerCapture` na vymyšleném `pointerId` vyhodí výjimku a handler skončí, takže posun (pan) z JS neproběhne; ani `left_click_drag` s modifikátorem `shift` v Claude Browser se jako Shift nepropíše. Otáčení skutečným tažením funguje. Výpočet kamery s posunutým cílem jsme proto ověřili mimo prohlížeč: tatáž matematika v three.js (Playwright) proti `render_views.py --camera`.
+- **Srovnání obrysů potřebuje průhledné plátno.** Playwright `omit_background` vrátí alfu jen tehdy, když stránka nemá vlastní pozadí; s `body{background:…}` vyšla shoda 26 % místo 99,9 %.
+- **Převod os glTF → Blender:** `(x, y, z)` → `(x, -z, y)`. Azimut prohlížeče se počítá jako `atan2(-z, x)` v glTF, pak sedí na azimuty sheetu (0° z +X, 90° z -Z) a předek generovaných modelů je na 270°.
+
 ## 2026-10-27 — TRELLIS z fotky zepředu shora vymyslí záď
 
 **Kontext:** první placený model přes 3D krok v1 (0,30 USD, `library/3d/tatra-87-trellis-2-commons-ntm/v1`), předloha *Tatra 87 at NTM, Prague.jpg* (CC0): auto zepředu a shora, záď na fotce vůbec není.

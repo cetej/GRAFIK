@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "three": "0.170.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "0.170.0",
     "@vitejs/plugin-react": "^6.0.4",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"

@@ -1,9 +1,10 @@
-"""/api/v2/models3d… — the 3D step v1 (docs/plans/2026-10-27-3d-v1.md). Separate endpoints, so
-/api/v2/images and its clients stay unchanged (sc-7)."""
+"""/api/v2/models3d… — the 3D step (docs/plans/2026-10-27-3d-v1.md; v2: orbit viewer, sheet on a button, a clay
+render from the viewer's camera). Separate endpoints, so /api/v2/images and its clients stay unchanged (sc-7)."""
 from __future__ import annotations
 
 import base64
 import hashlib
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -12,8 +13,8 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
 
 from engine import models3d as m3d
-from engine.models3d import (ELEVATIONS, PARTS, CutoutIn, Model3dError, Model3dIn, Models3d, ReviewIn, StretchIn,
-                             ViewsIn)
+from engine.models3d import (ELEVATIONS, PARTS, CameraIn, CutoutIn, Model3dError, Model3dIn, Models3d, ReviewIn,
+                             StretchIn, ViewsIn)
 
 
 def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
@@ -69,7 +70,7 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
 
     @app.get("/api/v2/models3d/jobs")
     def models3d_jobs(limit: int = 30):
-        return store.list(limit, kinds=("model3d", "views3d", "stretch3d"))
+        return store.list(limit, kinds=m3d.KINDS)
 
     @app.post("/api/v2/models3d/estimate")
     def models3d_estimate(body: Model3dIn):
@@ -93,8 +94,8 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
             meta = call(lib.new_version, body.model_id, body.title, method="upload", backend=None,
                         origin=body.origin or None, request_id=None, status="model", glb_bytes=len(glb))
             (lib.vdir(meta["id"], meta["version"]) / "model.glb").write_bytes(glb)
-            job_id = models3d.enqueue("views3d", body.caller, "blender",
-                                      {"model_id": meta["id"], "version": meta["version"], "elevation": 20})
+            job_id = models3d.enqueue("viewer3d", body.caller, "blender",
+                                      {"model_id": meta["id"], "version": meta["version"]})
             return {"model_id": meta["id"], "version": meta["version"], "job_id": job_id, "estimate_usd": 0.0}
         if est["method"] == "upload":
             raise HTTPException(400, "nahrání bez souboru: pošlete glb_b64")
@@ -135,12 +136,46 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
                                   {"model_id": model_id, "version": version, "elevation": body.elevation})
         return {"job_id": job_id}
 
+    def pending(model_id: str, version: str, kind: str) -> str | None:
+        return next((j["job_id"] for j in store.list(200, kinds=(kind,)) if j["status"] in ("queued", "running")
+                     and j["request"].get("model_id") == model_id and j["request"].get("version") == version), None)
+
+    @app.post("/api/v2/models3d/{model_id}/{version}/viewer", status_code=202)
+    def models3d_viewer(model_id: str, version: str):
+        """The light copy for the viewer; models from before v2 get it on first open (0 USD, ~10 s)."""
+        has_glb(model_id, version)
+        job_id = pending(model_id, version, "viewer3d") or models3d.enqueue(
+            "viewer3d", "studio", "blender", {"model_id": model_id, "version": version})
+        return {"job_id": job_id}
+
+    @app.get("/api/v2/models3d/{model_id}/{version}/viewer.glb")
+    def models3d_viewer_glb(model_id: str, version: str):
+        return FileResponse(file_of(model_id, version, "viewer.glb"), media_type="model/gltf-binary")
+
     @app.post("/api/v2/models3d/{model_id}/{version}/review")
     def models3d_review(model_id: str, version: str, body: ReviewIn):
+        # v2: the check happens in the viewer or on the sheet, so a model with a viewer copy can be ticked
         meta = call(lib.read, model_id, version)
-        if body.reviewed and not meta["views"]:
-            raise HTTPException(409, "model bez bílých pohledů nejde zkontrolovat")
+        if body.reviewed and not meta["views"] and not meta.get("viewer"):
+            raise HTTPException(409, "model nejde zkontrolovat: ještě není v prohlížeči ani na sheetu")
         return lib.update(model_id, version, review={"by": body.by, "at": m3d._now()} if body.reviewed else None)
+
+    def require_review(meta: dict) -> None:
+        if not meta.get("review"):
+            raise HTTPException(409, "model není zkontrolovaný: otočte ho v prohlížeči (nebo projděte sheet) "
+                                     "a zaškrtněte „Model zkontrolován“")
+
+    @app.post("/api/v2/models3d/{model_id}/{version}/camera", status_code=202)
+    def models3d_camera(model_id: str, version: str, body: CameraIn):
+        """A clay render from exactly the viewer's camera, to be used as a geometry ref (sc-3 gate first)."""
+        meta = has_glb(model_id, version)
+        require_review(meta)
+        key = body.key()
+        if (lib.vdir(model_id, version) / "camera" / f"{key}.png").is_file():
+            return {"key": key, "job_id": None, "file": f"camera/{key}.png"}
+        job_id = models3d.enqueue("camera3d", "studio", "blender", {
+            "model_id": model_id, "version": version, "key": key, "camera": body.model_dump()})
+        return {"key": key, "job_id": job_id, "file": f"camera/{key}.png"}
 
     @app.post("/api/v2/models3d/{model_id}/{version}/stretch", status_code=202)
     def models3d_stretch(model_id: str, version: str, body: StretchIn):
@@ -191,16 +226,24 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
         return FileResponse(p)
 
     @app.get("/api/v2/models3d/{model_id}/{version}/as-ref")
-    def models3d_as_ref(model_id: str, version: str, azimuth: int = 45, elevation: int = 20):
-        """A clay view as an image-generator ref (role geometry), only after the operator's check (sc-3)."""
+    def models3d_as_ref(model_id: str, version: str, azimuth: int = 45, elevation: int = 20, cam: str | None = None):
+        """A clay view as an image-generator ref (role geometry), only after the operator's check (sc-3).
+        `cam` = a render from the viewer's camera (POST …/camera), otherwise a sheet view."""
         meta = call(lib.read, model_id, version)
-        if not meta.get("review"):
-            raise HTTPException(409, "model není zkontrolovaný: projděte bílé pohledy a zaškrtněte „Model zkontrolován“")
+        require_review(meta)
+        lic = sorted({r["license"] for r in meta["refs"] if r.get("license")})
+        if cam:
+            info_path = file_of(model_id, version, f"camera/{cam}.json")
+            c = json.loads(info_path.read_text(encoding="utf-8"))
+            return {"path": str(file_of(model_id, version, c["file"])), "role": "geometry", "file": c["file"],
+                    "source": f"3D model {meta['title']} {version}, bílý render z kamery prohlížeče "
+                              f"(azimut {c['azimuth']:.0f}°, výška {c['elevation']:.0f}°, ohnisko {c['lens']:.0f} mm)",
+                    "license": ", ".join(lic) or None}
         view = meta["views"].get(str(elevation))
         name = f"az{azimuth:03d}.png"
         if not view or name not in view["files"]:
             raise HTTPException(404, f"pohled {azimuth}° při výšce {elevation}° není vyrenderovaný")
-        lic = sorted({r["license"] for r in meta["refs"] if r.get("license")})
         return {"path": str(lib.vdir(model_id, version) / view["dir"] / name), "role": "geometry",
+                "file": f"{view['dir']}/{name}",
                 "source": f"3D model {meta['title']} {version}, bílý pohled {azimuth}°, kamera {elevation}°",
                 "license": ", ".join(lic) or None}
