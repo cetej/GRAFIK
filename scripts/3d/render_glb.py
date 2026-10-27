@@ -1,5 +1,6 @@
 # Render a GLB from several azimuths (free):
-#   blender -b -P scripts/3d/render_glb.py -- model.glb out_prefix [--clay] [--el 22] [--edit edits.py] [azimuth ...]
+#   blender -b -P scripts/3d/render_glb.py -- model.glb out_prefix [--clay] [--el 22] [--dist 1.9] [--edit edits.py] [azimuth ...]
+# --dist is the camera distance in multiples of the largest bbox side; tall objects need ~2.6 to stay in frame.
 # --clay replaces every material with one matte grey: the render then carries only shape and
 # proportions, so the image generator does not copy TRELLIS's glossy toy-plastic texture.
 # --edit runs a Python file with `objs`, `lo`, `hi`, `center`, `size` in scope (fix or add geometry).
@@ -12,7 +13,8 @@ glb, prefix, rest = args[0], args[1], args[2:]
 clay = "--clay" in rest
 el = float(rest[rest.index("--el") + 1]) if "--el" in rest else 22.0
 edit = rest[rest.index("--edit") + 1] if "--edit" in rest else None
-taken = {i + 1 for i, x in enumerate(rest) if x in ("--el", "--edit")}
+dist = float(rest[rest.index("--dist") + 1]) if "--dist" in rest else 1.9
+taken = {i + 1 for i, x in enumerate(rest) if x in ("--el", "--edit", "--dist")}
 AZ = [int(x) for i, x in enumerate(rest) if i not in taken and x.lstrip("-").isdigit()] or [0, 45, 90, 135, 180, 225, 270, 315]
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -52,7 +54,7 @@ cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); scene.collection
 cam.data.lens = 50
 
 
-def shoot(name, azimuth, elevation, dist=1.9):
+def shoot(name, azimuth, elevation, dist=dist):
     a, e = math.radians(azimuth), math.radians(elevation)
     cam.location = center + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))) * size * dist
     cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
