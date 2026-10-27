@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — TRELLIS z fotky zepředu shora vymyslí záď
+
+**Kontext:** první placený model přes 3D krok v1 (0,30 USD, `library/3d/tatra-87-trellis-2-commons-ntm/v1`), předloha *Tatra 87 at NTM, Prague.jpg* (CC0): auto zepředu a shora, záď na fotce vůbec není.
+
+- Příď sedí (tři světla, kapota, blatníky, kola). Záď je vymyšlená a rozbitá: chuchvalec úlomků, díra, kotouč jako rezerva, žádná hřbetní ploutev. Poměr šířka/délka 0,50 proti skutečným 0,35.
+- Použitelné jsou jen pohledy na příď (180°, 225°). Na celý tvar Tatry je lepší Hunyuan3D se třemi pohledy (`tatra87-hunyuan3d`) nebo Blender z rozměrů.
+- Před placeným TRELLIS se podívat, jestli předloha ukazuje bok i záď; fotka jen zepředu dá jen příď.
+
 ## 2026-10-27 — Bílé pohledy na CPU stačí; „záď“ modelu se nedá odhadnout z os
 
 **Kontext:** 3D krok v1 (`engine/models3d.py`, měření `docs/spikes/2026-10-27-3d-t1.md`).
