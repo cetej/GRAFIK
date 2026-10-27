@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — Blender render vedle načteného FLUX shodí úlohu FLUX; bílý model musí nést poměry, ne detail
+
+**Kontext:** měření TRELLIS proti Blenderu na třech objektech (`docs/spikes/2026-10-27-3d-trellis-vs-blender.md`).
+
+1. Bílý render v Blenderu (EEVEE) sám bere ~1,2 GB VRAM. Spuštěný ve chvíli, kdy sd-server drží FLUX, vyhnal špičku na 7,2 GB z 8 GB a úloha FLUX dvakrát spadla (`flux3 segment … failed during workspace capacity check`). Restart sd-serveru nepomohl, protože Blender paměť pořád držel. Engine bere zámek GPU jen pro `flux-local` (`engine/jobs.py`), takže Blender musí jít pod stejný zámek, nebo běžet na CPU.
+2. FLUX s `role: geometry` dokreslí detail a materiál sám. Hrubý Blender model se správnými rozměry dal poznatelnou Tatru 87, detailní TRELLIS model z tříčtvrteční fotky dal obecný sedan (převzal zkrácení perspektivy). U bílého modelu záleží na poměrech a obrysu.
+3. Výřez rembg nechá cedulky a pozadí mezi nohama. TRELLIS z nich udělá plovoucí úlomky, které zkreslí i měření bboxu.
+
 ## 2026-10-23 — Generátor zvětšuje postavy; měřítko hlídat kótami a promptem
 
 Nano Banana Pro podle hliněného renderu držel tvar lodi, ale postavy si zvětšil asi o polovinu. Pomohlo: výška člověka v metrech a jako zlomek délky lodi přímo v promptu („a man is 1.7 metres tall, about one twenty-sixth of the ship's length … do not enlarge them“). Před placenou kresbou ukázat ortogonální půdorys a bokorys s kótami a kontrolní postavou (`scripts/3d/dims_overlay.py`); úzkou loď tak operátor uvidí dřív, než se zaplatí.
