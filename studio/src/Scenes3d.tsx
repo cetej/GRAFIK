@@ -213,7 +213,7 @@ export default function Scenes3d({ onError, onToStudio, onModels }: {
   const unchecked = draft.objects.filter((o) => o.model && !versions[`${o.model}/${o.model_version}`]?.review)
   const snapInfo = cur?.snaps.find((x) => x.key === snap)
   const snapUrl = cur && snapInfo ? scenesApi.file(cur.id, cur.version, snapInfo.file) : null
-  const hint = cur?.hint && !dirty ? cur.hint.cs : null
+  const hint = cur?.hint && !dirty ? (snapInfo?.postava ? `malá stojící postava v předloze je člověk 1,72 m, nech ho přesně tam a tak velkého; ${cur.hint.cs}` : cur.hint.cs) : null
   const others = (id: string | null) => draft.objects.filter((o) => o.id !== id && draft.objects.indexOf(o) < (id ? draft.objects.findIndex((x) => x.id === id) : draft.objects.length))
 
   return (
@@ -338,6 +338,7 @@ export default function Scenes3d({ onError, onToStudio, onModels }: {
           </div>
         )}
         <label className="sc-check"><input type="checkbox" checked={withFigure} onChange={(e) => setWithFigure(e.target.checked)} /><span>Kontrolní postava i ve snímku pro FLUX</span></label>
+        <p className="hint">Postava pomůže jen v bližším záběru, kde je ve snímku vidět (asi 40 px a víc); v širokém záběru z ní FLUX udělá sloupek. Věta v zadání ji pak výslovně jmenuje.</p>
         {hint && <div className="sc-hint"><b>Do zadání se doplní:</b> „{hint}“</div>}
         <button className="btn primary" disabled={!!busy || !snapUrl || dirty || unchecked.length > 0} onClick={toStudio}>
           {busy === 'ref' ? 'Posílám do Studia…' : 'Použít jako předlohu „tvar“ · 0 USD'}

@@ -137,8 +137,14 @@ def test_ref_only_with_every_model_checked_and_with_the_size_sentence(models):
     ref = models.get(f"{base}/as-ref?snap={key['key']}").json()
     assert ref["role"] == "geometry" and Path(ref["path"]).name == f"{key['key']}.png"
     assert "Loď, Molo, Amfora" in ref["source"]
-    assert ref["hint"]["cs"] == "měřítko: člověk 1,72 m, Loď 45 m (asi 26× výška člověka), Amfora 0,7 m; postavy nezvětšuj"
+    assert ref["hint"]["cs"] == ("měřítko: člověk 1,72 m, Loď 45 m (asi 26× výška člověka), Amfora 0,7 m; "
+                                 "postavy ani předměty nezvětšuj a nepřidávej do popředí")
     assert ref["hint"]["en"].startswith("a person is 1.72 m tall, about 1/26 of the Loď (45 m)")
+    # a still with the figure points the generator at it (LEARNINGS 2026-10-27)
+    fig = models.post(f"{base}/render", json={"camera": CAM, "postava": True}).json()
+    wait(models, fig["job_id"])
+    hint = models.get(f"{base}/as-ref?snap={fig['key']}").json()["hint"]
+    assert hint["en"].startswith("the small standing figure in the reference is a person 1.72 m tall")
     assert models.get(f"{base}/as-ref?snap=snap-0000000000").status_code == 404
 
 

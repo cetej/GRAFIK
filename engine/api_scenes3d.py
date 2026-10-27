@@ -3,6 +3,7 @@ version, remember the viewer's camera, render a clay still from it, hand the sti
 `geometry` ref once every model in it is checked."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -99,9 +100,11 @@ def register(app: FastAPI, scenes: Scenes3d, models3d, store) -> None:
             raise HTTPException(409, "ve scéně jsou nezkontrolované modely: " + ", ".join(bad)
                                 + " — zkontrolujte je v záložce Modely")
         png = file_of(scene_id, version, f"snaps/{snap}.png")
+        info = file_of(scene_id, version, f"snaps/{snap}.json")
+        figure = bool(json.loads(info.read_text(encoding="utf-8")).get("postava"))
         lic = sorted({r["license"] for o in meta["objects"] if o.get("model")
                       for r in models3d.lib.read(o["model"], o["model_version"])["refs"] if r.get("license")})
         names = ", ".join(dict.fromkeys(o["nazev"] for o in meta["objects"]))
-        return {"path": str(png), "role": "geometry", "file": f"snaps/{snap}.png", "hint": sc.size_hint(meta),
+        return {"path": str(png), "role": "geometry", "file": f"snaps/{snap}.png", "hint": sc.size_hint(meta, figure),
                 "source": f"3D scéna {meta['title']} {version} ({names}), bílý snímek z kamery prohlížeče",
                 "license": ", ".join(lic) or None}

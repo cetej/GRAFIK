@@ -257,9 +257,11 @@ def _cs(x: float) -> str:
     return f"{x:.2f}".rstrip("0").rstrip(".").replace(".", ",")
 
 
-def size_hint(meta: dict) -> dict:
+def size_hint(meta: dict, figure: bool = False) -> dict:
     """The sentence for the prompt (LEARNINGS 2026-10-23: the generator enlarges people; the height as a fraction
-    of the main object helped). Main object = the largest model by its longest side; shapes are terrain."""
+    of the main object helped). Main object = the largest model by its longest side; shapes are terrain.
+    LEARNINGS 2026-10-27: without a ban FLUX adds big people and jars to the foreground; with the figure in the
+    still (`figure`) and pointed at, it keeps a person where and as big as the figure is."""
     sized = sorted((o for o in meta["objects"] if o.get("model") and o.get("rozmer")), key=lambda o: -o["rozmer"])
     if not sized:
         return {"cs": "", "en": ""}
@@ -277,7 +279,11 @@ def size_hint(meta: dict) -> dict:
         seen.add(o["nazev"])
         cs += f", {o['nazev']} {_cs(o['rozmer'])} m"
         en += f", {o['nazev']} {o['rozmer']:g} m"
-    return {"cs": cs + "; postavy nezvětšuj", "en": en + "; do not enlarge people"}
+    if figure:
+        cs = "malá stojící postava v předloze je člověk 1,72 m, nech ho přesně tam a tak velkého; " + cs
+        en = "the small standing figure in the reference is a person 1.72 m tall, keep it exactly there and that size; " + en
+    return {"cs": cs + "; postavy ani předměty nezvětšuj a nepřidávej do popředí",
+            "en": en + "; do not enlarge people or objects and do not add any to the foreground"}
 
 
 def render_key(scene_id: str, version: str, body: SceneRenderIn) -> str:
