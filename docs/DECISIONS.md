@@ -2,6 +2,17 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D scény: tenká vrstva v GRAFIK, Q2–Q5 podle doporučení
+
+Operátor: „Schvaluji cestu (3) a náčrt, Q2–Q5 podle doporučení. Postav S1–S5.“ Návrh: `docs/plans/2026-10-27-3d-sceny.md`, náčrt `docs/spikes/img/2026-10-27-3d-sceny-nacrt.png`.
+
+- **Cesta (3):** scény staví GRAFIK sám z vlastních částí (render z kamery prohlížeče, prohlížeč three.js, zámek GPU, předloha s kontrolou). KLAPKA se nemění; scéna KLAPKY je záběr videa a její render není bílý.
+- **Q2:** ručně zadaný rozměr se uloží i k verzi modelu (`rozmer_m`, `rozmer_zdroj` v `model.json`), další scéna ho převezme.
+- **Q3:** jednoduché tvary kvádr a válec (molo, terén, základy).
+- **Q4:** kontrolní postava 1,72 m je ve scéně vždy, ve snímku pro FLUX jen na zaškrtnutí (výchozí vypnuto); věta o měřítku jde do zadání vždy.
+- **Q5:** pravoúhlá kamera až s kótami, ne teď.
+- Operátor 27. 10. během stavby: loď do scén je ta odladěná pro infografiku (`scripts/3d/lod_kvinquerema.py`), ne TRELLIS. V knihovně je jako `rimska-kvinquerema-blender-z-rozmeru-rekonstrukc` (v2 bez měřítkové postavy skriptu).
+
 ## 2026-10-27 — 3D: Hunyuan 3.1 Pro jako další volba
 
 Operátor: „Dobře přidej tu metodu HunyuanPro jako další volbu.“ (KLAPKA ji 5. 10. vyhodnotila jako nejlepší z jedné fotky, `KLAPKA/docs/figury-3d.md`; návrh společného seznamu `KLAPKA/docs/3d-backendy-navrh.md`.)

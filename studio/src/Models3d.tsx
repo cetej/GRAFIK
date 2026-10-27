@@ -53,8 +53,9 @@ const ratio = (b: number[]) => {
   return [len, wid, b[2]].map((x) => (x / top).toLocaleString('cs-CZ', { maximumFractionDigits: 2 })).join(' : ')
 }
 
-export default function Models3d({ onError, onToStudio }: {
+export default function Models3d({ onError, onToStudio, onScenes }: {
   onError: (msg: string) => void
+  onScenes: () => void
   onToStudio: (ref: RefIn & { name: string; preview: string; meta?: string }) => void
 }) {
   const [models, setModels] = useState<Model3dVersion[]>([])
@@ -250,6 +251,7 @@ export default function Models3d({ onError, onToStudio }: {
   return (
     <main className="m3d">
       <aside className="card">
+        <div className="seg full"><button className="on">Modely</button><button onClick={onScenes}>Scény</button></div>
         <h3>3D modely</h3>
         <div className="m3d-list">
           {models.map((m) => (

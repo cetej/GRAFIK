@@ -312,6 +312,8 @@ export interface Model3dVersion {
   parent?: string
   origin?: string | null
   stretch?: { dims: [number, number, number]; part: string; source: string; bbox?: number[] }
+  rozmer_m?: number        // the longest side in metres typed in a 3D scene (DECISIONS 2026-10-27, Q2)
+  rozmer_zdroj?: string
   legacy?: { dir: string }
   versions?: number
 }
@@ -343,4 +345,54 @@ export const m3dApi = {
     call<{ path: string; role: Role; source: string; license: string | null }>(`${m3}/${id}/${v}/as-ref?azimuth=${azimuth}&elevation=${elevation}`),
   file: (id: string, v: string, name: string, w?: number) => `${m3}/${id}/${v}/files/${name}${w ? `?w=${w}` : ''}`,
   glb: (id: string, v: string) => `${m3}/${id}/${v}/model.glb`,
+}
+
+// -- 3D scenes (engine/api_scenes3d.py, docs/plans/2026-10-27-3d-sceny.md) ---------------------------------
+export interface SceneObj {
+  id: string
+  model?: string | null
+  model_version?: string | null
+  tvar?: 'kvadr' | 'valec' | null
+  rozmery: number[]
+  nazev: string
+  misto: [number, number]
+  otoceni: number
+  rozmer: number | null
+  rozmer_zdroj: string
+  na: string | null
+}
+export interface SceneFigure { misto: [number, number]; otoceni: number; na: string | null }
+export interface Cam3dIn { target: number[]; azimuth: number; elevation: number; distance: number; lens: number }
+export interface SceneSnap { key: string; file: string; rendered: string; seconds: number; aspect: string; postava: boolean }
+export interface Scene3d {
+  id: string
+  version: string
+  title: string
+  created: string
+  objects: SceneObj[]
+  postava: SceneFigure
+  aspect: string
+  camera: Cam3dIn | null
+  snaps: SceneSnap[]
+  problems?: string[]
+  unchecked?: string[]
+  hint?: { cs: string; en: string }
+  versions?: number
+}
+export interface SceneHint { cs: string; en: string }
+
+const sc3 = '/api/v2/scenes3d'
+export const scenesApi = {
+  list: () => call<Scene3d[]>(sc3),
+  get: (id: string) => call<{ id: string; title: string; versions: Scene3d[] }>(`${sc3}/${id}`),
+  version: (id: string, v: string) => call<Scene3d>(`${sc3}/${id}/${v}`),
+  save: (body: { scene_id?: string | null; title: string; objects: Partial<SceneObj>[]; postava: SceneFigure; aspect: string; camera?: Cam3dIn | null }) =>
+    post<Scene3d>(sc3, body),
+  camera: (id: string, v: string, camera: Cam3dIn) => post<Scene3d>(`${sc3}/${id}/${v}/camera`, { camera }),
+  render: (id: string, v: string, camera: Cam3dIn, aspect: string, postava: boolean) =>
+    post<{ key: string; job_id: string | null; file: string }>(`${sc3}/${id}/${v}/render`, { camera, aspect, postava }),
+  asRef: (id: string, v: string, snap: string) =>
+    call<{ path: string; file: string; role: Role; source: string; license: string | null; hint: SceneHint }>(`${sc3}/${id}/${v}/as-ref?snap=${snap}`),
+  file: (id: string, v: string, name: string) => `${sc3}/${id}/${v}/files/${name}`,
+  figureGlb: `${sc3}/figure.glb`,
 }

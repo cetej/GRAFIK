@@ -392,17 +392,18 @@ class Blender:
     def __init__(self, settings: Settings):
         self.s = settings
 
-    def run(self, script: Path, args: list[str], log_path: Path) -> str:
+    def run(self, script: Path, args: list[str], log_path: Path, timeout_s: float | None = None) -> str:
+        timeout_s = timeout_s or self.s.blender_timeout_s
         cmd = [*self.s.blender_cmd, str(script), "--", *args]
         try:
             p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                               timeout=self.s.blender_timeout_s, stdin=subprocess.DEVNULL,
+                               timeout=timeout_s, stdin=subprocess.DEVNULL,
                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         except FileNotFoundError as e:
             raise Model3dError(f"Blender nenalezen ({self.s.blender_cmd[0]}); nastavte GRAFIK_BLENDER") from e
         except subprocess.TimeoutExpired as e:
             log_path.write_text(f"$ {' '.join(cmd)}\n{_s(e.stdout)}\n--- stderr ---\n{_s(e.stderr)}", encoding="utf-8")
-            raise Model3dError(f"Blender nedoběhl do {int(self.s.blender_timeout_s)} s (log {log_path.name})") from e
+            raise Model3dError(f"Blender nedoběhl do {int(timeout_s)} s (log {log_path.name})") from e
         log_path.write_text(f"$ {' '.join(cmd)}\nexit {p.returncode}\n{p.stdout}\n--- stderr ---\n{p.stderr}",
                             encoding="utf-8")
         if p.returncode != 0:
