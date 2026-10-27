@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D: TRELLIS primárně, Blender jako záloha
+
+Operátor po měření na třech objektech (`docs/spikes/2026-10-27-3d-trellis-vs-blender.md`, #48) upravil navržené pravidlo: „Trellis primárně, Blender jako záloha.“
+
+- **Výchozí cesta k 3D modelu je TRELLIS 2** přes fal (0,30 USD za model, jen s cenou předem a potvrzením). Před odesláním zkontrolovat výřez předlohy (bez cedulek a pozadí), po něm nechat jen největší souvislou část modelu.
+- **Blender ze zdrojových rozměrů je záloha**: když TRELLIS nedrží poměry (v měření Tatra 87: převzal zkrácení perspektivy z fotky), když není použitelná fotka, nebo když na poměrech podle zdrojů záleží víc než na detailu.
+- Blender a FLUX nesmí běžet souběžně (měření: 7,2 z 8 GB VRAM, úloha FLUX spadla). Při napojení do Engine jde Blender pod zámek GPU.
+- Operátor zároveň zadal průzkum dalších možností 3D modelování.
+
 ## 2026-10-26 — Dávka variant ve Studiu podle náčrtu
 
 Operátor schválil náčrt (session z „Agent workflow best practices“, nápad z článku „How I work with Agents“): místo kol „zkus tohle… ne, tamto“ dávka a stránka pro výběr.
