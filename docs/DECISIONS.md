@@ -2,6 +2,13 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D: otáčení modelu výchozí, sheet pohledů na tlačítko
+
+Operátor: „otáčení i pohledy – by měly existovat vedle sebe. Otáčení jako výchozí, pohledy generování sheetu na tlačítko.“
+
+- V záložce 3D je výchozí prohlížeč modelu s otáčením. Arch 8 bílých pohledů vznikne až na tlačítko.
+- Zadání pro další sessions (v2 prohlížeč, scény, napojení KLAPKY): `docs/plans/2026-10-27-3d-dalsi-zadani.md`.
+
 ## 2026-10-27 — 3D krok v1: náčrt i návrh schválen
 
 Operátor: „Schvaluju náčrt i návrh 3D v1 s návrhy u Q1–Q4, stavěj.“ Návrh `docs/plans/2026-10-27-3d-v1.md` (#55), náčrt `docs/spikes/img/2026-10-27-3d-nacrt.png`.
