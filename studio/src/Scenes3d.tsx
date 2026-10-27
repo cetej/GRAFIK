@@ -121,10 +121,10 @@ export default function Scenes3d({ onError, onToStudio, onModels }: {
   }
 
   const items: SceneItem[] = useMemo(() => {
-    const out: SceneItem[] = draft.objects.map((o) => {
+    const out: SceneItem[] = draft.objects.map((o): SceneItem => {
       const v = o.model ? versions[`${o.model}/${o.model_version}`] : null
       return o.model
-        ? { key: o.id, url: v?.viewer ? m3dApi.viewerGlb(v.id, v.version, v.viewer.job_id) : undefined, rozmer: o.rozmer ?? 1, misto: o.misto, otoceni: o.otoceni, na: o.na }
+        ? { key: o.id, ...(v?.viewer ? m3dApi.viewerGlb(v.id, v.version, v.viewer) : {}), rozmer: o.rozmer ?? 1, misto: o.misto, otoceni: o.otoceni, na: o.na }
         : { key: o.id, shape: o.tvar!, box: o.rozmery, misto: o.misto, otoceni: o.otoceni, na: o.na }
     }).filter((it) => it.url || it.box)
     out.push({ key: FIGURE_KEY, url: scenesApi.figureGlb, rozmer: 1.72, misto: draft.postava.misto, otoceni: draft.postava.otoceni, na: draft.postava.na, figure: true })

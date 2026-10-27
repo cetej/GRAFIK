@@ -1,12 +1,13 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { loadGlb } from './glb'
 
 // Orbit viewer of the 3D tab (3D v2, sketch docs/spikes/img/2026-10-27-3d-v2-nacrt-1.png). three.js 0.170 as in
-// KLAPKA prototypy/threejs-kolo. Shows engine viewer.glb (decimated, clay). The camera speaks the language of
-// engine/blender/render_views.py --camera: target in glTF coordinates, azimuth 0° from +X and 90° from -Z (the
-// sheet's azimuths), lens on a 36 mm sensor over a square frame, so "Použít tento pohled" renders this view.
+// KLAPKA prototypy/threejs-kolo. Shows engine viewer.opt.glb (decimated, clay, meshopt; else viewer.glb, src/glb.ts).
+// The camera speaks the language of engine/blender/render_views.py --camera: target in glTF coordinates, azimuth
+// 0° from +X and 90° from -Z (the sheet's azimuths), lens on a 36 mm sensor over a square frame, so "Použít tento
+// pohled" renders this view.
 
 export interface Cam3d { target: [number, number, number]; azimuth: number; elevation: number; distance: number; lens: number }
 export interface ViewerHandle {
@@ -24,10 +25,11 @@ export const DEFAULT_VIEW = { azimuth: 315, elevation: 20 } // front three-quart
 
 const Viewer3d = forwardRef<ViewerHandle, {
   url: string
+  fallback?: string
   lens: number
   onCamera: (c: Cam3d) => void
   onError: (msg: string) => void
-}>(function Viewer3d({ url, lens, onCamera, onError }, ref) {
+}>(function Viewer3d({ url, fallback, lens, onCamera, onError }, ref) {
   const box = useRef<HTMLDivElement>(null)
   const st = useRef<{
     renderer: THREE.WebGLRenderer; cam: THREE.PerspectiveCamera; ctl: OrbitControls; scene: THREE.Scene
@@ -114,10 +116,10 @@ const Viewer3d = forwardRef<ViewerHandle, {
 
     let gone = false
     const meshes: THREE.Mesh[] = []
-    new GLTFLoader().load(url, (g) => {
+    loadGlb(url, fallback).then((root) => {
       if (gone) return
       let tris = 0
-      g.scene.traverse((o) => {
+      root.traverse((o) => {
         const m = o as THREE.Mesh
         if (m.isMesh) {
           meshes.push(m)
@@ -130,8 +132,8 @@ const Viewer3d = forwardRef<ViewerHandle, {
         if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals()
         m.material = mat
       }
-      scene.add(g.scene)
-      const b = new THREE.Box3().setFromObject(g.scene)
+      scene.add(root)
+      const b = new THREE.Box3().setFromObject(root)
       b.getCenter(s.center)
       s.size = Math.max(...b.getSize(new THREE.Vector3()).toArray())
       cam.near = s.size / 100
@@ -141,7 +143,7 @@ const Viewer3d = forwardRef<ViewerHandle, {
       ctl.maxDistance = s.size * 10
       s.ready = true
       view(DEFAULT_VIEW.azimuth, DEFAULT_VIEW.elevation)
-    }, undefined, (e) => cb.current.onError(`Model se do prohlížeče nenačetl: ${(e as Error).message ?? e}`))
+    }, (e) => cb.current.onError(`Model se do prohlížeče nenačetl: ${(e as Error).message ?? e}`))
 
     return () => {
       gone = true

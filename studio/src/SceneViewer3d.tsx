@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { loadGlb } from './glb'
 import type { Cam3d } from './Viewer3d.tsx'
 
 // Viewer of a 3D scene (brief B, sketch docs/spikes/img/2026-10-27-3d-sceny-nacrt.png). Places the objects exactly
@@ -13,7 +13,8 @@ import type { Cam3d } from './Viewer3d.tsx'
 
 export interface SceneItem {
   key: string          // object id, or 'postava'
-  url?: string         // GLB (viewer.glb of the model version, or the figure)
+  url?: string         // GLB (viewer.opt.glb of the model version, or the figure)
+  fallback?: string    // viewer.glb when the optimized copy does not load
   box?: number[]       // simple shape: kvadr [x, y, z] / valec [d, h]
   shape?: 'kvadr' | 'valec'
   rozmer?: number
@@ -227,15 +228,15 @@ const SceneViewer3d = forwardRef<SceneViewerHandle, {
     const s = st.current
     if (!s) return
     let gone = false
-    const load = (url: string) => {
+    const load = (url: string, fallback?: string) => {
       if (!s.cache.has(url)) {
-        s.cache.set(url, new Promise((ok, bad) => new GLTFLoader().load(url, (g) => ok(g.scene), undefined, bad)))
+        s.cache.set(url, loadGlb(url, fallback))
       }
       return s.cache.get(url)!
     }
     Promise.all(props.items.map(async (it) => {
       if (it.url) {
-        try { return (await load(it.url)).clone(true) } catch (e) {
+        try { return (await load(it.url, it.fallback)).clone(true) } catch (e) {
           cb.current.onError(`Model ${it.key} se do prohlížeče nenačetl: ${(e as Error).message ?? e}`)
           return null
         }

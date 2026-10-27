@@ -141,16 +141,21 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
                      and j["request"].get("model_id") == model_id and j["request"].get("version") == version), None)
 
     @app.post("/api/v2/models3d/{model_id}/{version}/viewer", status_code=202)
-    def models3d_viewer(model_id: str, version: str):
-        """The light copy for the viewer; models from before v2 get it on first open (0 USD, ~10 s)."""
+    def models3d_viewer(model_id: str, version: str, optimize_only: bool = False):
+        """The light copy for the viewer; models from before v2 get it on first open (0 USD, ~10 s).
+        `optimize_only`: a viewer copy from before the optimizer gets just viewer.opt.glb (~2 s)."""
         has_glb(model_id, version)
         job_id = pending(model_id, version, "viewer3d") or models3d.enqueue(
-            "viewer3d", "studio", "blender", {"model_id": model_id, "version": version})
+            "viewer3d", "studio", "blender", {"model_id": model_id, "version": version, "optimize_only": optimize_only})
         return {"job_id": job_id}
 
     @app.get("/api/v2/models3d/{model_id}/{version}/viewer.glb")
     def models3d_viewer_glb(model_id: str, version: str):
         return FileResponse(file_of(model_id, version, "viewer.glb"), media_type="model/gltf-binary")
+
+    @app.get("/api/v2/models3d/{model_id}/{version}/viewer.opt.glb")
+    def models3d_viewer_opt_glb(model_id: str, version: str):
+        return FileResponse(file_of(model_id, version, "viewer.opt.glb"), media_type="model/gltf-binary")
 
     @app.post("/api/v2/models3d/{model_id}/{version}/review")
     def models3d_review(model_id: str, version: str, body: ReviewIn):

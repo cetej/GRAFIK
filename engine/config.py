@@ -49,6 +49,11 @@ class Settings:
         "-b", "--factory-startup", "-P"])
     blender_timeout_s: float = 180.0
     fal3d_timeout_s: float = 900.0
+    # glTF Transform for viewer.opt.glb (engine/gltf/, run `npm ci` there); a missing one = no copy
+    gltf_transform_cmd: list = field(default_factory=lambda: [
+        os.environ.get("GRAFIK_NODE", "node"),
+        str(REPO_ROOT / "engine" / "gltf" / "node_modules" / "@gltf-transform" / "cli" / "bin" / "cli.js")])
+    gltf_transform_timeout_s: float = 120.0
     # Q1 measured 2026-10-27 (docs/spikes/2026-10-27-3d-t1.md): Cycles on the CPU, 0 MB of VRAM.
     render_cpu: bool = field(default_factory=lambda: _env("RENDER_CPU", "1") != "0")
 

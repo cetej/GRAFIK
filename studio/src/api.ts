@@ -304,7 +304,11 @@ export interface Model3dVersion {
   request_id?: string | null
   views: Record<string, { dir: string; files: string[]; rendered: string; seconds: number; engine: string }>
   review: { by: string; at: string } | null
-  viewer?: { file: string; bytes: number; triangles: number | null; job_id: string; seconds: number }
+  viewer?: {
+    file: string; bytes: number; triangles: number | null; job_id: string; seconds: number
+    // viewer.opt.glb from glTF Transform; `error` = the viewer loads viewer.glb
+    optimized?: { file?: string; bytes?: number; bytes_before?: number; seconds?: number; tool?: string; error?: string; at: string }
+  }
   jobs: { job_id: string; kind: string }[]
   error: string | null
   stats?: { verts: number; faces: number; bbox: [number, number, number] }
@@ -334,9 +338,15 @@ export const m3dApi = {
   stretch: (id: string, v: string, dims: number[], part: string, source: string) =>
     post<{ version: string; job_id: string }>(`${m3}/${id}/${v}/stretch`, { dims, part, source }),
   recover: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/recover`, {}),
-  viewer: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/viewer`, {}),
-  // the job id changes with every new viewer copy, so the browser never shows a stale cached one
-  viewerGlb: (id: string, v: string, job: string) => `${m3}/${id}/${v}/viewer.glb?j=${job}`,
+  viewer: (id: string, v: string, optimizeOnly = false) =>
+    post<{ job_id: string }>(`${m3}/${id}/${v}/viewer${optimizeOnly ? '?optimize_only=true' : ''}`, {}),
+  // the job id (and the optimizer's time) change with every new copy, so the browser never shows a stale one;
+  // `url` is the optimized copy when there is one, `fallback` always viewer.glb
+  viewerGlb: (id: string, v: string, viewer: NonNullable<Model3dVersion['viewer']>) => {
+    const fallback = `${m3}/${id}/${v}/viewer.glb?j=${viewer.job_id}`
+    const opt = viewer.optimized
+    return { url: opt?.file ? `${m3}/${id}/${v}/viewer.opt.glb?j=${viewer.job_id}&o=${encodeURIComponent(opt.at)}` : fallback, fallback }
+  },
   camera: (id: string, v: string, cam: { target: number[]; azimuth: number; elevation: number; distance: number; lens: number }) =>
     post<{ key: string; job_id: string | null; file: string }>(`${m3}/${id}/${v}/camera`, cam),
   asRefCam: (id: string, v: string, key: string) =>
