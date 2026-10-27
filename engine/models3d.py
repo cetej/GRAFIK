@@ -561,6 +561,7 @@ class Models3d:
                 raise Model3dError("model nemá žádné vrcholy (prázdný nebo poškozený GLB)")
             if not tmp.is_file() or not is_glb(tmp.read_bytes()[:4]):
                 raise Model3dError("Blender nezapsal zmenšený model pro prohlížeč (log blender-viewer.log)")
+            (d / "viewer.opt.glb").unlink(missing_ok=True)   # made from the old viewer.glb
             tmp.replace(d / "viewer.glb")   # derived from model.glb, which stays untouched
         except Exception as e:
             tmp.unlink(missing_ok=True)
