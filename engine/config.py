@@ -43,6 +43,14 @@ class Settings:
     # Editorial term database shared with NG-ROBOT (read-only); "" switches it off.
     termdb: str = field(default_factory=lambda: _env("TERMDB", "C:/Users/stock/Documents/000_NGM/BIOLIB/termdb.db"))
     vae_tiling_above_pixels: int = 1280 * 1280
+    # 3D step (docs/plans/2026-10-27-3d-v1.md): Blender command up to the script path, limits per step.
+    blender_cmd: list = field(default_factory=lambda: [
+        os.environ.get("GRAFIK_BLENDER", "C:/Users/stock/tools/blender-5.2.3-windows-x64/blender.exe"),
+        "-b", "--factory-startup", "-P"])
+    blender_timeout_s: float = 180.0
+    fal3d_timeout_s: float = 900.0
+    # Q1 measured 2026-10-27 (docs/spikes/2026-10-27-3d-t1.md): Cycles on the CPU, 0 MB of VRAM.
+    render_cpu: bool = field(default_factory=lambda: _env("RENDER_CPU", "1") != "0")
 
     @property
     def library_dir(self) -> Path:

@@ -18,6 +18,7 @@ from engine.backends import BackendError, Generated, describe_style, estimate_us
 from engine.config import Settings
 from engine.gpu import GpuBusy, GpuLock
 from engine.models import ImageRequest
+from engine.models3d import Model3dError
 from engine.paste import paste_back
 from engine.translate import TRANSLATE_USD, Translator
 from engine.refs import RefError, load_ref_png, sha256
@@ -27,7 +28,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY, seq INTEGER, status TEXT, caller TEXT, backend TEXT,
   request TEXT, result TEXT, error TEXT,
-  created REAL, started REAL, finished REAL, parent TEXT
+  created REAL, started REAL, finished REAL, parent TEXT, kind TEXT DEFAULT 'image'
 )"""
 FINAL = ("done", "failed", "cancelled")
 
@@ -44,10 +45,12 @@ class JobStore:
         self._lock = threading.Lock()
         with self._lock:
             self.db.execute(SCHEMA)
-            try:  # DBs created by G1 lack the lineage column
-                self.db.execute("ALTER TABLE jobs ADD COLUMN parent TEXT")
-            except sqlite3.OperationalError:
-                pass
+            # DBs created by G1 lack the lineage column, before 3D v1 the job kind
+            for column in ("parent TEXT", "kind TEXT DEFAULT 'image'"):
+                try:
+                    self.db.execute(f"ALTER TABLE jobs ADD COLUMN {column}")
+                except sqlite3.OperationalError:
+                    pass
 
     def recover_interrupted(self) -> int:
         with self._lock:
@@ -64,6 +67,16 @@ class JobStore:
                 "INSERT INTO jobs (id, seq, status, caller, backend, request, created, parent) VALUES (?,?,?,?,?,?,?,?)",
                 (job_id, seq, "queued", req.caller, req.backend, req.model_dump_json(by_alias=True), time.time(),
                  req.parent))
+        return job_id
+
+    def add_task(self, kind: str, caller: str, backend: str, request: dict) -> str:
+        """A non-image job (3D: model3d, views3d, stretch3d) in the same FIFO queue."""
+        job_id = new_job_id()
+        with self._lock:
+            seq = self.db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM jobs").fetchone()[0]
+            self.db.execute(
+                "INSERT INTO jobs (id, seq, status, caller, backend, request, created, kind) VALUES (?,?,?,?,?,?,?,?)",
+                (job_id, seq, "queued", caller, backend, json.dumps(request, ensure_ascii=False), time.time(), kind))
         return job_id
 
     def next_queued(self) -> sqlite3.Row | None:
@@ -98,9 +111,12 @@ class JobStore:
                     (row["seq"],)).fetchone()[0]
         return self._public(row, pos)
 
-    def list(self, limit: int = 50) -> list[dict]:
+    def list(self, limit: int = 50, kinds: tuple[str, ...] | None = ("image",)) -> list[dict]:
+        """Image jobs only by default: /api/v2/jobs stays what it was before 3D (sc-7)."""
+        where = f"WHERE COALESCE(kind, 'image') IN ({','.join('?' * len(kinds))})" if kinds else ""
         with self._lock:
-            rows = self.db.execute("SELECT * FROM jobs ORDER BY seq DESC LIMIT ?", (limit,)).fetchall()
+            rows = self.db.execute(f"SELECT * FROM jobs {where} ORDER BY seq DESC LIMIT ?",
+                                   (*(kinds or ()), limit)).fetchall()
         return [self._public(r, None) for r in rows]
 
     def raw_request(self, job_id: str) -> dict | None:
@@ -154,7 +170,7 @@ class JobStore:
             "position": position, "error": row["error"],
             "images": [f"/api/v2/jobs/{row['id']}/images/{i}" for i in range(len((result or {}).get("files", [])))],
             "result": result, "created": row["created"], "started": row["started"], "finished": row["finished"],
-            "request": JobStore._request_summary(row["request"]),
+            "request": JobStore._request_summary(row["request"]), "kind": row["kind"] or "image",
         }
 
     @staticmethod
@@ -178,6 +194,7 @@ class Worker:
         self.gpu_lock = GpuLock(settings.gpu_lock_path)
         self._stop = threading.Event()
         self.running: str | None = None
+        self.handlers: dict = {}    # kind -> fn(job_id, request dict) -> result; 3D registers its steps here
         self._thread = threading.Thread(target=self._loop, name="grafik-worker", daemon=True)
 
     def start(self) -> None:
@@ -195,9 +212,13 @@ class Worker:
                 continue
             self.running = row["id"]
             try:
-                result = self.process(row["id"], ImageRequest.model_validate_json(row["request"]), row["created"])
+                kind = row["kind"] or "image"
+                if kind == "image":
+                    result = self.process(row["id"], ImageRequest.model_validate_json(row["request"]), row["created"])
+                else:
+                    result = self.handlers[kind](row["id"], json.loads(row["request"]))
                 self.store.finish(row["id"], result=result)
-            except (BackendError, SdServerError, GpuBusy, RefError) as e:
+            except (BackendError, SdServerError, GpuBusy, RefError, Model3dError) as e:
                 self.store.finish(row["id"], error=str(e))
             except Exception as e:  # keep the worker alive; surface the reason to the caller
                 self.store.finish(row["id"], error=f"{type(e).__name__}: {e}")

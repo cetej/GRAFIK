@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-27 — 3D krok v1: náčrt i návrh schválen
+
+Operátor: „Schvaluju náčrt i návrh 3D v1 s návrhy u Q1–Q4, stavěj.“ Návrh `docs/plans/2026-10-27-3d-v1.md` (#55), náčrt `docs/spikes/img/2026-10-27-3d-nacrt.png`.
+
+- Q1: před renderem v Blenderu Engine zastaví vlastní sd-server (podle PID), render jde pod zámek GPU. Volba se potvrdí měřením v T1.
+- Q2: výřez předloh se ukáže před placeným krokem a jde poopravit gumou.
+- Q3: galerie 8 hotových pohledů, výška kamery nízko / 20° / shora; otáčení myší až ve v2.
+- Q4: natažení na rozměry jen polem „d × š × v“ a volbou, kterou část protáhnout (střed / zadní část / celé).
+
 ## 2026-10-27 — 3D: Hunyuan3D v3 v nabídce
 
 Operátor: „Doplň Hunyuan3D do nabídky.“ Po měření na Tatře, soše, slonovi a mostecké věži (`docs/spikes/2026-10-27-3d-trellis-vs-blender.md`, #51–#53).

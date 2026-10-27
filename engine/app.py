@@ -23,6 +23,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
+from engine import api3d, models3d as m3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -124,7 +125,8 @@ class Expand(BaseModel):
 
 
 def create_app(settings: Settings | None = None, backends: dict | None = None,
-               server: SdServer | None = None, start_worker: bool = True) -> FastAPI:
+               server: SdServer | None = None, start_worker: bool = True, backends3d: dict | None = None,
+               blender=None) -> FastAPI:
     s = settings or Settings()
     sd = server or SdServer(s)
     store = JobStore(s.db_path)
@@ -137,10 +139,15 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     workflows = WorkflowStore(s.data_dir / "workflows")
     batches = VariantStore(s.library_dir / "variants")
     worker = Worker(s, store, bk, translator=translator)
+    models3d = m3d.Models3d(s, store, sd, worker.gpu_lock,
+                            m3d.make_backends3d(s) if backends3d is None else backends3d, worker._log_cost, blender)
+    worker.handlers.update(models3d.handlers())
 
     @asynccontextmanager
     async def lifespan(_app):
         store.recover_interrupted()
+        models3d.lib.mark_interrupted()
+        models3d.lib.migrate_legacy()
         if start_worker:
             worker.start()
             sd.start_idle_watcher()
@@ -153,6 +160,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5174", "http://127.0.0.1:5174"],
                        allow_methods=["*"], allow_headers=["*"])
     app.state.settings, app.state.store, app.state.worker, app.state.sd = s, store, worker, sd
+    app.state.models3d = models3d
+    api3d.register(app, models3d, store, reflib)
 
     @app.get("/api/v2/health")
     def health():
