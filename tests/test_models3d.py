@@ -1,4 +1,5 @@
-"""3D step v1 offline: fake fal and fake Blender (spec docs/plans/2026-10-27-3d-v1.md, sc-2…sc-9)."""
+"""3D step offline: fake fal and fake Blender (spec docs/plans/2026-10-27-3d-v1.md, sc-2…sc-9; v2: viewer copy,
+sheet on a button, render from the viewer's camera)."""
 from __future__ import annotations
 
 import base64
@@ -129,8 +130,8 @@ def test_paid_model_full_flow(api, settings):
     job = wait(api, created["job_id"])
     assert job["status"] == "done", job["error"]
     assert api.fal["fal-hunyuan3d"].calls == [["back", "front"]]
-    views = wait(api, job["result"]["views_job"])
-    assert views["status"] == "done", views["error"]
+    viewer = wait(api, job["result"]["viewer_job"])
+    assert viewer["status"] == "done", viewer["error"]
 
     rows = [json.loads(x) for x in settings.costs_path.read_text(encoding="utf-8").splitlines()]
     assert [x["status"] for x in rows] == ["pending", "ok"] and rows[1]["request_id"] == "req-123"
@@ -140,7 +141,13 @@ def test_paid_model_full_flow(api, settings):
     assert m["schema_version"] == 1 and m["method"] == "fal-hunyuan3d" and m["request_id"] == "req-123"
     assert m["cost_usd"] == 0.375 and m["status"] == "ready" and m["blender"] == "fake 0.0"
     assert {r["license"] for r in m["refs"]} == {"CC BY-SA 4.0", "CC BY-SA 3.0"}
-    assert len(m["views"]["20"]["files"]) == 8
+    # v2: the viewer copy comes by itself, the sheet only on the button
+    assert m["viewer"]["file"] == "viewer.glb" and m["views"] == {}
+    assert api.get("/api/v2/models3d/tatra-87/v1/viewer.glb").content == GLB
+    sheet = api.post("/api/v2/models3d/tatra-87/v1/views", json={"elevation": 20}).json()
+    assert wait(api, sheet["job_id"])["status"] == "done"
+    m = api.get("/api/v2/models3d/tatra-87").json()["versions"][0]
+    assert len(m["views"]["20"]["files"]) == 8 and m["status"] == "ready"
     assert api.get("/api/v2/models3d/tatra-87/v1/model.glb").content == GLB
     assert api.get("/api/v2/models3d/tatra-87/v1/files/views-e20/az045.png?w=32").content[:4] == b"\x89PNG"
 
@@ -177,6 +184,8 @@ def test_crash_after_submit_keeps_request_id_and_recovers_without_paying(api, se
 def test_every_run_is_a_new_version(api, settings):
     first = upload(api)
     wait(api, first["job_id"])
+    sheet = api.post("/api/v2/models3d/tatra-87/v1/views", json={"elevation": 20}).json()
+    assert wait(api, sheet["job_id"])["status"] == "done"
     second = api.post("/api/v2/models3d", json={"model_id": "tatra-87", "glb_b64": base64.b64encode(GLB + b"x").decode()})
     assert second.json()["version"] == "v2"
     wait(api, second.json()["job_id"])
@@ -200,7 +209,7 @@ def test_stretch_makes_a_new_version(api, settings):
     assert r["version"] == "v2"
     job = wait(api, r["job_id"])
     assert job["status"] == "done", job["error"]
-    assert wait(api, job["result"]["views_job"])["status"] == "done"
+    assert wait(api, job["result"]["viewer_job"])["status"] == "done"
     v2 = api.get("/api/v2/models3d/tatra-87").json()["versions"][1]
     assert v2["method"] == "stretch" and v2["parent"] == "v1" and v2["stretch"]["bbox"] == [4.74, 1.67, 1.5]
     assert v2["status"] == "ready" and v2["review"] is None
@@ -237,10 +246,12 @@ def test_migrate_legacy_copies(tmp_path):
 def test_flux_and_render_both_done_render_holds_gpu_lock(api, settings):
     img = api.post("/api/v2/images", json={"prompt": "a car", "size": "256x256", "seed": 1}).json()["job_id"]
     up = upload(api)
+    wait(api, up["job_id"])
+    sheet = api.post("/api/v2/models3d/tatra-87/v1/views", json={"elevation": 20}).json()["job_id"]
     img2 = api.post("/api/v2/images", json={"prompt": "a car", "size": "256x256", "seed": 2}).json()["job_id"]
-    jobs = [wait(api, j) for j in (img, up["job_id"], img2)]
+    jobs = [wait(api, j) for j in (img, sheet, img2)]
     assert [j["status"] for j in jobs] == ["done"] * 3, [j["error"] for j in jobs]
-    calls = trace(settings)
+    calls = [c for c in trace(settings) if c["script"] == "render_views.py"]
     assert calls and all(c["lock"] and json.loads(c["lock"])["owner"] == "grafik-engine" for c in calls)
     assert not settings.gpu_lock_path.exists(), "zámek se po renderu uvolní"
     # 3D jobs stay out of /api/v2/jobs (sc-7) but are in the 3D list
@@ -254,6 +265,9 @@ def test_eevee_mode_stops_own_sd_server_first(api, settings):
     assert wait(api, img)["status"] == "done"
     assert api.sd.owned_process() is not None
     assert wait(api, upload(api)["job_id"])["status"] == "done"
+    assert api.sd.owned_process() is not None, "zmenšení pro prohlížeč nerenderuje, FLUX zůstává"
+    sheet = api.post("/api/v2/models3d/tatra-87/v1/views", json={"elevation": 20}).json()["job_id"]
+    assert wait(api, sheet)["status"] == "done"
     assert api.sd.owned_process() is None, "před renderem EEVEE musí vlastní sd-server skončit"
     assert "--cpu" not in trace(settings)[-1]["args"]
 
@@ -263,13 +277,14 @@ def test_eevee_mode_stops_own_sd_server_first(api, settings):
 @pytest.mark.parametrize("mode,needle", [("crash", "Blender skončil chybou 1"), ("empty", "je prázdný"),
                                          ("slow", "nedoběhl do 2 s")])
 def test_blender_errors_are_readable(api, settings, monkeypatch, mode, needle):
+    up = upload(api)
+    assert wait(api, up["job_id"])["status"] == "done"
     monkeypatch.setenv("FAKE_BLENDER_MODE", mode)
     settings.blender_timeout_s = 2
-    up = upload(api)
-    job = wait(api, up["job_id"])
+    job = wait(api, api.post(f"/api/v2/models3d/{up['model_id']}/v1/views", json={"elevation": 20}).json()["job_id"])
     assert job["status"] == "failed" and needle in job["error"], job["error"]
     m = api.get(f"/api/v2/models3d/{up['model_id']}").json()["versions"][0]
-    assert m["status"] == "model" and needle in m["error"]
+    assert m["status"] == "ready" and needle in m["error"], "model zůstává v prohlížeči"
     log = settings.library_dir / "3d" / up["model_id"] / "v1" / "views-e20" / "blender.log"
     assert log.is_file()
     if mode == "crash":
@@ -284,3 +299,75 @@ def test_interrupted_step_is_marked(tmp_path):
     assert lib.mark_interrupted() == 1
     v = lib.latest("rotunda")
     assert v["status"] == "failed" and "restartem" in v["error"] and v["request_id"] == "req-9"
+
+
+# -- v2: viewer copy, check in the viewer, render from the viewer's camera -----------------------
+
+CAM = {"target": [0.1, 0.2, -0.3], "azimuth": 315, "elevation": 20, "distance": 2.5, "lens": 50}
+
+
+def test_viewer_copy_and_crash_keeps_model(api, settings, monkeypatch):
+    up = upload(api)
+    assert wait(api, up["job_id"])["status"] == "done"
+    d = settings.library_dir / "3d" / "tatra-87" / "v1"
+    assert (d / "viewer.glb").read_bytes() == GLB and (d / "model.glb").read_bytes() == GLB
+    call = [c for c in trace(settings) if c["script"] == "decimate.py"][0]
+    assert call["args"][2] == "100000" and call["lock"] is None, "zmenšení běží bez zámku GPU"
+    # a model from before v2 (no viewer copy) gets one on first open; a second click joins the same job
+    (d / "viewer.glb").unlink()
+    monkeypatch.setenv("FAKE_BLENDER_MODE", "slow")
+    settings.blender_timeout_s = 2
+    a = api.post("/api/v2/models3d/tatra-87/v1/viewer").json()["job_id"]
+    b = api.post("/api/v2/models3d/tatra-87/v1/viewer").json()["job_id"]
+    assert a == b
+    job = wait(api, a)
+    assert job["status"] == "failed" and "nedoběhl" in job["error"]
+    assert not (d / "viewer.tmp.glb").exists() and (d / "model.glb").read_bytes() == GLB
+    assert api.get("/api/v2/models3d/tatra-87/v1/viewer.glb").status_code == 404
+    assert api.post("/api/v2/models3d/nic/v1/viewer").status_code == 404
+
+
+def test_review_in_viewer_then_render_from_camera(api, settings):
+    wait(api, upload(api)["job_id"])
+    base = "/api/v2/models3d/tatra-87/v1"
+    # the gate (sc-3) holds for the camera render too
+    assert api.post(f"{base}/camera", json=CAM).status_code == 409
+    # v2: ticking the check needs the viewer, not the sheet
+    assert api.post(f"{base}/review", json={"reviewed": True}).status_code == 200
+    r = api.post(f"{base}/camera", json=CAM)
+    assert r.status_code == 202, r.text
+    job = wait(api, r.json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    key = r.json()["key"]
+    d = settings.library_dir / "3d" / "tatra-87" / "v1" / "camera"
+    assert (d / f"{key}.png").is_file() and json.loads((d / f"{key}.json").read_text(encoding="utf-8"))["azimuth"] == 315
+    call = [c for c in trace(settings) if "--camera" in c["args"]][-1]
+    assert json.loads(call["args"][call["args"].index("--camera") + 1]) == CAM
+    assert call["lock"] and "--cpu" in call["args"]
+    # the same camera again: the existing render, no second job; another camera: a new file
+    again = api.post(f"{base}/camera", json=CAM).json()
+    assert again == {"key": key, "job_id": None, "file": f"camera/{key}.png"}
+    other = api.post(f"{base}/camera", json={**CAM, "azimuth": 270}).json()
+    assert other["key"] != key and wait(api, other["job_id"])["status"] == "done"
+    ref = api.get(f"{base}/as-ref?cam={key}").json()
+    assert ref["role"] == "geometry" and Path(ref["path"]).name == f"{key}.png" and ref["file"] == f"camera/{key}.png"
+    assert "azimut 315°" in ref["source"] and "ohnisko 50 mm" in ref["source"]
+    assert api.get(f"{base}/as-ref?cam=cam-0000000000").status_code == 404
+    assert api.get(f"{base}/files/camera/{key}.png").content[:4] == b"\x89PNG"
+
+
+@pytest.mark.parametrize("bad", [{"elevation": 90}, {"distance": 0}, {"lens": 5}, {"target": [0, 0]}])
+def test_camera_rejects_impossible_values(api, bad):
+    wait(api, upload(api)["job_id"])
+    api.post("/api/v2/models3d/tatra-87/v1/review", json={"reviewed": True})
+    assert api.post("/api/v2/models3d/tatra-87/v1/camera", json={**CAM, **bad}).status_code == 422
+
+
+def test_empty_camera_view_is_an_error(api, settings, monkeypatch):
+    wait(api, upload(api)["job_id"])
+    api.post("/api/v2/models3d/tatra-87/v1/review", json={"reviewed": True})
+    monkeypatch.setenv("FAKE_BLENDER_MODE", "empty")
+    r = api.post("/api/v2/models3d/tatra-87/v1/camera", json=CAM).json()
+    job = wait(api, r["job_id"])
+    assert job["status"] == "failed" and "mimo záběr" in job["error"]
+    assert not list((settings.library_dir / "3d" / "tatra-87" / "v1" / "camera").glob("*.png"))

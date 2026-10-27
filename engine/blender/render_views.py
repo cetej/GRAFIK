@@ -1,6 +1,9 @@
 # Clay views of a GLB for the 3D step (run by engine/models3d.py, free):
 #   blender -b --factory-startup -P engine/blender/render_views.py -- model.glb OUT_DIR ELEVATION [--cpu] [--size 1024]
-# Writes OUT_DIR/az000.png … az315.png (8 views, 45° apart) and prints one line
+#   blender … -- model.glb OUT.png --camera '{"target":[x,y,z],"azimuth":a,"elevation":e,"distance":d,"lens":mm}' [--cpu]
+# Sheet: writes OUT_DIR/az000.png … az315.png (8 views, 45° apart). --camera: one view from the Studio viewer's
+# camera (target in glTF coordinates, Y up, as three.js sees the file; azimuth 0° looks from +X, 90° from -Z,
+# i.e. the sheet's azimuths; distance in model units; lens on a 36 mm sensor). Both print one line
 # `STATS {json}` with vertex/face counts and the bounding box. Based on scripts/3d/render_glb.py --clay:
 # one matte grey material (shape only, the image generator adds material), transparent film,
 # no floor, so no shadow under the object (LEARNINGS 2026-10-23: shadows turn into objects).
@@ -13,7 +16,8 @@ import bpy
 from mathutils import Vector
 
 args = sys.argv[sys.argv.index("--") + 1:]
-glb, out_dir, el = args[0], args[1], float(args[2])
+glb, out = args[0], args[1]
+camera = json.loads(args[args.index("--camera") + 1]) if "--camera" in args else None
 cpu = "--cpu" in args
 size_px = int(args[args.index("--size") + 1]) if "--size" in args else 1024
 
@@ -63,17 +67,31 @@ sun.data.angle = math.radians(20)  # soft edges: hard cast shadows read as extra
 cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
 scene.collection.objects.link(cam)
 scene.camera = cam
-cam.data.lens = 50
-# a square frame: tall objects need the distance a wide one does
-dist = 1.8 if el < 50 else 2.0
+cam.data.sensor_fit = "AUTO"   # square frame: the 36 mm sensor width is the vertical one too
 
-for az in range(0, 360, 45):
+
+def shoot(target, az, el, distance, path):
     a, e = math.radians(az), math.radians(el)
-    cam.location = center + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))) * size * dist
-    cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.location = target + Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))) * distance
+    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
     # key light from behind the camera, a little left and above, so the visible side is lit
-    sun.rotation_euler = (center - cam.location + Vector((0, 0, -0.6 * size))).to_track_quat("-Z", "Y").to_euler()
+    sun.rotation_euler = (target - cam.location + Vector((0, 0, -0.6 * size))).to_track_quat("-Z", "Y").to_euler()
     sun.rotation_euler.z += math.radians(25)
-    scene.render.filepath = f"{out_dir}/az{az:03d}.png"
+    scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
-    print(f"VIEW az{az:03d}", flush=True)
+
+
+if camera:
+    x, y, z = camera["target"]
+    cam.data.lens = float(camera.get("lens", 50))
+    # glTF Y-up -> Blender Z-up (the importer's own conversion)
+    shoot(Vector((x, -z, y)), float(camera["azimuth"]), float(camera["elevation"]), float(camera["distance"]), out)
+    print("VIEW camera", flush=True)
+else:
+    el = float(args[2])
+    cam.data.lens = 50
+    # a square frame: tall objects need the distance a wide one does
+    dist = 1.8 if el < 50 else 2.0
+    for az in range(0, 360, 45):
+        shoot(center, az, el, size * dist, f"{out}/az{az:03d}.png")
+        print(f"VIEW az{az:03d}", flush=True)

@@ -238,11 +238,12 @@ def generate(prompt: str, *, out_dir: str | Path = ".", timeout: float = 900, **
 def model3d(*, refs: list | None = None, glb: str | Path | None = None, title: str = "", method: str | None = None,
             model_id: str | None = None, origin: str = "", caller: str | None = None, confirm_cost: bool = False,
             timeout: float = 1200) -> dict:
-    """A 3D model with 8 clay views (separate from images; /api/v2/models3d). Either `glb` (a finished model,
+    """A 3D model (separate from images; /api/v2/models3d). Either `glb` (a finished model,
     0 USD) or `refs` = [{"path"|"b64", "view": front|back|left|right, "source", "license"}] for fal: 1 ref ->
     TRELLIS 2 (0.30 USD), 2+ -> Hunyuan3D v3 (0.375 USD); paid only with confirm_cost=True, otherwise
-    CostConfirmationRequired and nothing runs. Waits for the model and its views; returns the version's
-    model.json. The views go to the image generator only after the operator's check in Studio (tab 3D)."""
+    CostConfirmationRequired and nothing runs. Waits for the model and its light copy for the Studio viewer;
+    returns the version's model.json. The 8 clay views come from views() on demand. Views go to the image
+    generator only after the operator's check in Studio (tab 3D)."""
     body = {"title": title, "method": method, "model_id": model_id, "origin": origin, "confirm_cost": confirm_cost,
             "caller": caller or Path(sys.argv[0]).stem or "client"}
     if glb is not None:
@@ -256,9 +257,9 @@ def model3d(*, refs: list | None = None, glb: str | Path | None = None, title: s
     if status != 202:
         raise GrafikError(f"Engine odmítl 3D model ({status}): {data.get('detail')}")
     job = wait(data["job_id"], timeout=timeout)
-    views_job = (job.get("result") or {}).get("views_job")
-    if views_job:
-        wait(views_job, timeout=timeout)
+    viewer_job = (job.get("result") or {}).get("viewer_job")
+    if viewer_job:
+        wait(viewer_job, timeout=timeout)
     return _version(data["model_id"], data["version"])
 
 

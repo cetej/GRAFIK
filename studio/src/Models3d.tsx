@@ -1,30 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  fileToB64, m3dApi, PaymentRequired,
+  api, fileToB64, m3dApi, PaymentRequired,
   type Estimate3d, type Job3d, type Model3dVersion, type RefIn, type RefMeta, type View3d,
 } from './api.ts'
 import RefPicker from './RefPicker.tsx'
+import Viewer3d, { DEFAULT_VIEW, type Cam3d, type ViewerHandle } from './Viewer3d.tsx'
 import { fmtTime, fmtUsd } from './App.tsx'
 
-// 3D krok v1 podle náčrtu schváleného 2026-10-27 (docs/spikes/img/2026-10-27-3d-nacrt.png).
+// 3D krok v1 podle náčrtu schváleného 2026-10-27 (docs/spikes/img/2026-10-27-3d-nacrt.png); v2 (prohlížeč
+// výchozí, sheet na tlačítko, render z kamery prohlížeče) podle náčrtu docs/spikes/img/2026-10-27-3d-v2-nacrt-*.png.
 
 const SLOTS: { view: View3d; label: string }[] = [
   { view: 'front', label: 'zepředu' }, { view: 'right', label: 'zprava' }, { view: 'back', label: 'zezadu' }, { view: 'left', label: 'zleva' },
 ]
 const ELEVATIONS: { el: number; label: string }[] = [{ el: 5, label: 'Kamera nízko' }, { el: 20, label: '20° nad' }, { el: 60, label: 'Shora' }]
 const AZ = [0, 45, 90, 135, 180, 225, 270, 315]
+// generators put the front of the object toward glTF +Z, which is the sheet's 270°
+const NAMED: { label: string; az: number; el: number }[] = [
+  { label: 'Zepředu', az: 270, el: 5 }, { label: 'Z boku', az: 0, el: 5 }, { label: 'Zezadu', az: 90, el: 5 },
+  { label: 'Šikmo', az: DEFAULT_VIEW.azimuth, el: DEFAULT_VIEW.elevation }, { label: 'Shora', az: 270, el: 89 },
+]
+const LENSES = [35, 50, 85]
+const num = (x: number, d = 0) => x.toLocaleString('cs-CZ', { maximumFractionDigits: d })
+// the tab unmounts on the way to Studio; the last sent ref stays visible when the operator comes back
+type LastRef = { url: string; source: string; model: string }
+let lastRefMemo: LastRef | null = null
 const METHOD_LABEL: Record<string, string> = {
   'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry',
 }
 const STATUS: Record<Model3dVersion['status'], { label: string; cls: string }> = {
-  queued: { label: 've frontě', cls: '' }, generating: { label: 'model se tvoří', cls: 'ai' }, model: { label: 'bez bílých pohledů', cls: 'ai' },
+  queued: { label: 've frontě', cls: '' }, generating: { label: 'model se tvoří', cls: 'ai' }, model: { label: 'bez prohlížeče', cls: 'ai' },
+  viewer: { label: 'připravuje se prohlížeč', cls: 'ai' },
   rendering: { label: 'kreslí se pohledy', cls: 'ai' }, stretching: { label: 'natahuje se', cls: 'ai' }, ready: { label: 'čeká na kontrolu', cls: 'ai' },
   failed: { label: 'chyba', cls: 'paid' },
 }
 
 interface Slot { view: View3d; original: string; cutout: string | null; source?: string | null; license?: string | null; busy?: boolean }
 
-const KIND_LABEL: Record<string, string> = { model3d: 'model', views3d: 'bílé pohledy', stretch3d: 'natažení' }
+const KIND_LABEL: Record<string, string> = {
+  model3d: 'model', viewer3d: 'příprava prohlížeče', views3d: 'sheet pohledů', camera3d: 'pohled z kamery', stretch3d: 'natažení',
+}
 const dataUrl = (b64: string) => `data:image/png;base64,${b64}`
 const thumbOf = (m: Model3dVersion) => {
   const v = m.views['20']
@@ -47,8 +62,15 @@ export default function Models3d({ onError, onToStudio }: {
   const [versions, setVersions] = useState<Model3dVersion[]>([])
   const [ver, setVer] = useState<string | null>(null)
   const [el, setEl] = useState(20)
-  const [az, setAz] = useState(45)
   const [zoom, setZoom] = useState<number | null>(null)
+  const viewer = useRef<ViewerHandle>(null)
+  const [cam, setCam] = useState<Cam3d | null>(null)
+  const [lens, setLens] = useState(50)
+  const [using, setUsing] = useState(false)
+  const [lastRef, setLastRefState] = useState<LastRef | null>(lastRefMemo)
+  const setLastRef = (r: LastRef) => { lastRefMemo = r; setLastRefState(r) }
+  const [refZoom, setRefZoom] = useState(false)
+  const viewerAsked = useRef(new Set<string>())
   const [jobs, setJobs] = useState<Job3d[]>([])
   // new model form
   const [slots, setSlots] = useState<Slot[]>([])
@@ -171,20 +193,49 @@ export default function Models3d({ onError, onToStudio }: {
     if (!cur) return
     try { await m3dApi.review(cur.id, cur.version, on); load() } catch (e) { onError(String((e as Error).message)) }
   }
-  const toStudio = async () => {
-    if (!cur) return
-    try {
-      const ref = await m3dApi.asRef(cur.id, cur.version, az, el)
-      const url = m3dApi.file(cur.id, cur.version, `${viewSet!.dir}/az${String(az).padStart(3, '0')}.png`)
-      const b64 = await fileToB64(await (await fetch(url)).blob())
-      onToStudio({ b64, role: 'geometry', source: ref.source, license: ref.license, name: `${cur.title} ${az}°`, preview: `${url}?w=256`, meta: `3D ${cur.version} · ${az}°` })
-    } catch (e) {
-      onError(String((e as Error).message))
-    }
-  }
   const curJobs = jobs.filter((j) => j.request.model_id === cur?.id && j.request.version === cur?.version)
   const pending = curJobs.find((j) => j.status === 'queued' || j.status === 'running')
   const lastFail = curJobs.find((j) => j.status === 'failed')
+  const sheetJob = curJobs.find((j) => j.kind === 'views3d' && (j.status === 'queued' || j.status === 'running'))
+  const viewerJob = curJobs.find((j) => j.kind === 'viewer3d' && (j.status === 'queued' || j.status === 'running'))
+  const viewerFail = !cur?.viewer && curJobs.find((j) => j.kind === 'viewer3d' && j.status === 'failed')
+
+  // models from before v2 have no viewer copy: ask for it once on open (0 USD, ~10 s on the CPU)
+  useEffect(() => {
+    if (!cur || cur.viewer || viewerJob || viewerFail || !['model', 'ready'].includes(cur.status)) return
+    const key = `${cur.id}/${cur.version}`
+    if (viewerAsked.current.has(key)) return
+    viewerAsked.current.add(key)
+    m3dApi.viewer(cur.id, cur.version).then(load).catch((e) => onError(String(e.message)))
+  }, [cur, viewerJob, viewerFail, load, onError])
+
+  const toStudio = async () => {
+    const c = viewer.current?.camera()
+    if (!cur || !c) return
+    setUsing(true)
+    try {
+      const r = await m3dApi.camera(cur.id, cur.version, c)
+      if (r.job_id) {
+        for (;;) {
+          const j = await api.job(r.job_id)
+          if (j.status === 'failed' || j.status === 'cancelled') throw new Error(j.error ?? 'render z kamery selhal')
+          if (j.status === 'done') break
+          await new Promise((ok) => setTimeout(ok, 1000))
+        }
+      }
+      const ref = await m3dApi.asRefCam(cur.id, cur.version, r.key)
+      const url = m3dApi.file(cur.id, cur.version, ref.file)
+      const b64 = await fileToB64(await (await fetch(url)).blob())
+      const label = `${num(c.azimuth)}° / ${num(c.elevation)}°`
+      setLastRef({ url, source: ref.source, model: `${cur.id}/${cur.version}` })
+      onToStudio({ b64, role: 'geometry', source: ref.source, license: ref.license, name: `${cur.title} ${label}`, preview: `${url}?w=256`, meta: `3D ${cur.version} · ${label}` })
+    } catch (e) {
+      onError(String((e as Error).message))
+    } finally {
+      setUsing(false)
+    }
+  }
+  const relDist = cur?.stats?.bbox && cam ? cam.distance / Math.max(...cur.stats.bbox) : null
 
   const running = jobs.find((j) => j.status === 'running')
   const waiting = jobs.filter((j) => j.status === 'queued')
@@ -275,14 +326,17 @@ export default function Models3d({ onError, onToStudio }: {
       <section className="card m3d-views">
         {!cur ? <p className="empty">Vyberte model vlevo, nebo založte nový.</p> : (
           <>
-            <h3>{cur.title} · {cur.version} · bílé pohledy (jen tvar, barvy dodá generátor)</h3>
-            <div className="seg full">
-              {ELEVATIONS.map((e) => (
-                <button key={e.el} className={el === e.el ? 'on' : ''} onClick={() => renderEl(e.el)}
-                  title={cur.views[String(e.el)] ? '' : 'Ještě nevykresleno: kliknutí zadá render (0 USD)'}>
-                  {e.label}{cur.views[String(e.el)] ? '' : ' ·'}
-                </button>
-              ))}
+            <h3>{cur.title} · {cur.version} · model (jen tvar, barvy dodá generátor)</h3>
+            <div className="row m3d-viewbar">
+              <div className="seg">
+                {NAMED.map((n) => <button key={n.label} disabled={!cur.viewer} onClick={() => viewer.current?.view(n.az, n.el)}>{n.label}</button>)}
+              </div>
+              <span className="hint">pohled se dá dál dotočit myší</span>
+              <span className="grow" />
+              <span className="hint">Ohnisko</span>
+              <div className="seg">
+                {LENSES.map((l) => <button key={l} className={lens === l ? 'on' : ''} onClick={() => setLens(l)}>{l} mm</button>)}
+              </div>
             </div>
             {cur.status === 'failed' && (
               <div className="banner-in bad">
@@ -294,33 +348,74 @@ export default function Models3d({ onError, onToStudio }: {
                 )}
               </div>
             )}
-            {viewSet ? (
-              <div className="views8">
-                {AZ.map((a) => (
-                  <figure key={a} className={a === az ? 'sel' : ''} onClick={() => setAz(a)}>
-                    <img src={m3dApi.file(cur.id, cur.version, `${viewSet.dir}/az${String(a).padStart(3, '0')}.png`, 512)} alt={`${a}°`} />
-                    <span className="lbl">{a}°{a === az ? ' · vybráno' : ''}</span>
-                    <button className="zoom-btn" onClick={(e) => { e.stopPropagation(); setZoom(a) }} title="Zvětšit">⤢</button>
-                  </figure>
-                ))}
+            {cur.viewer ? (
+              <div className="viewer-wrap">
+                <Viewer3d key={`${cur.id}/${cur.version}`} ref={viewer} url={m3dApi.viewerGlb(cur.id, cur.version, cur.viewer.job_id)}
+                  lens={lens} onCamera={setCam} onError={onError} />
+                {cam && (
+                  <span className="readout">
+                    azimut {num(cam.azimuth)}° · výška {num(cam.elevation)}°
+                    {relDist !== null ? ` · vzdálenost ${num(relDist, 1)}×` : ''} · ohnisko {lens} mm
+                  </span>
+                )}
+                <span className="vctl">
+                  <button className="btn small" onClick={() => viewer.current?.zoom(1.15)} title="Oddálit">−</button>
+                  <button className="btn small" onClick={() => viewer.current?.zoom(1 / 1.15)} title="Přiblížit">+</button>
+                  <button className="btn small" onClick={() => viewer.current?.reset()}>Výchozí pohled</button>
+                </span>
               </div>
             ) : (
               <div className="views-empty">
-                {pending ? `${pending.status === 'running' ? 'Běží' : 'Čeká ve frontě'}: ${KIND_LABEL[pending.kind]} (${pending.status === 'running' ? 'chvilku' : `před ní ${pending.position ?? 0}`})`
-                  : cur.status === 'model' ? (
-                    <button className="btn" onClick={() => renderEl(el)}>Vykreslit bílé pohledy · 0 USD</button>
-                  ) : lastFail?.error ?? STATUS[cur.status].label}
+                {viewerJob ? `Připravuji model pro prohlížeč (zmenšení, 0 USD, ~10 s)${viewerJob.status === 'queued' ? `: čeká ve frontě, před ním ${viewerJob.position ?? 0}` : '…'}`
+                  : pending ? `${pending.status === 'running' ? 'Běží' : 'Čeká ve frontě'}: ${KIND_LABEL[pending.kind] ?? pending.kind}`
+                    : viewerFail ? (
+                      <span>Model se do prohlížeče nepřipravil: {viewerFail.error}{' '}
+                        <button className="btn small" onClick={async () => { try { await m3dApi.viewer(cur.id, cur.version); load() } catch (e) { onError(String((e as Error).message)) } }}>Zkusit znovu · 0 USD</button>
+                      </span>
+                    ) : lastFail?.error ?? STATUS[cur.status].label}
               </div>
             )}
-            {viewSet && (
+            {(cur.viewer || viewSet) && (
               <div className="checkbar">
                 <label className="row check">
                   <input type="checkbox" checked={!!cur.review} onChange={(e) => toggleReview(e.target.checked)} />
-                  <span><b>Model zkontrolován</b>: počet nohou a kol, úlomky, části navíc (⤢ u pohledu = zvětšit)</span>
+                  <span><b>Model zkontrolován</b>: počet nohou a kol, úlomky, části navíc (otočte model dokola, nebo vygenerujte sheet)</span>
                 </label>
                 <span className="grow" />
+                <button className="btn small" disabled={!!sheetJob || cur.status === 'rendering'} onClick={() => renderEl(20)}
+                  title={sheetJob ? 'Sheet se právě kreslí' : '8 bílých pohledů po 45°, Cycles na procesoru'}>
+                  {sheetJob ? `Kreslím sheet${sheetJob.status === 'queued' ? ' (ve frontě)' : '…'}` : cur.views['20'] ? 'Sheet je hotový · znovu · 0 USD' : 'Vygenerovat sheet pohledů · 0 USD · ~40 s'}
+                </button>
                 <button className="btn small" onClick={() => setStretchOpen(true)}>Natáhnout na rozměry…</button>
                 <button className="btn small" onClick={() => newVersionOf(cur)}>Nová verze</button>
+              </div>
+            )}
+            {Object.keys(cur.views).length > 0 && (
+              <div className="sheet-wrap">
+                <div className="row">
+                  <h3>Sheet pohledů · 8 × bílý render</h3>
+                  <span className="hint">klik = natočit prohlížeč, ⤢ = zvětšit</span>
+                  <span className="grow" />
+                  <div className="seg">
+                    {ELEVATIONS.map((e) => (
+                      <button key={e.el} className={el === e.el ? 'on' : ''} onClick={() => renderEl(e.el)}
+                        title={cur.views[String(e.el)] ? '' : 'Ještě nevykresleno: kliknutí zadá render (0 USD, ~40 s)'}>
+                        {e.label}{cur.views[String(e.el)] ? '' : ' ·'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {viewSet ? (
+                  <div className="sheet8">
+                    {AZ.map((a) => (
+                      <figure key={a} onClick={() => viewer.current?.view(a, el)} title={`Natočit prohlížeč na ${a}°`}>
+                        <img src={m3dApi.file(cur.id, cur.version, `${viewSet.dir}/az${String(a).padStart(3, '0')}.png`, 256)} alt={`${a}°`} />
+                        <span className="al">{a}°</span>
+                        <button className="zoom-btn" onClick={(e) => { e.stopPropagation(); setZoom(a) }} title="Zvětšit">⤢</button>
+                      </figure>
+                    ))}
+                  </div>
+                ) : <p className="hint">{sheetJob ? 'Kreslím…' : 'Pro tuto výšku sheet ještě není.'}</p>}
               </div>
             )}
           </>
@@ -346,8 +441,19 @@ export default function Models3d({ onError, onToStudio }: {
               </dd>
               <dt>Stav</dt><dd><span className={`tag ${cur.review ? 'ok' : STATUS[cur.status].cls}`}>{cur.review ? 'zkontrolováno' : STATUS[cur.status].label}</span></dd>
             </dl>
-            <button className="btn primary" disabled={!cur.review || !viewSet} onClick={toStudio}>→ Studio jako tvarová předloha</button>
-            <p className="hint">Aktivní po zaškrtnutí „Model zkontrolován“. Vybraný pohled ({az}°) jde do zadání jako předloha „tvar“.</p>
+            <button className="btn primary" disabled={!cur.review || !cur.viewer || !cam || using} onClick={toStudio}>
+              {using ? 'Renderuji pohled z kamery…' : 'Použít tento pohled · 0 USD · ~15 s'}
+            </button>
+            <p className="hint">{cur.review
+              ? 'Engine vyrenderuje bílý obraz přesně z kamery prohlížeče (výřez = čtverec) a pošle ho do Studia jako předlohu „tvar“.'
+              : 'Aktivní po zaškrtnutí „Model zkontrolován“.'}</p>
+            {lastRef && lastRef.model === `${cur.id}/${cur.version}` && (
+              <div className="lastref">
+                <img src={`${lastRef.url}?w=512`} alt="" onClick={() => setRefZoom(true)} title="Zvětšit" />
+                <button className="zoom-btn" onClick={() => setRefZoom(true)} title="Zvětšit">⤢</button>
+                <p className="hint">Odesláno do Studia: {lastRef.source}</p>
+              </div>
+            )}
             <a className="btn small" href={m3dApi.glb(cur.id, cur.version)} download>Stáhnout GLB</a>
           </>
         )}
@@ -371,6 +477,15 @@ export default function Models3d({ onError, onToStudio }: {
             <button className="btn small" onClick={() => setZoom(null)}>Zavřít (Esc)</button>
           </div>
           <div className="lb-img fit m3d-zoom" onClick={(e) => e.stopPropagation()}><img src={zoomSrc} alt="" /></div>
+        </div>
+      )}
+      {refZoom && lastRef && (
+        <div className="lightbox" onClick={() => setRefZoom(false)}>
+          <div className="lb-bar" onClick={(e) => e.stopPropagation()}>
+            <span className="hint">{lastRef.source}</span>
+            <button className="btn small" onClick={() => setRefZoom(false)}>Zavřít (Esc)</button>
+          </div>
+          <div className="lb-img fit m3d-zoom" onClick={(e) => e.stopPropagation()}><img src={lastRef.url} alt="" /></div>
         </div>
       )}
       {stretchOpen && cur && (

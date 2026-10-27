@@ -287,7 +287,7 @@ export const termsApi = {
   check: (texts: string[]) => post<{ available: boolean; results: TermResult[] }>('/api/v2/terms/check', { texts }),
 }
 
-// -- 3D step v1 (engine/api3d.py, docs/plans/2026-10-27-3d-v1.md) ---------------
+// -- 3D step (engine/api3d.py, docs/plans/2026-10-27-3d-v1.md; v2 viewer + camera render) ---------------
 export type View3d = 'front' | 'back' | 'left' | 'right'
 export interface Ref3d { view: View3d; b64?: string; source?: string | null; license?: string | null; author?: string | null }
 export interface Model3dVersion {
@@ -296,7 +296,7 @@ export interface Model3dVersion {
   version: string
   title: string
   created: string
-  status: 'queued' | 'generating' | 'model' | 'rendering' | 'stretching' | 'ready' | 'failed'
+  status: 'queued' | 'generating' | 'model' | 'viewer' | 'rendering' | 'stretching' | 'ready' | 'failed'
   method: 'fal-trellis2' | 'fal-hunyuan3d' | 'upload' | 'blender-script' | 'stretch'
   backend: string | null
   refs: { view: View3d; file: string; source: string | null; license: string | null }[]
@@ -304,6 +304,7 @@ export interface Model3dVersion {
   request_id?: string | null
   views: Record<string, { dir: string; files: string[]; rendered: string; seconds: number; engine: string }>
   review: { by: string; at: string } | null
+  viewer?: { file: string; bytes: number; triangles: number | null; job_id: string; seconds: number }
   jobs: { job_id: string; kind: string }[]
   error: string | null
   stats?: { verts: number; faces: number; bbox: [number, number, number] }
@@ -331,6 +332,13 @@ export const m3dApi = {
   stretch: (id: string, v: string, dims: number[], part: string, source: string) =>
     post<{ version: string; job_id: string }>(`${m3}/${id}/${v}/stretch`, { dims, part, source }),
   recover: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/recover`, {}),
+  viewer: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/viewer`, {}),
+  // the job id changes with every new viewer copy, so the browser never shows a stale cached one
+  viewerGlb: (id: string, v: string, job: string) => `${m3}/${id}/${v}/viewer.glb?j=${job}`,
+  camera: (id: string, v: string, cam: { target: number[]; azimuth: number; elevation: number; distance: number; lens: number }) =>
+    post<{ key: string; job_id: string | null; file: string }>(`${m3}/${id}/${v}/camera`, cam),
+  asRefCam: (id: string, v: string, key: string) =>
+    call<{ path: string; file: string; role: Role; source: string; license: string | null }>(`${m3}/${id}/${v}/as-ref?cam=${key}`),
   asRef: (id: string, v: string, azimuth: number, elevation: number) =>
     call<{ path: string; role: Role; source: string; license: string | null }>(`${m3}/${id}/${v}/as-ref?azimuth=${azimuth}&elevation=${elevation}`),
   file: (id: string, v: string, name: string, w?: number) => `${m3}/${id}/${v}/files/${name}${w ? `?w=${w}` : ''}`,
