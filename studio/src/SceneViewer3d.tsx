@@ -33,9 +33,10 @@ export interface SceneViewerHandle {
 const deg = (r: number) => (r * 180) / Math.PI
 const rad = (d: number) => (d * Math.PI) / 180
 const SNAP = 0.1
-const clay = new THREE.MeshStandardMaterial({ color: 0xd2cdc4, roughness: 0.9 })
-const selClay = new THREE.MeshStandardMaterial({ color: 0xa9bde6, roughness: 0.9 })
-const figClay = new THREE.MeshStandardMaterial({ color: 0xc2410c, roughness: 0.8 })
+// both sides: Blender renders single-sided planes (a sail, a flag) from behind too, three.js would skip them
+const clay = new THREE.MeshStandardMaterial({ color: 0xd2cdc4, roughness: 0.9, side: THREE.DoubleSide })
+const selClay = new THREE.MeshStandardMaterial({ color: 0xa9bde6, roughness: 0.9, side: THREE.DoubleSide })
+const figClay = new THREE.MeshStandardMaterial({ color: 0xc2410c, roughness: 0.8, side: THREE.DoubleSide })
 
 export function frameRect(w: number, h: number, aspect: number) {
   const fw = Math.min(w, h * aspect)
