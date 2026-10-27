@@ -69,6 +69,26 @@ Na pokyn operátora (do 0,50 USD) po průzkumu `docs/capabilities/3d-moznosti-20
 - Pravděpodobná příčina: fotky jsou z různých vozů, ani jedna není čistý ortogonální pohled (boční je mírně šikmo, zadní je ze tří čtvrtin). [neověřeno, chtělo by to pokus s čistými pohledy]
 - Hunyuan3D v3 je pro tvarovou předlohu lepší než TRELLIS 2, když jsou k dispozici fotky z víc stran. Na přesné poměry dál vede Blender z rozměrů. Kombinace (Hunyuan model natáhnout v Blenderu na rozměry ze zdroje) je nezkoušená.
 
+## Doplněk 2: natažení na rozměry, postava, zvíře, stavba
+
+**Tatra natažená v Blenderu** (`scripts/3d/stretch_glb.py`, 0 USD). Model z Hunyuan3D se zvětší podle výšky ze zdroje a pak se natáhne jen střed vozu, aby kola zůstala kulatá. Rozměry pak sedí přesně (4,74 × 1,67 × 1,50 m). Zepředu FLUX nakreslil přesvědčivou Tatru se správnými poměry. Zezadu z ní ale udělal limuzínu s dlouhou kabinou a žaluzie téměř zmizely. Skutečná Tatra je delší hlavně v zádi za kabinou, takže příště natahovat záď, ne střed.
+
+![Tatra natažená](img/2026-10-27-3d/4-tatra-natazena.jpg)
+
+**Postava, zvíře, stavba** (Hunyuan3D v3 Geometry, `scripts/3d/hunyuan_run.py`, schváleno do 1,10 USD, utraceno 0,975 USD):
+
+| Objekt | Pohledy | Cena | Model | FLUX |
+|---|---|---|---|---|
+| Postava: Doryforos (odlitek, Puškinovo muzeum) | zepředu, zezadu | 0,375 USD, 49 s | věrná postava i s kopím, poznatelná ze všech stran | **živý muž** v tunice s kopím na rameni, póza a postoj převzaté z modelu |
+| Slon africký (3 různí sloni) | zepředu, z boku, zezadu | 0,375 USD, 78 s | nejlepší model z celého měření: uši, kly, chobot, chůze | **výborný** slon v savaně |
+| Staroměstská mostecká věž | jen 1 denní pohled (u noční fotky splynula střecha s oblohou) | 0,225 USD, 82 s | kružby, ochoz a věžičky věrné, ale **přibyla vymyšlená druhá věž** | gotická věž, ale ne ta skutečná |
+
+![socha, slon, věž](img/2026-10-27-3d/5-socha-slon-vez.jpg)
+
+- Hunyuan3D s víc pohledy funguje i u postav a zvířat, a to i když je každý pohled z jiné fotky (sloni byli tři různí). Lidská póza se přes `role: geometry` přenese na živou postavu.
+- Z jediného pohledu si Hunyuan zadní a boční strany domýšlí. U stavby si přidal celou věž. Stavby proto potřebují aspoň dva pohledy, nebo kontrolu bílého modelu před FLUX.
+- Výřez rembg selže na tmavém objektu proti tmavé obloze (střecha věže) a na objektu v lese (Karlštejn ze vzduchu, vyřazen). Hlava sochy splynula s vlysem v pozadí.
+
 ## Útrata
 
-3 × TRELLIS 2 1024p = **0,90 USD** (`library/costs.jsonl`, caller `spike-3d`). FLUX 6 obrázků + 2 neúspěšné pokusy: 0 USD. Doplněk Hunyuan3D v3: 0,375 USD, FLUX 2 obrázky 0 USD. Celkem 1,275 USD.
+3 × TRELLIS 2 1024p = **0,90 USD** (`library/costs.jsonl`, caller `spike-3d`). FLUX 6 obrázků + 2 neúspěšné pokusy: 0 USD. Doplněk Hunyuan3D v3: 0,375 USD, FLUX 2 obrázky 0 USD. Doplněk 2: Hunyuan3D 3 modely 0,975 USD, FLUX 5 obrázků 0 USD. Celkem 2,25 USD.
