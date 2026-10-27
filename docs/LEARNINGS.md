@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — 3D scény: co z bílého snímku FLUX drží a co ne
+
+- **Velké tvary drží, drobné ne.** Snímek Loď u mola (kvinquerema 48 m, molo, tři amfory 0,7 m) jako předloha „tvar“: FLUX zachoval stěžeň, plachtu, tři řady vesel, havran i záď. Amfory ale zvětšil asi na 1,2 m a přesunul do popředí a přidal velkou postavu v popředí, přestože zadání obsahovalo větu o měřítku (`docs/spikes/2026-10-27-3d-sceny.md`).
+- **Kontrolní postava ve snímku nepomůže, když je malá.** Při 48m lodi v záběru má postava 1,72 m pár pixelů a FLUX z ní udělal sloupek na molu, jinak vyšel stejný obraz (stejný seed). Proto zůstává ve snímku pro FLUX vypnutá (Q4). Na měřítko lidí je potřeba bližší kamera, nebo postavy dokreslit zvlášť.
+- **Skript s vlastní měřítkovou postavou nafoukne rozměr modelu.** `lod_kvinquerema.py` staví vedle přídě panáčka na podstavci; v exportu zvětšil nejdelší stranu z 48,45 m na 52,25 m a ve scéně stál mimo loď. Export (`scripts/3d/export_kvinquerema_glb.py`) ho vynechává.
+- **Model postavený v metrech má rozměr = nejdelší strana obálky**, ne délka trupu (kvinquerema: trup 45 m, s beranem a zádí 48,45 m). Do `rozmer_m` patří obálka, jinak se model zmenší.
+- **Kolize kliknutí a OrbitControls:** výběr a tažení objektu musí poslouchat `pointerdown` v capture fázi a vypnout `controls.enabled`, jinak se při tažení objektu zároveň točí kamera.
+
 ## 2026-10-27 — 3D v2: zmenšení GLB, test prohlížeče, srovnání obrysů
 
 - **Generované GLB nejsou svařené.** Hunyuan3D dává 3 vrcholy na plochu (Tatra v2: 1,5 M vrcholů na 500k ploch). Decimace bez svaření dala 8,4 MB, se svařením (`bmesh.ops.remove_doubles`) a bez normál 1,2 MB. Normály si prohlížeč spočítá sám (`computeVertexNormals`), u ručních low-poly modelů (< 20k trojúhelníků) `flatShading`, jinak se hrany rozmažou.

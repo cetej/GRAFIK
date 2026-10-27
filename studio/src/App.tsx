@@ -11,6 +11,7 @@ import Settings from './Settings.tsx'
 import Styles, { Swatches } from './Styles.tsx'
 import Infographics from './Infographics.tsx'
 import Models3d from './Models3d.tsx'
+import Scenes3d from './Scenes3d.tsx'
 import { BatchPanel, BatchRow } from './Batch.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
@@ -48,6 +49,7 @@ export default function App() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [spentToday, setSpentToday] = useState(0)
   const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'info' | '3d' | 'settings'>('studio')
+  const [mode3d, setMode3d] = useState<'models' | 'scenes'>('models')
   const [picker, setPicker] = useState<PickerTab | null>(null)
   const [inboxNew, setInboxNew] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
@@ -289,8 +291,19 @@ export default function App() {
       {tab === 'settings' ? (
         <Settings onError={setToast} />
       ) : tab === '3d' ? (
-        <Models3d onError={setToast}
-          onToStudio={(ref) => { setRefs((r) => [...r, ref].slice(0, 10)); setTab('studio'); setToast(`Pohled ${ref.name} je v předlohách jako „tvar“.`) }} />
+        mode3d === 'scenes' ? (
+          <Scenes3d onError={setToast} onModels={() => setMode3d('models')}
+            onToStudio={(ref, hint) => {
+              setRefs((r) => [...r, ref].slice(0, 10))
+              // the size sentence in the prompt's language (LEARNINGS 2026-10-23: the generator enlarges people)
+              setPrompt((p) => { const h = !p.trim() || isCzech(p) ? hint.cs : hint.en; return h && !p.includes(h) ? (p.trim() ? `${p.trim().replace(/[.;,]$/, '')}. ${h}` : h) : p })
+              setTab('studio')
+              setToast(`Snímek scény ${ref.name} je v předlohách jako „tvar“, věta o rozměrech v zadání.`)
+            }} />
+        ) : (
+          <Models3d onError={setToast} onScenes={() => setMode3d('scenes')}
+            onToStudio={(ref) => { setRefs((r) => [...r, ref].slice(0, 10)); setTab('studio'); setToast(`Pohled ${ref.name} je v předlohách jako „tvar“.`) }} />
+        )
       ) : tab === 'info' ? (
         <Infographics openId={infoId} setOpenId={setInfoId} selectedImage={selected}
           recentImages={doneImages.map((d) => d.ref)} onError={setToast} />

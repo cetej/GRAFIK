@@ -356,3 +356,19 @@ main.m3d dd select { max-width: 100%; }
 label.dim { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
 label.dim input { width: 110px; min-height: 34px; border: 1px solid #b9bcc3; border-radius: 8px; padding: 4px 8px; font-size: 16px; color: var(--ink); }
 label.dim.wide input { width: 100%; }
+/* 3D scenes (brief B, sketch docs/spikes/img/2026-10-27-3d-sceny-nacrt.png) */
+.sc-objs { max-height: 30vh; }
+.sc-objs .node .tag { margin: 2px 4px 0 0; }
+.node .ph.fig { background: #f4d9cc; color: #c2410c; font-weight: 600; font-size: 12px; }
+.scene3d .frame { aspect-ratio: auto; }
+.sc-form { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: flex-end; margin-top: 10px; padding: 9px 12px; background: #f6f8fb; border: 1px solid var(--line); border-radius: 8px; }
+.sc-form > b { flex-basis: 100%; }
+.sc-form label.dim input { width: 92px; }
+.sc-form label.dim.wide { flex: 1; min-width: 180px; }
+.sc-form label.dim select { min-height: 34px; border: 1px solid #b9bcc3; border-radius: 8px; font-size: 14px; }
+.sc-form p.hint, p.hint.sc-form { margin-top: 10px; }
+label.dim input.bad { border-color: var(--bad); }
+.sc-hint { background: #fff7e0; border: 1px solid #f0d58a; border-radius: 8px; padding: 7px 9px; font-size: 12.5px; margin: 8px 0; }
+.sc-picker { max-height: 60vh; }
+.sc-picker .node:disabled { opacity: 1; color: #8d929b; cursor: not-allowed; background: #f1f2f4; }
+label.sc-check { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; cursor: pointer; }

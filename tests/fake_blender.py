@@ -1,6 +1,6 @@
 """Stands in for `blender -b --factory-startup -P <script> -- args` in the 3D tests.
 
-render_views.py: writes 8 small RGBA PNGs (or one with --camera) and a STATS line; stretch.py: copies the GLB
+render_views.py: writes 8 small RGBA PNGs (or one with --camera / --scene) and a STATS line; stretch.py: copies the GLB
 and prints BBOX; decimate.py: copies the GLB and prints STATS and VIEWER.
 FAKE_BLENDER_MODE=empty renders transparent views, =crash exits 1 with a stderr message,
 =slow sleeps past the time limit. FAKE_BLENDER_TRACE=<file> appends one line per call
@@ -39,6 +39,16 @@ def view(path):
     im.save(path, "PNG")
 
 
+if script == "render_views.py" and "--scene" in args:
+    spec = json.loads(Path(args[args.index("--scene") + 1]).read_text(encoding="utf-8"))
+    for o in spec["objects"]:
+        if o["kind"] == "glb" and not Path(o["glb"]).read_bytes().startswith(b"glTF"):
+            print("STATS " + json.dumps({"verts": 0, "faces": 0}))
+            sys.exit(3)
+    print("STATS " + json.dumps({**STATS, "objects": len(spec["objects"])}))
+    view(Path(args[args.index("--scene") + 2]))
+    print("VIEW camera")
+    sys.exit(0)
 if script in ("render_views.py", "decimate.py"):
     glb, out = Path(args[0]), Path(args[1])
     if not glb.read_bytes().startswith(b"glTF"):

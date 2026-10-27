@@ -8,8 +8,8 @@ export default defineConfig({
   server: {
     // IPv4: Command Center checks the port on 127.0.0.1; vite would otherwise bind only [::1]
     host: '127.0.0.1',
-    port: 5174,
+    port: Number(process.env.GRAFIK_STUDIO_PORT ?? 5174),   // a worktree checks its build on another port
     strictPort: true,
-    proxy: { '/api': 'http://127.0.0.1:8300' },
+    proxy: { '/api': process.env.GRAFIK_ENGINE_URL ?? 'http://127.0.0.1:8300' },
   },
 })
