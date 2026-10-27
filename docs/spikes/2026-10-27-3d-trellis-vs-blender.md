@@ -80,12 +80,14 @@ Na pokyn operátora (do 0,50 USD) po průzkumu `docs/capabilities/3d-moznosti-20
 | Objekt | Pohledy | Cena | Model | FLUX |
 |---|---|---|---|---|
 | Postava: Doryforos (odlitek, Puškinovo muzeum) | zepředu, zezadu | 0,375 USD, 49 s | věrná postava i s kopím, poznatelná ze všech stran | **živý muž** v tunice s kopím na rameni, póza a postoj převzaté z modelu |
-| Slon africký (3 různí sloni) | zepředu, z boku, zezadu | 0,375 USD, 78 s | nejlepší model z celého měření: uši, kly, chobot, chůze | **výborný** slon v savaně |
+| Slon africký (3 různí sloni) | zepředu, z boku, zezadu | 0,375 USD, 78 s | hlava, uši a kly dobré, ale **ze zádi trčí pátá končetina** a **zadní chodidla nemají sloní tvar** (kulaté, spíš jako tlapy) | slon v savaně, ale převzal vadu: zadní noha zvednutá dozadu pod zadkem |
 | Staroměstská mostecká věž | jen 1 denní pohled (u noční fotky splynula střecha s oblohou) | 0,225 USD, 82 s | kružby, ochoz a věžičky věrné, ale **přibyla vymyšlená druhá věž** | gotická věž, ale ne ta skutečná |
 
 ![socha, slon, věž](img/2026-10-27-3d/5-socha-slon-vez.jpg)
 
-- Hunyuan3D s víc pohledy funguje i u postav a zvířat, a to i když je každý pohled z jiné fotky (sloni byli tři různí). Lidská póza se přes `role: geometry` přenese na živou postavu.
+- **Oprava (operátor 27. 10.):** první verze tohoto zápisu označila slona za nejlepší model měření. Hodnotil jsem jen z malých náhledů. Na velkých renderech je vidět pátá končetina na zádi a nesloní zadní chodidla ([detail](img/2026-10-27-3d/6-slon-vady.jpg)). Pravděpodobná příčina: na fotce zezadu visí chobot mezi zadními nohama a model ho postavil jako končetinu u zádi. Navíc se míchaly tři různé fotky tří různých slonů. [Příčina neověřená.]
+- Lidská póza se přes `role: geometry` přenese na živou postavu (Doryforos). Model sochy jsem zblízka nekontroloval, platí jen hodnocení z náhledu.
+- Zvířata z víc fotek různých jedinců: počet a umístění končetin kontrolovat před FLUX. Mezi zadníma nohama nesmí být vidět jiná část těla (chobot, ocas) a nejlépe použít fotky jednoho zvířete.
 - Z jediného pohledu si Hunyuan zadní a boční strany domýšlí. U stavby si přidal celou věž. Stavby proto potřebují aspoň dva pohledy, nebo kontrolu bílého modelu před FLUX.
 - Výřez rembg selže na tmavém objektu proti tmavé obloze (střecha věže) a na objektu v lese (Karlštejn ze vzduchu, vyřazen). Hlava sochy splynula s vlysem v pozadí.
 

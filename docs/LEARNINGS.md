@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — 3D model hodnotit na velkých renderech po končetinách, ne z náhledů
+
+**Kontext:** Hunyuan3D slon (`library/3d/slon-hunyuan3d/`). Agent ho podle náhledů 400 px vyhlásil za nejlepší model. Operátor si pak všiml páté končetiny na zádi a nesloních zadních chodidel. Vadu převzal i výsledek z FLUX.
+
+- Před verdiktem si model prohlédnout ve 4 pohledech v plném rozlišení. U zvířat a postav spočítat končetiny a zkontrolovat chodidla, ruce a místa, kde se části těla překrývají.
+- Zvíře z fotky zezadu: když je mezi zadními nohama vidět chobot nebo ocas, generátor z něj udělá končetinu.
+
 ## 2026-10-27 — Blender render vedle načteného FLUX shodí úlohu FLUX; bílý model musí nést poměry, ne detail
 
 **Kontext:** měření TRELLIS proti Blenderu na třech objektech (`docs/spikes/2026-10-27-3d-trellis-vs-blender.md`).
