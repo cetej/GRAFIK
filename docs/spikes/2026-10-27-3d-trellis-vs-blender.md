@@ -52,6 +52,23 @@ Poměr šířka/délka podle orientovaného bboxu u Tatry: skutečnost 0,352, Bl
 - `render_glb.py` s výchozí vzdáleností kamery (1,9) ořízne vysoké objekty. Přidal jsem volbu `--dist` (rotunda: 2,7).
 - Metaballs v Blenderu potřebují nízký `threshold` (0,25), jinak se kuličky nespojí.
 
+## Doplněk: Hunyuan3D v3 se třemi pohledy na Tatře 87
+
+Na pokyn operátora (do 0,50 USD) po průzkumu `docs/capabilities/3d-moznosti-2026-10-27.md`. Vstup: tři fotky z Commons (zepředu a z boku z NTM Praha, zezadu z Lane Motor Museum), výřez rembg, z bočního pohledu ručně vymazané cizí auto. fal `fal-ai/hunyuan3d-v3/image-to-3d`, `generate_type: Geometry`, `left_image_url` + `back_image_url`. Za 80 s, 0,375 USD. Skript `scripts/3d/hunyuan_run_tatra.py`, model `library/3d/tatra87-hunyuan3d/`.
+
+![Tatra: TRELLIS, Blender, Hunyuan3D](img/2026-10-27-3d/3-tatra-hunyuan.jpg)
+
+| | šířka/délka | výška/délka | úlomky | FLUX |
+|---|---|---|---|---|
+| skutečnost (4,74 × 1,67 × 1,50 m) | 0,352 | 0,316 | | |
+| TRELLIS 2 (1 fotka) | 0,83 (úlomky) | 0,40 | ano | obecný sedan |
+| Blender z rozměrů | 0,348 | 0,328 | ne | Tatra 87, správně dlouhá |
+| **Hunyuan3D v3 (3 pohledy)** | **0,530** | **0,437** | **ne** | **Tatra 87 poznatelná**: zezadu žaluzie motoru, hřbet a zaoblená záď, zepředu tři světla; vůz ale vychází kratší a vyšší |
+
+- Víc pohledů odstranilo úlomky a přineslo detaily, které TRELLIS z jedné fotky neměl (zadní partie). Poměry se zlepšily jen částečně: vůz je asi o třetinu kratší, než má být.
+- Pravděpodobná příčina: fotky jsou z různých vozů, ani jedna není čistý ortogonální pohled (boční je mírně šikmo, zadní je ze tří čtvrtin). [neověřeno, chtělo by to pokus s čistými pohledy]
+- Hunyuan3D v3 je pro tvarovou předlohu lepší než TRELLIS 2, když jsou k dispozici fotky z víc stran. Na přesné poměry dál vede Blender z rozměrů. Kombinace (Hunyuan model natáhnout v Blenderu na rozměry ze zdroje) je nezkoušená.
+
 ## Útrata
 
-3 × TRELLIS 2 1024p = **0,90 USD** (`library/costs.jsonl`, caller `spike-3d`). FLUX 6 obrázků + 2 neúspěšné pokusy: 0 USD.
+3 × TRELLIS 2 1024p = **0,90 USD** (`library/costs.jsonl`, caller `spike-3d`). FLUX 6 obrázků + 2 neúspěšné pokusy: 0 USD. Doplněk Hunyuan3D v3: 0,375 USD, FLUX 2 obrázky 0 USD. Celkem 1,275 USD.
