@@ -297,7 +297,7 @@ export interface Model3dVersion {
   title: string
   created: string
   status: 'queued' | 'generating' | 'model' | 'viewer' | 'rendering' | 'stretching' | 'ready' | 'failed'
-  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'upload' | 'blender-script' | 'stretch'
+  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch'
   backend: string | null
   refs: { view: View3d; file: string; source: string | null; license: string | null }[]
   cost_usd: number

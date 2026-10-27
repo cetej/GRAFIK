@@ -74,7 +74,7 @@ class Ref3d(BaseModel):
 class Model3dIn(BaseModel):
     title: str = ""
     model_id: str | None = None     # a new version of an existing model
-    method: str | None = None       # fal-trellis2 | fal-hunyuan3d | upload; empty = recommended
+    method: str | None = None       # fal-trellis2 | fal-hunyuan3d | fal-hunyuan31pro | upload; empty = recommended
     refs: list[Ref3d] = []
     glb_b64: str | None = None      # upload: a finished GLB (Blender script, earlier run), 0 USD
     origin: str = ""                # upload: where the GLB comes from ("scripts/3d/lod_tatra87.py")
@@ -148,33 +148,39 @@ class CutoutIn(BaseModel):
 # -- paid backends -------------------------------------------------------------
 
 class FalModel3d:
-    """One fal image-to-3D endpoint. Prices from the 2026-10-27 measurements (DECISIONS 2026-10-27)."""
+    """One fal image-to-3D endpoint. Prices from the fal model pages on 2026-10-27 (DECISIONS 2026-10-27)."""
+
+    # base price of one Geometry model; Hunyuan adds 0.15 USD for extra views (fal model pages, 2026-10-27)
+    BASE = {"fal-trellis2": ("TRELLIS 2 obrázek → 3D (1024p)", 0.30),
+            "fal-hunyuan3d": ("Hunyuan3D v3 Geometry", 0.225),
+            "fal-hunyuan31pro": ("Hunyuan 3.1 Pro Geometry", 0.375)}
 
     def __init__(self, method: str, endpoint: str, label: str, eta_s: int, timeout_s: float):
         self.method, self.endpoint, self.label, self.eta = method, endpoint, label, eta_s
         self.timeout_s = timeout_s
 
     def items(self, views: list[str]) -> list[dict]:
-        if self.method == "fal-trellis2":
-            return [{"what": "TRELLIS 2 obrázek → 3D (1024p)", "usd": 0.30}]
+        what, usd = self.BASE[self.method]
         extra = [v for v in views if v != "front"]
-        return [{"what": "Hunyuan3D v3 Geometry", "usd": 0.225}] + (
-            [{"what": f"další pohledy ({', '.join(VIEW_LABEL[v] for v in extra)})", "usd": 0.15}] if extra else [])
+        return [{"what": what, "usd": usd}] + (
+            [{"what": f"další pohledy ({', '.join(VIEW_LABEL[v] for v in extra)})", "usd": 0.15}]
+            if extra and self.method != "fal-trellis2" else [])
 
     def validate(self, views: list[str]) -> None:
         if not views:
             raise Model3dError("chybí předloha")
         if self.method == "fal-trellis2" and len(views) != 1:
             raise Model3dError("TRELLIS 2 bere jednu předlohu; víc pohledů zvládne Hunyuan3D")
-        if self.method == "fal-hunyuan3d" and "front" not in views:
-            raise Model3dError("Hunyuan3D potřebuje předlohu zepředu")
+        if self.method != "fal-trellis2" and "front" not in views:
+            raise Model3dError(f"{self.label} potřebuje předlohu zepředu")
         if len(set(views)) != len(views):
             raise Model3dError("každý pohled smí mít jen jednu předlohu")
 
     def arguments(self, urls: dict[str, str]) -> dict:
         if self.method == "fal-trellis2":
             return {"image_url": next(iter(urls.values())), "resolution": 1024, "seed": 7}
-        args = {"input_image_url": urls["front"], "generate_type": "Geometry", "face_count": 500000}
+        # no face_count: fal bills a custom face count extra (0.15 USD); its default is the same 500k
+        args = {"input_image_url": urls["front"], "generate_type": "Geometry"}
         args.update({f"{v}_image_url": u for v, u in urls.items() if v != "front"})
         return args
 
@@ -221,6 +227,9 @@ def make_backends3d(settings: Settings) -> dict:
         "fal-trellis2": FalModel3d("fal-trellis2", "fal-ai/trellis-2", "TRELLIS 2", 120, settings.fal3d_timeout_s),
         "fal-hunyuan3d": FalModel3d("fal-hunyuan3d", "fal-ai/hunyuan3d-v3/image-to-3d", "Hunyuan3D v3", 90,
                                     settings.fal3d_timeout_s),
+        # KLAPKA rated it best from one image (KLAPKA docs/figury-3d.md, 2026-10-05); operator added it 2026-10-27
+        "fal-hunyuan31pro": FalModel3d("fal-hunyuan31pro", "fal-ai/hunyuan-3d/v3.1/pro/image-to-3d",
+                                       "Hunyuan 3.1 Pro", 90, settings.fal3d_timeout_s),
     }
 
 
