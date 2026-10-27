@@ -13,7 +13,7 @@ Rozhodnutí: `docs/DECISIONS.md` · stav: `docs/STAV.md` · spec: `docs/plans/20
 - Styly (G4): karty `styles/<slug>/` (`style.json` = zdroj pravdy, `STYLE.md` se přepisuje), `engine/styles.py`, `/api/v2/styles`; do generátoru jen slovy (`style: "<slug>"`).
 - Infografiky (G5): `engine/infographics.py`, `/api/v2/infographics`, `studio/src/Infographics.tsx` (jeden SVG renderer, Engine převádí přes Playwright na PNG/PDF); šablony schémat `schemas/*.svg`; text nikdy z modelu.
 - Termdb: `engine/termdb.py` čte `BIOLIB/termdb.db` (sdílená s NG-ROBOT, jen čtení, `GRAFIK_TERMDB`); jednoznačné termíny jdou do překladu jako nápověda, `/api/v2/terms/check` pro kontrolu infografiky.
-- 3D (spike): `scripts/3d/` (výřez předlohy, TRELLIS 2 přes fal, render v Blenderu `C:/Users/stock/tools/blender-5.2.3-windows-x64/`), modely `library/3d/`; render jde do FLUX jako `geometry` předloha.
+- 3D (spike): `scripts/3d/` (výřez předlohy, TRELLIS 2 přes fal `trellis_run.py`, Hunyuan3D v3 přes fal `hunyuan_run.py`, natažení na rozměry `stretch_glb.py`, render v Blenderu `C:/Users/stock/tools/blender-5.2.3-windows-x64/`), modely `library/3d/`; render jde do FLUX jako `geometry` předloha. Kterou cestu kdy: `docs/DECISIONS.md` 2026-10-27; placené jen s cenou předem. Bílý model před FLUX zkontrolovat ve 4 pohledech v plném rozlišení (končetiny, úlomky, vymyšlené části).
 
 ## Servery
 
