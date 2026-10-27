@@ -4,7 +4,7 @@ export type Role = 'subject' | 'geometry' | 'scene' | 'style'
 export type EditAction = 'add' | 'remove' | 'move' | 'recolor'
 export type Box = [number, number, number, number] // [top, left, bottom, right], 0–1000
 
-export interface RefIn { b64?: string; ref_id?: string; role: Role; text?: string; source?: string }
+export interface RefIn { b64?: string; ref_id?: string; role: Role; text?: string; source?: string; license?: string | null }
 
 export interface ImageRequest {
   prompt: string
@@ -285,4 +285,54 @@ export const infoApi = {
 export interface TermResult { text: string; ok: string[]; ambiguous: { phrase: string; senses: string[] }[]; missing: string[]; hints: string[] }
 export const termsApi = {
   check: (texts: string[]) => post<{ available: boolean; results: TermResult[] }>('/api/v2/terms/check', { texts }),
+}
+
+// -- 3D step v1 (engine/api3d.py, docs/plans/2026-10-27-3d-v1.md) ---------------
+export type View3d = 'front' | 'back' | 'left' | 'right'
+export interface Ref3d { view: View3d; b64?: string; source?: string | null; license?: string | null; author?: string | null }
+export interface Model3dVersion {
+  schema_version: number
+  id: string
+  version: string
+  title: string
+  created: string
+  status: 'queued' | 'generating' | 'model' | 'rendering' | 'stretching' | 'ready' | 'failed'
+  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'upload' | 'blender-script' | 'stretch'
+  backend: string | null
+  refs: { view: View3d; file: string; source: string | null; license: string | null }[]
+  cost_usd: number
+  request_id?: string | null
+  views: Record<string, { dir: string; files: string[]; rendered: string; seconds: number; engine: string }>
+  review: { by: string; at: string } | null
+  jobs: { job_id: string; kind: string }[]
+  error: string | null
+  stats?: { verts: number; faces: number; bbox: [number, number, number] }
+  blender?: string
+  parent?: string
+  origin?: string | null
+  stretch?: { dims: [number, number, number]; part: string; source: string; bbox?: number[] }
+  legacy?: { dir: string }
+  versions?: number
+}
+export interface Estimate3d { method: string; recommended: string; items: CostItem[]; total_usd: number; eta_s: number; label: string }
+export interface Job3d extends Omit<Job, 'request'> { kind: string; request: { model_id: string; version: string; elevation?: number; recover?: boolean } }
+
+const m3 = '/api/v2/models3d'
+export const m3dApi = {
+  list: () => call<Model3dVersion[]>(m3),
+  get: (id: string) => call<{ id: string; title: string; versions: Model3dVersion[] }>(`${m3}/${id}`),
+  jobs: () => call<Job3d[]>(`${m3}/jobs?limit=20`),
+  estimate: (body: { method?: string | null; refs: Ref3d[] }) => post<Estimate3d>(`${m3}/estimate`, body),
+  cutout: (b64: string) => post<{ b64: string }>(`${m3}/cutout`, { b64 }),
+  create: (body: { title: string; model_id?: string | null; method?: string | null; refs?: Ref3d[]; glb_b64?: string; origin?: string; confirm_cost?: boolean }) =>
+    post<{ model_id: string; version: string; job_id: string; estimate_usd: number }>(m3, body),
+  views: (id: string, v: string, elevation: number) => post<{ job_id: string }>(`${m3}/${id}/${v}/views`, { elevation }),
+  review: (id: string, v: string, reviewed: boolean) => post<Model3dVersion>(`${m3}/${id}/${v}/review`, { reviewed, by: 'operátor' }),
+  stretch: (id: string, v: string, dims: number[], part: string, source: string) =>
+    post<{ version: string; job_id: string }>(`${m3}/${id}/${v}/stretch`, { dims, part, source }),
+  recover: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/recover`, {}),
+  asRef: (id: string, v: string, azimuth: number, elevation: number) =>
+    call<{ path: string; role: Role; source: string; license: string | null }>(`${m3}/${id}/${v}/as-ref?azimuth=${azimuth}&elevation=${elevation}`),
+  file: (id: string, v: string, name: string, w?: number) => `${m3}/${id}/${v}/files/${name}${w ? `?w=${w}` : ''}`,
+  glb: (id: string, v: string) => `${m3}/${id}/${v}/model.glb`,
 }

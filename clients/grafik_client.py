@@ -23,6 +23,9 @@ scripts/manual/variants_page.py) next to this file or in GRAFIK/clients.
 CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:role]] [--out DIR]
      python grafik_client.py variants "prompt" [--count 8] [--style SLUG ...] [--out DIR] [--no-open]
      python grafik_client.py ref-add <image or pin URL> [--page URL] [--title T]
+     python grafik_client.py model3d --glb model.glb [--title T]          (0 USD)
+     python grafik_client.py model3d --ref front.png:front [--ref back.png:back] [--confirm-cost]
+     python grafik_client.py views <model_id> [--version v1] [--elevation 20] [--out DIR]
      python grafik_client.py health
      python grafik_client.py ensure
 """
@@ -232,6 +235,70 @@ def generate(prompt: str, *, out_dir: str | Path = ".", timeout: float = 900, **
     return download(wait(submit(prompt, **kw), timeout=timeout), out_dir)
 
 
+def model3d(*, refs: list | None = None, glb: str | Path | None = None, title: str = "", method: str | None = None,
+            model_id: str | None = None, origin: str = "", caller: str | None = None, confirm_cost: bool = False,
+            timeout: float = 1200) -> dict:
+    """A 3D model with 8 clay views (separate from images; /api/v2/models3d). Either `glb` (a finished model,
+    0 USD) or `refs` = [{"path"|"b64", "view": front|back|left|right, "source", "license"}] for fal: 1 ref ->
+    TRELLIS 2 (0.30 USD), 2+ -> Hunyuan3D v3 (0.375 USD); paid only with confirm_cost=True, otherwise
+    CostConfirmationRequired and nothing runs. Waits for the model and its views; returns the version's
+    model.json. The views go to the image generator only after the operator's check in Studio (tab 3D)."""
+    body = {"title": title, "method": method, "model_id": model_id, "origin": origin, "confirm_cost": confirm_cost,
+            "caller": caller or Path(sys.argv[0]).stem or "client"}
+    if glb is not None:
+        body["glb_b64"] = base64.b64encode(Path(glb).read_bytes()).decode("ascii")
+        body["origin"] = origin or str(glb)
+    else:
+        body["refs"] = [_ref_payload(r) for r in refs or []]
+    status, data = _request("POST", "/api/v2/models3d", body, timeout=120)
+    if status == 402:
+        raise CostConfirmationRequired(data["estimate_usd"], data.get("items", []))
+    if status != 202:
+        raise GrafikError(f"Engine odmítl 3D model ({status}): {data.get('detail')}")
+    job = wait(data["job_id"], timeout=timeout)
+    views_job = (job.get("result") or {}).get("views_job")
+    if views_job:
+        wait(views_job, timeout=timeout)
+    return _version(data["model_id"], data["version"])
+
+
+def _version(model_id: str, version: str | None) -> dict:
+    status, m = _request("GET", f"/api/v2/models3d/{model_id}")
+    if status != 200:
+        raise GrafikError(f"3D model {model_id}: {m.get('detail')}")
+    found = [v for v in m["versions"] if version in (None, v["version"])]
+    if not found:
+        raise GrafikError(f"3D model {model_id} nemá verzi {version}")
+    return found[-1]
+
+
+def views(model_id: str, version: str | None = None, *, elevation: int = 20, out_dir: str | Path = ".",
+          timeout: float = 600) -> list[Path]:
+    """Download the 8 clay views (0°…315°) of a model version (latest when None); renders them first when this
+    camera height (5 = low, 20, 60 = from above) is missing. Free."""
+    meta = _version(model_id, version)
+    view = meta["views"].get(str(elevation))
+    if not view:
+        status, data = _request("POST", f"/api/v2/models3d/{model_id}/{meta['version']}/views", {"elevation": elevation})
+        if status != 202:
+            raise GrafikError(f"pohledy se nepodařilo zadat ({status}): {data.get('detail')}")
+        wait(data["job_id"], timeout=timeout)
+        meta = _version(model_id, meta["version"])
+        view = meta["views"][str(elevation)]
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for name in view["files"]:
+        status, data = _request("GET", f"/api/v2/models3d/{model_id}/{meta['version']}/files/{view['dir']}/{name}",
+                                timeout=120)
+        if status != 200:
+            raise GrafikError(f"stažení pohledu {name} selhalo ({status})")
+        p = out / f"{model_id}-{meta['version']}-e{elevation:02d}-{name}"
+        p.write_bytes(data)
+        paths.append(p)
+    return paths
+
+
 def _variants_page_module():
     """variants_page.py next to this file, else in GRAFIK/clients; None when neither is there."""
     root = _grafik_dir()
@@ -336,7 +403,39 @@ def _cli(argv: list[str]) -> int:
     v.add_argument("--title")
     v.add_argument("--out", default="varianty")
     v.add_argument("--no-open", action="store_true", help="stránku neotevírat v prohlížeči")
+    m3 = sub.add_parser("model3d", help="3D model z hotového GLB nebo z předloh (placené jen s --confirm-cost)")
+    m3.add_argument("--glb")
+    m3.add_argument("--ref", action="append", default=[], help="cesta[:pohled], pohled front|back|left|right")
+    m3.add_argument("--title", default="")
+    m3.add_argument("--method", help="fal-trellis2 | fal-hunyuan3d; bez volby doporučená")
+    m3.add_argument("--confirm-cost", action="store_true")
+    vw = sub.add_parser("views", help="stáhnout 8 bílých pohledů modelu")
+    vw.add_argument("model_id")
+    vw.add_argument("--version")
+    vw.add_argument("--elevation", type=int, default=20, help="5 nízko, 20, 60 shora")
+    vw.add_argument("--out", default=".")
     a = ap.parse_args(argv)
+    if a.cmd in ("model3d", "views"):
+        try:
+            if a.cmd == "views":
+                for p in views(a.model_id, a.version, elevation=a.elevation, out_dir=a.out):
+                    print(p)
+                return 0
+            refs = []
+            for r in a.ref:
+                path, _, view = r.rpartition(":") if r.rsplit(":", 1)[-1] in ("front", "back", "left", "right") else (r, "", "")
+                refs.append({"path": path, "view": view or "front"})
+            meta = model3d(refs=refs, glb=a.glb, title=a.title, method=a.method, confirm_cost=a.confirm_cost,
+                           caller="grafik_client-cli")
+        except CostConfirmationRequired as e:
+            print(f"CHYBA: placený model ~{e.estimate_usd} USD, nic nespuštěno. Zopakujte s --confirm-cost.",
+                  file=sys.stderr)
+            return 1
+        except GrafikError as e:
+            print(f"CHYBA: {e}", file=sys.stderr)
+            return 1
+        print(f"{meta['id']} {meta['version']}: {meta['status']}, {len(meta['views'].get('20', {}).get('files', []))} pohledů")
+        return 0
     if a.cmd == "health":
         print(json.dumps(health(), ensure_ascii=False, indent=2))
         return 0

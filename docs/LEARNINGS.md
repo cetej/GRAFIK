@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-27 — Bílé pohledy na CPU stačí; „záď“ modelu se nedá odhadnout z os
+
+**Kontext:** 3D krok v1 (`engine/models3d.py`, měření `docs/spikes/2026-10-27-3d-t1.md`).
+
+1. Cycles na procesoru (32 vzorků + denoise) vykreslí 8 bílých pohledů za 38 s s 0 MB VRAM, EEVEE za 16–28 s s +1,25 GB. Na oko stejné. Rozdíl 10–20 s je levnější než studený start FLUX po zastavení sd-serveru, takže render jede na CPU a FLUX zůstane načtený.
+2. Orientace generovaného GLB je náhodná: u Tatry z Hunyuan3D leží délka v ose Y a příď na záporném konci. Natažení „zadní části“ by natáhlo příď i s kolem. Studio proto pojmenuje konec podle pohledu, na kterém je vidět („konec u pohledu 270°“), a operátor vybírá podle obrázku.
+3. Nové `node_modules` ve worktree chybí a `npx tsc` bez nich skončí nulou s prázdným výstupem, nic nezkontroluje. Ve worktree nejdřív `npm ci`, pak `npm run build`.
+
 ## 2026-10-27 — 3D model hodnotit na velkých renderech po končetinách, ne z náhledů
 
 **Kontext:** Hunyuan3D slon (`library/3d/slon-hunyuan3d/`). Agent ho podle náhledů 400 px vyhlásil za nejlepší model. Operátor si pak všiml páté končetiny na zádi a nesloních zadních chodidel. Vadu převzal i výsledek z FLUX.
