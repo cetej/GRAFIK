@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-28 — Nesvařenou síť dělal náš export, ne Hunyuan
+
+- **Oprava záznamu z 10-27 „Generované GLB nejsou svařené“.** Syrový Hunyuan3D je svařený: `tatra-87/v1` a `slon-hunyuan3d` mají 500 000 ploch na 250 000 vrcholů a jen `POSITION`. Tři vrcholy na plochu měla až natažená Tatra v2 (1 498 732 vrcholů, 42 MB). Blender po importu GLB bez normál označí plochy jako ploché a výchozí export pak zapíše normálu každé plochy zvlášť, takže každou plochu odpojí. `stretch.py` (a `scripts/3d/stretch_glb.py`) proto exportuje s `export_normals=False`: stejná Tatra má 249 976 vrcholů a 9,0 MB, obálka beze změny (GRAFIK#73).
+- **Dopad mimo velikost:** KLAPKA kreslí modely z knihovny Line Artem a nesvařenou síť nakreslila jako plochu plnou čmáranic za 113 s místo 25 s (pojistka v KLAPKA#185).
+- Každý další export z Blenderu, který jde do knihovny, bez normál, nebo s normálami jen tam, kde je model opravdu vyhlazený. Test: `tests/test_blender_stretch.py` (skutečný Blender, krychle bez normál musí zůstat na 8 vrcholech).
+
 ## 2026-10-27 — glTF Transform: `optimize` s výchozím `join` rozhodí stínování tenkých dílů
 
 - **Spojení meshů + kvantizace = jiné normály.** `gltf-transform optimize` výchozí spojí díly do jednoho meshe a kvantizuje pozice v jeho obálce. Loď z Blenderu (993 dílů, 48 m) tak měla vesla a lana kvantizovaná po ~3 mm a stínovala se jinak (3,4 % pixelů). `--join false` nechá každý díl v jeho vlastní obálce: 0,004 %. Trojúhelníky i obálka přitom seděly, takže rozdíl ukáže jen pixelové srovnání, ne počty.
