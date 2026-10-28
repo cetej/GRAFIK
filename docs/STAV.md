@@ -31,7 +31,7 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 - Infografiky: prázdná plocha kvinqueremy 39 % (práh ~30 %) je daná diagonální kompozicí obrazu; editor ji neměří. Legionáři v řezu nesou obdélné scuta pozdější doby (oprava při příští kresbě řezu).
 - Infografiky: „Navrhnout popisky“ přes Claude naostro neklikáno (čeká na schválení útraty).
 - Napojení projektů: KLAPKA napojená na 3D (převzetí 27. 10., výroba 28. 10.); další (NG-ROBOT…) až na pokyn operátora.
-- Doporučení metody pro jednu předlohu (`recommend()`) je dál TRELLIS 2, i když pořadí z 28. 10. dává Hunyuan 3.1 Pro před TRELLIS; změna doporučení jen na pokyn operátora.
+- Doporučení metody pro jednu předlohu (`recommend()`) zůstává TRELLIS 2: pořadí z 28. 10. dělí podle předmětu (Hunyuan 3.1 Pro pro postavy a rekvizity, TRELLIS pro budovy a sochy) a GRAFIK vyrábí hlavně stavby a objekty (měření 27. 10.); postavy pro KLAPKU jdou tlačítkem „Vyrobit v GRAFIK“ přes `fal-hunyuan31pro` (rozhodnuto 2026-10-28, /jarvis).
 - Stránka variant zatím jen z klienta (CLI/agent); Studio ji nenabízí a skill `/nano` ve STOPA ji nevolá.
 - Drobnosti: „Rozepsat zadání“ naostro neklikáno; pin přes `og:image` ověřen jen offline (Pinterest robotům ukazuje přihlášení).
 
