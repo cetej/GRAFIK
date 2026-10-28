@@ -39,6 +39,6 @@ for o in objs:
         c[wide_ax] *= W / (size[wide_ax] * s)
         v.co = c
     o.data.update()
-bpy.ops.export_scene.gltf(filepath=dst, export_format="GLB")
+bpy.ops.export_scene.gltf(filepath=dst, export_format="GLB", export_normals=False)  # stays welded (GRAFIK#73)
 pts = [v.co for o in objs for v in o.data.vertices]
 print("BBOX", " ".join(f"{max(p[i] for p in pts) - min(p[i] for p in pts):.3f}" for i in range(3)))

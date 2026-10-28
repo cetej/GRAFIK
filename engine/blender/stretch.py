@@ -57,6 +57,8 @@ for o in objs:
         c[wide_ax] *= W / (size[wide_ax] * s)
         v.co = c
     o.data.update()
-bpy.ops.export_scene.gltf(filepath=dst, export_format="GLB")
+# no normals, like the generators' GLBs: with Blender's per-face normals every face gets its own vertices
+# (Tatra 87: 249 976 -> 1 498 732 vertices, 9 -> 42 MB) and KLAPKA's Line Art draws every triangle (GRAFIK#73)
+bpy.ops.export_scene.gltf(filepath=dst, export_format="GLB", export_normals=False)
 pts = [v.co for o in objs for v in o.data.vertices]
 print("BBOX " + json.dumps([round(max(p[i] for p in pts) - min(p[i] for p in pts), 3) for i in range(3)]))
