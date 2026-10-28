@@ -2,6 +2,11 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-28 — 3D modely jen přes GRAFIK Engine
+
+3D modely jen přes GRAFIK Engine, pořadí Blender → Hunyuan 3.1 Pro → Hunyuan3D v3 → TRELLIS 2 → nahraný GLB; Hunyuan v2/v2 mini vyřazen; lokální Hunyuan3D-2 mini už není výchozí (licence Tencent nekryje EU). KLAPKA volá `fal-hunyuan31pro` přes `/api/v2/models3d` (cena předem z `/api/v2/models3d/estimate`, 402 bez `confirm_cost`, záznam útraty v GRAFIK) a nezkontrolovaný model nepřevezme.
+Zdroj: operátor 2026-10-28 („Dodělej ty další doporučené akce“); návrh `KLAPKA/docs/3d-backendy-navrh.md`.
+
 ## 2026-10-27 — 3D: optimalizovaná kopie pro prohlížeč přes glTF Transform (cetej/GRAFIK#64)
 
 Zadání operátora přes session „Open source nástroje pro Opus 5.5“ (schválené implementace z posouzení 20 nástrojů): optimalizace modelů glTF Transform, originály se nepřepisují, nic placeného.
