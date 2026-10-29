@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   api, fileToB64, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
-  type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type RefIn, type RefMeta, type Role, type StyleCard,
+  type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type KnihovnaImage, type KnihovnaItem, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
 import { HistoryPanel, Lightbox } from './panels.tsx'
-import RefPicker, { storeDrop, type PickerTab } from './RefPicker.tsx'
+import RefPicker, { KIND_LABEL, storeDrop, type PickerTab } from './RefPicker.tsx'
 import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
 import Styles, { Swatches } from './Styles.tsx'
@@ -26,6 +26,12 @@ export type FormRef = RefIn & { name: string; preview: string; meta?: string }
 export const refFromMeta = (m: RefMeta, role: Role = 'geometry'): FormRef => ({
   ref_id: m.id, role, name: m.title, preview: `${m.image}?w=256`,
   meta: [m.origin === 'commons' ? 'Commons' : m.origin === 'pinterest' ? 'Pinterest' : m.origin === 'web' ? 'web' : 'soubor', m.license].filter(Boolean).join(' · '),
+})
+
+// An image of a character, place or prop of the shared library KNIHOVNA, in the role the Engine suggests
+export const refFromKnihovna = (it: KnihovnaItem, img: KnihovnaImage): FormRef => ({
+  knihovna: img.knihovna, role: img.role, name: img.primary ? it.name : `${it.name} (${img.label})`, preview: `${img.url}?w=256`,
+  meta: `${KIND_LABEL[it.kind]} · KNIHOVNA`,
 })
 
 export interface Confirm { title: string; items: { what: string; usd: number }[]; total: number; onOk: () => Promise<void> }
@@ -124,7 +130,7 @@ export default function App() {
       backend,
       size: FORMATS[format],
       n,
-      refs: refs.map(({ b64, ref_id, role, text, source }) => ({ b64, ref_id, role, text, source })),
+      refs: refs.map(({ b64, ref_id, knihovna, role, text, source }) => ({ b64, ref_id, knihovna, role, text, source })),
       supersample: canSupersample && detail ? SUPERSAMPLE : null,
       translate: translate ? 'auto' : 'off',
       style: styleSel === '__custom' ? styleText.trim() || null : styleSel || null,
@@ -225,6 +231,8 @@ export default function App() {
   }
 
   const pickRef = useCallback((m: RefMeta) => setRefs((r) => (r.some((x) => x.ref_id === m.id) ? r : [...r, refFromMeta(m)].slice(0, 10))), [])
+  const pickKnihovna = useCallback((it: KnihovnaItem, img: KnihovnaImage) =>
+    setRefs((r) => (r.some((x) => x.knihovna === img.knihovna) ? r : [...r, refFromKnihovna(it, img)].slice(0, 10))), [])
   const countInbox = useCallback(() => {
     refsApi.list().then((l) => setInboxNew(l.filter((m) => !m.seen && m.origin !== 'upload').length)).catch(() => {})
   }, [])
@@ -372,6 +380,7 @@ export default function App() {
             <div className="sources">
               <button className="btn small" onClick={() => setPicker('commons')}>Hledat ve Wikimedia Commons</button>
               <button className="btn small" onClick={() => setPicker('inbox')}>Schránka předloh{inboxNew ? <span className="tag new">{inboxNew} nové</span> : null}</button>
+              <button className="btn small" onClick={() => setPicker('knihovna')}>Postavy a místa</button>
             </div>
             <p className="hint">Předmět, tvar a scéna jdou do generátoru jako obraz. Styl jen slovy: přenos stylu obrazem FLUX neumí.</p>
             {!usesRefs && refs.length > 0 && <p className="warn">Zvolený generátor předlohy neumí.</p>}
@@ -461,7 +470,7 @@ export default function App() {
       )}
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
-      {picker && <RefPicker initialTab={picker} onPick={pickRef} onError={setToast} onClose={() => { setPicker(null); countInbox() }} />}
+      {picker && <RefPicker initialTab={picker} onPick={pickRef} onPickKnihovna={pickKnihovna} onError={setToast} onClose={() => { setPicker(null); countInbox() }} />}
       {confirm && <ConfirmDialog c={confirm} onClose={() => setConfirm(null)} />}
       {toast && <div className="toast" onClick={() => setToast(null)}>{toast} <b>×</b></div>}
     </>

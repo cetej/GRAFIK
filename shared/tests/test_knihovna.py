@@ -343,3 +343,57 @@ def test_cli_dry_run_and_exit_codes(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "nanečisto" in out and "styly: 4" in out and not target.exists()
     assert knihovna_prevod.main(["--klapka", str(tmp_path / "nic"), "--grafik", str(grafik)]) == 2
+
+
+def _img(path: Path, data: bytes = b"\x89PNG img") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return path
+
+
+def test_images_main_first_like_klapka(tmp_path):
+    """Pořadí jako KLAPKA engine.load_entry: primary dopředu, kresby stavů a pohledů ne mezi předlohami."""
+    knihovna.write("character", "caesar", {"name": "Caesar", "primary": "caesar.png",
+                                           "states": {"zraneny": {"ref": "state-zraneny.png"}}}, tmp_path)
+    refs = knihovna.item_dir("character", "caesar", tmp_path) / "refs"
+    for name in ("board-1.png", "caesar.png", "state-zraneny.png", "state-stary.png", "notes.txt"):
+        _img(refs / name, name.encode())
+    got = knihovna.images("character", "caesar", tmp_path)
+    assert [(i["file"], i["label"], i["primary"]) for i in got] == [
+        ("refs/caesar.png", "caesar", True), ("refs/board-1.png", "board-1", False),
+        ("refs/state-zraneny.png", "stav zraneny", False)]
+    assert got[0]["path"] == refs / "caesar.png"
+    # bez primary je hlavní první podle abecedy; primary mimo refs/ se nebere
+    knihovna.update("character", "caesar", {"primary": "../caesar.png"}, tmp_path)
+    assert knihovna.images("character", "caesar", tmp_path)[0]["file"] == "refs/board-1.png"
+    # výčet refs: na kartě platí v tomto pořadí, jméno mířící jinam se vynechá
+    knihovna.update("character", "caesar", {"refs": ["caesar.png", "../../x.png", "chybi.png"]}, tmp_path)
+    assert [i["file"] for i in knihovna.images("character", "caesar", tmp_path)] == [
+        "refs/caesar.png", "refs/state-zraneny.png"]
+
+
+def test_images_place_views_and_prop_model(tmp_path):
+    knihovna.write("environment", "alexandrie", {"name": "Alexandrie",
+                                                 "views": {"reverse": "view-reverse.png", "left": "../x.png"}}, tmp_path)
+    refs = knihovna.item_dir("environment", "alexandrie", tmp_path) / "refs"
+    _img(refs / "palac.png")
+    _img(refs / "view-reverse.png")
+    assert [(i["file"], i["label"]) for i in knihovna.images("environment", "alexandrie", tmp_path)] == [
+        ("refs/palac.png", "palac"), ("refs/view-reverse.png", "pohled protipohled")]
+
+    knihovna.write("prop", "amfora", {"name": "Amfora", "description": "clay amphora"}, tmp_path)
+    model = knihovna.item_dir("prop", "amfora", tmp_path) / "model"
+    _img(model / "views" / "model_front.png")
+    _img(model / "views" / "model_q34.png")
+    assert knihovna.images("prop", "amfora", tmp_path)[0]["label"] == "3D model 3/4"   # bez obrázku je hlavní pohled
+    _img(model / "obrazek.jpg")
+    assert [(i["file"], i["primary"]) for i in knihovna.images("prop", "amfora", tmp_path)] == [
+        ("model/obrazek.jpg", True), ("model/views/model_q34.png", False), ("model/views/model_front.png", False)]
+
+    assert knihovna.images("prop", "nic", tmp_path) == []
+    knihovna.write("prop", "prazdna", {"name": "Prázdná"}, tmp_path)
+    assert knihovna.images("prop", "prazdna", tmp_path) == []
+    with pytest.raises(knihovna.KnihovnaError):
+        knihovna.images("style", "default", tmp_path)
+    with pytest.raises(knihovna.KnihovnaError):
+        knihovna.images("character", "../x", tmp_path)
