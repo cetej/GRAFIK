@@ -1,5 +1,10 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-29 — Sdílená knihovna (fáze 4): import `engine.app` zapisuje, test musí přesměrovat data už v conftestu
+
+- **`engine/app.py` končí `app = create_app()`, takže už import modulu postaví celý Engine s výchozím `Settings()`.** Testy importují `engine.app` při sběru, dřív než běží jakákoli fixture. Když `create_app` začal při prázdné knihovně kopírovat výchozí styly (`StyleLibrary`), první běh testů je nasypal do skutečné `KNIHOVNA/` (3 styly z gitu, nic operátorova se nepřepsalo). Autouse fixture s `monkeypatch.setenv` to nezachytí. Cesty ke sdíleným datům proto nastavuje `tests/conftest.py` přímo do `os.environ` při načtení (jako `GRAFIK_TERMDB`) a fixture je pak přesměruje pro každý test zvlášť. Kontrola: snímek časů souborů KNIHOVNY před a po běhu testů.
+- **Shoda textu promptu po převodu stylů se ověřuje proti dnešnímu kódu, ne proti vlastní nové funkci.** GRAFIK: zmrazená kopie `prompt_text()` z ee7fd78, svázaná s doslovným výstupem výchozích stylů. KLAPKA: skutečná třída `Style` a `imaging._look` z checkoutu KLAPKY, staré načítání karty (`model.Library._load`) jako jednořádek v testu. Skutečné styly KLAPKY jsou v soukromém repu, proto je test čte z disku a na stroji bez nich se přeskočí; do veřejného GRAFIKU se nekopírují.
+
 ## 2026-10-29 — Mazání textu z obrázku: barva od Claude nestačí, mapy sázejí popisky násobením
 
 - **„Popisky v barvě podkladu“ z T2 byly popisky sázené násobením podkladu.** Šedý popisek (#808080) mapy je na zelené ploše tmavě zelený (2, 77, 21), na žluté tmavě žlutý. Maska podle jedné barvy písma ho nemůže chytit; `ngm_shared.textlayer.localize` proto zkouší dvě hypotézy, plnou barvu a podklad × barva, a podle té, která vysvětlí víc pixelů, i sází (PNG násobením, SVG `mix-blend-mode: multiply`).

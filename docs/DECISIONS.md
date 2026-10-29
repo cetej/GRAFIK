@@ -2,6 +2,17 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-29 — Fáze 4: jedna sdílená složka postav, míst, rekvizit a stylů (KNIHOVNA)
+
+Operátor 29. 10. na návrh STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md` § 11: „Souhlasím, spusť“.
+
+- **Složka `C:\Users\stock\Documents\000_NGM\KNIHOVNA\`** mimo git (obrázky, 3D), cesta přes `NGM_KNIHOVNA`. Zálohu nemá dnes ani po změně. Rozložení z KLAPKY (`characters/<slug>/card.yaml`, `environments/`, `props/`, `styles/`), slug zůstává identitou, takže scény, projekty a objednávky NG-ROBOT se nemění.
+- **Čtení a zápis jen přes `ngm_shared.knihovna`**: zámek na kartu pro vlákna i procesy, atomický zápis. Neběží žádná služba.
+- **Jedna karta stylu pro obraz i film**: `look` + oddíl `obraz` (GRAFIK) + oddíl `film` (KLAPKA) + `avoid`/`negative` jako jedno pole + `constraints`. Každý projekt bere svůj oddíl, styl bez něj se doplní z druhého. Text promptu stávajících stylů se převodem nemění (test na skutečných stylech).
+- **GRAFIK čte styly z knihovny**, `/api/v2/styles` zůstává zpětně kompatibilní (cesty, parametry, tvar odpovědi). Tři výchozí styly zůstávají v gitu jako výchozí sada pro prázdnou knihovnu. Náhled stylu z KLAPKY ukazuje GRAFIK jako vzorek `nahled.png` jen ke čtení.
+- **Převod jen kopíruje** (KLAPKA `studio/library/` celá, GRAFIK `styles/` bez koše), zdroje zůstávají jako záloha, dokud se převod neověří. Kolize slugů = konec bez zápisu.
+- Styly POHYBU a katalog stylů NG-ROBOT zůstávají mimo knihovnu. NG-ROBOT se nemění. 3D modely zůstávají v GRAFIKU (karta na ně odkazuje jako dnes v KLAPCE).
+
 ## 2026-10-29 — Dělba práce mezi projekty: fronta těžké práce + dvě služby + jedna knihovna + sdílená data
 
 Operátor 29. 10. na návrh STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md` § 9: „souhlasím, můžeš to spustit“, s podmínkou „nechci, aby to narušilo nebo degradovalo fungování NG ROBOT, spíš jen vychytej možné chyby“.

@@ -137,7 +137,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     termdb = TermDB(Path(s.termdb) if s.termdb else None)
     translator = Translator(s.translations_path, termdb)
     reflib = RefLibrary(s.reflib_dir)
-    stylelib = StyleLibrary(s.styles_dir)
+    stylelib = StyleLibrary(s.knihovna_dir, defaults=s.styles_dir)
     infos = InfographicStore(s.library_dir / "infographics", s.data_dir / "schemas")
     workflows = WorkflowStore(s.data_dir / "workflows")
     batches = VariantStore(s.library_dir / "variants")
@@ -578,7 +578,11 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
     @app.get("/api/v2/styles")
     def styles():
-        return [_style_public(c) for c in stylelib.list()]
+        try:
+            cards = stylelib.list()
+        except StyleError as e:  # a hand-broken card in the shared library: say which one
+            raise HTTPException(500, str(e)) from e
+        return [_style_public(c) for c in cards]
 
     @app.get("/api/v2/styles/{slug}")
     def style(slug: str):
@@ -613,7 +617,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         path = stylelib.sample_path(slug, name)
         if path is None:
             raise HTTPException(404, "ukázka neexistuje")
-        return FileResponse(path, media_type="image/jpeg")
+        return FileResponse(path, media_type="image/png" if path.suffix == ".png" else "image/jpeg")
 
     @app.post("/api/v2/styles/{slug}/samples", status_code=201)
     def style_add_sample(slug: str, body: StyleSample):

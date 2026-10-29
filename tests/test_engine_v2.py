@@ -14,6 +14,7 @@ from pathlib import Path
 import psutil
 import pytest
 import uvicorn
+import yaml
 from fastapi.testclient import TestClient
 
 from engine import sdserver
@@ -1011,9 +1012,10 @@ def test_style_card_files_and_prompt_words(api, settings):
     assert r.status_code == 201, r.text
     card = r.json()
     assert card["slug"] == "akvarel-prirodovedny" and card["origin"] == "manual"
-    d = settings.styles_dir / "akvarel-prirodovedny"
-    assert json.loads((d / "style.json").read_text(encoding="utf-8"))["palette"][1]["hex"] == "#6f7d5a"
-    md = (d / "STYLE.md").read_text(encoding="utf-8")
+    styles = settings.knihovna_dir / "styles"
+    stored = yaml.safe_load((styles / "akvarel-prirodovedny.yaml").read_text(encoding="utf-8"))
+    assert stored["obraz"]["palette"][1]["hex"] == "#6f7d5a" and stored["name"] == "Akvarel přírodovědný"
+    md = (styles / "akvarel-prirodovedny" / "STYLE.md").read_text(encoding="utf-8")
     assert md.startswith("# Akvarel přírodovědný") and "## Podpisové znaky" in md and "Style: Watercolour" in md
     assert card["prompt"].startswith("Watercolour on rough cotton paper") and "terracotta #c46a2c" in card["prompt"]
     assert api.post("/api/v2/styles", json=STYLE_CARD).status_code == 409
@@ -1048,9 +1050,76 @@ def test_style_samples_from_job_and_trash(api, settings):
     assert api.get(card["sample_urls"][0]).headers["content-type"] == "image/jpeg"
     assert api.delete("/api/v2/styles/akvarel-prirodovedny/samples/1.jpg").json()["samples"] == []
     moved = api.delete("/api/v2/styles/akvarel-prirodovedny").json()["moved_to"]
-    assert ".trash" in moved and (Path(moved) / "style.json").exists()
+    assert ".trash" in moved and (Path(moved) / "akvarel-prirodovedny.yaml").exists()
     assert api.get("/api/v2/styles/akvarel-prirodovedny").status_code == 404
     assert api.get("/api/v2/styles/../etc").status_code in (400, 404)
+
+
+# Phase 4: the styles live in the shared library (KNIHOVNA, ngm_shared.knihovna). Pinned: the prompt
+# words engine/styles.py prompt_text() gave these git-tracked defaults before the move (ee7fd78).
+DEFAULT_STYLE_PROMPTS = {
+    "akvarel-prirodovedny": "Natural-history watercolour illustration on rough cotton paper, transparent layered washes, "
+    "fine sepia ink contours. Soft diffuse daylight, no cast shadow on the background. Delicate ink lines, visible paper "
+    "grain, soft wet edges. Single specimen isolated on an off-white paper background, like a plate in a field guide. "
+    "Colour palette: off-white paper #f3efe6, rust #c46a2c, moss green #6f7d5a, pale sky blue #9fb3c4, charcoal #3b3a36. "
+    "Avoid photographic realism, hard digital gradients",
+    "karikatura-3d": "Stylised 3D cartoon render, exaggerated proportions with large heads and expressive faces, soft "
+    "clay-like materials. Bright cheerful key light with a soft rim light. Rounded shapes, smooth surfaces, no outlines. "
+    "Character-focused framing on a simple, softly blurred background. Colour palette: purple #5b3c8f, orange #f07c3b, "
+    "turquoise #2fb3c2, cream #f4e1c1. Avoid realistic skin texture, gloomy lighting",
+    "ng-infografika-3d": "Clean 3D render like a museum infographic, matte materials, cutaway sections that reveal the "
+    "inside. Soft even studio light from the upper left, gentle ambient occlusion, no harsh shadows. No outlines, smooth "
+    "bevelled edges, fine surface detail. Single subject centred on a plain warm light-grey background, generous empty "
+    "margins for labels. Colour palette: navy #1b2a3a, ochre #e8b23a, warm light grey #d9d4c7, steel blue #4f7a8c, "
+    "rust #a8432c. Avoid photographic noise, lens flare, dramatic sky",
+}
+STYLE_KEYS = {"slug", "label", "note", "origin", "medium", "light", "line", "composition", "avoid", "signature",
+              "palette", "puvod", "created", "updated", "samples", "prompt", "sample_urls"}
+
+
+def test_git_defaults_seed_an_empty_knihovna_once_with_the_same_prompt_words(settings, sd):
+    import shutil
+    shutil.copytree(ROOT / "styles", settings.styles_dir)
+    backends = {"flux-local": FluxLocal(settings, sd), "nb-pro": NanoBananaPro()}
+    with TestClient(create_app(settings, backends=backends, server=sd)) as c:
+        cards = {x["slug"]: x for x in c.get("/api/v2/styles").json()}
+        assert {s: cards[s]["prompt"] for s in DEFAULT_STYLE_PROMPTS} == DEFAULT_STYLE_PROMPTS
+        assert all(set(x) == STYLE_KEYS and x["origin"] == "default" and x["samples"] for x in cards.values())
+        assert c.get(cards["karikatura-3d"]["sample_urls"][0]).status_code == 200
+        for slug in cards:
+            c.delete(f"/api/v2/styles/{slug}")
+    # the operator removed them all: the next start does not bring them back
+    with TestClient(create_app(settings, backends=backends, server=sd)) as c:
+        assert c.get("/api/v2/styles").json() == []
+
+
+def test_klapka_style_is_listed_tried_and_edited_without_losing_its_film_part(api, settings):
+    from ngm_shared import knihovna
+    base = settings.knihovna_dir
+    knihovna.write("style", "zkusebni-noir", knihovna.from_klapka({
+        "name": "Zkušební noir", "look": "hard key light, deep shadows", "lens": "50mm, deep focus",
+        "grade": "cold silver grade", "negative": "watermark, extra fingers"}), base)
+    (base / "styles" / "zkusebni-noir.png").write_bytes(_png_bytes())
+    card = api.get("/api/v2/styles/zkusebni-noir").json()
+    assert set(card) == STYLE_KEYS and card["label"] == "Zkušební noir" and card["origin"] == "manual"
+    assert card["prompt"] == "Hard key light, deep shadows. 50mm, deep focus. Cold silver grade. Avoid watermark, extra fingers"
+    assert card["avoid"] == "watermark, extra fingers" and card["samples"] == ["nahled.png"]
+    assert api.get(card["sample_urls"][0]).headers["content-type"] == "image/png"
+    assert api.delete("/api/v2/styles/zkusebni-noir/samples/nahled.png").status_code == 404
+    # the Studio editor sends only its own fields: they land in `obraz`, KLAPKA's look and film stay
+    r = api.put("/api/v2/styles/zkusebni-noir", json={"label": card["label"], "avoid": card["avoid"],
+                                                       "medium": "charcoal drawing"})
+    assert r.status_code == 200, r.text
+    assert r.json()["prompt"] == "Hard key light, deep shadows. Charcoal drawing. Avoid watermark, extra fingers"
+    stored = knihovna.read("style", "zkusebni-noir", base)
+    assert stored["film"] == {"lens": "50mm, deep focus", "grade": "cold silver grade"}
+    assert stored["obraz"] == {"medium": "charcoal drawing"} and stored["look"] == "hard key light, deep shadows"
+    assert knihovna.video_lines(stored)[0] == "Style: hard key light, deep shadows, 50mm, deep focus, cold silver grade."
+    # a style with only a look is not empty
+    assert api.put("/api/v2/styles/zkusebni-noir", json={"label": "Zkušební noir"}).status_code == 200
+    r = api.post("/api/v2/images", json={"prompt": "A heron", "size": "256x256", "style": "zkusebni-noir"})
+    job = wait_done(api, r.json()["job_id"])
+    assert "Style: Hard key light, deep shadows. 50mm, deep focus. Cold silver grade." in job["result"]["prompt_sent"]
 
 
 def test_style_palette_free_describe_paid(api, settings, monkeypatch):
