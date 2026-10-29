@@ -47,6 +47,9 @@ def test_write_read_list_update(tmp_path):
     assert knihovna.read("character", "caesar", tmp_path) == {"name": "Caesar", "anchors": "laurel wreath, toga"}
     assert knihovna.slugs("character", tmp_path) == ["caesar", "delnik"]
     assert list(knihovna.cards("prop", tmp_path)) == ["amfora"]
+    for slug in ("rekonstrukce", "rekonstrukce-era"):                  # KLAPKA's order: by card file
+        knihovna.write("style", slug, {"name": slug, "look": "x"}, tmp_path)
+    assert knihovna.slugs("style", tmp_path) == ["rekonstrukce-era", "rekonstrukce"]
     text = (tmp_path / "characters" / "delnik" / "card.yaml").read_text(encoding="utf-8")
     assert text == "name: Dělník\n"                                  # same writer as KLAPKA: diacritics kept
     new = knihovna.update("character", "caesar", {"voice": "deep"}, tmp_path)

@@ -108,16 +108,18 @@ def item_dir(kind: str, slug: str, base=None) -> Path:
 
 
 def slugs(kind: str, base=None) -> list[str]:
+    """Slugy v pořadí souborů karet, jak je čte KLAPKA (`styles/a-b.yaml` před `styles/a.yaml`):
+    na pořadí v KLAPCE záleží, např. který ze stylů se stejným vzhledem pojmenuje stylizovaný board."""
     if kind not in KINDS:
         raise KnihovnaError(f"neznámý druh {kind!r}; povolené: {', '.join(KINDS)}")
     folder = _base(base) / f"{kind}s"
     if not folder.is_dir():
         return []
     if kind in ("character", "environment"):
-        found = (p.parent.name for p in folder.glob("*/card.yaml"))
+        found = [p.parent.name for p in sorted(folder.glob("*/card.yaml"))]
     else:
-        found = (p.stem for p in folder.glob("*.yaml"))
-    return sorted(s for s in found if SLUG.fullmatch(s))
+        found = [p.stem for p in sorted(folder.glob("*.yaml"))]
+    return [s for s in found if SLUG.fullmatch(s)]
 
 
 def _retry(fn, *args):
