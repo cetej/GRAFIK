@@ -30,7 +30,8 @@ const toImages = (imgs: PendingImage[]): StyleImages => ({
   jobs: imgs.filter((i) => i.job).map((i) => i.job!),
 })
 
-// Mirror of engine/styles.py prompt_text(), for the preview of an unsaved card.
+// Mirror of ngm_shared.knihovna.image_text() for the editor's fields (a card with no `look` or film part),
+// for the preview of an unsaved card.
 export function promptText(f: StyleFields): string {
   const parts = (['medium', 'light', 'line', 'composition'] as const).map((k) => f[k].trim().replace(/\.$/, '')).filter(Boolean)
   if (f.palette.length) parts.push('colour palette: ' + f.palette.map((c) => `${c.name ?? ''} ${c.hex}`.trim()).join(', '))
@@ -106,7 +107,7 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
   }
 
   const remove = async () => {
-    if (!slug || !confirm(`Přesunout styl „${draft.label}“ do koše (styles/.trash)?`)) return
+    if (!slug || !confirm(`Přesunout styl „${draft.label}“ do koše sdílené knihovny (KNIHOVNA/.trash)? Zmizí i z KLAPKY.`)) return
     try { await stylesApi.remove(slug); setSlug(null); setDraft(EMPTY); setDirty(false); await load('') } catch (e) { onError((e as Error).message) }
   }
 
@@ -227,7 +228,7 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
         <div>
           <div className="row between">
             <h3 className="inline">Karta stylu{dirty ? ' · neuloženo' : ''}</h3>
-            {slug && <span className="tag">styles/{slug}/ · STYLE.md + style.json</span>}
+            {slug && <span className="tag">KNIHOVNA/styles/{slug}.yaml · sdílí GRAFIK i KLAPKA</span>}
           </div>
           <label className="field">Název<input value={draft.label} onChange={(e) => set({ label: e.target.value })} disabled={!!slug} title={slug ? 'Název určuje složku stylu, mění se duplikováním' : ''} /></label>
           <label className="field">Podstata (k čemu se hodí)<input value={draft.note} onChange={(e) => set({ note: e.target.value })} /></label>

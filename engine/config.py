@@ -6,6 +6,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ngm_shared import knihovna
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FLUX_DIR = Path("C:/Users/stock/models/flux3-klein")
 
@@ -20,6 +22,8 @@ def _env(name: str, default):
 @dataclass
 class Settings:
     data_dir: Path = field(default_factory=lambda: _env("DATA_DIR", REPO_ROOT))
+    # Shared library of characters, places, props and styles (phase 4): NGM_KNIHOVNA or KNIHOVNA.
+    knihovna_dir: Path = field(default_factory=knihovna.root)
     flux_dir: Path = field(default_factory=lambda: _env("FLUX_DIR", FLUX_DIR))
     sd_exe: str = "sd/sd-server.exe"
     sd_model: str = "FLUX-3-Image-Klein-AD-Q4_K.gguf"
@@ -79,6 +83,7 @@ class Settings:
 
     @property
     def styles_dir(self) -> Path:
+        """The default styles tracked in git: they seed a knihovna that has no styles yet."""
         return self.data_dir / "styles"
 
     @property

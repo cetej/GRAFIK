@@ -12,6 +12,8 @@ Lehký sdílený kód projektů NGM, jeden zdroj místo kopií v každém projek
 | `ngm_shared.claude` | jedno volání Claude s cenou z `usage`; pod pytestem bez `GRAFIK_LIVE_TESTS=1` nic nezaplatí | anthropic |
 | `ngm_shared.image_checks` | poradní kontrola obrázku proti zadání a kontrolnímu seznamu (`check_brief`, test T4) a kontrola logiky scény (`check_logic`: plán se skicou nebo hotový obrázek, „proč a kam děj směřuje“, fyzika, reálie, měřítko; test T7); Claude Opus 5.5 effort low, ~0,01 a ~0,05 USD | anthropic, Pillow |
 | `ngm_shared.archive` | archiv výstupů fronty GRAFIK Engine s hledáním nad `GRAFIK/run/jobs.sqlite` (jen pro čtení, i bez běžícího Engine): slova bez diakritiky v zadání, promptu, stylu, počeštění; filtry volající, druh úlohy, datum, stav; cesta k obrázku a náhledu | jen stdlib (náhled Pillow) |
+| `ngm_shared.knihovna` | sdílená knihovna postav, míst, rekvizit a stylů (složka `KNIHOVNA`, fáze 4): čtení, výpis, zápis pod zámkem karty a atomicky, předloha s původem a licencí, koš; společná karta stylu a text stylu do promptu obrázku (`image_text`) i videa (`video_lines`, `film_fields`) | PyYAML |
+| `ngm_shared.knihovna_prevod` | převod KLAPKA `studio/library/` a GRAFIK `styles/` do knihovny: jen kopíruje, opakovatelný, `--dry-run`, při kolizi skončí bez zápisu | PyYAML |
 
 Staré cesty `GRAFIK/clients/grafik_client.py` a `GRAFIK/clients/variants_page.py` zůstávají jako re-export, CLI i `import grafik_client` fungují beze změny.
 
@@ -93,6 +95,50 @@ archive.facets()                                             # volající a druh
 ```
 
 Databáze `GRAFIK_JOBS_DB` nebo `C:/Users/stock/Documents/000_NGM/GRAFIK/run/jobs.sqlite`; otevírá se jen pro čtení. GRAFIK Engine: `GET /api/v2/archive?q=&caller=&kind=&since=&until=&status=done|all&limit=` a `GET /api/v2/archive/facets`.
+
+## Sdílená knihovna postav, míst, rekvizit a stylů
+
+Jedna složka pro KLAPKU i GRAFIK (DECISIONS 2026-10-29, fáze 4), mimo git: `NGM_KNIHOVNA`, výchozí `C:/Users/stock/Documents/000_NGM/KNIHOVNA`. Zálohu nemá. Rozložení je převzaté z KLAPKY a slug (název složky nebo souboru) je identita, scény, projekty i objednávky NG-ROBOT se na něj odkazují.
+
+```text
+KNIHOVNA/
+  characters/<slug>/card.yaml     postava + refs/ (předlohy), stylized/, figura/, sources/, voice/
+  environments/<slug>/card.yaml   místo + refs/
+  props/<slug>.yaml               rekvizita + props/<slug>/ (model/ …)
+  styles/<slug>.yaml              společná karta stylu
+  styles/<slug>.png               náhled stylu z KLAPKY (GRAFIK ho ukazuje jako vzorek nahled.png)
+  styles/<slug>/samples/<n>.jpg   vzorky stylu z GRAFIKU; styles/<slug>/STYLE.md = karta pro lidi
+  .locks/  .trash/                zámky karet; smazané položky (nic se nemaže natrvalo)
+```
+
+```python
+from ngm_shared import knihovna
+
+knihovna.slugs("character")                       # ["caesar", "delnik", …]
+card = knihovna.read("character", "caesar")       # dict, None když není
+knihovna.cards("style")                           # {slug: karta}
+knihovna.write("prop", "amfora", {"name": "Amfora", "count": 1})
+knihovna.update("character", "caesar", {"voice": "deep"})          # nebo funkce karta -> nová karta
+with knihovna.lock("character", "caesar"):        # delší úprava víc souborů jedné položky
+    ...
+knihovna.add_ref("character", "caesar", "busta.png", puvod={"origin": "commons", "author": "…", "license": "CC BY-SA 4.0"})
+knihovna.trash("style", "stary-styl")             # → KNIHOVNA/.trash/styles/<čas>-stary-styl/
+```
+
+- **Zápis jen přes tyto funkce.** Zámek karty platí pro vlákna i procesy (KLAPKA a GRAFIK Studio zapisují souběžně, test: 6 procesů × 25 úprav jedné karty bez ztráty), je re-entrantní ve vlákně jako `card_lock` v KLAPCE. Soubor se mění atomicky (dočasný soubor a `os.replace`), YAML píše stejně jako KLAPKA (`yaml.safe_dump`, diakritika, pořadí polí).
+- **Předloha s původem**: `add_ref` zkopíruje obrázek do `refs/`, jiný soubor stejného jména nepřepíše (`-2`, `-3`), stejný soubor nepřidá podruhé. Původ a licence jdou do `<soubor>.puvod.json` s poli schránky předloh GRAFIKU (`origin, title, source_url, page_url, author, license, license_url, sha256, width, height, added`; `sha256` vždy ze souboru). Karta se nemění, hlavní předlohu volí projekt.
+- **Společná karta stylu** (`styles/<slug>.yaml`): `name`, `note`, `look` (společný popis), `obraz` (`medium, light, line, composition, palette, signature` z GRAFIKU), `film` (`lens, grade`, případně `ref_style` z KLAPKY), `avoid` (GRAFIK `avoid` = KLAPKA `negative`), `constraints` (jen video; chybí-li, platí výchozí věta KLAPKY), `origin, puvod, created, updated`.
+  - `knihovna.image_text(card)` = slova za „Style:“ v promptu obrázku: `look`, oddíl obraz (bez něj objektiv a barevné podání z oddílu film), paleta, „avoid …“. Pro styl z GRAFIKU stejný text jako dřív `engine/styles.py`.
+  - `knihovna.video_lines(card)` = řádky stylu v promptu videa jako KLAPKA `engine.build_shot` („Style: look, lens, grade.“, constraints, „Avoid: ….“); `knihovna.film_fields(card)` = pole třídy `Style` v KLAPCE. Styl z GRAFIKU bez popisu filmu dostane `look` z média, světla a linky.
+  - Převody: `knihovna.from_grafik(style_json)`, `knihovna.from_klapka(yaml_karty)`.
+- **Převod** (jen kopíruje, zdroje zůstanou jako záloha; opakované spuštění nic nezmění; kolize = konec bez zápisu):
+
+  ```bash
+  python -m ngm_shared.knihovna_prevod --dry-run
+  python -m ngm_shared.knihovna_prevod [--klapka KLAPKA/studio/library] [--grafik GRAFIK/styles] [--cil DIR]
+  ```
+
+- **Testy** si knihovnu přesměrují samy (`shared/tests/conftest.py`, `tests/conftest.py` nastaví `NGM_KNIHOVNA` už při načtení). Projekt, který knihovnu použije, musí ve svých testech udělat totéž, jinak zapíše do skutečné KNIHOVNY (LEARNINGS 2026-10-29).
 
 ## Placená volání v testech
 

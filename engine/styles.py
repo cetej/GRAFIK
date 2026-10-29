@@ -1,20 +1,22 @@
-"""Style library (G4, spec sc-20…sc-23): style cards in the POHYB format.
+"""Style library (G4, spec sc-20…sc-23) over the shared library of phase 4 (`ngm_shared.knihovna`).
 
-styles/<slug>/style.json  machine part, the source of truth (fields below)
-styles/<slug>/STYLE.md    the same card as prose for people, rewritten on every save
-styles/<slug>/samples/    example images (jpg, <= 768 px)
+KNIHOVNA/styles/<slug>.yaml          the shared style card, source of truth for GRAFIK and KLAPKA
+KNIHOVNA/styles/<slug>/samples/      example images (jpg, <= 768 px)
+KNIHOVNA/styles/<slug>/STYLE.md      the same card as prose for people, rewritten on every save
+KNIHOVNA/styles/<slug>.png           KLAPKA's preview of the style, served read-only as sample `nahled.png`
+
+The API keeps the flat card of G4 (label, medium, light, line, composition, avoid, signature, palette …);
+`to_grafik()` maps the shared card onto it and `save()` merges back, keeping what KLAPKA wrote (look, film,
+constraints). The three default styles tracked in git (`styles/`) seed a library that has no styles yet.
 
 A style reaches the generator only as words (FLUX cannot transfer style from an image,
-verified 2026-10-22): `prompt_text()` turns the card into the sentence that follows
+verified 2026-10-22): `knihovna.image_text()` turns the card into the sentence that follows
 "Style:" in the prompt. The palette is measured from pixels (k-means), the prose comes
 from the operator or from Claude looking at sample images (paid, opt-in).
 """
 from __future__ import annotations
 
-import json
 import re
-import shutil
-import threading
 import unicodedata
 from datetime import datetime
 from io import BytesIO
@@ -23,10 +25,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from ngm_shared import knihovna, knihovna_prevod
+
 SAMPLE_EDGE = 768
-TEXT_FIELDS = ("medium", "light", "line", "composition", "avoid", "signature")
-FIELD_LABELS = {"medium": "Médium a technika", "light": "Světlo", "line": "Linka a povrch",
-                "composition": "Kompozice", "avoid": "Vyhnout se", "signature": "Podpisové znaky"}
+PREVIEW = "nahled.png"
 # Plain colour words for the prompt: FLUX reads "ochre" better than "#c9a03a".
 COLOR_NAMES = {
     "black": (20, 20, 20), "charcoal": (54, 54, 54), "dark grey": (90, 90, 90), "grey": (128, 128, 128),
@@ -81,117 +83,137 @@ def palette(images: list[bytes], k: int = 6, seed: int = 0) -> list[dict]:
     return out
 
 
-def prompt_text(card: dict) -> str:
-    """The words that follow "Style:" in the prompt."""
-    parts = [card[f].strip().rstrip(".") for f in ("medium", "light", "line", "composition") if card.get(f, "").strip()]
-    if card.get("palette"):
-        parts.append("colour palette: " + ", ".join(f"{c.get('name') or color_name(c['hex'])} {c['hex']}"
-                                                    for c in card["palette"]))
-    if card.get("avoid", "").strip():
-        parts.append("avoid " + card["avoid"].strip().rstrip("."))
-    return ". ".join(p[0].upper() + p[1:] for p in parts)
+def _palette(entries) -> list[dict]:
+    """Valid palette entries, each with a colour name (the prompt says "ochre #c9a03a")."""
+    return [{"hex": c["hex"].lower(), "name": c.get("name") or color_name(c["hex"].lower())}
+            for c in entries or [] if isinstance(c, dict) and re.fullmatch(r"#[0-9a-fA-F]{6}", c.get("hex") or "")]
 
 
-def style_md(card: dict) -> str:
-    lines = [f"# {card['label']}", "",
-             "Karta stylu GRAFIK ve formátu POHYB. Strojová část je `style.json`; tento soubor se přepisuje při "
-             "každém uložení, upravujte kartu ve studiu (záložka Styly) nebo ve `style.json`.", ""]
-    if card.get("note"):
-        lines += ["## Podstata", "", card["note"], ""]
-    for f in TEXT_FIELDS:
-        if card.get(f):
-            lines += [f"## {FIELD_LABELS[f]}", "", card[f], ""]
-    if card.get("palette"):
-        lines += ["## Barvy", ""] + [f"- `{c['hex']}` {c.get('name', '')}" for c in card["palette"]] + [""]
-    lines += ["## Do promptu (slovy, nikdy jako obrázek)", "", f"Style: {prompt_text(card)}.", ""]
-    if card.get("puvod"):
-        lines += ["## Původ", "", card["puvod"], ""]
-    return "\n".join(lines)
+def to_grafik(slug: str, card: dict) -> dict:
+    """The shared card as the flat G4 card of the API (same keys as the old style.json)."""
+    obraz = card.get("obraz") if isinstance(card.get("obraz"), dict) else {}
+    palette = _palette(obraz.get("palette"))
+    text = lambda v: v if isinstance(v, str) else ""  # noqa: E731
+    return {"slug": slug, "label": text(card.get("name")) or slug, "note": text(card.get("note")),
+            "origin": card.get("origin") or "manual",
+            **{f: text(obraz.get(f)) for f in ("medium", "light", "line", "composition")},
+            "avoid": text(card.get("avoid", card.get("negative"))), "signature": text(obraz.get("signature")),
+            "palette": palette, "puvod": text(card.get("puvod")),
+            "created": text(card.get("created")), "updated": text(card.get("updated")),
+            "prompt": knihovna.image_text({**card, "obraz": {**obraz, "palette": palette}})}
 
 
 class StyleLibrary:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, defaults: Path | None = None):
+        """`root` is the shared library (KNIHOVNA); `defaults` the styles tracked in git, copied in once
+        when the library has no styles yet."""
         self.root = root
-        self._lock = threading.Lock()
+        if defaults is not None and defaults.is_dir() and not (root / "styles").exists() \
+                and any(defaults.glob("*/style.json")):
+            knihovna_prevod.run(klapka=None, grafik=defaults, target=root)
 
-    def _dir(self, slug: str) -> Path:
-        if not re.fullmatch(r"[a-z0-9][a-z0-9\-]{0,47}", slug or ""):
-            raise StyleError("neplatný název stylu (jen malá písmena bez diakritiky, číslice a pomlčky)")
-        return self.root / slug
+    def _check(self, slug: str) -> None:
+        try:
+            knihovna.card_path("style", slug, self.root)
+        except knihovna.KnihovnaError as e:
+            raise StyleError(f"neplatný název stylu {slug!r} (jen písmena bez diakritiky, číslice, - a _)") from e
+
+    def _samples(self, slug: str) -> Path:
+        return knihovna.item_dir("style", slug, self.root) / "samples"
+
+    def _preview(self, slug: str) -> Path:
+        return knihovna.card_path("style", slug, self.root).with_suffix(".png")
+
+    def _public(self, slug: str, card: dict) -> dict:
+        out = to_grafik(slug, card)
+        samples = self._samples(slug)
+        prompt = out.pop("prompt")
+        out["samples"] = sorted(f.name for f in samples.glob("*.jpg")) if samples.exists() else []
+        if self._preview(slug).exists():
+            out["samples"].append(PREVIEW)
+        out["prompt"] = prompt
+        return out
 
     def get(self, slug: str) -> dict | None:
-        p = self._dir(slug) / "style.json"
-        if not p.exists():
-            return None
-        card = json.loads(p.read_text(encoding="utf-8"))
-        samples = self._dir(slug) / "samples"
-        card["samples"] = sorted(f.name for f in samples.glob("*.jpg")) if samples.exists() else []
-        card["prompt"] = prompt_text(card)
-        return card
+        self._check(slug)
+        try:
+            card = knihovna.read("style", slug, self.root)
+        except knihovna.KnihovnaError as e:
+            raise StyleError(str(e)) from e
+        return None if card is None else self._public(slug, card)
 
     def list(self) -> list[dict]:
-        if not self.root.exists():
-            return []
-        cards = [self.get(p.parent.name) for p in self.root.glob("*/style.json")]
-        return sorted((c for c in cards if c), key=lambda c: (c.get("origin") != "default", c["label"].lower()))
+        try:
+            cards = knihovna.cards("style", self.root)
+        except knihovna.KnihovnaError as e:
+            raise StyleError(str(e)) from e
+        return sorted((self._public(s, c) for s, c in cards.items()),
+                      key=lambda c: (c.get("origin") != "default", c["label"].lower()))
 
     def save(self, slug: str | None, data: dict) -> dict:
         label = (data.get("label") or "").strip()
         if not label:
             raise StyleError("styl potřebuje název")
         slug = slug or slugify(label)
-        d = self._dir(slug)
-        old = self.get(slug) or {}
-        card = {
-            "slug": slug, "label": label, "note": (data.get("note") or "").strip(),
-            "origin": data.get("origin") or old.get("origin") or "manual",
-            **{f: (data.get(f) or "").strip() for f in TEXT_FIELDS},
-            "palette": [{"hex": c["hex"].lower(), "name": c.get("name") or color_name(c["hex"].lower())}
-                        for c in data.get("palette") or [] if re.fullmatch(r"#[0-9a-fA-F]{6}", c.get("hex", ""))],
-            "puvod": (data.get("puvod") or old.get("puvod") or "").strip(),
-            "created": old.get("created") or datetime.now().isoformat(timespec="seconds"),
-            "updated": datetime.now().isoformat(timespec="seconds"),
-        }
-        if not any(card[f] for f in ("medium", "light", "line", "composition")) and not card["palette"]:
-            raise StyleError("karta je prázdná: vyplňte aspoň médium a techniku nebo paletu")
-        with self._lock:
-            (d / "samples").mkdir(parents=True, exist_ok=True)
-            (d / "style.json").write_text(json.dumps(card, ensure_ascii=False, indent=2), encoding="utf-8")
-            (d / "STYLE.md").write_text(style_md(card), encoding="utf-8")
+        self._check(slug)
+        now = datetime.now().isoformat(timespec="seconds")
+        with knihovna.lock("style", slug, self.root):
+            card = knihovna.read("style", slug, self.root) or {}
+            # what KLAPKA keeps on the card (look, film, constraints, ...) stays as it is
+            old = card.get("obraz") if isinstance(card.get("obraz"), dict) else {}
+            obraz = {k: v for k, v in old.items() if k not in knihovna.OBRAZ}
+            obraz |= {f: (data.get(f) or "").strip() for f in ("medium", "light", "line", "composition", "signature")}
+            obraz["palette"] = _palette(data.get("palette"))
+            obraz = {k: v for k, v in obraz.items() if v}
+            card.pop("negative", None)
+            card |= {"name": label, "note": (data.get("note") or "").strip(), "obraz": obraz,
+                     "avoid": (data.get("avoid") or "").strip(),
+                     "origin": data.get("origin") or card.get("origin") or "manual",
+                     "puvod": (data.get("puvod") or card.get("puvod") or "").strip(),
+                     "created": card.get("created") or now, "updated": now}
+            card = {k: v for k, v in card.items() if v not in ("", {}) or k == "constraints"}
+            film = card.get("film") if isinstance(card.get("film"), dict) else {}
+            if not any(obraz.get(f) for f in ("medium", "light", "line", "composition", "palette")) \
+                    and not card.get("look") and not (film.get("lens") or film.get("grade")):
+                raise StyleError("karta je prázdná: vyplňte aspoň médium a techniku nebo paletu")
+            knihovna.write("style", slug, card, self.root)
         return self.get(slug)
 
     def add_sample(self, slug: str, data: bytes) -> dict:
-        d = self._dir(slug)
-        if not (d / "style.json").exists():
-            raise StyleError("styl neexistuje")
+        self._check(slug)
         try:
             img = Image.open(BytesIO(data)).convert("RGB")
         except Exception as e:  # PIL raises many types for broken input
             raise StyleError(f"není to čitelný obrázek ({e})") from e
         img.thumbnail((SAMPLE_EDGE, SAMPLE_EDGE), Image.LANCZOS)
-        with self._lock:
-            (d / "samples").mkdir(exist_ok=True)
-            n = 1 + max((int(p.stem) for p in (d / "samples").glob("*.jpg") if p.stem.isdigit()), default=0)
-            img.save(d / "samples" / f"{n}.jpg", quality=88)
+        with knihovna.lock("style", slug, self.root):
+            if knihovna.read("style", slug, self.root) is None:
+                raise StyleError("styl neexistuje")
+            d = self._samples(slug)
+            d.mkdir(parents=True, exist_ok=True)
+            n = 1 + max((int(p.stem) for p in d.glob("*.jpg") if p.stem.isdigit()), default=0)
+            img.save(d / f"{n}.jpg", quality=88)
         return self.get(slug)
 
     def remove_sample(self, slug: str, name: str) -> dict:
-        p = self._dir(slug) / "samples" / name
+        self._check(slug)
+        if name == PREVIEW:
+            raise StyleError("náhled stylu je z KLAPKY, mění se tam")
+        p = self._samples(slug) / name
         if not re.fullmatch(r"\d+\.jpg", name) or not p.exists():
             raise StyleError("ukázka neexistuje")
         p.unlink()
         return self.get(slug)
 
     def sample_path(self, slug: str, name: str) -> Path | None:
-        p = self._dir(slug) / "samples" / name
-        return p if re.fullmatch(r"\d+\.jpg", name) and p.exists() else None
+        self._check(slug)
+        p = self._preview(slug) if name == PREVIEW else self._samples(slug) / name
+        return p if (name == PREVIEW or re.fullmatch(r"\d+\.jpg", name)) and p.exists() else None
 
     def delete(self, slug: str) -> str:
-        """Moves the card to styles/.trash/ (never rm): a style may be the operator's own work."""
-        d = self._dir(slug)
-        if not d.exists():
-            raise StyleError("styl neexistuje")
-        dest = self.root / ".trash" / f"{datetime.now():%Y%m%d-%H%M%S}-{slug}"
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(d), str(dest))
-        return str(dest)
+        """Moves the card to the library's .trash/ (never rm): a style may be the operator's own work."""
+        self._check(slug)
+        try:
+            return str(knihovna.trash("style", slug, self.root))
+        except knihovna.KnihovnaError as e:
+            raise StyleError("styl neexistuje") from e

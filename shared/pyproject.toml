@@ -1,11 +1,12 @@
 [project]
 name = "ngm-shared"
 version = "0.1.0"
-description = "Lehký sdílený kód projektů NGM: klient GRAFIK Engine, stránka variant, zámek těžké práce, vrstva textu"
+description = "Lehký sdílený kód projektů NGM: klient GRAFIK Engine, stránka variant, zámek těžké práce, vrstva textu, sdílená knihovna postav a stylů"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "psutil>=5.9",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
