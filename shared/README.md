@@ -11,6 +11,7 @@ Lehký sdílený kód projektů NGM, jeden zdroj místo kopií v každém projek
 | `ngm_shared.textlayer.localize` | počeštění cizí infografiky: Claude přečte texty → `cv2.inpaint` vymaže → český text v původní velikosti → PNG a upravitelné SVG; mapa vrátí poradní upozornění „postaví KARTOGRAF“ | + opencv, anthropic |
 | `ngm_shared.claude` | jedno volání Claude s cenou z `usage`; pod pytestem bez `GRAFIK_LIVE_TESTS=1` nic nezaplatí | anthropic |
 | `ngm_shared.image_checks` | poradní kontrola obrázku proti zadání a kontrolnímu seznamu (`check_brief`, test T4) a kontrola logiky scény (`check_logic`: plán se skicou nebo hotový obrázek, „proč a kam děj směřuje“, fyzika, reálie, měřítko; test T7); Claude Opus 5.5 effort low, ~0,01 a ~0,05 USD | anthropic, Pillow |
+| `ngm_shared.archive` | archiv výstupů fronty GRAFIK Engine s hledáním nad `GRAFIK/run/jobs.sqlite` (jen pro čtení, i bez běžícího Engine): slova bez diakritiky v zadání, promptu, stylu, počeštění; filtry volající, druh úlohy, datum, stav; cesta k obrázku a náhledu | jen stdlib (náhled Pillow) |
 
 Staré cesty `GRAFIK/clients/grafik_client.py` a `GRAFIK/clients/variants_page.py` zůstávají jako re-export, CLI i `import grafik_client` fungují beze změny.
 
@@ -79,6 +80,19 @@ r["warnings"]   # [{"severity": "vysoká|střední|nízká", "what", "why", "fix
 ```
 
 Výsledek je vždy poradní (`advisory: true`), nic neblokuje. GRAFIK Engine: `POST /api/v2/checks` (`kinds: ["brief", "logic"]`, 402 s odhadem bez `confirm_cost`, výsledek u obrázku z knihovny se připíše do `image-<n>.checks.jsonl`).
+
+## Archiv s hledáním
+
+```python
+from ngm_shared import archive
+
+archive.search("krkonose")                                   # bez diakritiky, všechna slova
+archive.search("", caller="ng-robot", kind="image", since="2026-10-28", until="2026-10-29", limit=20)
+archive.search("liska", thumbs=True)[0]["images"][0]         # {path, exists, url, thumb_path, thumb_url}
+archive.facets()                                             # volající a druhy úloh s počty, první a poslední den
+```
+
+Databáze `GRAFIK_JOBS_DB` nebo `C:/Users/stock/Documents/000_NGM/GRAFIK/run/jobs.sqlite`; otevírá se jen pro čtení. GRAFIK Engine: `GET /api/v2/archive?q=&caller=&kind=&since=&until=&status=done|all&limit=` a `GET /api/v2/archive/facets`.
 
 ## Placená volání v testech
 
