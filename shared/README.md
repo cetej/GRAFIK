@@ -10,6 +10,7 @@ Lehký sdílený kód projektů NGM, jeden zdroj místo kopií v každém projek
 | `ngm_shared.textlayer` | vrstva textu nad obrazem: pravidla NG pro popisky (`style`), rozložení (`layout`), pozadí pod textem (`raster`), složení ve VectorCraftu (`compose`, `vc_client` pod zámkem `vectorcraft`), kontroly vrstvy (`checks`); kopie z NG-ROBOT `ng_vector_labels` (commit v hlavičce modulu), bez zeměpisných poloh (ty má KARTOGRAF) | numpy, Pillow |
 | `ngm_shared.textlayer.localize` | počeštění cizí infografiky: Claude přečte texty → `cv2.inpaint` vymaže → český text v původní velikosti → PNG a upravitelné SVG; mapa vrátí poradní upozornění „postaví KARTOGRAF“ | + opencv, anthropic |
 | `ngm_shared.claude` | jedno volání Claude s cenou z `usage`; pod pytestem bez `GRAFIK_LIVE_TESTS=1` nic nezaplatí | anthropic |
+| `ngm_shared.image_checks` | poradní kontrola obrázku proti zadání a kontrolnímu seznamu (`check_brief`, test T4) a kontrola logiky scény (`check_logic`: plán se skicou nebo hotový obrázek, „proč a kam děj směřuje“, fyzika, reálie, měřítko; test T7); Claude Opus 5.5 effort low, ~0,01 a ~0,05 USD | anthropic, Pillow |
 
 Staré cesty `GRAFIK/clients/grafik_client.py` a `GRAFIK/clients/variants_page.py` zůstávají jako re-export, CLI i `import grafik_client` fungují beze změny.
 
@@ -66,6 +67,18 @@ r["png"], r["svg"], r["warnings"], r["cost"]                              # cost
 - Upozornění jsou poradní (`severity`, `what`, `fix`): mapa („postaví KARTOGRAF z dat“), stopy po mazání, příliš dlouhý překlad. Nic se neblokuje.
 - GRAFIK Engine to nabízí jako úlohu ve frontě: `POST /api/v2/localize` (402 s odhadem bez `confirm_cost`).
 - Kopie z NG-ROBOT: opravu z originálu přenes diffem od commitu v hlavičce modulu (`git -C NG-ROBOT diff f27580e9 -- ng_vector_labels/<modul>.py`). NG-ROBOT sám knihovnu nepoužívá a neměnil se.
+
+## Kontrola proti zadání a kontrola logiky
+
+```python
+from ngm_shared.image_checks import check_brief, check_logic
+
+r = check_brief("obrazek.png", "Dvě zelené hrušky na modrém talíři.")            # ~0,01 USD
+r = check_logic("skica.png", "Dělníci zvedají jeřábem kvádr.", phase="plan", layout="kolo vlevo, stožár…")
+r["warnings"]   # [{"severity": "vysoká|střední|nízká", "what", "why", "fix"}], seřazené od nejvážnější
+```
+
+Výsledek je vždy poradní (`advisory: true`), nic neblokuje. GRAFIK Engine: `POST /api/v2/checks` (`kinds: ["brief", "logic"]`, 402 s odhadem bez `confirm_cost`, výsledek u obrázku z knihovny se připíše do `image-<n>.checks.jsonl`).
 
 ## Placená volání v testech
 

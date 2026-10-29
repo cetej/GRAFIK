@@ -23,7 +23,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_scenes3d, localize, models3d as m3d, scenes3d
+from engine import api3d, api_scenes3d, checks, localize, models3d as m3d, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -171,6 +171,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     api3d.register(app, models3d, store, reflib)
     api_scenes3d.register(app, scenes, models3d, store)
     localize.register(app, localizer, store, reflib)
+    checks.register(app, store, reflib, worker._log_cost, ask)
 
     @app.get("/api/v2/health")
     def health():
