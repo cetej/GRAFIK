@@ -5,9 +5,9 @@ GRAFIK Engine (lokální FLUX 3 Klein, placené modely jen se souhlasem) a GRAFI
 ## Části
 
 Rozhodnutí: `docs/DECISIONS.md` · stav: `docs/STAV.md` · spec: `docs/plans/2026-10-22-grafik-v2-greenfield.md`.
-- `engine/` — GRAFIK Engine :8300 `/api/v2` (jediný uživatel GPU pro všechny projekty; lokální FLUX 3 Klein výchozí, 0 USD; placené jen `backend=` + `confirm_cost`, nikdy fallback). sd-server :8390 spouští a vypíná jen podle vlastního PID (`run/sd-server.json`).
-- `clients/grafik_client.py` — klient pro projekty (jen stdlib), kopírovat do projektu.
-- Varianty k výběru: `grafik_client.py variants "zadání" --count N [--style slug …]` (nebo `variants()`) vygeneruje dávku, `manifest.json` a `varianty.html` (zvětšení, oblíbené, kombinace parametrů, text zpět agentovi) a stránku otevře. Když operátor vybírá vzhled, nabídni dávku místo iterace po jednom obrázku. Stránku dělá `clients/variants_page.py` = kopie STOPA `scripts/manual/variants_page.py` (needitovat tady, změnu udělat ve STOPA a zkopírovat; testy jsou ve STOPA). Placená dávka chce `--confirm-cost`, odhad je za celou dávku (`docs/spikes/2026-10-26-varianty.md`).
+- `engine/` — GRAFIK Engine :8300 `/api/v2` (jediný uživatel GPU pro všechny projekty; lokální FLUX 3 Klein výchozí, 0 USD; placené jen `backend=` + `confirm_cost`, nikdy fallback). sd-server :8390 spouští a vypíná jen podle vlastního PID (`run/sd-server.json`). FLUX i každý běh Blenderu jen pod zámkem těžké práce (`ngm_shared.heavy_lock`, druh `gpu` / `blender`); `engine/__init__.py` dává na `sys.path` `shared/` z vlastního checkoutu.
+- `shared/` — knihovna `ngm_shared` pro všechny projekty (DECISIONS 2026-10-29): `grafik_client` (jen stdlib), `variants_page`, `heavy_lock` (zámek `~/.gpu-lock` pro celý stroj, `holder()` pro UI). Projekty ji instalují `pip install -e GRAFIK/shared`, nekopírují; postup v `shared/README.md`. Změna rozhraní knihovny zasáhne všechny projekty: testy `shared/tests`. `clients/grafik_client.py` a `clients/variants_page.py` jsou jen re-export (staré CLI a `import grafik_client` beze změny).
+- Varianty k výběru: `grafik_client.py variants "zadání" --count N [--style slug …]` (nebo `variants()`) vygeneruje dávku, `manifest.json` a `varianty.html` (zvětšení, oblíbené, kombinace parametrů, text zpět agentovi) a stránku otevře. Když operátor vybírá vzhled, nabídni dávku místo iterace po jednom obrázku. Stránku dělá `shared/ngm_shared/variants_page.py` = kopie STOPA `scripts/manual/variants_page.py` (needitovat tady, změnu udělat ve STOPA a zkopírovat; testy jsou ve STOPA). Placená dávka chce `--confirm-cost`, odhad je za celou dávku (`docs/spikes/2026-10-26-varianty.md`).
 - `studio/` — GRAFIK Studio (React + Vite) na :5174, `/api` proxy na Engine; spuštění `npm --prefix studio run dev` nebo `start-grafik.bat`. Česká zadání překládá Engine (`engine/translate.py`), cena v tlačítku = souhlas (DECISIONS 2026-10-23).
 - Předlohy: knihovna `refs/library/` (`engine/reflib.py`), Wikimedia Commons (`engine/commons.py`, vždy `filetype:bitmap`), Pinterest přes operátorův Chrome (`docs/pinterest.md`); průvodce historickým objektem `engine/workflows.py`. Předlohy pro lokální FLUX mají dohromady rozpočet ~1,1 MP (VRAM, LEARNINGS 2026-10-23).
 - Styly (G4): karty `styles/<slug>/` (`style.json` = zdroj pravdy, `STYLE.md` se přepisuje), `engine/styles.py`, `/api/v2/styles`; do generátoru jen slovy (`style: "<slug>"`).
@@ -26,7 +26,7 @@ Rozhodnutí: `docs/DECISIONS.md` · stav: `docs/STAV.md` · spec: `docs/plans/20
 
 ## Testy
 
-- `rtk proxy python -m pytest tests/ -q` (POZOR: bez `rtk proxy` hook maskuje výstup — viz LEARNINGS)
+- `rtk proxy python -m pytest tests/ shared/tests -q` (POZOR: bez `rtk proxy` hook maskuje výstup — viz LEARNINGS)
 - Živé ověření Engine: `docs/spikes/2026-10-22-g1-engine.md`.
 
 ## Konvence

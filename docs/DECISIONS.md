@@ -2,6 +2,17 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-29 — Dělba práce mezi projekty: fronta těžké práce + dvě služby + jedna knihovna + sdílená data
+
+Operátor 29. 10. na návrh STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md` § 9: „souhlasím, můžeš to spustit“, s podmínkou „nechci, aby to narušilo nebo degradovalo fungování NG ROBOT, spíš jen vychytej možné chyby“.
+
+- **Jedna fronta těžké práce pro celý stroj:** FLUX, Blender, VectorCraft, přepis řeči a headless Chrome se střídají přes jeden zámek (`ngm_shared.heavy_lock`, soubor `~/.gpu-lock`), nikdy neběží dvě těžké úlohy naráz. Důvod: měření 29. 10. ukázalo servery v klidu na desítkách až stovkách MB, zatížení dělá souběh těžkých úloh a dřív končil vyčerpáním RAM.
+- **Služby jen dvě:** GRAFIK Engine (jeden model FLUX v GPU) a KARTOGRAF (geodata). Žádné další.
+- **Jedna knihovna z jednoho zdroje:** `GRAFIK/shared` (`ngm_shared`), instalovaná do venv projektů editovatelně místo deseti kopií `grafik_client.py`. Projekty zůstávají samostatné aplikace.
+- **Sdílená data místo služby** (knihovna postav, míst a stylů jako složka), návrh formátu ve fázi 4.
+- **NG-ROBOT jen opravy chyb** s testem; žádné přepnutí na knihovnu ani zámek bez samostatného souhlasu. Engine zůstává pro NG-ROBOT zpětně kompatibilní (endpointy, parametry, výstupy).
+- Fáze 1 (tento repozitář): knihovna, sloučený klient s `translate=`, zámek, Engine pod zámkem pro FLUX i všechny běhy Blenderu (i zmenšení pro prohlížeč a natažení, které dřív zámek nebraly). `GET /api/v2/health` má navíc `heavy_lock` (kdo zámek drží). Fáze 2 (přechod KLAPKY, KARTOGRAFU, POHYBU, HEGEMONU, RUKOPISU a STOPA na knihovnu) dělají samostatné sessions podle `shared/README.md`.
+
 ## 2026-10-28 — 3D modely jen přes GRAFIK Engine
 
 3D modely jen přes GRAFIK Engine, pořadí Blender → Hunyuan 3.1 Pro → Hunyuan3D v3 → TRELLIS 2 → nahraný GLB; Hunyuan v2/v2 mini vyřazen; lokální Hunyuan3D-2 mini už není výchozí (licence Tencent nekryje EU). KLAPKA volá `fal-hunyuan31pro` přes `/api/v2/models3d` (cena předem z `/api/v2/models3d/estimate`, 402 bez `confirm_cost`, záznam útraty v GRAFIK) a nezkontrolovaný model nepřevezme.

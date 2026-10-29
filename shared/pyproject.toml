@@ -1,0 +1,19 @@
+[project]
+name = "ngm-shared"
+version = "0.1.0"
+description = "Lehký sdílený kód projektů NGM: klient GRAFIK Engine, stránka variant, zámek těžké práce"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ngm_shared"]

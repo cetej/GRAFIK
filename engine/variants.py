@@ -2,13 +2,12 @@
 
 One batch = several ordinary Engine jobs (spread over styles, at most 4 images each) plus
 library/variants/<id>/batch.json. Once every job has finished, varianty.html is built by
-clients/variants_page.py (a copy of STOPA scripts/manual/variants_page.py) next to the copied
+ngm_shared.variants_page (a copy of STOPA scripts/manual/variants_page.py) next to the copied
 PNGs, so the page's relative image URLs resolve under /api/v2/variants/<id>/.
 """
 from __future__ import annotations
 
 import html
-import importlib.util
 import json
 import re
 import secrets
@@ -19,10 +18,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from engine.models import ImageRequest
+from ngm_shared import variants_page
 
 PAGE = "varianty.html"
 _NAME = re.compile(r"^[\w.-]+$")
-_PAGE_MODULE = Path(__file__).resolve().parents[1] / "clients" / "variants_page.py"
 
 
 class VariantsIn(BaseModel):
@@ -41,13 +40,6 @@ def plan(count: int, styles: list) -> list[tuple]:
             jobs.append((style, min(4, left)))
             left -= 4
     return jobs
-
-
-def _page_module():
-    spec = importlib.util.spec_from_file_location("variants_page", _PAGE_MODULE)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
 
 
 class VariantStore:
@@ -96,8 +88,7 @@ class VariantStore:
                     "note": f"{len(entries)} variant z GRAFIK Studia · zadání: {batch['prompt']}",
                     "variants": entries}
         (d / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        mod = _page_module()
-        return mod.write_page(mod.load_manifest(d / "manifest.json"), d / PAGE)
+        return variants_page.write_page(variants_page.load_manifest(d / "manifest.json"), d / PAGE)
 
 
 def waiting_page(batch: dict, done: int, total: int, failed: int) -> str:

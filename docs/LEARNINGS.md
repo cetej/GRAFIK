@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-29 — Zámek ze souboru: O_EXCL nestačí, opuštěný zámek je závod
+
+- **Starý zámek GPU měl dvě díry, které testy nechytaly (jeden proces).** (1) `O_CREAT|O_EXCL` vytvoří soubor prázdný a JSON zapíše až potom; druhý proces mezitím přečte prázdný soubor, vyhodnotí ho jako opuštěný, smaže ho a vezme si zámek taky. (2) Dva procesy, které naráz vidí mrtvý PID, oba smažou a oba vytvoří: druhý smaže už čerstvý zámek prvního. `ngm_shared.heavy_lock` proto mění zámek jen pod krátkým zámkem OS (`msvcrt.locking` na `~/.gpu-lock.mutex`, Windows ho uvolní i po pádu procesu), zapisuje do dočasného souboru a vymění ho `os.replace` a rozepsaný soubor bere 10 s jako obsazený.
+- **Důkaz musí být víc procesů.** Šest procesů se stejným startem a 6 × 20 kol se značkou „uvnitř“ (`shared/tests/test_heavy_lock.py`); se zakázaným mutexem vyhrají čtyři najednou a kola se překrývají, takže testy hlídají právě tohle.
+- **Windows recykluje PID.** Mrtvý držitel, jehož PID dostal jiný proces, by zámek držel navždy. Proces spuštěný po `since` zámku proto není držitel (`psutil.Process(pid).create_time()`).
+- **`os.replace` a `unlink` na Windows padají `PermissionError`, když má soubor otevřený někdo jiný** (čtenář, antivir): krátké opakování. `holder()` pro `/api/v2/health` čte bez mutexu; health nesmí čekat ani spadnout, klienti podle něj poznávají, že Engine běží.
+- **Engine si `shared/` dává na `sys.path` sám** (`engine/__init__.py`): Engine startuje `start-grafik.bat`, autostart klienta i testy ve worktree a žádná z těch cest nemusí mít knihovnu nainstalovanou. Vlastní checkout má přednost před editovatelnou instalací z jiného checkoutu.
+- **Re-export staré cesty klienta přes `sys.modules[__name__] = modul`**, ne `from … import *`: volající i testy nastavují `grafik_client.ENGINE_URL` a monkeypatchují `_request`, `time.sleep`, `webbrowser.open`; s hvězdičkovým importem by měnili kopii jmen, ne skutečný modul.
+- **…a k tomu `globals().update(...)`**: kdo soubor načítá podle cesty (`importlib.util.spec_from_file_location` + `exec_module`), dostane objekt modulu, který `sys.modules` nevymění. Tak to dělal `engine/variants.py` a dělají to kopie klienta v KLAPCE a STOPA (`_variants_page_module()` → `GRAFIK/clients/variants_page.py`); bez kopie jmen byl modul prázdný a padly tři testy dávky variant. Ověřeno skutečnými kopiemi z KLAPKY a STOPA.
+
 ## 2026-10-28 — Nesvařenou síť dělal náš export, ne Hunyuan
 
 - **Oprava záznamu z 10-27 „Generované GLB nejsou svařené“.** Syrový Hunyuan3D je svařený: `tatra-87/v1` a `slon-hunyuan3d` mají 500 000 ploch na 250 000 vrcholů a jen `POSITION`. Tři vrcholy na plochu měla až natažená Tatra v2 (1 498 732 vrcholů, 42 MB). Blender po importu GLB bez normál označí plochy jako ploché a výchozí export pak zapíše normálu každé plochy zvlášť, takže každou plochu odpojí. `stretch.py` (a `scripts/3d/stretch_glb.py`) proto exportuje s `export_normals=False`: stejná Tatra má 249 976 vrcholů a 9,0 MB, obálka beze změny (GRAFIK#73).

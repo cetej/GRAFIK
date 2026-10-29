@@ -492,6 +492,10 @@ class Models3d:
             self.lib.update(request["model_id"], request["version"], jobs=meta["jobs"] + [{"job_id": job_id, "kind": kind}])
         return job_id
 
+    def lock_for_blender(self, job_id: str) -> None:
+        """The machine's heavy-work lock for every Blender run; its holder shows who asked for the job."""
+        self.gpu_lock.acquire(self.s.gpu_lock_wait_s, "blender", (self.store.get(job_id) or {}).get("caller"))
+
     def _fail(self, req: dict, e: Exception, status: str = "failed") -> None:
         try:
             self.lib.update(req["model_id"], req["version"], status=status, error=str(e))
@@ -554,8 +558,12 @@ class Models3d:
         t0 = time.time()
         tmp = d / "viewer.tmp.glb"
         try:
-            stdout = self.blender.run(DECIMATE_SCRIPT, [str(d / "model.glb"), str(tmp), str(VIEWER_TRIANGLES)],
-                                      d / "blender-viewer.log")
+            self.lock_for_blender(job_id)
+            try:
+                stdout = self.blender.run(DECIMATE_SCRIPT, [str(d / "model.glb"), str(tmp), str(VIEWER_TRIANGLES)],
+                                          d / "blender-viewer.log")
+            finally:
+                self.gpu_lock.release()
             stats = _line_json(stdout, "STATS")
             if not stats.get("verts"):
                 raise Model3dError("model nemá žádné vrcholy (prázdný nebo poškozený GLB)")
@@ -611,7 +619,7 @@ class Models3d:
             # Cycles on the CPU needs 0 MB of VRAM and ~38 s for 8 views, so a loaded FLUX stays loaded.
             # With EEVEE (render_cpu off) our own sd-server is stopped first, by its PID: EEVEE beside a loaded
             # FLUX crashed FLUX on 8 GB (LEARNINGS 2026-10-27).
-            self.gpu_lock.acquire(self.s.gpu_lock_wait_s)
+            self.lock_for_blender(job_id)
             try:
                 if not self.s.render_cpu:
                     self.sd.stop("3D render v Blenderu (EEVEE)")
@@ -653,7 +661,7 @@ class Models3d:
             ["--cpu"] if self.s.render_cpu else [])
         t0 = time.time()
         try:
-            self.gpu_lock.acquire(self.s.gpu_lock_wait_s)   # the same rules as the sheet (run_views)
+            self.lock_for_blender(job_id)   # the same rules as the sheet (run_views)
             try:
                 if not self.s.render_cpu:
                     self.sd.stop("3D render v Blenderu (EEVEE)")
@@ -681,8 +689,12 @@ class Models3d:
         self.lib.update(mid, ver, status="stretching", error=None)
         L, W, H = req["dims"]
         try:
-            stdout = self.blender.run(STRETCH_SCRIPT, [str(src), str(d / "model.glb"), str(L), str(W), str(H),
-                                                       req["part"]], d / "blender-stretch.log")
+            self.lock_for_blender(job_id)
+            try:
+                stdout = self.blender.run(STRETCH_SCRIPT, [str(src), str(d / "model.glb"), str(L), str(W), str(H),
+                                                           req["part"]], d / "blender-stretch.log")
+            finally:
+                self.gpu_lock.release()
             if not (d / "model.glb").is_file():
                 raise Model3dError("Blender nezapsal natažený model (log blender-stretch.log)")
         except Exception as e:

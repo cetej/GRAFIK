@@ -338,7 +338,7 @@ class Scenes3d:
         args = ["--scene", str(spec_path), str(tmp)] + (["--cpu"] if s.render_cpu else [])
         t0 = time.time()
         try:
-            self.m.gpu_lock.acquire(s.gpu_lock_wait_s)
+            self.m.lock_for_blender(job_id)
             try:
                 if not s.render_cpu:
                     self.m.sd.stop("3D render scény v Blenderu (EEVEE)")

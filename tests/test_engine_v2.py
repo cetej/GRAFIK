@@ -20,7 +20,6 @@ from engine import sdserver
 from engine.app import create_app
 from engine.backends import FluxLocal, NanoBananaPro
 from engine.config import Settings
-from engine.gpu import GpuBusy, GpuLock
 from engine.models import ImageRequest
 from engine.prompt import build_prompt, image_ref_indices
 from engine.sdserver import SdServer, SdServerError
@@ -148,18 +147,21 @@ def test_low_vram_fails_readably_without_start(settings, monkeypatch):
     assert sd.owned_process() is None
 
 
-# -- GPU lock ---------------------------------------------------------------
+# -- heavy-work lock (ngm_shared.heavy_lock; its own tests in shared/tests) ---------------
 
-def test_gpu_lock_stale_replaced_live_blocks(tmp_path):
-    path = tmp_path / "gpu.lock"
-    path.write_text(json.dumps({"owner": "dead", "pid": 999999, "since": 0}))
-    lock = GpuLock(path)
-    assert lock.try_acquire()
-    lock.release()
-    assert not path.exists()
-    path.write_text(json.dumps({"owner": "ng-robot-dabing", "pid": psutil.Process().ppid(), "since": 0}))
-    with pytest.raises(GpuBusy, match="ng-robot-dabing"):
-        GpuLock(path).acquire(wait_s=0.3, poll_s=0.1)
+def test_flux_job_waits_for_foreign_heavy_work_and_health_names_holder(api, settings):
+    settings.gpu_lock_wait_s = 0.5
+    settings.gpu_lock_path.write_text(json.dumps({"owner": "klapka", "pid": psutil.Process().ppid(),
+                                                  "since": time.time(), "kind": "blender", "caller": "scena-12"}))
+    held = api.get("/api/v2/health").json()["heavy_lock"]
+    assert (held["owner"], held["kind"], held["caller"]) == ("klapka", "blender", "scena-12")
+    job = wait_done(api, api.post("/api/v2/images", json={"prompt": "x", "size": "256x256"}).json()["job_id"])
+    assert job["status"] == "failed" and "klapka" in job["error"] and "blender" in job["error"], job["error"]
+    settings.gpu_lock_path.unlink()
+    job = wait_done(api, api.post("/api/v2/images", json={"prompt": "x", "size": "256x256", "caller": "ng-robot"}
+                                  ).json()["job_id"])
+    assert job["status"] == "done", job["error"]
+    assert api.get("/api/v2/health").json()["heavy_lock"] is None and not settings.gpu_lock_path.exists()
 
 
 # -- API, queue, costs, provenance (sc-3, sc-5, sc-6, sc-7) ---------------
@@ -263,7 +265,7 @@ def test_interrupted_running_job_marked_failed(settings):
 # -- client (sc-9) ----------------------------------------------------------
 
 def test_client_is_stdlib_only():
-    tree = ast.parse((ROOT / "clients" / "grafik_client.py").read_text(encoding="utf-8"))
+    tree = ast.parse((ROOT / "shared" / "ngm_shared" / "grafik_client.py").read_text(encoding="utf-8"))
     mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     mods |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level == 0}
     assert mods <= set(sys.stdlib_module_names) | {"__future__"}, mods - set(sys.stdlib_module_names)
@@ -295,10 +297,49 @@ def test_client_end_to_end(settings, sd, tmp_path, monkeypatch):
 
 
 def test_client_stdlib_only_includes_variants_page():
-    tree = ast.parse((ROOT / "clients" / "variants_page.py").read_text(encoding="utf-8"))
+    tree = ast.parse((ROOT / "shared" / "ngm_shared" / "variants_page.py").read_text(encoding="utf-8"))
     mods = {a.name.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     mods |= {n.module.split(".")[0] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.level == 0}
     assert mods <= set(sys.stdlib_module_names) | {"__future__"}, mods - set(sys.stdlib_module_names)
+
+
+def test_old_client_path_is_the_shared_module():
+    sys.path.insert(0, str(ROOT / "clients"))
+    import grafik_client
+    import variants_page
+    from ngm_shared import grafik_client as shared_client, variants_page as shared_page
+    assert grafik_client is shared_client and variants_page is shared_page
+    assert Path(shared_client.__file__).resolve() == ROOT / "shared" / "ngm_shared" / "grafik_client.py"
+    # older client copies in other projects load GRAFIK/clients/variants_page.py by path
+    import importlib.util
+
+    def by_path(name):
+        spec = importlib.util.spec_from_file_location(f"by_path_{name}", ROOT / "clients" / f"{name}.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+    page = by_path("variants_page")
+    assert page.write_page is shared_page.write_page and page.load_manifest is shared_page.load_manifest
+    assert by_path("grafik_client").submit is shared_client.submit
+
+
+@pytest.mark.parametrize("script,needle", [("grafik_client.py", "ref-add"), ("variants_page.py", "--dir")])
+def test_old_client_cli_runs_without_installing_ngm_shared(script, needle, tmp_path):
+    # a clean interpreter from another folder, as STOPA /nano and Claude in Chrome (ref-add) call it
+    out = subprocess.run([sys.executable, "-I", str(ROOT / "clients" / script), "--help"], cwd=tmp_path,
+                         capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert out.returncode == 0 and needle in out.stdout, out.stderr
+
+
+def test_client_translate_passes_through(monkeypatch):
+    from ngm_shared import grafik_client
+    sent = []
+    monkeypatch.setattr(grafik_client, "_request", lambda method, path, body=None, timeout=30:
+                        sent.append(body) or (202, {"job_id": "j1"}))
+    assert grafik_client.submit("Map of Brno, Czech names", translate="off") == "j1"
+    grafik_client.submit("x")
+    assert [b["translate"] for b in sent] == ["off", "auto"]
+    assert ImageRequest(**{k: v for k, v in sent[0].items() if k != "confirm_cost"}).translate == "off"
 
 
 def test_client_variants_plan_spreads_over_styles_in_jobs_of_four():
