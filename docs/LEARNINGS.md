@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-29 — Mazání textu z obrázku: barva od Claude nestačí, mapy sázejí popisky násobením
+
+- **„Popisky v barvě podkladu“ z T2 byly popisky sázené násobením podkladu.** Šedý popisek (#808080) mapy je na zelené ploše tmavě zelený (2, 77, 21), na žluté tmavě žlutý. Maska podle jedné barvy písma ho nemůže chytit; `ngm_shared.textlayer.localize` proto zkouší dvě hypotézy, plnou barvu a podklad × barva, a podle té, která vysvětlí víc pixelů, i sází (PNG násobením, SVG `mix-blend-mode: multiply`).
+- **Claude se u barvy a rámečku plete.** U Vinlandu řekl šedá místo černé. Barva od Claude platí, dokud změřená barva (jádro tahů v rámečku) nevysvětlí aspoň o polovinu víc výrazných pixelů. Vyhlazené okraje cizí barvy podporu dodají vždy, proto rozhoduje počet vysvětlených pixelů, ne to, jestli nějaká podpora existuje.
+- **Podklad pod písmem z mediánu okolí selhává na rozeklaném pobřeží**: v rohu zálivu je většina okna druhá plocha, medián ji bere za podklad a hranu plochy za písmo (smazal kus země). Podklad bez písma dává morfologické uzavření a otevření po kanálech (tahy užší než jádro zmizí, plochy zůstanou).
+- **Písmo je směs podkladu a své barvy.** Pixel písma leží na úsečce podklad → barva písma (vyhlazený okraj); vzdálenost od ní odliší zelený čtvereček značky vedle černého popisku, prostý práh vzdálenosti od barvy ho bral taky.
+- **Otočený popisek: písmo jen v pásu podél jeho osy a nejdál o konec rámečku od Claude.** Jinak se k němu přilepí hranice území a sousední popisky (Britské ostrovy) a písmo vyjde o třetinu větší. Rámečky otočených popisků od Claude měly v T2 délku ±10 %; velikost se bere z měřené délky, nejvýš 1,15× odhadu z rámečku.
+- **Kontrola zbytků po mazání chytá vlastní chyby.** Podíl písma barvy popisku, který po `inpaint` zůstal v okolí, nad 15 % = poradní upozornění; hned ukázal špatnou barvu Vinlandu (19 %).
+- **Session s automatickou archivací po zavření PR:** řetěz PR slučuj až na konci a jedním skriptem (sloučení, pull, restart, ověření), placené ověření předtím na dočasném Engine z worktree s vlastním `GRAFIK_DATA_DIR` a `GRAFIK_SD_PORT` (fronta operátora se nepotká).
+
 ## 2026-10-29 — Zámek ze souboru: O_EXCL nestačí, opuštěný zámek je závod
 
 - **Starý zámek GPU měl dvě díry, které testy nechytaly (jeden proces).** (1) `O_CREAT|O_EXCL` vytvoří soubor prázdný a JSON zapíše až potom; druhý proces mezitím přečte prázdný soubor, vyhodnotí ho jako opuštěný, smaže ho a vezme si zámek taky. (2) Dva procesy, které naráz vidí mrtvý PID, oba smažou a oba vytvoří: druhý smaže už čerstvý zámek prvního. `ngm_shared.heavy_lock` proto mění zámek jen pod krátkým zámkem OS (`msvcrt.locking` na `~/.gpu-lock.mutex`, Windows ho uvolní i po pádu procesu), zapisuje do dočasného souboru a vymění ho `os.replace` a rozepsaný soubor bere 10 s jako obsazený.
