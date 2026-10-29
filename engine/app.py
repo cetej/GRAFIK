@@ -33,6 +33,7 @@ from engine.termdb import TermDB
 from engine.translate import Translator
 from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
+from ngm_shared.heavy_lock import holder
 
 
 # Body models live at module level: with `from __future__ import annotations` FastAPI
@@ -170,6 +171,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def health():
         return {"engine": "ok", "sd_server": sd.status(), "queue_len": store.queue_len(),
                 "running_job": worker.running, "gpu_free_mib": free_vram_mib(),
+                "heavy_lock": holder(s.gpu_lock_path),
                 "backends": sorted(bk), "default_backend": "flux-local"}
 
     def prepare(req: ImageRequest):

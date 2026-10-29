@@ -275,6 +275,7 @@ def test_flux_and_render_both_done_render_holds_gpu_lock(api, settings):
     assert [j["status"] for j in jobs] == ["done"] * 3, [j["error"] for j in jobs]
     calls = [c for c in trace(settings) if c["script"] == "render_views.py"]
     assert calls and all(c["lock"] and json.loads(c["lock"])["owner"] == "grafik-engine" for c in calls)
+    assert all(json.loads(c["lock"])["kind"] == "blender" for c in trace(settings)), "každý běh Blenderu pod zámkem"
     assert not settings.gpu_lock_path.exists(), "zámek se po renderu uvolní"
     # 3D jobs stay out of /api/v2/jobs (sc-7) but are in the 3D list
     assert {j["job_id"] for j in api.get("/api/v2/jobs").json()} == {img, img2}
@@ -334,7 +335,8 @@ def test_viewer_copy_and_crash_keeps_model(api, settings, monkeypatch):
     d = settings.library_dir / "3d" / "tatra-87" / "v1"
     assert (d / "viewer.glb").read_bytes() == GLB and (d / "model.glb").read_bytes() == GLB
     call = [c for c in trace(settings) if c["script"] == "decimate.py"][0]
-    assert call["args"][2] == "100000" and call["lock"] is None, "zmenšení běží bez zámku GPU"
+    # Blender is heavy work for the whole machine (DECISIONS 2026-10-29): the viewer copy too, not only renders
+    assert call["args"][2] == "100000" and json.loads(call["lock"])["kind"] == "blender"
     # a model from before v2 (no viewer copy) gets one on first open; a second click joins the same job
     (d / "viewer.glb").unlink()
     monkeypatch.setenv("FAKE_BLENDER_MODE", "slow")

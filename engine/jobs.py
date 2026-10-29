@@ -16,13 +16,13 @@ from pathlib import Path
 from engine import prompt as promptlib
 from engine.backends import BackendError, Generated, describe_style, estimate_usd
 from engine.config import Settings
-from engine.gpu import GpuBusy, GpuLock
 from engine.models import ImageRequest
 from engine.models3d import Model3dError
 from engine.paste import paste_back
 from engine.translate import TRANSLATE_USD, Translator
 from engine.refs import RefError, load_ref_png, sha256
 from engine.sdserver import SdServerError
+from ngm_shared.heavy_lock import HeavyBusy, HeavyLock
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -191,7 +191,7 @@ class Worker:
         self.store = store
         self.backends = backends
         self.poll_s = poll_s
-        self.gpu_lock = GpuLock(settings.gpu_lock_path)
+        self.gpu_lock = HeavyLock(settings.gpu_lock_path, "grafik-engine")
         self._stop = threading.Event()
         self.running: str | None = None
         self.handlers: dict = {}    # kind -> fn(job_id, request dict) -> result; 3D registers its steps here
@@ -218,7 +218,7 @@ class Worker:
                 else:
                     result = self.handlers[kind](row["id"], json.loads(row["request"]))
                 self.store.finish(row["id"], result=result)
-            except (BackendError, SdServerError, GpuBusy, RefError, Model3dError) as e:
+            except (BackendError, SdServerError, HeavyBusy, RefError, Model3dError) as e:
                 self.store.finish(row["id"], error=str(e))
             except Exception as e:  # keep the worker alive; surface the reason to the caller
                 self.store.finish(row["id"], error=f"{type(e).__name__}: {e}")
@@ -265,7 +265,7 @@ class Worker:
                     "usd": est["total_usd"], "items": est["items"]}
         use_gpu = req.backend == "flux-local"
         if use_gpu:
-            self.gpu_lock.acquire(self.s.gpu_lock_wait_s)
+            self.gpu_lock.acquire(self.s.gpu_lock_wait_s, "gpu", req.caller)
         try:
             if est["total_usd"] > 0:
                 # write-ahead: když klient spadne po odeslání, fal si úlohu naúčtuje, a ledger o ní má aspoň tento řádek
