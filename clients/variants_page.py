@@ -1,5 +1,5 @@
 """Old path of the variants page: re-exports ngm_shared.variants_page (GRAFIK/shared/ngm_shared),
-a copy of STOPA scripts/manual/variants_page.py. Same CLI: python clients/variants_page.py manifest.json -o out.html
+its canonical source (STOPA scripts/manual/variants_page.py re-exports it too). Same CLI: python clients/variants_page.py manifest.json -o out.html
 Older copies of grafik_client in other projects load this file by path: they get the same names.
 """
 import sys

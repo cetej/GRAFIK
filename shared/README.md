@@ -5,7 +5,7 @@ Lehký sdílený kód projektů NGM, jeden zdroj místo kopií v každém projek
 | Modul | Co | Závislosti |
 |---|---|---|
 | `ngm_shared.grafik_client` | klient GRAFIK Engine (`generate`, `submit(..., translate=)`, `variants`, `model3d`, `views`, `add_ref`, `ensure_engine`), CLI `python -m ngm_shared.grafik_client` | jen stdlib |
-| `ngm_shared.variants_page` | stránka pro výběr z N variant (kopie STOPA `scripts/manual/variants_page.py`, needitovat tady) | jen stdlib |
+| `ngm_shared.variants_page` | stránka pro výběr z N variant; **kanonický zdroj je tady**, STOPA `scripts/manual/variants_page.py` je od 2026-10-29 jen re-export (úpravy se dělají v GRAFIKU) | jen stdlib |
 | `ngm_shared.heavy_lock` | zámek těžké práce pro celý stroj (GPU, Blender, VectorCraft, přepis řeči, headless Chrome) | psutil, jen Windows |
 
 Staré cesty `GRAFIK/clients/grafik_client.py` a `GRAFIK/clients/variants_page.py` zůstávají jako re-export, CLI i `import grafik_client` fungují beze změny.
@@ -44,6 +44,7 @@ Staré cesty `GRAFIK/clients/grafik_client.py` a `GRAFIK/clients/variants_page.p
 
    Druhy: `gpu`, `blender`, `vectorcraft`, `speech`, `chrome-render`. Po `wait_s` přijde `HeavyBusy` s čitelnou zprávou a `.holder` (kdo drží). Obrázky přes GRAFIK Engine zámek neberou, Engine si ho bere sám.
 5. Do `requirements.txt` projektu (nebo do dokumentace instalace) zapiš řádek `-e C:/Users/stock/Documents/000_NGM/GRAFIK/shared`, ať nový venv knihovnu dostane.
+6. Zděděný soubor, který nejde přepsat (RUKOPIS: kopie z NG-ROBOT synchronizace, STOPA: cesta volaná skillem), nahraď tenkým průchodem podle `clients/grafik_client.py` (`sys.modules[__name__] = ngm_shared.grafik_client`) a v RUKOPIS ho dej do `owned` v `upstream/policy.toml`. Repo s CI mimo tento stroj (STOPA) přidá do CI requirements `ngm-shared @ git+https://github.com/cetej/GRAFIK.git@master#subdirectory=shared` (GRAFIK je veřejné repo).
 
 ## Zámek těžké práce
 

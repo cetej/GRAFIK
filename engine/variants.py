@@ -2,7 +2,7 @@
 
 One batch = several ordinary Engine jobs (spread over styles, at most 4 images each) plus
 library/variants/<id>/batch.json. Once every job has finished, varianty.html is built by
-ngm_shared.variants_page (a copy of STOPA scripts/manual/variants_page.py) next to the copied
+ngm_shared.variants_page (canonical source; STOPA re-exports it) next to the copied
 PNGs, so the page's relative image URLs resolve under /api/v2/variants/<id>/.
 """
 from __future__ import annotations
