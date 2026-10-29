@@ -22,8 +22,8 @@ Czech names (KARTOGRAF places) the Engine would otherwise send it to paid transl
 
 variants() makes N images to pick from instead of iterating one by one: the jobs,
 a manifest.json and varianty.html (zoom, favourites, combine params, copy the pick
-back to the agent). The page comes from variants_page.py (a copy of STOPA
-scripts/manual/variants_page.py) next to this file or in GRAFIK/clients.
+back to the agent). The page comes from variants_page.py next to this file (canonical
+source; STOPA scripts/manual/variants_page.py re-exports it) or in GRAFIK/clients.
 
 CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:role]] [--out DIR]
      python grafik_client.py variants "prompt" [--count 8] [--style SLUG ...] [--out DIR] [--no-open]

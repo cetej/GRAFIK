@@ -8,8 +8,9 @@ Stránka je jeden soubor bez sítě (funguje z file:// i z dev serveru projektu)
 Média odkazuje relativně k umístění stránky, HTML a text vkládá dovnitř.
 
 Použití:
-    python scripts/manual/variants_page.py manifest.json -o out/varianty.html
-    python scripts/manual/variants_page.py --dir out/hero -o out/hero/varianty.html --title "Hero"
+    python -m ngm_shared.variants_page manifest.json -o out/varianty.html
+    python -m ngm_shared.variants_page --dir out/hero -o out/hero/varianty.html --title "Hero"
+(STOPA scripts/manual/variants_page.py je re-export tohoto modulu, zdroj je tady.)
 
 Manifest (JSON):
     {"title": "Hero pro článek", "note": "volitelný popis",
