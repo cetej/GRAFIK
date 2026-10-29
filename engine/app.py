@@ -23,7 +23,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_scenes3d, archive, checks, localize, models3d as m3d, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, checks, localize, models3d as m3d, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -35,6 +35,7 @@ from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
 from ngm_shared import claude
 from ngm_shared.heavy_lock import holder
+from ngm_shared.knihovna import KnihovnaError
 
 
 # Body models live at module level: with `from __future__ import annotations` FastAPI
@@ -173,6 +174,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     localize.register(app, localizer, store, reflib)
     checks.register(app, store, reflib, worker._log_cost, ask)
     archive.register(app, s)
+    api_knihovna.register(app, s)
 
     @app.get("/api/v2/health")
     def health():
@@ -186,7 +188,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         backend = bk.get(req.backend)
         if backend is None:
             raise HTTPException(400, f"neznámý backend {req.backend!r}; k dispozici: {sorted(bk)}")
-        if any(r.ref_id and not r.path for r in req.refs):
+        if any((r.ref_id or r.knihovna) and not r.path for r in req.refs):
             refs = []
             for r in req.refs:
                 if r.ref_id and not r.path:
@@ -197,6 +199,18 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                         "path": str(reflib.image_path(r.ref_id)),
                         "source": r.source or meta.get("page_url") or meta.get("source_url") or meta["title"],
                         "license": r.license or meta.get("license"), "author": r.author or meta.get("author")})
+                elif r.knihovna and not r.path:
+                    try:
+                        found = api_knihovna.resolve(s.knihovna_dir, r.knihovna)
+                    except KnihovnaError as e:
+                        raise HTTPException(400, str(e)) from e
+                    except LookupError as e:
+                        raise HTTPException(404, str(e)) from e
+                    p = found["puvod"]
+                    r = r.model_copy(update={
+                        "path": str(found["path"]), "knihovna": found["knihovna"],
+                        "source": r.source or p.get("page_url") or p.get("source_url") or f"knihovna {found['knihovna']}",
+                        "license": r.license or p.get("license"), "author": r.author or p.get("author")})
                 refs.append(r)
             req = req.model_copy(update={"refs": refs})
         if req.style_id or req.style:

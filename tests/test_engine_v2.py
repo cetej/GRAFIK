@@ -910,6 +910,74 @@ def test_api_refs_and_ref_id_provenance(api):
     assert api.post(f"/api/v2/jobs/{job['job_id']}/repeat", json={}).status_code == 202
 
 
+def test_knihovna_items_as_refs_with_provenance(api, settings, tmp_path, monkeypatch):
+    """A character, place or prop of the shared library goes into an image as a ref (phase 4, § 11)."""
+    import hashlib
+    from datetime import datetime
+
+    from ngm_shared import knihovna
+    base = settings.knihovna_dir
+    knihovna.write("character", "caesar", {"name": "Caesar", "anchors": "laurel wreath", "primary": "caesar.png"},
+                   base)
+    src = tmp_path / "caesar.png"
+    src.write_bytes(_png_bytes(size=(96, 48)))
+    knihovna.add_ref("character", "caesar", tmp_path / "caesar.png", puvod={
+        "origin": "commons", "author": "Zbyna Zl", "license": "CC BY-SA 4.0", "page_url": "https://commons/x"},
+        base=base)
+    board = tmp_path / "board-1.png"
+    board.write_bytes(_png_bytes(color=(10, 200, 10)))
+    knihovna.add_ref("character", "caesar", board, base=base)
+    knihovna.write("environment", "forum", {"name": "Forum"}, base)
+    knihovna.write("prop", "amfora", {"name": "Amfora", "description": "clay amphora"}, base)
+    (knihovna.item_dir("prop", "amfora", base) / "model" / "views").mkdir(parents=True)
+    (knihovna.item_dir("prop", "amfora", base) / "model" / "views" / "model_q34.png").write_bytes(_png_bytes())
+
+    lib = api.get("/api/v2/knihovna").json()
+    assert lib["problems"] == []
+    by = {(i["kind"], i["slug"]): i for i in lib["items"]}
+    caesar = by[("character", "caesar")]
+    assert caesar["name"] == "Caesar" and caesar["about"] == "laurel wreath"
+    newest = max(p.stat().st_mtime for p in knihovna.item_dir("character", "caesar", base).rglob("*.png"))
+    assert caesar["updated"] == datetime.fromtimestamp(newest).isoformat(timespec="seconds")
+    assert [(i["file"], i["primary"], i["role"]) for i in caesar["images"]] == [
+        ("refs/caesar.png", True, "subject"), ("refs/board-1.png", False, "subject")]
+    assert by[("environment", "forum")]["images"] == []
+    assert [(i["knihovna"], i["role"]) for i in by[("prop", "amfora")]["images"]] == [
+        ("prop/amfora/model/views/model_q34.png", "geometry")]
+    assert [i["kind"] for i in api.get("/api/v2/knihovna?kind=prop").json()["items"]] == ["prop"]
+    assert api.get("/api/v2/knihovna?kind=style").status_code == 400
+
+    assert api.get(caesar["images"][0]["url"]).content == src.read_bytes()
+    thumb = api.get(caesar["images"][0]["url"] + "?w=64")
+    assert thumb.headers["content-type"] == "image/jpeg"
+    assert not any(p.suffix == ".jpg" for p in base.rglob("*"))      # thumbnails stay out of KNIHOVNA
+    assert api.get("/api/v2/knihovna/character/caesar/refs/nope.png").status_code == 404
+    for outside in ("../../styles/x.yaml", "%2e%2e/card.yaml", "refs%2f..%2fcard.yaml"):
+        assert api.get(f"/api/v2/knihovna/character/caesar/{outside}").status_code in (400, 404)
+
+    log = tmp_path / "sd.log"
+    monkeypatch.setenv("FAKE_SD_LOG", str(log))
+    job = _first_image(api, refs=[{"knihovna": "character/caesar"}])
+    assert json.loads(log.read_text().splitlines()[-1])["ref_images"] == 1
+    ref = api.get(job["images"][0] + "/provenance").json()["refs"][0]
+    assert ref["knihovna"] == "character/caesar/refs/caesar.png" and ref["role"] == "subject"
+    assert ref["sha256"] == hashlib.sha256(src.read_bytes()).hexdigest()
+    assert (ref["license"], ref["author"], ref["source"]) == ("CC BY-SA 4.0", "Zbyna Zl", "https://commons/x")
+    assert api.post(f"/api/v2/jobs/{job['job_id']}/repeat", json={}).status_code == 202
+
+    job = _first_image(api, refs=[{"knihovna": "character/caesar/refs/board-1.png", "role": "scene"}])
+    ref = api.get(job["images"][0] + "/provenance").json()["refs"][0]
+    assert ref["source"] == "knihovna character/caesar/refs/board-1.png" and ref["license"] is None
+
+    post = lambda refs: api.post("/api/v2/images", json={"prompt": "x", "refs": refs}).status_code  # noqa: E731
+    assert post([{"knihovna": "character/nikdo"}]) == 404
+    assert post([{"knihovna": "environment/forum"}]) == 404          # a place without an image
+    assert post([{"knihovna": "character/caesar/refs/../card.yaml"}]) == 404
+    assert post([{"knihovna": "style/default"}]) == 400
+    assert post([{"knihovna": "character/../x"}]) == 400
+    assert post([{"knihovna": "character/caesar", "ref_id": "x-1"}]) == 422
+
+
 def test_historical_workflow_steps(api, tmp_path, monkeypatch):
     import base64
     log = tmp_path / "sd.log"

@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-29 — Postavy, místa a rekvizity z KNIHOVNY jako předloha obrázku
+
+Operátor 29. 10. schválil náčrt 2 („Ano, podle 2“) po připomínce, že postav a míst budou desítky a víc.
+
+- **Studio, okno Přidat předlohu, záložka „Postavy a místa“**: hledání podle jména a popisu karty, filtr Vše / Postavy / Místa / Rekvizity s počty, jedna dlaždice na položku s hlavní předlohou a „+ Použít“, další obrázky (boardy, pohledy místa, 3D pohledy rekvizity) až po rozkliknutí. Řazení podle poslední změny karty nebo jejích obrázků, položky bez obrázku na konci. Náhledy se načítají líně.
+- **Hlavní předloha** = pravidlo KLAPKY (`primary` na kartě, jinak první obrázek v `refs/`); výchozí role postava a rekvizita = předmět, místo = scéna, bílý 3D pohled = tvar.
+- **Engine** `GET /api/v2/knihovna`, v požadavku `Ref.knihovna`; provenience zapíše `<druh>/<slug>/<soubor>`, sha256 a původ z `.puvod.json`. NG-ROBOT beze změny (nové volitelné pole).
+- **KLAPKA** u stylu bez vlastní ukázky ukáže první vzorek z GRAFIKU s popiskem „vzorek z GRAFIKU“; nabídka „Nakreslit chybějící ukázky“ ho dál počítá jako chybějící (jiná scéna).
+
 ## 2026-10-29 — Fáze 4: jedna sdílená složka postav, míst, rekvizit a stylů (KNIHOVNA)
 
 Operátor 29. 10. na návrh STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md` § 11: „Souhlasím, spusť“.

@@ -122,11 +122,13 @@ knihovna.update("character", "caesar", {"voice": "deep"})          # nebo funkce
 with knihovna.lock("character", "caesar"):        # delší úprava víc souborů jedné položky
     ...
 knihovna.add_ref("character", "caesar", "busta.png", puvod={"origin": "commons", "author": "…", "license": "CC BY-SA 4.0"})
+knihovna.images("character", "caesar")            # [{file, path, label, primary}], hlavní předloha první
 knihovna.trash("style", "stary-styl")             # → KNIHOVNA/.trash/styles/<čas>-stary-styl/
 ```
 
 - **Zápis jen přes tyto funkce.** Zámek karty platí pro vlákna i procesy (KLAPKA a GRAFIK Studio zapisují souběžně, test: 6 procesů × 25 úprav jedné karty bez ztráty), je re-entrantní ve vlákně jako `card_lock` v KLAPCE. Soubor se mění atomicky (dočasný soubor a `os.replace`), YAML píše stejně jako KLAPKA (`yaml.safe_dump`, diakritika, pořadí polí).
 - **Předloha s původem**: `add_ref` zkopíruje obrázek do `refs/`, jiný soubor stejného jména nepřepíše (`-2`, `-3`), stejný soubor nepřidá podruhé. Původ a licence jdou do `<soubor>.puvod.json` s poli schránky předloh GRAFIKU (`origin, title, source_url, page_url, author, license, license_url, sha256, width, height, added`; `sha256` vždy ze souboru). Karta se nemění, hlavní předlohu volí projekt.
+- **Obrázky položky jako předloha** (`images`): hlavní první jako KLAPKA `engine.load_entry` (výčet `refs:` z karty, jinak `refs/` podle abecedy bez `state-*` a `view-*` a s `primary` vpředu), za nimi stavy postavy a pohledy místa z karty. Rekvizita: obrázek, ze kterého je 3D model (`model/obrazek.*`, hlavní), `refs/` a bílé pohledy modelu. GRAFIK Engine je vypisuje na `GET /api/v2/knihovna` a do obrázku je bere jako předlohu `{"knihovna": "character/caesar"}` (hlavní) nebo `"character/caesar/refs/board-1.png"`; provenience zapíše celou cestu, původ a licenci z `.puvod.json`.
 - **Společná karta stylu** (`styles/<slug>.yaml`): `name`, `note`, `look` (společný popis), `obraz` (`medium, light, line, composition, palette, signature` z GRAFIKU), `film` (`lens, grade`, případně `ref_style` z KLAPKY), `avoid` (GRAFIK `avoid` = KLAPKA `negative`), `constraints` (jen video; chybí-li, platí výchozí věta KLAPKY), `origin, puvod, created, updated`.
   - `knihovna.image_text(card)` = slova za „Style:“ v promptu obrázku: `look`, oddíl obraz (bez něj objektiv a barevné podání z oddílu film), paleta, „avoid …“. Pro styl z GRAFIKU stejný text jako dřív `engine/styles.py`.
   - `knihovna.video_lines(card)` = řádky stylu v promptu videa jako KLAPKA `engine.build_shot` („Style: look, lens, grade.“, constraints, „Avoid: ….“); `knihovna.film_fields(card)` = pole třídy `Style` v KLAPCE. Styl z GRAFIKU bez popisu filmu dostane `look` z média, světla a linky.

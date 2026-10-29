@@ -343,6 +343,84 @@ def add_ref(kind: str, slug: str, src, name: str | None = None, puvod: dict | No
         return dst
 
 
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+# Bílé pohledy 3D modelu rekvizity (KLAPKA rekvizita.view_files); 3/4 ukazuje tvar nejlépe (police KLAPKY).
+PROP_VIEWS = {"q34": "3/4", "front": "zepředu", "side": "z boku"}
+# Pohledy místa (KLAPKA engine.LOCATION_VIEWS); `master` je hlavní předloha, v `views:` není.
+ENV_VIEWS = {"reverse": "protipohled", "left": "zleva", "right": "zprava", "high": "nadhled 3/4", "overhead": "shora"}
+
+
+def _bare(name) -> str | None:
+    """Holé jméno souboru z karty; cokoli, co míří jinam (`../x.png`, `a/b.png`), je None."""
+    name = str(name or "")
+    if not name or name in (".", "..") or "/" in name or "\\" in name:
+        return None
+    return name
+
+
+def images(kind: str, slug: str, base=None) -> list[dict]:
+    """Obrázky položky, které jdou použít jako předloha, hlavní první.
+
+    Postava a místo jako KLAPKA `engine.load_entry`: `refs:` na kartě je výčet v tomto pořadí, jinak
+    všechny obrázky z `refs/` kromě kreseb stavů a pohledů (`state-*`, `view-*`) podle abecedy
+    a `primary` z karty jde dopředu. Za nimi stavy (`states:`) a pohledy místa (`views:`) z karty.
+    Rekvizita: obrázek, ze kterého je 3D model (`model/obrazek.*`, hlavní), předlohy z `refs/`
+    a bílé pohledy modelu (`model/views/model_<pohled>.png`).
+
+    Každý obrázek: `{"file": cesta vůči item_dir (posix), "path": Path, "label": str, "primary": bool}`.
+    Prázdný seznam, když položka nemá obrázek nebo v knihovně není."""
+    if kind == "style":
+        raise KnihovnaError("styl nemá předlohy, jen vzorky (styles/<slug>/samples/)")
+    card = read(kind, slug, base)
+    if card is None:
+        return []
+    folder = item_dir(kind, slug, base)
+    refs_dir = folder / "refs"
+    out: list[tuple[Path, str]] = []
+
+    states = card.get("states") if kind != "prop" else None
+    views = card.get("views") if kind == "environment" else None
+    states, views = (x if isinstance(x, dict) else {} for x in (states, views))
+    named = {}
+    for name, spec in states.items():
+        f = _bare(spec.get("ref")) if isinstance(spec, dict) else None
+        if f:
+            named[f] = f"stav {name}"
+    for key, f in views.items():
+        f = _bare(f)
+        if f and key != "master":
+            named[f] = f"pohled {ENV_VIEWS.get(key, key)}"
+
+    listed = card.get("refs") if isinstance(card.get("refs"), list) else []
+    if listed:
+        refs = [refs_dir / f for f in map(_bare, listed) if f]
+    else:
+        refs = sorted(p for p in refs_dir.glob("*") if p.suffix.lower() in IMAGE_SUFFIXES
+                      and p.name not in named and not p.name.startswith(("state-", "view-")))
+        chosen = _bare(card.get("primary"))
+        if chosen and refs_dir / chosen in refs:
+            refs.remove(refs_dir / chosen)
+            refs.insert(0, refs_dir / chosen)
+
+    if kind == "prop":
+        model = folder / "model"
+        made_from = next((model / f"obrazek{s}" for s in IMAGE_SUFFIXES if (model / f"obrazek{s}").is_file()), None)
+        if made_from:
+            out.append((made_from, "obrázek modelu"))
+    out += [(p, p.stem) for p in refs]
+    out += [(refs_dir / f, label) for f, label in named.items()]
+    if kind == "prop":
+        out += [(folder / "model" / "views" / f"model_{v}.png", f"3D model {label}") for v, label in PROP_VIEWS.items()]
+
+    seen, found = set(), []
+    for path, label in out:
+        if path.is_file() and path not in seen:
+            seen.add(path)
+            found.append({"file": path.relative_to(folder).as_posix(), "path": path, "label": label,
+                          "primary": not found})
+    return found
+
+
 def trash(kind: str, slug: str, base=None) -> Path:
     """Přesune kartu i složku položky (u stylu i náhled) do `.trash/<druh>s/<čas>-<slug>/`. Nic nemaže."""
     with lock(kind, slug, base):

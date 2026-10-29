@@ -15,6 +15,8 @@ class Ref(BaseModel):
     path: str | None = None
     url: str | None = None
     ref_id: str | None = None       # an entry of the reference library (engine/reflib.py)
+    # An image of the shared library: "<kind>/<slug>" (main image) or "<kind>/<slug>/<file>" (engine/api_knihovna.py)
+    knihovna: str | None = None
     # Style refs: the words that describe the style. FLUX cannot transfer style
     # from an image (verified 2026-10-22), so a style ref is never sent as pixels.
     text: str | None = None
@@ -24,10 +26,12 @@ class Ref(BaseModel):
 
     @model_validator(mode="after")
     def _one_source(self):
-        # the API resolves ref_id to the library file's path and keeps both (provenance)
-        given = [x for x in (self.b64, self.path or self.ref_id, self.url) if x]
+        # the API resolves ref_id / knihovna to the library file's path and keeps both (provenance)
+        if self.ref_id and self.knihovna:
+            raise ValueError("předloha je buď ref_id (schránka), nebo knihovna, ne obojí")
+        given = [x for x in (self.b64, self.path or self.ref_id or self.knihovna, self.url) if x]
         if self.role != "style" and len(given) != 1:
-            raise ValueError("obrazová předloha potřebuje právě jedno z b64 / path / url / ref_id")
+            raise ValueError("obrazová předloha potřebuje právě jedno z b64 / path / url / ref_id / knihovna")
         if self.role == "style" and not (self.text or given):
             raise ValueError("stylová předloha potřebuje text (popis stylu) nebo obrázek")
         return self

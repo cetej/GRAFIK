@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { fileToB64, refsApi, type CommonsItem, type RefMeta } from './api.ts'
+import { fileToB64, knihovnaApi, refsApi, type CommonsItem, type KnihovnaImage, type KnihovnaItem, type KnihovnaKind, type RefMeta } from './api.ts'
+import { ROLE_LABEL } from './App.tsx'
 
-export type PickerTab = 'commons' | 'inbox' | 'file'
+export type PickerTab = 'commons' | 'inbox' | 'knihovna' | 'file'
 
 const ORIGIN_LABEL: Record<RefMeta['origin'], string> = { commons: 'Commons', pinterest: 'Pinterest', web: 'web', upload: 'soubor' }
 
@@ -16,9 +17,10 @@ export async function storeDrop(dt: DataTransfer): Promise<RefMeta[]> {
   return url && /^https?:/.test(url) ? [await refsApi.addUrl(url.trim())] : []
 }
 
-export default function RefPicker({ initialTab, onPick, onClose, onError }: {
+export default function RefPicker({ initialTab, onPick, onPickKnihovna, onClose, onError }: {
   initialTab: PickerTab
   onPick: (meta: RefMeta) => void
+  onPickKnihovna?: (item: KnihovnaItem, img: KnihovnaImage) => void   // the tab shows only where this is given
   onClose: () => void
   onError: (msg: string) => void
 }) {
@@ -76,6 +78,7 @@ export default function RefPicker({ initialTab, onPick, onClose, onError }: {
         <div className="tabs">
           <button className={tab === 'commons' ? 'on' : ''} onClick={() => setTab('commons')}>Wikimedia Commons</button>
           <button className={tab === 'inbox' ? 'on' : ''} onClick={() => setTab('inbox')}>Schránka{unseen ? ` (${unseen} nové)` : ''}</button>
+          {onPickKnihovna && <button className={tab === 'knihovna' ? 'on' : ''} onClick={() => setTab('knihovna')}>Postavy a místa</button>}
           <button className={tab === 'file' ? 'on' : ''} onClick={() => setTab('file')}>Soubor</button>
         </div>
 
@@ -135,6 +138,8 @@ export default function RefPicker({ initialTab, onPick, onClose, onError }: {
           </>
         )}
 
+        {tab === 'knihovna' && onPickKnihovna && <KnihovnaTab onPick={onPickKnihovna} onError={onError} />}
+
         {tab === 'file' && <DropZone busy={busy === 'drop'} onDrop={drop} label="Přetáhněte soubor nebo klikněte a vyberte" big />}
       </div>
     </div>
@@ -155,5 +160,93 @@ function DropZone({ busy, onDrop, label, big }: { busy: boolean; onDrop: (dt: Da
         e.target.value = ''
       }} />
     </label>
+  )
+}
+
+export const KIND_LABEL: Record<KnihovnaKind, string> = { character: 'postava', environment: 'místo', prop: 'rekvizita' }
+const KIND_FILTER: { key: KnihovnaKind | ''; label: string }[] = [
+  { key: '', label: 'Vše' }, { key: 'character', label: 'Postavy' }, { key: 'environment', label: 'Místa' }, { key: 'prop', label: 'Rekvizity' },
+]
+const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/** Characters, places and props of the shared library: one tile each (the main image), the other images on demand. */
+function KnihovnaTab({ onPick, onError }: { onPick: (item: KnihovnaItem, img: KnihovnaImage) => void; onError: (msg: string) => void }) {
+  const [items, setItems] = useState<KnihovnaItem[] | null>(null)
+  const [q, setQ] = useState('')
+  const [kind, setKind] = useState<KnihovnaKind | ''>('')
+  const [open, setOpen] = useState<string | null>(null)
+  const [added, setAdded] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    knihovnaApi.list().then((r) => {
+      setItems(r.items)
+      if (r.problems.length) onError(`Knihovna: ${r.problems.join('; ')}`)
+    }).catch((e) => onError((e as Error).message))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const words = fold(q).split(/\s+/).filter(Boolean)
+  const shown = (items ?? [])
+    .filter((it) => (!kind || it.kind === kind) && words.every((w) => fold(`${it.name} ${it.slug} ${it.about}`).includes(w)))
+    .sort((a, b) => Number(!a.images.length) - Number(!b.images.length) || b.updated.localeCompare(a.updated))
+  const count = (k: KnihovnaKind | '') => (items ?? []).filter((it) => !k || it.kind === k).length
+  const use = (it: KnihovnaItem, img: KnihovnaImage) => {
+    onPick(it, img)
+    setAdded((a) => ({ ...a, [img.knihovna]: true }))
+  }
+
+  return (
+    <>
+      <div className="row">
+        <input className="search" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="hledat: jméno nebo popis (caesar, toga, amfora…)" />
+        <div className="seg wrap">
+          {KIND_FILTER.map((f) => <button key={f.key} className={kind === f.key ? 'on' : ''} onClick={() => setKind(f.key)}>{f.label} {count(f.key)}</button>)}
+        </div>
+      </div>
+      <p className="hint">Sdílená knihovna KNIHOVNA, stejné karty jako v KLAPCE. Naposledy změněné nahoře, bez obrázku na konci.</p>
+      <div className="results kn">
+        {items === null && <p className="hint">Načítám…</p>}
+        {items?.length === 0 && <p className="hint">Knihovna je prázdná. Postavy, místa a rekvizity se zakládají v KLAPCE.</p>}
+        {!!items?.length && !shown.length && <p className="hint">Nic nenalezeno.</p>}
+        {shown.map((it) => {
+          const key = `${it.kind}/${it.slug}`
+          const main = it.images[0]
+          const more = it.images.length > 1
+          return [
+            <div key={key} className={`res ${open === key ? 'sel' : ''}`}>
+              {main ? <img src={`${main.url}?w=256`} alt="" loading="lazy" /> : <div className="noimg">bez obrázku</div>}
+              <div className="info">
+                <b title={it.name}>{it.name}</b>
+                <span title={it.about}>{KIND_LABEL[it.kind]}{more ? ` · ${it.images.length} obr.` : ''}</span>
+              </div>
+              <div className="act">
+                <button className="btn small" disabled={!main || !!added[main.knihovna]} onClick={() => main && use(it, main)}
+                  title={main ? `hlavní předloha, jde jako ${ROLE_LABEL[main.role]}` : 'karta nemá obrázek (doplní se v KLAPCE)'}>
+                  {main && added[main.knihovna] ? '✓ Přidáno' : '+ Použít'}
+                </button>
+                {more && (
+                  <button className="btn small" aria-expanded={open === key} title="další obrázky položky" onClick={() => setOpen(open === key ? null : key)}>
+                    {open === key ? '▴' : '▾'} {it.images.length}
+                  </button>
+                )}
+              </div>
+            </div>,
+            open === key && (
+              <div key={`${key}-more`} className="kn-more">
+                <div className="hint"><b>{it.name}</b> · klik přidá ten obrázek</div>
+                <div className="kn-strip">
+                  {it.images.map((img) => (
+                    <button key={img.file} className={`kn-img ${added[img.knihovna] ? 'sel' : ''}`} disabled={!!added[img.knihovna]}
+                      onClick={() => use(it, img)} title={`${img.label}, jde jako ${ROLE_LABEL[img.role]}`}>
+                      <img src={`${img.url}?w=160`} alt="" loading="lazy" />
+                      <span>{added[img.knihovna] ? '✓ ' : img.primary ? 'hlavní · ' : '+ '}{img.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ),
+          ]
+        })}
+      </div>
+    </>
   )
 }

@@ -4,7 +4,7 @@ export type Role = 'subject' | 'geometry' | 'scene' | 'style'
 export type EditAction = 'add' | 'remove' | 'move' | 'recolor'
 export type Box = [number, number, number, number] // [top, left, bottom, right], 0–1000
 
-export interface RefIn { b64?: string; ref_id?: string; role: Role; text?: string; source?: string; license?: string | null }
+export interface RefIn { b64?: string; ref_id?: string; knihovna?: string; role: Role; text?: string; source?: string; license?: string | null }
 
 export interface ImageRequest {
   prompt: string
@@ -130,6 +130,11 @@ export interface RefMeta {
   image: string
 }
 
+// Characters, places and props of the shared library KNIHOVNA (Engine GET /api/v2/knihovna)
+export type KnihovnaKind = 'character' | 'environment' | 'prop'
+export interface KnihovnaImage { file: string; label: string; primary: boolean; role: Role; knihovna: string; url: string }
+export interface KnihovnaItem { kind: KnihovnaKind; slug: string; name: string; about: string; updated: string; images: KnihovnaImage[] }
+
 export interface CommonsItem {
   title: string
   file: string
@@ -163,6 +168,10 @@ export const refsApi = {
   seen: (id: string) => post<RefMeta>(`/api/v2/refs/${id}/seen`, {}),
   commons: (q: string) => call<CommonsItem[]>(`/api/v2/commons/search?q=${encodeURIComponent(q)}`),
   commonsImport: (file: string) => post<RefMeta>('/api/v2/commons/import', { file }),
+}
+
+export const knihovnaApi = {
+  list: () => call<{ items: KnihovnaItem[]; problems: string[] }>('/api/v2/knihovna'),
 }
 
 export const wfApi = {
