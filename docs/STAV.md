@@ -1,8 +1,17 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-10-29.
+Aktualizováno 2026-10-29 (večer).
 
 ## Teď
+
+**Postavy, místa a rekvizity z KNIHOVNY jako předloha obrázku (2026-10-29, GRAFIK#84, KLAPKA#200)** (DECISIONS 2026-10-29, náčrt 2 schválený operátorem):
+- **`ngm_shared.knihovna.images()`**: obrázky položky, hlavní první podle pravidla KLAPKY (`primary` / výčet `refs:`), za nimi stavy a pohledy místa; u rekvizity `model/obrazek.*` a bílé 3D pohledy. Na skutečné KNIHOVNĚ stejné pořadí jako KLAPKA `engine.load_entry` u všech 5 postav a 1 místa.
+- **Engine** `GET /api/v2/knihovna` (položky, `updated`, `problems`), `GET /api/v2/knihovna/<druh>/<slug>/<soubor>?w=` (náhledy v `run/knihovna-thumbs`, do KNIHOVNY nic), v požadavku `Ref.knihovna` (`character/caesar` = hlavní, nebo konkrétní soubor). Provenience: `knihovna` s celou cestou, licence a autor z `.puvod.json`; sha256 je jako u ostatních předloh z kopie poslané do FLUXu (velká předloha se zmenší). `/api/v2` zpětně kompatibilní.
+- **Studio**: okno Přidat předlohu → záložka „Postavy a místa“ (hledání bez diakritiky, filtr druhu s počty, dlaždice s hlavní předlohou, další obrázky po rozkliknutí, nejnovější nahoře, bez obrázku na konci), tlačítko „Postavy a místa“ pod předlohami. Výchozí role: postava a rekvizita předmět, místo scéna, 3D pohled tvar.
+- **Ověřeno naostro 2026-10-29**: Engine :8300 restartovaný jen podle PID při prázdné frontě (24464 → 62228), `GET /api/v2/knihovna` = 5 postav, 1 místo, 4 rekvizity; v opravdovém Studiu :5174 hledání „caesar“ → „+ Použít“ → Vygenerovat · 0 USD → úloha `20261029-173046-3d5fe6` na lokálním FLUX, ledger 0 USD, provenience `knihovna: character/caesar/refs/caesar.png`; obrázek drží obličej i oděv z předlohy ([srovnání](spikes/img/2026-10-29-knihovna-predloha-caesar.jpg)).
+- **KLAPKA** ukazuje u 4 stylů GRAFIKU první vzorek s popiskem „vzorek z GRAFIKU“ (KLAPKA#200, :8320 PID 57564).
+- Testy: `tests/` + `shared/tests` 236 passed, 1 skipped.
+- **Omezení**: v hodně nízkém okně (pod ~600 px výšky) se mřížka v okně Přidat předlohu stlačí, stejně jako výsledky Commons; na běžném monitoru v pořádku.
 
 **Dělba práce, fáze 4 (2026-10-29): sdílená knihovna postav, míst, rekvizit a stylů** (DECISIONS 2026-10-29, plán STOPA § 11):
 - **`ngm_shared.knihovna`**: složka `KNIHOVNA` (`NGM_KNIHOVNA`, výchozí `C:/Users/stock/Documents/000_NGM/KNIHOVNA`) s rozložením KLAPKY; čtení, výpis, zápis pod zámkem karty (vlákna i procesy, re-entrantní) a atomicky, `add_ref` s `<soubor>.puvod.json` (pole schránky předloh), koš `.trash/`. Společná karta stylu (`look` + `obraz` + `film` + `avoid` + `constraints`), `image_text` pro obraz, `video_lines` / `film_fields` pro video.
@@ -12,7 +21,7 @@ Aktualizováno 2026-10-29.
 - **Shoda textu promptu**: testy na skutečných stylech (4 z GRAFIKU proti zmrazené `prompt_text()` z ee7fd78, 11 z KLAPKY proti skutečné třídě `Style` a `imaging._look` z KLAPKY) a doslovné texty tří výchozích stylů v `tests/test_engine_v2.py`.
 - Testy: `tests/` + `shared/tests` 233 passed, 1 skipped (přibylo 22).
 - **Nasazeno 2026-10-29 17:03**: GRAFIK#82 (`d82cf1d`) a KLAPKA#198 (`7c353e9`), KLAPKA čte a zapisuje knihovnu přes `ngm_shared.knihovna` (2934 testů KLAPKY; 75 záběrů skutečného studia má stejný prompt, obrázky i varování). Engine :8300 restartovaný jen podle PID při prázdné frontě (47340 → 24464), `GET /api/v2/styles` = 15 stylů. KLAPKA :8320 (PID 28264) ukazuje v knihovně 5 postav, 1 místo, 4 rekvizity a 15 stylů z KNIHOVNY.
-- **Navazuje:** postava nebo místo z knihovny jako předloha obrázku v GRAFIKU (GRAFIK zatím čte jen styly); vzorky stylů GRAFIKU v knihovně KLAPKY (dnes „bez ukázky“).
+- **Navazuje (hotovo 2026-10-29, viz výše):** postava, místo a rekvizita z knihovny jako předloha obrázku v GRAFIKU; vzorky stylů GRAFIKU v knihovně KLAPKY.
 
 **Dělba práce, fáze 3 hotová (2026-10-29): vrstva textu, počeštění infografik, kontroly, archiv** (GRAFIK#77, #78, #79) (plán STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md` § 6 T2, § 10):
 - **`ngm_shared.textlayer`**: kopie sazby z NG-ROBOT `ng_vector_labels` @ `f27580e9` (pravidla NG, rozložení, pozadí pod textem, složení ve VectorCraftu, kontroly vrstvy), bez zeměpisných poloh (ty má KARTOGRAF). VectorCraft běží pod zámkem těžké práce (`vectorcraft`). NG-ROBOT se nezměnil a knihovnu nepoužívá. Skutečný VectorCraft složil zkušební vrstvu přes kopii (písma exact, 0 chyb kontrol; test jen s `GRAFIK_VECTORCRAFT_TESTS=1`).
@@ -45,7 +54,7 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 - **3D modely pro KLAPKU jen přes GRAFIK Engine** (rozhodnutí 2026-10-28, DECISIONS): KLAPKA má tlačítko „Vyrobit v GRAFIK · $0.375“ (`POST /api/v2/models3d`, `method: fal-hunyuan31pro`, `caller: klapka`, cena z `/api/v2/models3d/estimate`) a nahrání GLB (`upload`); model čeká v knihovně na „Model zkontrolován“ ve Studiu a KLAPKA ho pak převezme. Návrh a licence lokálního Hunyuan3D-2 mini v KLAPCE (`KLAPKA/docs/3d-backendy-navrh.md`): **vyřízeno 2026-10-28**. GRAFIK kód se nezměnil, `fal-hunyuan31pro` je tu od #61.
 - **3D scény (zadání B)** ([návrh](plans/2026-10-27-3d-sceny.md), [ověření](spikes/2026-10-27-3d-sceny.md)): 3D → Scény ve Studiu. Modely z knihovny, kvádr a válec a kontrolní postava 1,72 m se rozmisťují v metrech tažením nebo čísly. Bílý snímek vzniká z kamery prohlížeče (Blender na CPU, 10–13 s) a jde do Studia jako předloha „tvar“ s větou o měřítku. Rozměr = nejdelší strana; bere se z natažení, nebo ručně a uloží se k modelu. Loď pro scény je ta z `lod_kvinquerema.py`, v knihovně jako `rimska-kvinquerema-blender-z-rozmeru-rekonstrukc` v2. Lokální FLUX drží tvar lodi, drobné věci (amfory, lidi) ale zvětšuje.
 - **3D: optimalizovaná kopie pro prohlížeč** (#64, [spike](spikes/2026-10-27-gltf-optimize.md)): po zmenšení v Blenderu vznikne vedle `viewer.glb` ještě `viewer.opt.glb` z glTF Transform (meshopt, bez spojení dílů a instancování), ~3,5× menší (Tatra 1,2 MB → 0,33 MB, loď z Blenderu 0,81 → 0,29 MB), načtení 26 → 17 ms, obraz shodný (≤ 0,006 % pixelů). Prohlížeč modelu i scény načítá kopii přes `MeshoptDecoder`, při chybě `viewer.glb`; provenience v `model.json` → `viewer.optimized`. Starší modely dostanou kopii při prvním otevření. Nástroj v `engine/gltf/` (instaluje `start-grafik.bat`). `model.glb` se neoptimalizuje, prohlížeč ho nenačítá.
-- Testy: celá sada 234 (2026-10-29 po fázi 4: `tests/` 154, knihovna `shared/tests` 80, z toho 1 přeskočený skutečný VectorCraft, `GRAFIK_VECTORCRAFT_TESTS=1`; `python -m pytest` z kořene sbírá obě). Placená volání Claude jsou v testech zamockovaná, bez mocku skončí chybou (`GRAFIK_LIVE_TESTS=1` zapne živé).
+- Testy: celá sada 237 (2026-10-29 po předlohách z KNIHOVNY: `tests/` 155, knihovna `shared/tests` 82, z toho 1 přeskočený skutečný VectorCraft, `GRAFIK_VECTORCRAFT_TESTS=1`; `python -m pytest` z kořene sbírá obě). Placená volání Claude jsou v testech zamockovaná, bez mocku skončí chybou (`GRAFIK_LIVE_TESTS=1` zapne živé).
 
 ## Další krok
 
