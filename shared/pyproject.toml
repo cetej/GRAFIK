@@ -1,7 +1,7 @@
 [project]
 name = "ngm-shared"
 version = "0.1.0"
-description = "Lehký sdílený kód projektů NGM: klient GRAFIK Engine, stránka variant, zámek těžké práce"
+description = "Lehký sdílený kód projektů NGM: klient GRAFIK Engine, stránka variant, zámek těžké práce, vrstva textu"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -10,10 +10,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# vrstva textu a počeštění (ngm_shared.textlayer, ngm_shared.claude)
+text = ["numpy>=1.26", "Pillow>=10.0", "opencv-python>=4.8", "anthropic>=1.0"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["ngm_shared"]
+packages = ["ngm_shared", "ngm_shared.textlayer"]

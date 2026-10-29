@@ -23,7 +23,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_scenes3d, models3d as m3d, scenes3d
+from engine import api3d, api_scenes3d, localize, models3d as m3d, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -33,6 +33,7 @@ from engine.termdb import TermDB
 from engine.translate import Translator
 from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
+from ngm_shared import claude
 from ngm_shared.heavy_lock import holder
 
 
@@ -127,7 +128,8 @@ class Expand(BaseModel):
 
 def create_app(settings: Settings | None = None, backends: dict | None = None,
                server: SdServer | None = None, start_worker: bool = True, backends3d: dict | None = None,
-               blender=None) -> FastAPI:
+               blender=None, ask=claude.ask) -> FastAPI:
+    """`ask` = volání Claude pro počeštění a kontroly (testy ho mockují, ngm_shared.claude)."""
     s = settings or Settings()
     sd = server or SdServer(s)
     store = JobStore(s.db_path)
@@ -145,6 +147,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     worker.handlers.update(models3d.handlers())
     scenes = scenes3d.Scenes3d(models3d)
     worker.handlers.update(scenes.handlers())
+    localizer = localize.Localizer(s, store, worker._log_cost, ask)
+    worker.handlers.update(localizer.handlers())
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -166,6 +170,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     app.state.models3d = models3d
     api3d.register(app, models3d, store, reflib)
     api_scenes3d.register(app, scenes, models3d, store)
+    localize.register(app, localizer, store, reflib)
 
     @app.get("/api/v2/health")
     def health():
