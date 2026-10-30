@@ -12,6 +12,9 @@ Opravy proti prototypu T2 (`ZZZ_TEST/algoritmus-obrazku-2026-10-29/skripty/t2b_l
   otočených popisků (v T2 až ve druhém kole).
 - Mapa vrátí poradní upozornění: českou mapu má postavit KARTOGRAF z dat. Nic se neblokuje.
 
+Od 2026-10-30 maže popisky PhotoCraft a sází písmo NG (`pcraft.py`), `cv2.inpaint` zůstává jen jako náhrada,
+když PhotoCraft nebo písma NG chybí; na stínovaném reliéfu poškozuje obraz.
+
 Přečtené texty (`<stem>.texty.json`, rámečky v pixelech originálu) jde opravit a vysázet znovu zdarma:
 `localize(..., texts=upravené)`.
 """
@@ -28,6 +31,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from ngm_shared import claude
+from ngm_shared.textlayer import pcraft
 from ngm_shared.textlayer import style as st
 
 READ_MODEL = "claude-opus-5-5"
@@ -45,7 +49,10 @@ Return {{"kind": "...", "elements": [ ... ]}} where each element is:
  "color": text colour hex, "font": "sans" or "serif", "bold": bool, "italic": bool, "caps": bool,
  "align": "left"|"center"|"right"}}
 Czech rules: correct diacritics; established Czech exonyms for places (Greenland = Grónsko, Iceland = Island,
-Norway = Norsko...); names without a Czech form stay as they are; scientific terms in their standard Czech form.
+Norway = Norsko...); names without a Czech form stay as they are, never make an adjective of them (Lhotse Face =
+stěna Lhotse); scientific terms in their standard Czech form. Czech readers use metric units: when a value is given
+in both systems keep only the metric one, convert imperial values and axis ticks to metric (29,032 ft = 8 849 m).
+"italic" is true whenever the letters are slanted, also for spaced capitals.
 Skip logos and icon-only marks."""
 
 FONT_DIR = Path("C:/Windows/Fonts")
@@ -64,6 +71,10 @@ Ask = Callable[..., claude.Answer]
 
 class LocalizeError(ValueError):
     """Obrázek nebo přečtené texty nejdou zpracovat."""
+
+
+class FlatImage(Exception):
+    """Plochý obrázek: čistší je `cv2.inpaint`, není to chyba."""
 
 
 # ---------------------------------------------------------------------------- čtení
@@ -387,13 +398,17 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
 
 # ---------------------------------------------------------------------------- celek
 
-def warnings_for(texts: dict, report: list[dict]) -> list[dict]:
+def warnings_for(texts: dict, report: list[dict], fallback: str | None = None) -> list[dict]:
     """Poradní upozornění (nic neblokují): mapa, nesmazané stopy, příliš dlouhý překlad."""
     out = []
+    if fallback:
+        out.append({"severity": "střední", "what": f"Mazání náhradní cestou: {fallback}",
+                    "fix": "Na stínovaném reliéfu a u popisků na barevných pruzích náhradní cesta poškozuje obraz "
+                           "(rozmazaný terén, přerušené trasy, nečitelné pruhy). Výsledek zkontrolujte."})
     if texts["kind"] == "map":
-        out.append({"severity": "střední", "what": "Obrázek je mapa.",
-                    "fix": "Českou mapu má postavit KARTOGRAF z dat (přečíst cizí mapu → postavit novou). "
-                           "Vrstva textu je jen rychlá náhrada: popisky leží tam, kde byly anglické. Na stínovaném reliéfu a u popisků na barevných pruzích mazání poškozuje obraz (rozmazaný terén, přerušené trasy, nečitelné pruhy), výsledek před použitím zkontrolujte."})
+        out.append({"severity": "nízká", "what": "Obrázek je mapa.",
+                    "fix": "Popisky leží tam, kde byly anglické, a před zveřejněním je zkontroluje člověk. "
+                           "Mapu nově z dat staví KARTOGRAF."})
     by_id = {el["id"]: el for el in texts["elements"]}
     for r in report:
         el = by_id[r["id"]]
@@ -429,14 +444,25 @@ def localize(image: Path, out_dir: Path, *, stem: str = "image-0", texts: dict |
     if not texts["elements"]:
         raise LocalizeError("v obrázku není žádný text k počeštění")
     out_dir.mkdir(parents=True, exist_ok=True)
-    clean, measured, mask_px = erase(np.array(src), texts["elements"])
     base_name = f"{stem}-bez-textu.png"
-    Image.fromarray(clean).save(out_dir / base_name)
-    png, svg, report = typeset(Image.fromarray(clean), texts["elements"], measured, base_name)
+    fallback, mask_px = None, 0
+    try:
+        if not pcraft.textured(np.array(src)):
+            raise FlatImage
+        if not pcraft.ready():
+            raise pcraft.PhotoCraftError("PhotoCraft nebo písma NG nejsou na tomto počítači")
+        clean, layout = pcraft.erase(np.array(src), texts["elements"])
+        Image.fromarray(clean).save(out_dir / base_name)
+        png, svg, report = pcraft.typeset(Image.fromarray(clean), texts["elements"], layout, base_name)
+    except (FlatImage, pcraft.PhotoCraftError) as e:
+        fallback = str(e) or None
+        clean, measured, mask_px = erase(np.array(src), texts["elements"])
+        Image.fromarray(clean).save(out_dir / base_name)
+        png, svg, report = typeset(Image.fromarray(clean), texts["elements"], measured, base_name)
     png.save(out_dir / f"{stem}.png")
     (out_dir / f"{stem}.svg").write_text(svg, encoding="utf-8")
     (out_dir / f"{stem}.texty.json").write_text(json.dumps(texts, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"png": str(out_dir / f"{stem}.png"), "svg": str(out_dir / f"{stem}.svg"),
             "base": str(out_dir / base_name), "texts": str(out_dir / f"{stem}.texty.json"),
             "kind": texts["kind"], "elements": len(texts["elements"]), "mask_px": mask_px,
-            "warnings": warnings_for(texts, report), "layout": report, "cost": cost, "size": list(src.size)}
+            "warnings": warnings_for(texts, report, fallback), "layout": report, "cost": cost, "size": list(src.size)}

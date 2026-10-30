@@ -5,6 +5,8 @@
 - **T2 měřil mapu s plochými barvami, Everest je stínovaný reliéf.** Šedé písmo má stejnou barvu jako stíny skal, takže maska z barvy zabere i terén a `cv2.inpaint` ho rozmaže. Tmavá fialová trasa a hranice v pásu otočeného popisku padly do masky a jsou přerušené. Bílý text na fialovém pruhu: bílá je i okolní sníh, pruh se rozteče a nový text není čitelný.
 - **Kontroly to nehlásí:** `warnings` zachytily jen 20 % zbytků u „NORTH FACE“, nic o trase ani pruzích. Nízké `residue` neznamená neporušený obraz.
 - **Volný snímek ai2html grafiky má popisky v HTML vrstvě.** JPG u článku je bez nich (prázdné pruhy), snímek obrazovky je má zapečené.
+- **PhotoCraft `paint.remove` bere vzorky z obrazu:** tahy poslané po dávkách doplnily do díry ještě nesmazaný text z jiného místa. Všechny tahy patří do jednoho volání. Na ploché mapě nechává skvrny, tam je čistší `cv2.inpaint`.
+- **Překlad bez kontroly není hotový:** „Lhotská stěna“ jsem napsal sám jako správnou bez ověření. Termdb tyhle horolezecké názvy nezná (test: 0 shod), takže prázdná kontrola nic nedokazuje.
 
 ## 2026-10-30 — Funkce bez tlačítka pro operátora neexistuje
 

@@ -8,6 +8,7 @@ import base64
 import json
 from contextlib import asynccontextmanager
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -101,6 +102,11 @@ class StyleSample(BaseModel):
 class InfoNew(BaseModel):
     base: str                       # "<job_id>/<n>" image the infographic is built on
     title: str = ""
+
+
+class InfoUpload(BaseModel):
+    b64: str                        # image from the operator's computer
+    name: str = ""
 
 
 class InfoExport(BaseModel):
@@ -712,6 +718,25 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         if store.image_path(body.base) is None:
             raise HTTPException(404, f"obrázek {body.base} neexistuje")
         return infos.create(body.base, body.title.strip(), _prov(body.base))
+
+    @app.post("/api/v2/infographics/upload", status_code=201)
+    def info_upload(body: InfoUpload):
+        try:
+            with Image.open(BytesIO(base64.b64decode(body.b64.split(",", 1)[-1]))) as im:
+                im.load()
+                rgb = im.convert("RGB")
+        except (ValueError, OSError) as e:
+            raise HTTPException(400, f"obrázek nejde přečíst ({e})") from e
+        job_id = store.add_done("upload", "studio", {"prompt": "", "refs": [], "source": body.name}, {"files": []})
+        job_dir = s.library_dir / datetime.now().strftime("%Y-%m") / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+        path = job_dir / "image-0.png"
+        rgb.save(path)
+        (job_dir / "image-0.json").write_text(json.dumps({
+            "job_id": job_id, "file": path.name, "source": body.name, "ai_generated": False, "reviewed_by": None,
+            "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
+        store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
+        return infos.create(f"{job_id}/0", Path(body.name).stem, _prov(f"{job_id}/0"))
 
     @app.get("/api/v2/infographics/{info_id}")
     def info_get(info_id: str):

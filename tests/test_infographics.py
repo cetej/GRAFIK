@@ -13,6 +13,24 @@ SVG = ('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="990"><rect 
        '<text x="40" y="60">Římská kvinquerema</text><text x="40" y="980">{note}</text></svg>')
 
 
+def test_upload_from_computer_starts_an_infographic_without_touching_the_job_list(api):
+    from base64 import b64encode
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (64, 48), (20, 50, 110)).save(buf, "PNG")
+    doc = api.post("/api/v2/infographics/upload", json={"b64": b64encode(buf.getvalue()).decode(), "name": "mapa.png"})
+    assert doc.status_code == 201, doc.text
+    d = doc.json()
+    assert d["title"] == "mapa"
+    img = api.get("/api/v2/jobs/" + d["base"].replace("/", "/images/"))
+    assert img.status_code == 200 and Image.open(BytesIO(img.content)).size == (64, 48)
+    assert all(j["job_id"] != d["base"].split("/")[0] for j in api.get("/api/v2/jobs").json())
+    assert api.post("/api/v2/infographics/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
+
+
 def test_clean_svg_drops_scripts_handlers_and_external_links():
     dirty = ('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script>'
              '<a href="https://evil.example"><rect onclick="x()" width="1" height="1"/></a>'
