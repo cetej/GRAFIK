@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-30 — Funkce bez tlačítka pro operátora neexistuje
+
+- **Backend hotový, UI „navazuje“, a funkce zmizela.** Počeštění prošlo testem T2 i Enginem (29. 10.), ale `STAV.md` nechal UI čekat na algoritmus, který už byl dodaný, a operátor ho pak nikde nenašel. Stejně dopadlo `/api/localize-map/*` v NG-ROBOT, které od dubna nemělo tlačítko. Hotovo u funkce pro operátora znamená viditelné v aplikaci. Když UI odkládáš, zapiš ho jako úkol s nositelem a podmínku u něj znovu ověř.
+
 ## 2026-10-29 — Sdílená knihovna (fáze 4): import `engine.app` zapisuje, test musí přesměrovat data už v conftestu
 
 - **`engine/app.py` končí `app = create_app()`, takže už import modulu postaví celý Engine s výchozím `Settings()`.** Testy importují `engine.app` při sběru, dřív než běží jakákoli fixture. Když `create_app` začal při prázdné knihovně kopírovat výchozí styly (`StyleLibrary`), první běh testů je nasypal do skutečné `KNIHOVNA/` (3 styly z gitu, nic operátorova se nepřepsalo). Autouse fixture s `monkeypatch.setenv` to nezachytí. Cesty ke sdíleným datům proto nastavuje `tests/conftest.py` přímo do `os.environ` při načtení (jako `GRAFIK_TERMDB`) a fixture je pak přesměruje pro každý test zvlášť. Kontrola: snímek časů souborů KNIHOVNY před a po běhu testů.

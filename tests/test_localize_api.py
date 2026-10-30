@@ -113,6 +113,24 @@ def test_retypeset_from_an_earlier_reading_is_free(api):
     assert len(costs(api)) == 1
 
 
+def test_studio_corrects_translation_on_the_original_for_free(api):
+    assert api.get("/api/v2/localize/estimate").json()["usd"] == 0.20
+    first = wait(api, api.post("/api/v2/localize", json={"b64": infographic_b64(), "confirm_cost": True})
+                 .json()["job_id"])
+    orig = api.get(f"/api/v2/localize/{first['job_id']}/original")
+    assert orig.status_code == 200 and Image.open(BytesIO(orig.content)).size == (400, 160)
+    texts = api.get(f"/api/v2/localize/{first['job_id']}/image-0.texty.json").json()
+    texts["elements"][0]["cs"] = "Koloběh vody na Zemi"
+    r = api.post("/api/v2/localize", json={"source_job": first["job_id"], "texts": texts})
+    assert r.status_code == 202 and r.json()["estimate_usd"] == 0.0
+    job = wait(api, r.json()["job_id"])
+    assert "Koloběh vody na Zemi" in job["result"]["text"] and len(api.claude.calls) == 1
+    # sází se na originál, ne na českou kopii
+    assert job["request"]["image"] == first["request"]["image"]
+    assert api.post("/api/v2/localize", json={"source_job": "nic", "texts": texts}).status_code == 404
+    assert api.get("/api/v2/localize/nic/original").status_code == 404
+
+
 def test_bad_requests(api):
     assert api.post("/api/v2/localize", json={}).status_code == 400
     assert api.post("/api/v2/localize", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400

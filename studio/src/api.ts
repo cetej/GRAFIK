@@ -276,6 +276,28 @@ export interface Infographic {
   exports: string[]
 }
 
+// -- počeštění cizí infografiky nebo mapy (engine/localize.py) ---------------------------------------------
+export interface LocalizeWarning { severity: string; what: string; fix: string }
+export interface LocalizeTexts { kind: string; elements: ({ id: number; en: string; cs: string } & Record<string, unknown>)[] }
+export interface LocalizeJob {
+  job_id: string
+  status: Job['status']
+  error: string | null
+  images: string[]
+  created: number
+  request: { source?: string | null }
+  result: { cost_usd: number; image_kind: string; warnings: LocalizeWarning[] } | null
+}
+export const localizeApi = {
+  estimate: () => call<{ usd: number }>('/api/v2/localize/estimate'),
+  jobs: (limit: number) => call<LocalizeJob[]>(`/api/v2/localize/jobs?limit=${limit}`),
+  job: (id: string) => call<LocalizeJob>(`/api/v2/jobs/${id}`),
+  texts: (id: string) => call<LocalizeTexts>(`/api/v2/localize/${id}/image-0.texty.json`),
+  file: (id: string, name: string) => `/api/v2/localize/${id}/${name}`,
+  start: (body: { image?: string; b64?: string; source_job?: string; texts?: LocalizeTexts; confirm_cost?: boolean }) =>
+    post<{ job_id: string; estimate_usd: number }>('/api/v2/localize', body),
+}
+
 export const infoApi = {
   list: () => call<Infographic[]>('/api/v2/infographics'),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
