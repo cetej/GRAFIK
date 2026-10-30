@@ -10,6 +10,7 @@ import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
 import Styles, { Swatches } from './Styles.tsx'
 import Infographics from './Infographics.tsx'
+import Localize from './Localize.tsx'
 import Models3d from './Models3d.tsx'
 import Scenes3d from './Scenes3d.tsx'
 import { BatchPanel, BatchRow } from './Batch.tsx'
@@ -54,7 +55,8 @@ export default function App() {
   const [backends, setBackends] = useState<Backend[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [spentToday, setSpentToday] = useState(0)
-  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'info' | '3d' | 'settings'>('studio')
+  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'info' | 'localize' | '3d' | 'settings'>('studio')
+  const [localizeRef, setLocalizeRef] = useState<string | null>(null)
   const [mode3d, setMode3d] = useState<'models' | 'scenes'>('models')
   const [picker, setPicker] = useState<PickerTab | null>(null)
   const [inboxNew, setInboxNew] = useState(0)
@@ -284,6 +286,7 @@ export default function App() {
           <button className={tab === 'library' ? 'on' : ''} onClick={() => setTab('library')}>Knihovna</button>
           <button className={tab === 'styles' ? 'on' : ''} onClick={() => setTab('styles')}>Styly</button>
           <button className={tab === 'info' ? 'on' : ''} onClick={() => setTab('info')}>Infografiky</button>
+          <button className={tab === 'localize' ? 'on' : ''} onClick={() => { setLocalizeRef(null); setTab('localize') }}>Počeštění</button>
           <button className={tab === '3d' ? 'on' : ''} onClick={() => setTab('3d')}>3D</button>
           <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Nastavení</button>
         </nav>
@@ -315,6 +318,8 @@ export default function App() {
       ) : tab === 'info' ? (
         <Infographics openId={infoId} setOpenId={setInfoId} selectedImage={selected}
           recentImages={doneImages.map((d) => d.ref)} onError={setToast} />
+      ) : tab === 'localize' ? (
+        <Localize selectedImage={selected} pickRef={localizeRef} onOpen={setLightbox} setConfirm={setConfirm} onError={setToast} />
       ) : tab === 'styles' ? (
         <Styles onError={setToast} onSubmit={submitForStyle} selectedImage={selected}
           openDetect={detectOpen} onDetectOpen={() => setDetectOpen(true)} onDetectClosed={() => setDetectOpen(false)}
@@ -439,6 +444,7 @@ export default function App() {
             onSubmit={submit}
             onVariant={variant}
             onInfographic={(ref) => openInfographic(ref, (selJob?.request.edit ? '' : selJob?.request.prompt ?? '').slice(0, 60))}
+            onLocalize={(ref) => { setLocalizeRef(ref); setTab('localize') }}
             onReuse={(j) => {
               setPrompt(j.request.prompt)
               const sid = (j.request as ImageRequest).style_id

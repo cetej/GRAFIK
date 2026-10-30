@@ -1,8 +1,13 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-10-29 (večer).
+Aktualizováno 2026-10-30.
 
 ## Teď
+
+**Počeštěná kopie infografiky nebo mapy ve Studiu (2026-10-30)** (krok 2 operátorova algoritmu, STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md`):
+- **Studio**: záložka „Počeštění“ (`studio/src/Localize.tsx`) a tlačítko „→ Počeštit“ u obrázku ve Studiu. Nahrání nebo přetažení, cena v tlačítku a dialog před placeným čtením (odhad 0,20 USD), originál a česká kopie vedle sebe se zvětšením, stažení PNG a SVG, upozornění z Engine, oprava překladů a nová sazba zdarma, posledních 6 počeštění.
+- **Engine** `/api/v2/localize`: `source_job` (sazba na stejný originál), `GET .../localize/estimate`, `GET .../localize/<id>/original`.
+- **Ověřeno 2026-10-30** na dočasném Engine z worktree (:8319, vlastní data) mapou z T2 s uloženými texty, 0 USD: 63 popisků, oprava překladu vysázená znovu na originál, zvětšení, stažení, dialog ceny bez vzniku úlohy. Placené čtení přes UI se nespouštělo (Engine ho ověřil 29. 10. za 0,1142 USD). Mapa jde dál jen jako náhrada s upozorněním, stavět ji z dat má KARTOGRAF.
 
 **Postavy, místa a rekvizity z KNIHOVNY jako předloha obrázku (2026-10-29, GRAFIK#84, KLAPKA#200)** (DECISIONS 2026-10-29, náčrt 2 schválený operátorem):
 - **`ngm_shared.knihovna.images()`**: obrázky položky, hlavní první podle pravidla KLAPKY (`primary` / výčet `refs:`), za nimi stavy a pohledy místa; u rekvizity `model/obrazek.*` a bílé 3D pohledy. Na skutečné KNIHOVNĚ stejné pořadí jako KLAPKA `engine.load_entry` u všech 5 postav a 1 místa.
@@ -58,7 +63,7 @@ Spec: [`plans/2026-10-22-grafik-v2-greenfield.md`](plans/2026-10-22-grafik-v2-gr
 
 ## Další krok
 
-- **Fáze 3, navazuje:** Studio UI pro počeštění, kontroly a archiv čeká na operátorův algoritmus (přestavba UI). NG-ROBOT na knihovnu nepřešel (podmínka operátora); jeho `ng_vector_labels` je originál, opravy z něj se přenášejí diffem od `f27580e9`. Počeštění mapy funguje jen jako náhrada s upozorněním; mapu má stavět KARTOGRAF z dat. Kontrola proti zadání ani logiky se zatím nevolá automaticky po vygenerování (jen na požádání přes API).
+- **Fáze 3, navazuje:** Studio UI pro kontroly a archiv chybí; algoritmus operátor dodal 29. 10., takže na něj nic nečeká (počeštění je od 30. 10. ve Studiu). NG-ROBOT na knihovnu nepřešel (podmínka operátora); jeho `ng_vector_labels` je originál, opravy z něj se přenášejí diffem od `f27580e9`. Počeštění mapy funguje jen jako náhrada s upozorněním; mapu má stavět KARTOGRAF z dat. Kontrola proti zadání ani logiky se zatím nevolá automaticky po vygenerování (jen na požádání přes API).
 - **3D:** první placený model přes Studio (TRELLIS 0,30 USD nebo Hunyuan3D 0,375 USD) jen se souhlasem operátora; v1 je zatím ověřená jen na nahraném GLB a offline testy. Model `tatra-87` v1 i v2 čeká na operátorovu kontrolu (v prohlížeči se teď dá otočit dokola). Zadání B (3D scény) je postavené; kvinquerema v2 v knihovně čeká na kontrolu operátora. Měřítko lidí ve scéně: zkusit bližší kameru nebo postavy dokreslit zvlášť. Vesla kvinqueremy ve více řadách doplnit v Blenderu.
 - **3D měření** ([spike](spikes/2026-10-27-3d-trellis-vs-blender.md)): bílý model musí nést poměry (Tatra: Blender z rozměrů porazil TRELLIS), Hunyuan3D se třemi pohledy dá čistý model, ale z jednoho pohledu stavby vymyslí části a zvířeti z fotky zezadu přidá končetinu. Rozhodnutí: TRELLIS výchozí, Hunyuan3D v nabídce, Blender záloha (DECISIONS 27. 10.).
 - **Termdb napojená** (`engine/termdb.py`, `BIOLIB/termdb.db`, jen čtení, zdarma): jednoznačné odborné termíny jdou do překladu jako nápověda („Rys ostrovid = Eurasian lynx (Lynx lynx)“), kontrola infografiky ukazuje nalezené, nejednoznačné a „není v termdb“. Lodní termíny (kloun, kvinquerema) v termdb chybí; doplnění termdb je věc NG-ROBOT.

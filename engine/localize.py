@@ -32,6 +32,7 @@ class LocalizeIn(BaseModel):
     image: str | None = None            # "<job_id>/<n>" obrázek z knihovny
     ref_id: str | None = None           # předloha z knihovny předloh
     b64: str | None = None              # nahraný obrázek
+    source_job: str | None = None       # job_id dřívějšího počeštění → stejný originál (oprava překladu)
     texts: dict | None = None           # přečtené (a opravené) texty → zdarma
     texts_from: str | None = None       # job_id dřívějšího počeštění → jeho texty, zdarma
     caller: str = "studio"
@@ -82,7 +83,15 @@ class Localizer:
 def register(app: FastAPI, loc: Localizer, store, reflib) -> None:
     uploads = loc.s.run_dir / "uploads"
 
+    def original(job_id: str) -> tuple[Path, str]:
+        job = store.get(job_id)
+        if not job or job["kind"] != KIND or not Path(job["request"]["image"]).exists():
+            raise HTTPException(404, f"originál počeštění {job_id} neexistuje")
+        return Path(job["request"]["image"]), job["request"].get("source") or job_id
+
     def source(body: LocalizeIn) -> tuple[Path, str]:
+        if body.source_job:
+            return original(body.source_job)
         if body.image:
             path = store.image_path(body.image)
             if path is None:
@@ -140,6 +149,14 @@ def register(app: FastAPI, loc: Localizer, store, reflib) -> None:
     @app.get("/api/v2/localize/jobs")
     def localize_jobs(limit: int = 30):
         return store.list(limit, kinds=(KIND,))
+
+    @app.get("/api/v2/localize/estimate")
+    def localize_estimate():
+        return {"usd": tl.READ_USD}
+
+    @app.get("/api/v2/localize/{job_id}/original")
+    def localize_original(job_id: str):
+        return FileResponse(original(job_id)[0])
 
     @app.get("/api/v2/localize/{job_id}/{name}")
     def localize_file(job_id: str, name: str):

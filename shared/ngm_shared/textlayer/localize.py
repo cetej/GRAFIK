@@ -405,7 +405,7 @@ def warnings_for(texts: dict, report: list[dict]) -> list[dict]:
         if r["too_long"]:
             out.append({"severity": "nízká", "what": f"„{el['cs'][:40]}“ je o hodně delší než původní text, "
                                                      f"písmo je zmenšené na {round(100 * MIN_SHRINK)} %.",
-                        "fix": "Zkraťte překlad v texty.json a vysázejte znovu (zdarma)."})
+                        "fix": "Zkraťte překlad a vysázejte znovu (zdarma)."})
     return out
 
 
