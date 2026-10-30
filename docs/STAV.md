@@ -4,6 +4,8 @@ Aktualizováno 2026-10-30.
 
 ## Teď
 
+**Počeštění map na reliéfu je nepoužitelné (2026-10-30)**: mapa Everestu v NG-ROBOT (`mapa_cs_01`, 0,0732 USD) má zničené fialové pruhy, přerušenou lyžařskou trasu a hranici a rozmazaný terén. Překlad je použitelný až na „LHOTSEHO STĚNA“. Infografiky na ploché barvě test T2 nezpochybňuje. Čeká na rozhodnutí operátora, jak mazat; návrh: generativní mazání jen v rámečcích popisků, napřed lokální FLUX (0 USD). Rozbor v LEARNINGS 2026-10-30.
+
 **Počeštěná kopie infografiky nebo mapy ve Studiu (2026-10-30)** (krok 2 operátorova algoritmu, STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md`):
 - **Studio**: záložka „Počeštění“ (`studio/src/Localize.tsx`) a tlačítko „→ Počeštit“ u obrázku ve Studiu. Nahrání nebo přetažení, cena v tlačítku a dialog před placeným čtením (odhad 0,20 USD), originál a česká kopie vedle sebe se zvětšením, stažení PNG a SVG, upozornění z Engine, oprava překladů a nová sazba zdarma, posledních 6 počeštění.
 - **Engine** `/api/v2/localize`: `source_job` (sazba na stejný originál), `GET .../localize/estimate`, `GET .../localize/<id>/original`.

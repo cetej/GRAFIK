@@ -393,7 +393,7 @@ def warnings_for(texts: dict, report: list[dict]) -> list[dict]:
     if texts["kind"] == "map":
         out.append({"severity": "střední", "what": "Obrázek je mapa.",
                     "fix": "Českou mapu má postavit KARTOGRAF z dat (přečíst cizí mapu → postavit novou). "
-                           "Vrstva textu je jen rychlá náhrada: popisky leží tam, kde byly anglické."})
+                           "Vrstva textu je jen rychlá náhrada: popisky leží tam, kde byly anglické. Na stínovaném reliéfu a u popisků na barevných pruzích mazání poškozuje obraz (rozmazaný terén, přerušené trasy, nečitelné pruhy), výsledek před použitím zkontrolujte."})
     by_id = {el["id"]: el for el in texts["elements"]}
     for r in report:
         el = by_id[r["id"]]

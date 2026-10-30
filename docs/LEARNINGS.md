@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-30 — Mazání textu z mapy: na reliéfu a barevných pruzích selhává, T2 to nezachytil
+
+- **T2 měřil mapu s plochými barvami, Everest je stínovaný reliéf.** Šedé písmo má stejnou barvu jako stíny skal, takže maska z barvy zabere i terén a `cv2.inpaint` ho rozmaže. Tmavá fialová trasa a hranice v pásu otočeného popisku padly do masky a jsou přerušené. Bílý text na fialovém pruhu: bílá je i okolní sníh, pruh se rozteče a nový text není čitelný.
+- **Kontroly to nehlásí:** `warnings` zachytily jen 20 % zbytků u „NORTH FACE“, nic o trase ani pruzích. Nízké `residue` neznamená neporušený obraz.
+- **Volný snímek ai2html grafiky má popisky v HTML vrstvě.** JPG u článku je bez nich (prázdné pruhy), snímek obrazovky je má zapečené.
+
 ## 2026-10-30 — Funkce bez tlačítka pro operátora neexistuje
 
 - **Backend hotový, UI „navazuje“, a funkce zmizela.** Počeštění prošlo testem T2 i Enginem (29. 10.), ale `STAV.md` nechal UI čekat na algoritmus, který už byl dodaný, a operátor ho pak nikde nenašel. Stejně dopadlo `/api/localize-map/*` v NG-ROBOT, které od dubna nemělo tlačítko. Hotovo u funkce pro operátora znamená viditelné v aplikaci. Když UI odkládáš, zapiš ho jako úkol s nositelem a podmínku u něj znovu ověř.
