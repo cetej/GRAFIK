@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from 'react'
-import { imageUrl, infoApi, PaymentRequired, termsApi, type Infographic, type InfoLabel, type TermResult } from './api.ts'
+import { fileToB64, imageUrl, infoApi, PaymentRequired, termsApi, type Infographic, type InfoLabel, type TermResult } from './api.ts'
 
 // G5 — editor infografiky podle náčrtu schváleného 2026-10-23 (docs/spikes/img/g5-nacrt-*.png) a vzoru
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
@@ -308,10 +308,19 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
     if (!selectedImage) return
     try { setOpenId((await infoApi.create(selectedImage, '')).id) } catch (e) { onError((e as Error).message) }
   }
+  const upload = async (file?: File) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { onError(`${file.name} není obrázek.`); return }
+    try { setOpenId((await infoApi.upload(await fileToB64(file), file.name)).id) } catch (e) { onError((e as Error).message) }
+  }
   return (
-    <main className="guide-start">
+    <main className="guide-start" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); upload(e.dataTransfer.files[0]) }}>
       <div className="row between">
         <h2>Infografiky</h2>
+        <label className="btn go">
+          Nová z obrázku z počítače
+          <input type="file" accept="image/*" hidden onChange={(e) => { upload(e.target.files?.[0]); e.target.value = '' }} />
+        </label>
         <button className="btn go" disabled={!selectedImage} onClick={create} title={selectedImage ? '' : 'Ve studiu není vybraný obrázek'}>+ Nová z vybraného obrázku</button>
       </div>
       <p className="hint">Popisky, fakta a schéma píšete česky v editoru; generátor text nikdy nekreslí. Infografiku založíte i z kroku 5 Průvodce nebo tlačítkem „→ Infografika“ u obrázku ve studiu.</p>

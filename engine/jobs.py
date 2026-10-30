@@ -79,6 +79,19 @@ class JobStore:
                 (job_id, seq, "queued", caller, backend, json.dumps(request, ensure_ascii=False), time.time(), kind))
         return job_id
 
+    def add_done(self, kind: str, caller: str, request: dict, result: dict) -> str:
+        """A finished job for a file that already exists (uploaded image): `image_path` and the URLs work as usual."""
+        job_id = new_job_id()
+        now = time.time()
+        with self._lock:
+            seq = self.db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM jobs").fetchone()[0]
+            self.db.execute(
+                "INSERT INTO jobs (id, seq, status, caller, backend, request, result, created, finished, kind) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (job_id, seq, "done", caller, "local", json.dumps(request, ensure_ascii=False),
+                 json.dumps(result, ensure_ascii=False), now, now, kind))
+        return job_id
+
     def next_queued(self) -> sqlite3.Row | None:
         with self._lock:
             row = self.db.execute("SELECT * FROM jobs WHERE status='queued' ORDER BY seq LIMIT 1").fetchone()

@@ -301,6 +301,7 @@ export const localizeApi = {
 export const infoApi = {
   list: () => call<Infographic[]>('/api/v2/infographics'),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
+  upload: (b64: string, name: string) => post<Infographic>('/api/v2/infographics/upload', { b64, name }),
   get: (id: string) => call<Infographic>(`/api/v2/infographics/${id}`),
   save: (doc: Infographic) => send<Infographic>('PUT', `/api/v2/infographics/${doc.id}`, doc),
   remove: (id: string) => send<{ moved_to: string }>('DELETE', `/api/v2/infographics/${id}`),

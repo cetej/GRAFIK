@@ -4,7 +4,7 @@ Aktualizováno 2026-10-30.
 
 ## Teď
 
-**Počeštění map na reliéfu je nepoužitelné (2026-10-30)**: mapa Everestu v NG-ROBOT (`mapa_cs_01`, 0,0732 USD) má zničené fialové pruhy, přerušenou lyžařskou trasu a hranici a rozmazaný terén. Překlad je použitelný až na „LHOTSEHO STĚNA“. Infografiky na ploché barvě test T2 nezpochybňuje. Čeká na rozhodnutí operátora, jak mazat; návrh: generativní mazání jen v rámečcích popisků, napřed lokální FLUX (0 USD). Rozbor v LEARNINGS 2026-10-30.
+**Počeštění přes PhotoCraft a písmo NG (2026-10-30)** (`shared/ngm_shared/textlayer/pcraft.py`): obrázky s texturou (reliéf, fotka) maže PhotoCraft 0.17.0 (`Tools/Craft/photocraft`, přenosná kopie, bez okna, 0 USD), tenké syté čáry a značky se vrací z originálu, barevné pruhy se přemalují a prodlouží podle překladu, sazba Geograph Edit a Bumstead. Plochá mapa zůstává na `cv2.inpaint` (na mapě T2 byl PhotoCraft horší). Ověřeno bez placení na uložených textech: mapa Everestu, mapa T2, infografika T2. Čtení s novými pravidly (metrické jednotky, „stěna Lhotse“, kurzíva) se placeně neověřilo. Infografiky: nová z obrázku z počítače (`POST /api/v2/infographics/upload`).
 
 **Počeštěná kopie infografiky nebo mapy ve Studiu (2026-10-30)** (krok 2 operátorova algoritmu, STOPA `outputs/plans/2026-10-29-algoritmus-tvorby-obrazku.md`):
 - **Studio**: záložka „Počeštění“ (`studio/src/Localize.tsx`) a tlačítko „→ Počeštit“ u obrázku ve Studiu. Nahrání nebo přetažení, cena v tlačítku a dialog před placeným čtením (odhad 0,20 USD), originál a česká kopie vedle sebe se zvětšením, stažení PNG a SVG, upozornění z Engine, oprava překladů a nová sazba zdarma, posledních 6 počeštění.
