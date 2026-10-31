@@ -51,6 +51,8 @@ class JobStore:
                     self.db.execute(f"ALTER TABLE jobs ADD COLUMN {column}")
                 except sqlite3.OperationalError:
                     pass
+            # Without it each list() reads every row with its b64 refs just to sort them (Studio polls every 2 s)
+            self.db.execute("CREATE INDEX IF NOT EXISTS jobs_seq ON jobs(seq)")
 
     def recover_interrupted(self) -> int:
         with self._lock:
