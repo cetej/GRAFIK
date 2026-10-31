@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-31 — Vada tvaru v obrázku pochází z bílého modelu; kontrola patří před FLUX
+
+- **FLUX s předlohou `geometry` sleduje model víc, než spike z 27. 10. předpokládal.** Tatra „limuzína“ po zarovnání sedí na bílý snímek téměř přesně včetně klik. Vadu vyrobilo natažení středu. Porovnání bílý snímek / FLUX ji proto najít nemůže, ani kdyby tok fungoval ([spike](spikes/2026-10-31-tvar-hrany-tok.md)).
+- **Mapa hran + optický tok tvar neměří.** Medián toku odliší správný snímek od jiného pohledu (12/13), ale pevný práh mezi dobrými a špatnými dvojicemi nedá: 4/10 falešných poplachů. Tok počítá posun objektu a texturu pozadí.
+- **Kontrola se známou odpovědí je levnější než vyvozovat závěr z popisku.** Stejný výsledek FLUX proti jinému pohledu a jinému modelu ze stejného úhlu ukázal, co metrika umí, a 3 označené dvojice by na to nestačily.
+
 ## 2026-10-30 — Mazání textu z mapy: na reliéfu a barevných pruzích selhává, T2 to nezachytil
 
 - **T2 měřil mapu s plochými barvami, Everest je stínovaný reliéf.** Šedé písmo má stejnou barvu jako stíny skal, takže maska z barvy zabere i terén a `cv2.inpaint` ho rozmaže. Tmavá fialová trasa a hranice v pásu otočeného popisku padly do masky a jsou přerušené. Bílý text na fialovém pruhu: bílá je i okolní sníh, pruh se rozteče a nový text není čitelný.
