@@ -11,6 +11,8 @@
 - **FLUX s předlohou `geometry` sleduje model víc, než spike z 27. 10. předpokládal.** Tatra „limuzína“ po zarovnání sedí na bílý snímek téměř přesně včetně klik. Vadu vyrobilo natažení středu. Porovnání bílý snímek / FLUX ji proto najít nemůže, ani kdyby tok fungoval ([spike](spikes/2026-10-31-tvar-hrany-tok.md)).
 - **Mapa hran + optický tok tvar neměří.** Medián toku odliší správný snímek od jiného pohledu (12/13), ale pevný práh mezi dobrými a špatnými dvojicemi nedá: 4/10 falešných poplachů. Tok počítá posun objektu a texturu pozadí.
 - **Kontrola se známou odpovědí je levnější než vyvozovat závěr z popisku.** Stejný výsledek FLUX proti jinému pohledu a jinému modelu ze stejného úhlu ukázal, co metrika umí, a 3 označené dvojice by na to nestačily.
+- **Volba podle lepšího skóre umí lhát.** `lod_check` si zpočátku sám vybíral zrcadlení podle IoU a Tatře přiřadil příď k zádi siluety, s lepším číslem (0,821 proti 0,795). Našlo se to jen pohledem na překryv. Směr teď říká autor (`--zrcadlit`).
+- **`tatra-87` v2 je natažený na špatném konci** (příď, oválné kolo), a poměry přitom sedí přesně. Poměry nestačí, obrys je potřeba zvlášť.
 
 ## 2026-10-31 — SVG ve VectorCraftu: co čte a co tiše vynechá
 
