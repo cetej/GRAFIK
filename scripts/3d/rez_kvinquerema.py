@@ -175,11 +175,9 @@ bpy.data.objects.remove(solid)
 
 # --- clay, light, camera -----------------------------------------------------------------------
 clay = bpy.data.materials.new("clay")
-clay.use_nodes = True
 clay.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.62, 0.6, 0.56, 1)
 clay.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.9
 sea = bpy.data.materials.new("sea")
-sea.use_nodes = True
 sea.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.16, 0.26, 0.36, 1)
 for o in scene.objects:
     if o.type == "MESH":
@@ -191,7 +189,7 @@ scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines el
 scene.render.resolution_x, scene.render.resolution_y = 1280, 900
 scene.render.film_transparent = True
 scene.view_settings.view_transform = "Standard"
-world = bpy.data.worlds.new("w"); scene.world = world; world.use_nodes = True
+world = bpy.data.worlds.new("w"); scene.world = world
 world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN")); scene.collection.objects.link(sun)
 sun.data.energy = 1.6

@@ -1,8 +1,12 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-10-30.
+Aktualizováno 2026-10-31.
 
 ## Teď
+
+**Blender 5.2.3 (2026-10-31)**: zastaralé `use_nodes = True` pryč z `render_views.py` a `scripts/3d/*` (DeprecationWarning z logu zmizel); `use_persistent_data` v Cycles změřeno a nezapnuto, zrychlení 1 až 6 % (pod prahem 15 %), PNG shodné ([měření](spikes/2026-10-31-persistent-data.md)).
+
+**Blender sdílený v AppData (2026-10-31)**: Engine bez `GRAFIK_BLENDER` bere nejnovější 5.2.x z `%LOCALAPPDATA%/Programs/Blender/`, `C:/Users/stock/tools/` jen jako záloha (`engine.config.find_blender`).
 
 **Počeštění přes PhotoCraft a písmo NG (2026-10-30)** (`shared/ngm_shared/textlayer/pcraft.py`): obrázky s texturou (reliéf, fotka) maže PhotoCraft 0.17.0 (`Tools/Craft/photocraft`, přenosná kopie, bez okna, 0 USD), tenké syté čáry a značky se vrací z originálu, barevné pruhy se přemalují a prodlouží podle překladu, sazba Geograph Edit a Bumstead. Plochá mapa zůstává na `cv2.inpaint` (na mapě T2 byl PhotoCraft horší). Ověřeno bez placení na uložených textech: mapa Everestu, mapa T2, infografika T2. Čtení s novými pravidly (metrické jednotky, „stěna Lhotse“, kurzíva) se placeně neověřilo. Infografiky: nová z obrázku z počítače (`POST /api/v2/infographics/upload`).
 

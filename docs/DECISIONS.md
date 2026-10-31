@@ -223,3 +223,7 @@ Ověřené poznatky z testů 22. 10., které spec přebírá:
 - Reference předmětu a geometrie funguje velmi dobře.
 - Drobné postavy se deformují: reference se správným měřítkem, generovat výš a zmenšit.
 - Schválený postup pro historické objekty: předloha → čistý bokorys → oprava v rámečku → natočený pohled 3/4 shora → popisky jako vektorová vrstva.
+
+## 2026-10-31 — Blender sdílený v AppData
+
+Operátor sjednotil Blender všech projektů do jedné přenosné instalace `%LOCALAPPDATA%/Programs/Blender/blender-<ver>-windows-x64/`; Engine bez `GRAFIK_BLENDER` bere nejnovější 5.2.x odtud (jinou řadu sám nevybere) a `C:/Users/stock/tools/` zůstává jen záloha.
