@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-31 — Převzetí ruční úpravy: kontrola textu v SVG nestačí, zámek nesmí mít vlastníka fronty
+
+- **SVG export VectorCraftu obsahuje i text mimo plátno.** Patička posunutá o 500 px prošla kontrolou nad SVG, v PNG věta o AI chyběla. Co čtenář uvidí, říká `inspect_document`: `visible` a `bounds` proti `artboards[0]`. Skrytý objekt v SVG není.
+- **`HeavyLock` je re-entrantní pro stejný PID a `owner`.** `VectorCraft(lock_owner="grafik-engine")` uvnitř Engine by za běžícího FLUX zámek „získal“ a při `close()` ho uvolnil. Druhá těžká práce ve stejném procesu potřebuje vlastní jméno.
+- **`.vectorcraft` drží obrázky uvnitř**, když vznikl z SVG s `data:` obrázky (5,5 MB, `missingLinks` prázdné). Propojený obrázek se ale ztratit může, proto `open_file` hlídá `missingLinks`.
+
 ## 2026-10-31 — Vada tvaru v obrázku pochází z bílého modelu; kontrola patří před FLUX
 
 - **FLUX s předlohou `geometry` sleduje model víc, než spike z 27. 10. předpokládal.** Tatra „limuzína“ po zarovnání sedí na bílý snímek téměř přesně včetně klik. Vadu vyrobilo natažení středu. Porovnání bílý snímek / FLUX ji proto najít nemůže, ani kdyby tok fungoval ([spike](spikes/2026-10-31-tvar-hrany-tok.md)).

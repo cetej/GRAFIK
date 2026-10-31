@@ -1,12 +1,18 @@
 """G5 infographics: document, schema templates, SVG cleaning, export, label proposal."""
 import base64
+import hashlib
 import json
+import os
+import re
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 from PIL import Image
 
 from engine.infographics import InfoError, ai_note, clean_svg, for_vectorcraft
+from ngm_shared.heavy_lock import HeavyBusy
+from ngm_shared.textlayer.vc_client import VectorCraftError
 from tests.test_engine_v2 import _first_image, api, sd, settings  # noqa: F401  (fixtures)
 
 SVG = ('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="990"><rect width="1280" height="990" fill="#1d2532"/>'
@@ -153,6 +159,157 @@ def test_vectorcraft_refusals_are_in_czech_and_open_nothing(api, vc_window, monk
     missing = api.post(url, json={"svg": svg})
     assert missing.status_code == 503 and "není nainstalovaná" in missing.json()["detail"]
     assert vc_window == []
+
+
+class FakeVectorCraft:
+    """Headless session: exports what the file says. The real app: test below, GRAFIK_VECTORCRAFT_TESTS=1."""
+    seen: list = []
+    server = {"version": "test"}
+
+    def __init__(self, **kw):
+        type(self).seen.append(kw)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return None
+
+    def tool(self, name, path=None, **kw):
+        if name == "open_file":
+            self.text = Path(path).read_text(encoding="utf-8")
+            return {"warnings": ["jedno varování"], "missingLinks": []}
+        if name == "inspect_document":
+            # data-v / data-y in the test file stand for what a person does to a text in the window
+            kids = [{"kind": "Type", "text": t, "visible": "hidden" not in a,
+                     "bounds": {"x": 40, "y": 2000 if "off" in a else 60, "width": 500, "height": 20}}
+                    for a, t in re.findall(r"<text([^>]*)>([^<]*)</text>", self.text)]
+            return {"artboards": [{"x": 0, "y": 0, "width": 1280, "height": 990}],
+                    "layers": [{"kind": "Layer", "visible": True, "children": kids[::-1]}]}
+        p = Path(path)
+        if p.suffix == ".png":
+            Image.new("RGB", (1920, 1080), (9, 9, 9)).save(p)
+        elif p.suffix == ".pdf":
+            p.write_bytes(b"%PDF-fake")
+        else:
+            p.write_text("<svg xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M0 0\"/></svg>", encoding="utf-8")
+        return {"warnings": []}
+
+
+@pytest.fixture
+def edited(api, settings, vc_window, monkeypatch):
+    FakeVectorCraft.seen = []
+    monkeypatch.setattr("engine.infographics.VectorCraft", FakeVectorCraft)
+    monkeypatch.setattr("engine.app.find_cli", lambda: Path("vectorcraft-cli.exe"))
+    doc, svg, url = _info_with_note(api)
+    first = api.post(url, json={"svg": svg}).json()
+    d = settings.library_dir / "infographics" / doc["id"] / "vectorcraft"
+    return doc, svg, url, d / first["opened"]
+
+
+def test_manual_edit_becomes_new_exports_with_provenance(api, settings, edited):
+    doc, svg, url, copy = edited
+    # an untouched copy is not an edit, there is nothing to take over
+    none = api.post(f"{url}/export", json={})
+    assert none.status_code == 400 and "uložte" in none.json()["detail"]
+    older = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": svg, "format": "png"}).json()
+    ex = settings.library_dir / "infographics" / doc["id"] / "exports"
+    older_bytes = (ex / older["file"]).read_bytes()
+    text = svg.replace("Římská kvinquerema", "Řecká triéra")
+    copy.write_text(text, encoding="utf-8")
+    assert api.get(url).json()["edits"] == [{"file": copy.name, "modified": api.get(url).json()["edits"][0]["modified"], "can_export": True, "exported": None}]
+
+    r = api.post(f"{url}/export", json={})
+    assert r.status_code == 201, r.text
+    out = r.json()
+    assert out["source"] == copy.name and [f["format"] for f in out["files"]] == ["png", "svg", "pdf"]
+    assert out["warnings"] == ["jedno varování"]
+    png = api.get(out["files"][0]["url"])
+    assert png.status_code == 200 and Image.open(BytesIO(png.content)).size == (1920, 1080)
+    assert api.get(out["files"][2]["url"]).content.startswith(b"%PDF")
+    kw = FakeVectorCraft.seen[0]
+    # its own lock owner: the Engine's owner would count as already holding the lock while a FLUX job runs
+    assert kw["lock_owner"] != "grafik-engine" and kw["lock_path"] == settings.gpu_lock_path
+
+    prov = json.loads((ex / f"{out['files'][0]['file']}.json").read_text(encoding="utf-8"))
+    assert prov["manual_edit"]["file"] == copy.name and prov["manual_edit"]["sha256"] == hashlib.sha256(text.encode()).hexdigest()
+    assert prov["ai_generated"] is True and prov["ai_note"] == doc["ai_note"] and prov["ai_note_checked"] is True
+    assert prov["base"] == doc["base"] and prov["base_provenance"]["backend"] == "flux-local"
+    assert "Řecká triéra" in prov["texts"] and "labels" not in prov   # what the file says, not the editor's fields
+    assert prov["reviewed_by"] is None and prov["manual_edit"]["vectorcraft"] == "test"
+
+    # nothing overwritten: the source, the older export; a second take-over adds new files
+    assert copy.read_text(encoding="utf-8") == text and (ex / older["file"]).read_bytes() == older_bytes
+    assert api.get(url).json()["edits"][0]["exported"] == out["files"][0]["file"]
+    again = api.post(f"{url}/export", json={"file": copy.name}).json()
+    assert {f["file"] for f in again["files"]}.isdisjoint(f["file"] for f in out["files"])
+    assert len(api.get(f"/api/v2/infographics/{doc['id']}").json()["exports"]) == 7
+
+
+def test_manual_edit_without_the_ai_label_saves_nothing(api, settings, edited):
+    doc, _svg, url, copy = edited
+    note = doc["ai_note"]
+    sources = (SVG.format(note="Ilustrace: redakce."),                                       # reworded
+               SVG.format(note=note).replace('y="980"', 'y="980" data-v="hidden"'),          # hidden layer or object
+               SVG.format(note=note).replace('y="980"', 'y="980" data-y="off"'))             # moved off the canvas
+    for text in sources:
+        copy.write_text(text, encoding="utf-8")
+        r = api.post(f"{url}/export", json={})
+        assert r.status_code == 400 and "označení AI" in r.json()["detail"] and note in r.json()["detail"]
+        assert api.get(f"/api/v2/infographics/{doc['id']}").json()["exports"] == []
+
+
+def test_manual_export_refusals(api, settings, edited, monkeypatch):
+    doc, svg, url, copy = edited
+    copy.write_text(svg + " ", encoding="utf-8")
+    (copy.parent / "pohled.png").write_bytes(b"png")   # exported from the window next to the copies: not a document
+    states = {e["file"]: e["can_export"] for e in api.get(url).json()["edits"]}
+    assert states == {copy.name: True, "pohled.png": False}
+    assert api.post(f"{url}/export", json={"file": "pohled.png"}).status_code == 400
+    assert api.post(f"{url}/export", json={"file": "../info.json"}).status_code == 400
+    assert api.post("/api/v2/infographics/neni/vectorcraft/export", json={}).status_code == 404
+
+    class Busy(FakeVectorCraft):
+        def __init__(self, **kw):
+            raise HeavyBusy("Stroj je obsazený těžkou prací (gpu pro grafik-engine).")
+
+    class Broken(FakeVectorCraft):
+        def tool(self, name, **kw):
+            raise VectorCraftError("spadl")
+
+    class Missing(FakeVectorCraft):
+        def tool(self, name, **kw):
+            return {"missingLinks": ["obraz.png"], "warnings": []}
+
+    for cls, code, word in ((Busy, 503, "za chvíli"), (Broken, 502, "spadl"), (Missing, 400, "obraz.png")):
+        monkeypatch.setattr("engine.infographics.VectorCraft", cls)
+        r = api.post(f"{url}/export", json={})
+        assert r.status_code == code and word in r.json()["detail"]
+    monkeypatch.setattr("engine.app.find_cli", lambda: None)
+    assert api.post(f"{url}/export", json={}).status_code == 503
+    assert api.get(f"/api/v2/infographics/{doc['id']}").json()["exports"] == []
+
+
+@pytest.mark.skipif(not os.environ.get("GRAFIK_VECTORCRAFT_TESTS"), reason="skutečný VectorCraft, GRAFIK_VECTORCRAFT_TESTS=1")
+def test_manual_export_with_the_real_vectorcraft(api, settings, vc_window, monkeypatch):
+    from ngm_shared.textlayer.vc_client import VectorCraft
+    doc, svg, url = _info_with_note(api)
+    first = api.post(url, json={"svg": svg}).json()
+    copy = settings.library_dir / "infographics" / doc["id"] / "vectorcraft" / first["opened"]
+    with VectorCraft(lock_owner="grafik-test", lock_path=settings.gpu_lock_path) as vc:   # same steps as a person in the window
+        vc.tool("open_file", path=str(copy))
+        target = next(c for c in vc.tool("inspect_document")["layers"][0]["children"] if c.get("text") == "Římská kvinquerema")
+        vc.cmd("text.setText", id=target["id"], text="Řecká triéra")
+        vc.tool("save_file", path=str(copy.with_suffix(".vectorcraft")))
+    sha = hashlib.sha256(copy.read_bytes()).hexdigest()
+    r = api.post(f"{url}/export", json={"file": copy.with_suffix(".vectorcraft").name})
+    assert r.status_code == 201, r.text
+    assert hashlib.sha256(copy.read_bytes()).hexdigest() == sha
+    assert Image.open(BytesIO(api.get(r.json()["files"][0]["url"]).content)).size == (1280, 990)
+    ex = settings.library_dir / "infographics" / doc["id"] / "exports"
+    prov = json.loads(next(ex.glob("*-rucni-*.png.json")).read_text(encoding="utf-8"))
+    assert "Řecká triéra" in prov["texts"] and prov["size"] == "1280x990"
+    assert "<text" not in api.get(r.json()["files"][1]["url"]).text   # outlined
 
 
 def test_for_vectorcraft_names_the_condensed_font_with_its_weight():

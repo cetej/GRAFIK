@@ -89,6 +89,8 @@ export class PaymentRequired extends Error {
 /** A manual edit in VectorCraft exists: the operator chooses, Engine overwrites nothing. */
 export class ManualEdit extends Error {}
 
+export interface ManualEditFile { file: string; modified: string; can_export: boolean; exported: string | null }
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...init })
   const body = await r.json().catch(() => ({}))
@@ -311,9 +313,11 @@ export const infoApi = {
   remove: (id: string) => send<{ moved_to: string }>('DELETE', `/api/v2/infographics/${id}`),
   export: (id: string, svg: string, format: 'png' | 'svg' | 'pdf') =>
     post<{ file: string; url: string; bytes: number }>(`/api/v2/infographics/${id}/export`, { svg, format }),
-  vectorcraft: (id: string) => call<{ available: boolean; edits: { file: string; modified: string }[] }>(`/api/v2/infographics/${id}/vectorcraft`),
+  vectorcraft: (id: string) => call<{ available: boolean; edits: ManualEditFile[] }>(`/api/v2/infographics/${id}/vectorcraft`),
   openVectorcraft: (id: string, svg: string, mode?: 'edited' | 'new') =>
     post<{ opened: string; path: string; created: boolean }>(`/api/v2/infographics/${id}/vectorcraft`, { svg, mode }),
+  exportManual: (id: string, file: string) =>
+    post<{ source: string; files: { file: string; format: 'png' | 'svg' | 'pdf'; url: string; bytes: number }[]; warnings: string[] }>(`/api/v2/infographics/${id}/vectorcraft/export`, { file }),
   suggest: (id: string, confirm: boolean) =>
     post<{ labels: { text: string; small: string; anchor: [number, number] }[] }>(`/api/v2/infographics/${id}/suggest-labels`, { confirm_cost: confirm }),
   schemas: () => call<{ slug: string; title: string; svg: string }[]>('/api/v2/schemas'),

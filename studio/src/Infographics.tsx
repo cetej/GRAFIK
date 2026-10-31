@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from 'react'
-import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, type Infographic, type InfoLabel, type TermResult } from './api.ts'
+import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, type Infographic, type InfoLabel, type ManualEditFile, type TermResult } from './api.ts'
 
 // G5 — editor infografiky podle náčrtu schváleného 2026-10-23 (docs/spikes/img/g5-nacrt-*.png) a vzoru
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
@@ -371,6 +371,8 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   const [vcAvailable, setVcAvailable] = useState<boolean | null>(null)
   const [vcAsk, setVcAsk] = useState<string | null>(null)
   const [vcOpened, setVcOpened] = useState<string | null>(null)
+  const [vcEdits, setVcEdits] = useState<ManualEditFile[]>([])
+  const [taken, setTaken] = useState<{ source: string; png: string; pdf: string; svg: string; warnings: string[] } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ i: number; what: 'anchor' | 'label' } | null>(null)
   const savedJson = useRef('')
@@ -378,7 +380,11 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   useEffect(() => {
     infoApi.get(id).then((d) => { savedJson.current = JSON.stringify(d); setDoc(d); setReviewer(d.reviewed_by ?? '') }).catch((e) => onError(e.message))
     infoApi.schemas().then(setSchemas).catch(() => {})
-    infoApi.vectorcraft(id).then((v) => setVcAvailable(v.available)).catch(() => setVcAvailable(null))
+    const refreshEdits = () => infoApi.vectorcraft(id).then((v) => { setVcAvailable(v.available); setVcEdits(v.edits.filter((x) => x.can_export)) }).catch(() => setVcAvailable(null))
+    refreshEdits()
+    // the edit is saved in another window: coming back to the studio is when it may have appeared
+    window.addEventListener('focus', refreshEdits)
+    return () => window.removeEventListener('focus', refreshEdits)
   }, [id, onError])
   useEffect(() => {
     if (!doc) return
@@ -482,6 +488,17 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
       if (e instanceof ManualEdit) setVcAsk(e.message)
       else onError((e as Error).message)
     } finally { setBusy(null) }
+  }
+  const takeManual = async (file: string) => {
+    setBusy(`manual:${file}`)
+    setTaken(null)
+    try {
+      const r = await infoApi.exportManual(doc.id, file)
+      const url = (fmt: string) => r.files.find((f) => f.format === fmt)!.url
+      setTaken({ source: r.source, png: url('png'), pdf: url('pdf'), svg: url('svg'), warnings: r.warnings })
+      setDoc((d) => (d ? { ...d, exports: [...r.files.map((f) => f.file), ...d.exports] } : d))
+      setVcEdits((await infoApi.vectorcraft(doc.id)).edits.filter((x) => x.can_export))
+    } catch (e) { onError((e as Error).message) } finally { setBusy(null) }
   }
 
   const longLabels = doc.labels.map((l, i) => ({ i, n: (l.text + l.small).length })).filter((x) => x.n > MAX_LABEL_CHARS)
@@ -641,7 +658,27 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
           </>
         )}
         {vcOpened && <p className="hint">Otevřeno: {vcOpened}</p>}
-        {vcAvailable && <p className="hint">Každý popisek, fakt i schéma tam jde upravit zvlášť, ve vrstvách. Uložte to tam (Ctrl+S). Do editoru a do exportů tady se ruční úprava nevrací.</p>}
+        {vcAvailable && <p className="hint">Každý popisek, fakt i schéma tam jde upravit zvlášť, ve vrstvách. Uložte to tam (Ctrl+S) a úprava se objeví tady. Do polí editoru se nevrací.</p>}
+        {taken && (
+          <div className="manual-result">
+            <a href={taken.png} target="_blank" rel="noreferrer" title="Zvětšit"><img className="info-base" src={taken.png} alt={`Export z ruční úpravy ${taken.source}`} /></a>
+            <p className="hint">Převzato z {taken.source}: <a href={taken.png} target="_blank" rel="noreferrer">PNG</a> · <a href={taken.pdf} target="_blank" rel="noreferrer">PDF</a> · <a href={taken.svg} target="_blank" rel="noreferrer">SVG</a></p>
+            {taken.warnings.map((w, i) => <p key={i} className="hint">! {w}</p>)}
+          </div>
+        )}
+        {vcAvailable && vcEdits.length > 0 && (
+          <ul className="manual-edits">
+            {vcEdits.map((x) => (
+              <li key={x.file}>
+                <span><b>{x.file}</b><small>uloženo {x.modified.slice(0, 16).replace('T', ' ')}{x.exported ? ` · převzato jako ${x.exported}` : ''}</small></span>
+                <button className="btn" disabled={!!busy} title={busy ? 'Běží jiná akce, počkejte.' : ''} onClick={() => takeManual(x.file)}>
+                  {busy === `manual:${x.file}` ? 'Převádím…' : x.exported ? 'Převzít znovu' : 'Převzít do exportů'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {vcAvailable && vcEdits.length > 0 && <p className="hint">Vznikne nové PNG, PDF a SVG (text v křivkách). Úprava ani starší exporty se nemění. Bez věty o AI v patičce se nic neuloží. Kontrola výše se na ruční úpravu nevztahuje.</p>}
       </section>
     </main>
   )
