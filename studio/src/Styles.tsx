@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  api, fileToB64, imageUrl, stylesApi,
+  api, fileToB64, groupStyles, imageUrl, STYLE_CATEGORIES, stylesApi,
   type ImageRequest, type PaletteColor, type RefMeta, type StyleCard, type StyleFields, type StyleImages,
 } from './api.ts'
 import RefPicker from './RefPicker.tsx'
@@ -19,7 +19,7 @@ const FIELDS: { key: keyof StyleFields; label: string; area?: boolean; hint?: st
 const ORIGIN: Record<string, { label: string; cls: string }> = {
   default: { label: 'výchozí', cls: 'ok' }, detected: { label: 'z obrázků · Claude', cls: 'paid' }, manual: { label: 'ruční', cls: '' },
 }
-const EMPTY: StyleFields = { label: '', note: '', medium: '', light: '', line: '', composition: '', avoid: '', signature: '', palette: [] }
+const EMPTY: StyleFields = { label: '', kategorie: '', note: '', medium: '', light: '', line: '', composition: '', avoid: '', signature: '', palette: [] }
 
 /** Pending image: uploaded file, reference library item or studio image. */
 export interface PendingImage { b64?: string; ref_id?: string; job?: string; preview: string }
@@ -47,8 +47,9 @@ export function Swatches({ palette, small }: { palette: PaletteColor[]; small?: 
   )
 }
 
-export default function Styles({ onError, onSubmit, selectedImage, openDetect, onDetectOpen, onDetectClosed, onUse }: {
+export default function Styles({ onError, onOpen, onSubmit, selectedImage, openDetect, onDetectOpen, onDetectClosed, onUse }: {
   onError: (msg: string) => void
+  onOpen: (src: string) => void
   onDetectOpen: () => void
   onSubmit: (req: ImageRequest) => Promise<string | null>
   selectedImage: string | null
@@ -58,6 +59,7 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
 }) {
   const [cards, setCards] = useState<StyleCard[]>([])
   const [q, setQ] = useState('')
+  const [cat, setCat] = useState<string | null>(null) // null = all categories, '' = without a category
   const [slug, setSlug] = useState<string | null>(null) // null = new card
   const [draft, setDraft] = useState<StyleFields>(EMPTY)
   const [pending, setPending] = useState<PendingImage[]>([]) // samples of a card not saved yet
@@ -78,6 +80,7 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
 
   const card = cards.find((c) => c.slug === slug) ?? null
   const shown = useMemo(() => cards.filter((c) => (c.label + ' ' + c.note).toLowerCase().includes(q.toLowerCase())), [cards, q])
+  const groups = useMemo(() => groupStyles(shown), [shown])
   const set = (patch: Partial<StyleFields>) => { setDraft((d) => ({ ...d, ...patch })); setDirty(true) }
 
   const open = (c: StyleCard) => {
@@ -160,8 +163,9 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
   }, [tryJob, onError])
 
   const samples = card ? card.sample_urls.map((u, i) => ({ url: u, name: card.samples[i] })) : pending.map((p) => ({ url: p.preview, name: '' }))
-  const preview = !dirty && card ? card.prompt : promptText(draft)
-  const empty = !['medium', 'light', 'line', 'composition'].some((k) => (draft[k as keyof StyleFields] as string).trim()) && !draft.palette.length
+  // A film card from KLAPKA has its words in `look`, lens and grade, not in the fields of this editor.
+  const preview = !dirty && card ? card.prompt : promptText(draft) || card?.prompt
+  const empty = !['medium', 'light', 'line', 'composition'].some((k) => (draft[k as keyof StyleFields] as string).trim()) && !draft.palette.length && !card?.prompt
 
   return (
     <main className="styles">
@@ -170,21 +174,32 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
           <h3 className="inline">Knihovna stylů · {cards.length}</h3>
           <div className="row tight">
             <button className="btn go" onClick={onDetectOpen}>+ Styl z obrázků</button>
-            <button className="btn" onClick={() => newCard()}>+ Ručně</button>
+            <button className="btn" onClick={() => newCard({ ...EMPTY, kategorie: cat ?? '' })}>+ Ručně</button>
           </div>
         </div>
         <input className="search full" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Hledat styl…" aria-label="Hledat styl" />
-        <div className="style-grid">
-          {shown.map((c) => (
-            <button key={c.slug} className={`style-item ${c.slug === slug ? 'sel' : ''}`} onClick={() => open(c)}>
-              {c.sample_urls[0] ? <img src={c.sample_urls[0]} alt="" loading="lazy" /> : <span className="ph" style={{ background: grad(c.palette) }}>bez ukázky</span>}
-              <b>{c.label}</b>
-              <Swatches palette={c.palette} small />
-              <span className={`tag ${ORIGIN[c.origin ?? 'manual'].cls}`}>{ORIGIN[c.origin ?? 'manual'].label}</span>
-            </button>
+        <div className="seg wrap style-cats" role="group" aria-label="Kategorie stylů">
+          <button className={cat === null ? 'on' : ''} onClick={() => setCat(null)}>Vše · {shown.length}</button>
+          {groups.map((g) => (
+            <button key={g.key} className={cat === g.key ? 'on' : ''} onClick={() => setCat(g.key)}>{g.label} · {g.cards.length}</button>
           ))}
-          {!shown.length && <p className="hint">{cards.length ? 'Nic nenalezeno.' : 'Knihovna je prázdná. Založte styl z obrázků nebo ručně.'}</p>}
         </div>
+        {groups.filter((g) => cat === null || g.key === cat).map((g) => (
+          <div key={g.key}>
+            <h4 className="style-group">{g.label}</h4>
+            <div className="style-grid">
+              {g.cards.map((c) => (
+                <button key={c.slug} className={`style-item ${c.slug === slug ? 'sel' : ''}`} title={c.note} onClick={() => open(c)}>
+                  {c.sample_urls[0] ? <img src={c.sample_urls[0]} alt="" loading="lazy" /> : <span className="ph" style={{ background: grad(c.palette) }}>bez ukázky</span>}
+                  <b>{c.label}</b>
+                  <Swatches palette={c.palette} small />
+                  <span className={`tag ${ORIGIN[c.origin ?? 'manual'].cls}`}>{ORIGIN[c.origin ?? 'manual'].label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!groups.some((g) => cat === null || g.key === cat) && <p className="hint">{cards.length ? 'Nic nenalezeno.' : 'Knihovna je prázdná. Založte styl z obrázků nebo ručně.'}</p>}
         <p className="hint">Knihovna je sdílená: ostatní projekty ji čtou přes <code>GET /api/v2/styles</code> a v zadání pošlou jen název stylu (<code>style: "{cards[0]?.slug ?? 'akvarel-prirodovedny'}"</code>).</p>
       </section>
 
@@ -194,7 +209,7 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
           <div className="samples">
             {samples.map((s, i) => (
               <div key={s.url} className={`sample ${i === 0 ? 'big' : ''}`}>
-                <img src={s.url} alt="" />
+                <button className="sample-open" title="Zvětšit" aria-label="Zvětšit vzor" onClick={() => onOpen(s.url)}><img src={s.url} alt="" /></button>
                 {slug && <button className="x" title="Odebrat vzor" aria-label="Odebrat vzor" onClick={() => removeSample(s.name)}>×</button>}
               </div>
             ))}
@@ -231,6 +246,12 @@ export default function Styles({ onError, onSubmit, selectedImage, openDetect, o
             {slug && <span className="tag">KNIHOVNA/styles/{slug}.yaml · sdílí GRAFIK i KLAPKA</span>}
           </div>
           <label className="field">Název<input value={draft.label} onChange={(e) => set({ label: e.target.value })} disabled={!!slug} title={slug ? 'Název určuje složku stylu, mění se duplikováním' : ''} /></label>
+          <label className="field">Kategorie
+            <select value={draft.kategorie ?? ''} onChange={(e) => set({ kategorie: e.target.value })}>
+              <option value="">bez kategorie</option>
+              {STYLE_CATEGORIES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </label>
           <label className="field">Podstata (k čemu se hodí)<input value={draft.note} onChange={(e) => set({ note: e.target.value })} /></label>
           {FIELDS.map((f) => (
             <label key={f.key} className="field">{f.label}{f.hint && <span className="hint"> · {f.hint}</span>}

@@ -1,7 +1,7 @@
 // "Dávka na výběr": N variants over chosen styles and one page to pick from (engine/variants.py).
 // Local FLUX only (operator decision 2026-10-26); a cost (Czech translation) goes through the confirm dialog.
-import { useState } from 'react'
-import { PaymentRequired, variantsApi, type Batch, type ImageRequest, type Job, type StyleCard } from './api.ts'
+import { Fragment, useState } from 'react'
+import { groupStyles, PaymentRequired, variantsApi, type Batch, type ImageRequest, type Job, type StyleCard } from './api.ts'
 import type { Confirm } from './App.tsx'
 
 const COUNTS = [6, 8, 12, 16]
@@ -18,14 +18,14 @@ export function BatchPanel({ request, styleCards, styleSel, styleText, disabled,
 }) {
   const [count, setCount] = useState(8)
   const [picked, setPicked] = useState<string[] | null>(null) // null = the style chosen above
-  const options: [string, string][] = [
-    ['', 'bez stylu'],
-    ...styleCards.map((c): [string, string] => [c.slug, c.label]),
-    ...(styleSel === '__custom' && styleText.trim() ? [['__custom', `vlastní: ${styleText.trim()}`] as [string, string]] : []),
-  ]
   const chosen = picked ?? [styleSel]
   const toggle = (key: string) =>
     setPicked(chosen.includes(key) ? chosen.filter((k) => k !== key) : [...chosen, key])
+  const option = (key: string, label: string) => (
+    <label className="row check" key={key || 'none'}>
+      <input type="checkbox" checked={chosen.includes(key)} onChange={() => toggle(key)} /> {label}
+    </label>
+  )
 
   const start = async (confirm = false) => {
     const styles = (chosen.length ? chosen : ['']).map((k) => (k === '__custom' ? styleText.trim() : k || null))
@@ -49,11 +49,14 @@ export function BatchPanel({ request, styleCards, styleSel, styleText, disabled,
       </div>
       <span className="hint">Styly (varianty se rozdělí mezi ně)</span>
       <div className="batch-styles">
-        {options.map(([key, label]) => (
-          <label className="row check" key={key || 'none'}>
-            <input type="checkbox" checked={chosen.includes(key)} onChange={() => toggle(key)} /> {label}
-          </label>
+        {option('', 'bez stylu')}
+        {groupStyles(styleCards).map((g) => (
+          <Fragment key={g.key}>
+            <b>{g.label}</b>
+            {g.cards.map((c) => option(c.slug, c.label))}
+          </Fragment>
         ))}
+        {styleSel === '__custom' && styleText.trim() && option('__custom', `vlastní: ${styleText.trim()}`)}
       </div>
       <button className="btn" disabled={disabled} onClick={() => start()}>Vygenerovat {count} variant (0 USD)</button>
       <p className="hint">Jen lokální FLUX. Placený generátor dávku nedělá.</p>

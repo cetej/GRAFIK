@@ -24,6 +24,8 @@ jiného).
 Společná karta stylu (`styles/<slug>.yaml`):
 
     name: Akvarel přírodovědný
+    kategorie: ilustrace                 # klíč z STYLE_CATEGORIES; karta bez kategorie je „bez kategorie“
+    poradi: 460                          # pořadí v kategorii (u historických časová osa)
     note: k čemu se hodí
     look: společný popis vzhledu pro obraz i film
     obraz: {medium, light, line, composition, palette: [{hex, name}], signature}    # z GRAFIKU
@@ -59,8 +61,11 @@ KINDS = ("character", "environment", "prop", "style")
 SLUG = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,99}")
 OBRAZ = ("medium", "light", "line", "composition", "palette", "signature")
 FILM = ("lens", "grade", "ref_style")
-STYLE_KEYS = ("name", "note", "look", "obraz", "film", "avoid", "constraints",
+STYLE_KEYS = ("name", "kategorie", "poradi", "note", "look", "obraz", "film", "avoid", "constraints",
               "origin", "puvod", "created", "updated")
+# Kategorie stylů v pořadí, v jakém je ukazuje Studio (kopie popisků v studio/src/api.ts).
+STYLE_CATEGORIES = {"fotografie": "Fotografie", "historicke": "Historické", "ilustrace": "Ilustrace",
+                    "3d": "3D", "komiks": "Komiks", "film": "Film"}
 # Výchozí `constraints` třídy Style v KLAPCE (klapka/engine.py): platí pro kartu, která pole nemá.
 FILM_CONSTRAINTS = ("sharp clarity, stable picture, no flicker, "
                     "consistent faces and wardrobe across the shot")
@@ -573,6 +578,8 @@ def style_md(slug: str, card: dict) -> str:
     lines = [f"# {card.get('name') or slug}", "",
              f"Společná karta stylu ve sdílené knihovně, strojová část je `styles/{slug}.yaml`. Tento soubor "
              "se přepisuje při každém uložení; upravujte kartu v GRAFIK Studiu, v KLAPCE nebo v YAML.", ""]
+    if card.get("kategorie"):
+        lines += ["## Kategorie", "", STYLE_CATEGORIES.get(card["kategorie"], str(card["kategorie"])), ""]
     if card.get("note"):
         lines += ["## Podstata", "", str(card["note"]), ""]
     if card.get("look"):

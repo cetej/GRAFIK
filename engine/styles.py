@@ -95,6 +95,7 @@ def to_grafik(slug: str, card: dict) -> dict:
     palette = _palette(obraz.get("palette"))
     text = lambda v: v if isinstance(v, str) else ""  # noqa: E731
     return {"slug": slug, "label": text(card.get("name")) or slug, "note": text(card.get("note")),
+            "kategorie": text(card.get("kategorie")), "poradi": card.get("poradi"),
             "origin": card.get("origin") or "manual",
             **{f: text(obraz.get(f)) for f in ("medium", "light", "line", "composition")},
             "avoid": text(card.get("avoid", card.get("negative"))), "signature": text(obraz.get("signature")),
@@ -147,13 +148,19 @@ class StyleLibrary:
             cards = knihovna.cards("style", self.root)
         except knihovna.KnihovnaError as e:
             raise StyleError(str(e)) from e
+        order = list(knihovna.STYLE_CATEGORIES)
+        rank = lambda c: order.index(c["kategorie"]) if c["kategorie"] in order else len(order)  # noqa: E731
         return sorted((self._public(s, c) for s, c in cards.items()),
-                      key=lambda c: (c.get("origin") != "default", c["label"].lower()))
+                      key=lambda c: (rank(c), c["poradi"] if isinstance(c["poradi"], int) else 10 ** 6,
+                                     c.get("origin") != "default", c["label"].lower()))
 
     def save(self, slug: str | None, data: dict) -> dict:
         label = (data.get("label") or "").strip()
         if not label:
             raise StyleError("styl potřebuje název")
+        kategorie = data.get("kategorie")
+        if kategorie and kategorie not in knihovna.STYLE_CATEGORIES:
+            raise StyleError(f"neznámá kategorie {kategorie!r}; povolené: {', '.join(knihovna.STYLE_CATEGORIES)}")
         slug = slug or slugify(label)
         self._check(slug)
         now = datetime.now().isoformat(timespec="seconds")
@@ -166,6 +173,8 @@ class StyleLibrary:
             obraz["palette"] = _palette(data.get("palette"))
             obraz = {k: v for k, v in obraz.items() if v}
             card.pop("negative", None)
+            if kategorie is not None:  # a client that does not know categories leaves the card's one alone
+                card["kategorie"] = kategorie
             card |= {"name": label, "note": (data.get("note") or "").strip(), "obraz": obraz,
                      "avoid": (data.get("avoid") or "").strip(),
                      "origin": data.get("origin") or card.get("origin") or "manual",

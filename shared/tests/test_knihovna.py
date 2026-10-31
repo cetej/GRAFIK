@@ -190,6 +190,14 @@ def test_style_md_is_written_with_the_card(tmp_path):
     assert "Style: hard key light, deep shadows, 50mm, deep focus, cold silver grade." in md
 
 
+def test_style_category_is_on_the_card_not_in_the_prompt(tmp_path):
+    knihovna.write("style", "noir", {"name": "Noir", "look": "hard light", "poradi": 7, "kategorie": "film"}, tmp_path)
+    card = knihovna.read("style", "noir", tmp_path)
+    assert list(card)[:3] == ["name", "kategorie", "poradi"]
+    assert knihovna.image_text(card) == "Hard light" and knihovna.film_fields(card) == {"name": "Noir", "look": "hard light"}
+    assert "## Kategorie\n\nFilm\n" in (tmp_path / "styles" / "noir" / "STYLE.md").read_text(encoding="utf-8")
+
+
 # ── same prompt words as before, on the real styles ──────────────────────────
 # Sources outside this public repo (KLAPKA's library is private, karikatura-3d-real is the operator's own):
 # the test reads them where they live and is skipped on a machine without them.

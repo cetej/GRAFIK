@@ -1141,8 +1141,23 @@ DEFAULT_STYLE_PROMPTS = {
     "margins for labels. Colour palette: navy #1b2a3a, ochre #e8b23a, warm light grey #d9d4c7, steel blue #4f7a8c, "
     "rust #a8432c. Avoid photographic noise, lens flare, dramatic sky",
 }
-STYLE_KEYS = {"slug", "label", "note", "origin", "medium", "light", "line", "composition", "avoid", "signature",
-              "palette", "puvod", "created", "updated", "samples", "prompt", "sample_urls"}
+STYLE_KEYS = {"slug", "label", "kategorie", "poradi", "note", "origin", "medium", "light", "line", "composition",
+              "avoid", "signature", "palette", "puvod", "created", "updated", "samples", "prompt", "sample_urls"}
+
+
+def test_styles_are_listed_by_category_and_a_save_keeps_the_category(api, settings):
+    from ngm_shared import knihovna
+    base = settings.knihovna_dir
+    for slug, kategorie, poradi in (("bez", None, None), ("film-b", "film", 2), ("film-a", "film", 1), ("foto", "fotografie", 9)):
+        knihovna.write("style", slug, {"name": slug, "look": "x", **({"kategorie": kategorie, "poradi": poradi} if kategorie else {})}, base)
+    assert [c["slug"] for c in api.get("/api/v2/styles").json()] == ["foto", "film-a", "film-b", "bez"]
+    # a client that does not know categories (older code in another project) leaves it alone
+    assert api.put("/api/v2/styles/foto", json={"label": "foto", "note": "n"}).json()["kategorie"] == "fotografie"
+    assert api.put("/api/v2/styles/foto", json={"label": "foto", "kategorie": "3d"}).json()["kategorie"] == "3d"
+    assert api.put("/api/v2/styles/foto", json={"label": "foto", "kategorie": ""}).json()["kategorie"] == ""
+    assert knihovna.read("style", "foto", base)["poradi"] == 9
+    r = api.put("/api/v2/styles/foto", json={"label": "foto", "kategorie": "malba"})
+    assert r.status_code == 400 and "malba" in r.json()["detail"]
 
 
 def test_git_defaults_seed_an_empty_knihovna_once_with_the_same_prompt_words(settings, sd):
