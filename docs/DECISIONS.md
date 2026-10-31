@@ -2,6 +2,18 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-31 — Převzetí ruční úpravy z VectorCraftu do exportů
+
+Zadání od session `grafik-vectorcraft`, vzor NG-ROBOT `ngvector/export`. Operátor volby níže zatím neviděl, ruší je tady. Měření: [spike](spikes/2026-10-31-rucni-uprava-export.md).
+
+- **Export dělá VectorCraft bez okna** (PNG, PDF, SVG), takže výsledek vypadá jako okno, ne jako Chromium. Pod zámkem těžké práce s vlastním vlastníkem `grafik-infografiky`: se stejným vlastníkem jako fronta Engine (`grafik-engine`) by zámek pokládal běžící FLUX za svůj a uvolnil by ho.
+- **Požadavek čeká na zámek nejvýš 120 s**, pak `503` s tím, kdo stroj drží. Fronta úloh na to není: převzetí trvá okolo 4 s a operátor čeká na výsledek.
+- **SVG je v křivkách**, jako v NG-ROBOT: kopie pro okno má rodiny `Bahnschrift SemiCondensed`, které jinde nemusí sedět. Upravitelný zůstává zdroj ve `vectorcraft/`.
+- **Nic se nepřepisuje.** Zdroj se jen otevře, každé převzetí má vlastní `<čas>-rucni-<hex>.png|pdf|svg` a `.json`. Opakované převzetí přidá další trojici, Studio u úpravy napíše, že už převzatá je (podle sha256).
+- **Označení AI**: převzetí odmítne soubor, kde věta `ai_note` není viditelně na prvním plátně. Provenience má texty přečtené ze souboru, popisky z editoru by úpravu nepopisovaly.
+- **`reviewed_by` je `null`**, kontrola z editoru je v `document_reviewed_by`: kdo schválil dokument, neviděl ruční úpravu.
+- Do polí editoru se úprava dál nevrací.
+
 ## 2026-10-31 — Infografika ve VectorCraftu: otevření z Studia, vrstvy, ruční úprava se nepřepisuje
 
 Princip operátora 31. 10.: samostatné objekty mají být ve vrstvách a vrstvený obsah má jít otevřít v aplikacích Craft přímo z UI, jako mapy v NG-ROBOT. Po vyzkoušení v okně operátor doplnil: grafiku a texty držet odděleně v nadřízených vrstvách.
@@ -10,7 +22,7 @@ Princip operátora 31. 10.: samostatné objekty mají být ve vrstvách a vrstve
 - **Bez zámku těžké práce**: zámek patří automatickým úlohám, okno může být otevřené hodiny a zastavilo by FLUX na celém stroji. Stejně to dělá NG-ROBOT. Cena: okno zabírá paměť grafiky i souběžně s FLUX.
 - **Ruční úprava se nikdy nepřepíše**: každý stav dokumentu má vlastní kopii v `library/infographics/<id>/vectorcraft/`, Engine si pamatuje její sha256. Soubor, který se liší nebo přibyl (Uložit jako), je ruční úprava: tlačítko se zeptá (`409`), jestli otevřít ji, nebo novou kopii z editoru. Neuložené změny v otevřeném okně Engine nevidí.
 - **Do okna jde upravená kopie písma**: VectorCraft ignoruje `font-stretch` (text o 15 % širší než náhled) a řez čte ze jména rodiny, takže kopie má `Bahnschrift SemiCondensed` a `Bahnschrift Bold SemiCondensed`. Mimo kopii pro okno se nic nemění.
-- **Ruční úprava se do editoru ani do exportů Studia nevrací.** Export z ní dělá operátor ve VectorCraftu. Měření: [spike](spikes/2026-10-31-vectorcraft-okno.md).
+- **Ruční úprava se do editoru nevrací.** Exporty z ní řeší rozhodnutí výše. Měření: [spike](spikes/2026-10-31-vectorcraft-okno.md).
 
 ## 2026-10-29 — Postavy, místa a rekvizity z KNIHOVNY jako předloha obrázku
 

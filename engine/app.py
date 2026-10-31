@@ -35,9 +35,9 @@ from engine.translate import Translator
 from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
 from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, WorkflowStore, rotate_request, side_request
 from ngm_shared import claude
-from ngm_shared.heavy_lock import holder
+from ngm_shared.heavy_lock import HeavyBusy, holder
 from ngm_shared.knihovna import KnihovnaError
-from ngm_shared.textlayer.vc_client import find_desktop_app
+from ngm_shared.textlayer.vc_client import VectorCraftError, find_cli, find_desktop_app
 
 
 # Body models live at module level: with `from __future__ import annotations` FastAPI
@@ -118,6 +118,10 @@ class InfoExport(BaseModel):
 class InfoVectorCraft(BaseModel):
     svg: str
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
+
+
+class InfoManualExport(BaseModel):
+    file: str | None = None         # which manual edit; default the newest
 
 
 class SchemaIn(BaseModel):
@@ -807,6 +811,22 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         except OSError as e:
             raise HTTPException(502, f"VectorCraft se nepodařilo spustit ({e}).") from e
         return {"opened": out["file"], "path": str(out["path"]), "created": out["created"]}
+
+    @app.post("/api/v2/infographics/{info_id}/vectorcraft/export", status_code=201)
+    def info_vectorcraft_export(info_id: str, body: InfoManualExport):
+        """Manual edit → new PNG, PDF and SVG among the exports. Headless, under the heavy lock (DECISIONS 2026-10-31)."""
+        doc = _info_or_404(info_id)
+        if find_cli() is None:
+            raise HTTPException(503, "VectorCraft není nainstalovaný (složka Tools/Craft/vectorcraft, CRAFT_HOME).")
+        try:
+            out = infos.vectorcraft_export(info_id, body.file, _prov(doc["base"]), s.gpu_lock_path)
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+        except HeavyBusy as e:
+            raise HTTPException(503, f"{e} Zkuste to za chvíli.") from e
+        except VectorCraftError as e:
+            raise HTTPException(502, f"VectorCraft export nedokončil ({e}).") from e
+        return {**out, "files": [{**f, "url": f"/api/v2/infographics/{info_id}/exports/{f['file']}"} for f in out["files"]]}
 
     @app.post("/api/v2/infographics/{info_id}/suggest-labels")
     def info_suggest(info_id: str, body: SuggestLabels):

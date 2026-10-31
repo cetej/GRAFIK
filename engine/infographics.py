@@ -5,7 +5,7 @@ labels with thin leader lines outside the object, three facts, a vector section 
 background, a footer with sources and the AI label. Text in the image never comes from the model.
 
 library/infographics/<id>/info.json   the document (what the studio editor edits)
-library/infographics/<id>/exports/    PNG / SVG / PDF + a provenance JSON per export
+library/infographics/<id>/exports/    PNG / SVG / PDF + a provenance JSON per export (*-rucni-*: from a manual edit)
 library/infographics/<id>/vectorcraft/ copies opened in the VectorCraft window, the operator's edits live here
 schemas/<slug>.svg                     reusable vector schemas ("Ze šablony schémat")
 
@@ -21,15 +21,23 @@ import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
+from PIL import Image
+
+from ngm_shared.heavy_lock import LOCK_PATH
+from ngm_shared.textlayer.vc_client import VectorCraft
+
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK = "{http://www.w3.org/1999/xlink}href"
 FORMATS = ("png", "svg", "pdf")
-SIZES = {"1280x990": (1280, 990), "1920x1080": (1920, 1080), "1080x1350": (1080, 1350)}
+MANUAL_SOURCES = (".svg", ".svgz", ".vectorcraft", ".ai")   # what VectorCraft saves a document as (an exported PNG is not one)
+MANUAL_LOCK_WAIT_S = 120.0   # the request waits for a running job, a FLUX image takes 40-85 s
+SIZES ={"1280x990": (1280, 990), "1920x1080": (1920, 1080), "1080x1350": (1080, 1350)}
 LAYOUTS = ("klasika", "pruh")   # docs/infografiky-zasady.md
 BACKEND_NAMES = {"flux-local": "FLUX 3 Klein", "nb-pro": "Nano Banana Pro",
                  "fal:fal-ai/nano-banana-pro": "Nano Banana Pro", "fal:fal-ai/flux-2-pro": "FLUX.2 pro",
@@ -147,6 +155,25 @@ def _clean_with_note(svg: str, doc: dict) -> str:
     return svg
 
 
+def _canvas_texts(tree: dict) -> list[str]:
+    """Texts the exported PNG shows, back to front (wrapped lines stay in reading order). Hidden text and text
+    off the first artboard do not count: VectorCraft's SVG export keeps the latter, measured 2026-10-31."""
+    a = tree["artboards"][0]
+
+    def on_canvas(b: dict) -> bool:
+        return (b["x"] >= a["x"] - 1 and b["y"] >= a["y"] - 1 and b["x"] + b["width"] <= a["x"] + a["width"] + 1
+                and b["y"] + b["height"] <= a["y"] + a["height"] + 1)
+
+    def walk(items: list[dict]):
+        for it in reversed(items):
+            if it.get("visible", True):
+                if it.get("kind") == "Type" and on_canvas(it["bounds"]):
+                    yield it["text"]
+                yield from walk(it.get("children", []))
+
+    return list(walk(tree["layers"]))
+
+
 def _sha256(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -237,7 +264,7 @@ class InfographicStore:
 
     def export_path(self, info_id: str, name: str) -> Path | None:
         p = self._dir(info_id) / "exports" / name
-        return p if re.fullmatch(r"[\d\-]+\.(png|svg|pdf)", name) and p.exists() else None
+        return p if re.fullmatch(r"[\w\-]+\.(png|svg|pdf)", name) and p.exists() else None
 
     # -- copies for the VectorCraft window ----------------------------------
     def _vc_state(self, info_id: str) -> tuple[Path, list[dict], list[Path]]:
@@ -252,8 +279,70 @@ class InfographicStore:
         return d, copies, sorted(edited, key=lambda f: f.stat().st_mtime, reverse=True)
 
     def vectorcraft_edits(self, info_id: str) -> list[dict]:
-        return [{"file": f.name, "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds")}
+        taken = {}
+        for p in sorted((self._dir(info_id) / "exports").glob("*-rucni-*.png.json")):
+            taken[json.loads(p.read_text(encoding="utf-8"))["manual_edit"]["sha256"]] = p.name.removesuffix(".json")
+        return [{"file": f.name, "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
+                 "can_export": f.suffix.lower() in MANUAL_SOURCES, "exported": taken.get(_sha256(f))}
                 for f in self._vc_state(info_id)[2]]
+
+    def vectorcraft_export(self, info_id: str, file: str | None, base_prov: dict | None, lock_path: Path = LOCK_PATH) -> dict:
+        """Takes over a manual edit: new PNG, PDF and SVG among the exports, made by VectorCraft itself so they
+        look like the window. The source is only opened, never saved, and every export gets new files. The texts
+        come from the file, not from the document: the editor's labels and its review do not describe the edit."""
+        doc = self.get(info_id)
+        if doc is None:
+            raise InfoError("infografika neexistuje")
+        edited = [f for f in self._vc_state(info_id)[2] if f.suffix.lower() in MANUAL_SOURCES]
+        if not edited:
+            raise InfoError("ruční úprava neexistuje: nejdřív ji ve VectorCraftu uložte (Ctrl+S)")
+        src = edited[0] if file is None else next((f for f in edited if f.name == file), None)
+        if src is None:
+            raise InfoError(f"{file} není ruční úprava této infografiky")
+        sha = _sha256(src)
+        with tempfile.TemporaryDirectory(prefix="grafik-rucni-") as tmp:
+            out = Path(tmp)
+            with VectorCraft(lock_owner="grafik-infografiky", caller=f"infografika {info_id}",
+                             lock_wait_s=MANUAL_LOCK_WAIT_S, lock_path=lock_path) as vc:
+                opened = vc.tool("open_file", path=str(src))
+                if opened.get("missingLinks"):
+                    raise InfoError(f"v úpravě chybí propojené soubory: {', '.join(map(str, opened['missingLinks']))}")
+                texts = _canvas_texts(vc.tool("inspect_document"))
+                if re.sub(r"\s+", "", doc["ai_note"]) not in re.sub(r"\s+", "", "".join(texts)):
+                    raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{doc['ai_note']}“. Nic se neuložilo.")
+                vc.tool("export", path=str(out / "e.png"))
+                vc.tool("export", path=str(out / "e.pdf"))
+                vc.tool("export", path=str(out / "e.svg"), outlineText=True)   # same look without the fonts, as NG-ROBOT
+            if _sha256(src) != sha:
+                raise InfoError(f"{src.name} se během převzetí změnil, zkuste to znovu")
+            for fmt in FORMATS:
+                if not (out / f"e.{fmt}").is_file() or (out / f"e.{fmt}").stat().st_size == 0:
+                    raise InfoError(f"VectorCraft nevytvořil {fmt.upper()}")
+            with Image.open(out / "e.png") as im:
+                size = f"{im.width}x{im.height}"
+            svg = clean_svg((out / "e.svg").read_text(encoding="utf-8"), allow_data_images=True)
+            ex = self._dir(info_id) / "exports"
+            ex.mkdir(parents=True, exist_ok=True)
+            stem = f"{datetime.now():%Y%m%d-%H%M%S}-rucni-{secrets.token_hex(2)}"
+            (ex / f"{stem}.svg").write_text(svg, encoding="utf-8")
+            for fmt in ("pdf", "png"):
+                shutil.move(str(out / f"e.{fmt}"), ex / f"{stem}.{fmt}")
+        now = datetime.now().isoformat(timespec="seconds")
+        files = []
+        for fmt in FORMATS:
+            name = f"{stem}.{fmt}"
+            prov = {"infographic": info_id, "file": name, "format": fmt, "size": size, "base": doc["base"],
+                    "base_provenance": base_prov, "title": doc["title"], "sources": doc["sources"],
+                    "ai_note": doc["ai_note"], "ai_note_checked": True, "ai_generated": True,
+                    "text_by": "redakce (ruční úprava ve VectorCraftu)",
+                    "texts": texts,
+                    "manual_edit": {"file": src.name, "sha256": sha,
+                                    "modified": datetime.fromtimestamp(src.stat().st_mtime).isoformat(timespec="seconds"),
+                                    "vectorcraft": vc.server.get("version"), "warnings": opened.get("warnings", [])},
+                    "reviewed_by": None, "document_reviewed_by": doc.get("reviewed_by"), "created": now}
+            (ex / f"{name}.json").write_text(json.dumps(prov, ensure_ascii=False, indent=2), encoding="utf-8")
+            files.append({"file": name, "format": fmt, "bytes": (ex / name).stat().st_size})
+        return {"source": src.name, "files": files, "warnings": opened.get("warnings", [])}
 
     def vectorcraft_file(self, info_id: str, svg: str, mode: str | None = None) -> dict:
         """The file to open in the window app. Nothing here ever overwrites a file: a manual edit stays as

@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-31 — Převzetí ruční úpravy: kontrola textu v SVG nestačí, zámek nesmí mít vlastníka fronty
+
+- **SVG export VectorCraftu obsahuje i text mimo plátno.** Patička posunutá o 500 px prošla kontrolou nad SVG, v PNG věta o AI chyběla. Co čtenář uvidí, říká `inspect_document`: `visible` a `bounds` proti `artboards[0]`. Skrytý objekt v SVG není.
+- **`HeavyLock` je re-entrantní pro stejný PID a `owner`.** `VectorCraft(lock_owner="grafik-engine")` uvnitř Engine by za běžícího FLUX zámek „získal“ a při `close()` ho uvolnil. Druhá těžká práce ve stejném procesu potřebuje vlastní jméno.
+- **`.vectorcraft` drží obrázky uvnitř**, když vznikl z SVG s `data:` obrázky (5,5 MB, `missingLinks` prázdné). Propojený obrázek se ale ztratit může, proto `open_file` hlídá `missingLinks`.
+
 ## 2026-10-31 — SVG ve VectorCraftu: co čte a co tiše vynechá
 
 - **`font-stretch` ignoruje**, `file.info` přesto hlásí `status: exact`. Text je o 15 % širší než v Chromiu. Řez musí být ve jméně rodiny (`Bahnschrift SemiCondensed`); samotné jméno ale ztratí tučnost, proto `Bahnschrift Bold SemiCondensed`. Shodu ověřuj šířkou a pohledem na render, ne stavem z `info`.
