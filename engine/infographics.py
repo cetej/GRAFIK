@@ -6,6 +6,7 @@ background, a footer with sources and the AI label. Text in the image never come
 
 library/infographics/<id>/info.json   the document (what the studio editor edits)
 library/infographics/<id>/exports/    PNG / SVG / PDF + a provenance JSON per export
+library/infographics/<id>/vectorcraft/ copies opened in the VectorCraft window, the operator's edits live here
 schemas/<slug>.svg                     reusable vector schemas ("Ze šablony schémat")
 
 The studio renders the document to SVG (one renderer, the preview is the export); the Engine
@@ -13,10 +14,13 @@ stores it, cleans it and rasterises it with headless Chromium (Playwright) for P
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import secrets
 import shutil
+import subprocess
+import sys
 import threading
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -39,6 +43,14 @@ ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 
 class InfoError(ValueError):
     pass
+
+
+class VectorCraftEdited(Exception):
+    """A manual edit exists: the operator decides whether to open it or a new copy of the document."""
+
+    def __init__(self, file: str):
+        super().__init__(file)
+        self.file = file
 
 
 def clean_svg(svg: str, allow_data_images: bool = False) -> str:
@@ -85,6 +97,30 @@ def new_doc(base: str, title: str, prov: dict | None) -> dict:
     }
 
 
+def for_vectorcraft(svg: str) -> str:
+    """Copy of a cleaned SVG for the window app. VectorCraft ignores font-stretch and reads the weight only
+    from a family name, so Bahnschrift semi-condensed must be named in full on every text (measured
+    2026-10-31 on the kvinquerema: without it the type runs 15 % wider than the preview, DECISIONS)."""
+    root = ET.fromstring(svg)
+
+    def walk(el: ET.Element, family: str, stretch: str, weight: str) -> None:
+        family, stretch, weight = el.get("font-family", family), el.get("font-stretch", stretch), el.get("font-weight", weight)
+        if el.tag.rsplit("}", 1)[-1] in ("text", "tspan") and family.startswith("Bahnschrift") and stretch == "semi-condensed":
+            el.set("font-family", "Bahnschrift Bold SemiCondensed" if weight == "700" else "Bahnschrift SemiCondensed")
+        for child in el:
+            walk(child, family, stretch, weight)
+
+    walk(root, "", "", "")
+    return ET.tostring(root, encoding="unicode")
+
+
+def open_in_window(app: Path, path: Path) -> None:
+    """Detached (like NG-ROBOT ngvector/open): the window outlives an Engine restart."""
+    flags = subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
+    subprocess.Popen([str(app), str(path)], creationflags=flags, close_fds=True,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def rasterize(svg: str, width: int, height: int, fmt: str) -> bytes:
     """PNG or PDF from an SVG via headless Chromium; same engine as the studio preview."""
     from playwright.sync_api import sync_playwright
@@ -100,6 +136,19 @@ def rasterize(svg: str, width: int, height: int, fmt: str) -> bytes:
                             margin={"top": "0", "right": "0", "bottom": "0", "left": "0"})
         finally:
             browser.close()
+
+
+def _clean_with_note(svg: str, doc: dict) -> str:
+    svg = clean_svg(svg, allow_data_images=True)
+    # the footer is wrapped into several <text> lines: compare the bare text without tags and spaces
+    bare = re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", svg).replace("&amp;", "&"))
+    if re.sub(r"\s+", "", doc["ai_note"]) not in bare:
+        raise InfoError("v exportu chybí označení AI v patičce")
+    return svg
+
+
+def _sha256(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
 class InfographicStore:
@@ -172,11 +221,7 @@ class InfographicStore:
         if fmt not in FORMATS:
             raise InfoError(f"formát {fmt!r}: jen {', '.join(FORMATS)}")
         w, h = SIZES[doc["size"]]
-        svg = clean_svg(svg, allow_data_images=True)
-        # the footer is wrapped into several <text> lines: compare the bare text without tags and spaces
-        bare = re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", svg).replace("&amp;", "&"))
-        if re.sub(r"\s+", "", doc["ai_note"]) not in bare:
-            raise InfoError("v exportu chybí označení AI v patičce")
+        svg = _clean_with_note(svg, doc)
         data = svg.encode("utf-8") if fmt == "svg" else rasterize(svg, w, h, fmt)
         ex = self._dir(info_id) / "exports"
         ex.mkdir(parents=True, exist_ok=True)
@@ -193,6 +238,49 @@ class InfographicStore:
     def export_path(self, info_id: str, name: str) -> Path | None:
         p = self._dir(info_id) / "exports" / name
         return p if re.fullmatch(r"[\d\-]+\.(png|svg|pdf)", name) and p.exists() else None
+
+    # -- copies for the VectorCraft window ----------------------------------
+    def _vc_state(self, info_id: str) -> tuple[Path, list[dict], list[Path]]:
+        """Folder, copies Engine wrote ({file, sha256}), and files that are not what Engine wrote: saved over
+        in VectorCraft or saved next to them (Save As). Those are manual edits, newest first."""
+        d = self._dir(info_id) / "vectorcraft"
+        state = d / "copies.json"
+        copies = json.loads(state.read_text(encoding="utf-8")) if state.exists() else []
+        known = {c["file"]: c["sha256"] for c in copies}
+        files = [f for f in d.iterdir() if f.is_file() and f != state] if d.exists() else []
+        edited = [f for f in files if known.get(f.name) != _sha256(f)]
+        return d, copies, sorted(edited, key=lambda f: f.stat().st_mtime, reverse=True)
+
+    def vectorcraft_edits(self, info_id: str) -> list[dict]:
+        return [{"file": f.name, "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds")}
+                for f in self._vc_state(info_id)[2]]
+
+    def vectorcraft_file(self, info_id: str, svg: str, mode: str | None = None) -> dict:
+        """The file to open in the window app. Nothing here ever overwrites a file: a manual edit stays as
+        it is, a new state of the document gets a new copy, an unchanged one reopens its untouched copy."""
+        doc = self.get(info_id)
+        if doc is None:
+            raise InfoError("infografika neexistuje")
+        if mode not in (None, "edited", "new"):
+            raise InfoError(f"neznámý způsob otevření {mode!r}")
+        with self._lock:
+            d, copies, edited = self._vc_state(info_id)
+            if mode == "edited":
+                if not edited:
+                    raise InfoError("ruční úprava neexistuje")
+                return {"path": edited[0], "file": edited[0].name, "created": False}
+            if edited and mode is None:
+                raise VectorCraftEdited(edited[0].name)
+            data = for_vectorcraft(_clean_with_note(svg, doc)).encode("utf-8")
+            sha = hashlib.sha256(data).hexdigest()
+            for c in reversed(copies):
+                if c["sha256"] == sha and (d / c["file"]).exists() and d / c["file"] not in edited:
+                    return {"path": d / c["file"], "file": c["file"], "created": False}
+            d.mkdir(parents=True, exist_ok=True)
+            name = f"{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(2)}.svg"
+            (d / name).write_bytes(data)
+            (d / "copies.json").write_text(json.dumps([*copies, {"file": name, "sha256": sha}], indent=2), encoding="utf-8")
+            return {"path": d / name, "file": name, "created": True}
 
     # -- schema templates -------------------------------------------------
     def schemas(self) -> list[dict]:

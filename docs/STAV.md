@@ -4,6 +4,8 @@ Aktualizováno 2026-10-31.
 
 ## Teď
 
+**Infografika ve VectorCraftu (2026-10-31)** (DECISIONS 2026-10-31, [měření](spikes/2026-10-31-vectorcraft-okno.md)): v editoru infografiky oddíl „Ruční úprava“ s tlačítkem „Otevřít ve VectorCraftu“, Engine `GET|POST /api/v2/infographics/<id>/vectorcraft`. Vrstvy Grafika a Texty, každý text i objekt jde upravit zvlášť. Ruční úprava se nepřepisuje, tlačítko se zeptá. Bez nainstalované aplikace Studio česky řekne proč. Do Studia se ruční úprava nevrací. Nasazeno (GRAFIK#91): Engine :8300 restartovaný jen podle PID při prázdné frontě (50572 → 54248), Studio :5174 spuštěné z `start-grafik.bat`; kliknutí v opravdovém Studiu na kvinquereme otevřelo okno s kopií `20261031-134240-bbec.svg` (2 vrstvy, 29 textů, 0 varování). Písmo v okně drží šířku náhledu jen díky přejmenování řezu v kopii. Souběh okna s FLUX nezměřený.
+
 **Blender 5.2.3 (2026-10-31)**: zastaralé `use_nodes = True` pryč z `render_views.py` a `scripts/3d/*` (DeprecationWarning z logu zmizel); `use_persistent_data` v Cycles změřeno a nezapnuto, zrychlení 1 až 6 % (pod prahem 15 %), PNG shodné ([měření](spikes/2026-10-31-persistent-data.md)).
 
 **Blender sdílený v AppData (2026-10-31)**: Engine bez `GRAFIK_BLENDER` bere nejnovější 5.2.x z `%LOCALAPPDATA%/Programs/Blender/`, `C:/Users/stock/tools/` jen jako záloha (`engine.config.find_blender`).
