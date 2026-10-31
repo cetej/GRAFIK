@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-31 — Karta stylu: FLUX kreslí každé podstatné jméno, i když popisuje techniku
+
+- **Slova o technice se mění v předměty.** „Glow of a tallow lamp“ dokreslilo do jeskynní malby lampu na zdi, „realistic objects and vehicles“ přidalo do ligne claire dvě červená auta na polní cestu. Do karty stylu patří vlastnosti (měkké, ploché, bez stínu), ne věci, které v obraze být nemají. Zdroj světla pojmenovat, jen když do obrazu patří.
+- **Slova o střihu a výbavě kamery dopadnou stejně.** „Extreme close-ups mixed with vast long shots“ udělalo z westernu koláž tří záběrů, „stabilised mount“ pověsilo nad velrybu kameru, „static tripod“ postavilo vedle sedláka kameru na stativu. Karta popisuje jeden snímek.
+- **YAML katalogu:** dvojtečka v textu rozbije nekvotovanou hodnotu a čárka ve `[…]` rozdělí zadání ukázky na dvě. `test_styles_katalog.py` hlídá počet ukázek u každého stylu.
+
 ## 2026-10-31 — Převzetí ruční úpravy: kontrola textu v SVG nestačí, zámek nesmí mít vlastníka fronty
 
 - **SVG export VectorCraftu obsahuje i text mimo plátno.** Patička posunutá o 500 px prošla kontrolou nad SVG, v PNG věta o AI chyběla. Co čtenář uvidí, říká `inspect_document`: `visible` a `bounds` proti `artboards[0]`. Skrytý objekt v SVG není.

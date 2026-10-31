@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  api, fileToB64, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
+  api, fileToB64, groupStyles, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
   type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type KnihovnaImage, type KnihovnaItem, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
@@ -321,7 +321,7 @@ export default function App() {
       ) : tab === 'localize' ? (
         <Localize selectedImage={selected} pickRef={localizeRef} onOpen={setLightbox} setConfirm={setConfirm} onError={setToast} />
       ) : tab === 'styles' ? (
-        <Styles onError={setToast} onSubmit={submitForStyle} selectedImage={selected}
+        <Styles onError={setToast} onOpen={setLightbox} onSubmit={submitForStyle} selectedImage={selected}
           openDetect={detectOpen} onDetectOpen={() => setDetectOpen(true)} onDetectClosed={() => setDetectOpen(false)}
           onUse={(slug) => { setStyleSel(slug); setTab('studio') }} />
       ) : tab === 'guide' ? (
@@ -402,7 +402,11 @@ export default function App() {
             ) : null}
             <select className="full" value={styleSel} onChange={(e) => setStyleSel(e.target.value)} aria-label="Styl">
               <option value="">bez stylu</option>
-              {styleCards.map((c) => <option key={c.slug} value={c.slug}>{c.label}</option>)}
+              {groupStyles(styleCards).map((g) => (
+                <optgroup key={g.key} label={g.label}>
+                  {g.cards.map((c) => <option key={c.slug} value={c.slug}>{c.label}</option>)}
+                </optgroup>
+              ))}
               <option value="__custom">vlastní text…</option>
             </select>
             <div className="row">

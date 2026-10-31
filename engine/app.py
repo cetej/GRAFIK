@@ -76,6 +76,7 @@ class CommonsImport(BaseModel):
 
 class StyleIn(BaseModel):
     label: str
+    kategorie: str | None = None    # knihovna.STYLE_CATEGORIES; None = keep the card's category
     note: str = ""
     medium: str = ""
     light: str = ""

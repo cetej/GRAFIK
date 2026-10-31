@@ -228,16 +228,32 @@ export interface StyleFields {
   avoid: string
   signature: string
   palette: PaletteColor[]
+  kategorie?: string
   origin?: 'default' | 'detected' | 'manual'
   puvod?: string
 }
 
 export interface StyleCard extends StyleFields {
   slug: string
+  poradi?: number | null
   samples: string[]
   sample_urls: string[]
   prompt: string
   updated: string
+}
+
+// Mirror of ngm_shared.knihovna.STYLE_CATEGORIES, in the order the Engine sorts the library.
+export const STYLE_CATEGORIES: [string, string][] = [
+  ['fotografie', 'Fotografie'], ['historicke', 'Historické'], ['ilustrace', 'Ilustrace'],
+  ['3d', '3D'], ['komiks', 'Komiks'], ['film', 'Film'],
+]
+
+/** Cards by category, empty categories left out; `key` '' = cards without a category. */
+export function groupStyles(cards: StyleCard[]): { key: string; label: string; cards: StyleCard[] }[] {
+  const known = STYLE_CATEGORIES.map(([key]) => key)
+  return [...STYLE_CATEGORIES, ['', 'Bez kategorie'] as [string, string]]
+    .map(([key, label]) => ({ key, label, cards: cards.filter((c) => (key ? c.kategorie === key : !known.includes(c.kategorie ?? ''))) }))
+    .filter((g) => g.cards.length)
 }
 
 export interface StyleImages { b64?: string[]; jobs?: string[]; ref_ids?: string[] }

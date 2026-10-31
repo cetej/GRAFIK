@@ -2,6 +2,18 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-31 — Styly v šesti kategoriích, katalog v gitu
+
+Zadání operátora 31. 10.: rozřídit styly do kategorií Fotografie, Historické (od pravěku po klasicismus), Ilustrace, 3D, Komiks, Film, navrhnout doplnění a vytvořit je s ukázkami. Volby níže jsou návrh session, operátor je ruší tady.
+
+- **Kategorie je pole karty** (`kategorie`, `poradi` v `styles/<slug>.yaml`, seznam `knihovna.STYLE_CATEGORIES`). Do promptu nejde. Slug zůstává identitou, žádný styl se nepřejmenoval, KLAPKA čte karty beze změny. Karta bez kategorie je ve Studiu ve skupině „Bez kategorie“.
+- **Jeden styl, jedna kategorie.** Rozhoduje vzhled: Film je záběr z kamery nebo ručně kreslený film, 3D je počítačový render (i „3D animovaný film“). „Olejomalba v pohybu“ zůstala ve Filmu, klidná malba má vlastní styl „Barokní olejomalba“ v Historických.
+- **Historické jdou po časové ose** a končí klasicismem, jak operátor řekl. Doplnil jsem tři mimoevropské styly stejného období (čínská tuš, perská miniatura, ukijo-e). Romantismus, impresionismus a moderna v katalogu nejsou.
+- **Katalog je v gitu** (`styles/katalog.yaml`, `scripts/styles_katalog.py`), protože KNIHOVNA nemá zálohu. Skript existující karty nepřepisuje: doplní jim jen `kategorie`, `poradi` a chybějící `note`. Text promptu 15 stávajících stylů se nezměnil.
+- **Ukázky jsou tři a srovnatelné:** společný motiv (farmář s koněm), portrét a motiv typický pro styl; první je náhled v knihovně. Motiv s koněm jde použít ve všech epochách. Styly, kde by nedával smysl (makro, mikroskop, muzejní předmět, letecký snímek, výkres, rentgen), mají jen vlastní motivy. Generuje lokální FLUX, 1024×768, 0 USD, po jedné úloze, aby se mezi ně vešly úlohy ostatních projektů.
+- **Živé autory a chráněné značky prompt nejmenuje**, moderní styly jsou popsané slovy. Mrtvé staré mistry jmenuje, určují techniku.
+- „Karikatura 3D REAL“ má 5 vlastních vzorů od operátora, nové se k ní nepřidávají. „Dokumentární rekonstrukce“ a „… (éra a přístroj)“ mají stejný text; obě zůstávají kvůli projektům KLAPKY, poznámka to říká.
+
 ## 2026-10-31 — Převzetí ruční úpravy z VectorCraftu do exportů
 
 Zadání od session `grafik-vectorcraft`, vzor NG-ROBOT `ngvector/export`. Operátor volby níže zatím neviděl, ruší je tady. Měření: [spike](spikes/2026-10-31-rucni-uprava-export.md).
