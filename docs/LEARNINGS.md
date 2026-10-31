@@ -6,12 +6,18 @@
 - **`HeavyLock` je re-entrantní pro stejný PID a `owner`.** `VectorCraft(lock_owner="grafik-engine")` uvnitř Engine by za běžícího FLUX zámek „získal“ a při `close()` ho uvolnil. Druhá těžká práce ve stejném procesu potřebuje vlastní jméno.
 - **`.vectorcraft` drží obrázky uvnitř**, když vznikl z SVG s `data:` obrázky (5,5 MB, `missingLinks` prázdné). Propojený obrázek se ale ztratit může, proto `open_file` hlídá `missingLinks`.
 
+## 2026-10-31 — Vada tvaru v obrázku pochází z bílého modelu; kontrola patří před FLUX
+
+- **FLUX s předlohou `geometry` sleduje model víc, než spike z 27. 10. předpokládal.** Tatra „limuzína“ po zarovnání sedí na bílý snímek téměř přesně včetně klik. Vadu vyrobilo natažení středu. Porovnání bílý snímek / FLUX ji proto najít nemůže, ani kdyby tok fungoval ([spike](spikes/2026-10-31-tvar-hrany-tok.md)).
+- **Mapa hran + optický tok tvar neměří.** Medián toku odliší správný snímek od jiného pohledu (12/13), ale pevný práh mezi dobrými a špatnými dvojicemi nedá: 4/10 falešných poplachů. Tok počítá posun objektu a texturu pozadí.
+- **Kontrola se známou odpovědí je levnější než vyvozovat závěr z popisku.** Stejný výsledek FLUX proti jinému pohledu a jinému modelu ze stejného úhlu ukázal, co metrika umí, a 3 označené dvojice by na to nestačily.
+
 ## 2026-10-31 — SVG ve VectorCraftu: co čte a co tiše vynechá
 
 - **`font-stretch` ignoruje**, `file.info` přesto hlásí `status: exact`. Text je o 15 % širší než v Chromiu. Řez musí být ve jméně rodiny (`Bahnschrift SemiCondensed`); samotné jméno ale ztratí tučnost, proto `Bahnschrift Bold SemiCondensed`. Shodu ověřuj šířkou a pohledem na render, ne stavem z `info`.
 - **Vrstva = `<g id>` přímo pod `<svg>`.** `inkscape:groupmode`, `data-name` ani `data-layer` vrstvu samy nedělají (test bez `id`). Vnořený `<g id>` je pojmenovaná skupina. Diakritika a mezery v `id` projdou.
 - **Násilné ukončení okna** (`Stop-Process`) nechá po dalším spuštění záložku „[Recovered]“.
-- **Otevření editoru v `npm run dev` přepíše `updated` infografiky**: React StrictMode spustí efekt dvakrát a `loaded.current` první běh nezastaví, takže proběhne autosave. Obsah se nemění, jen čas (kvinquerema 27. 10. → 31. 10.).
+- **Otevření editoru v `npm run dev` přepisovalo `updated` infografiky** (kvinquerema 27. 10. → 31. 10., obsah beze změny). Příčina: React StrictMode načte dokument dvakrát (v síti dva GET), druhé `setDoc` je nový objekt a autosave ho bral jako úpravu; `loaded.current` zastavil jen první běh. Oprava: autosave porovná JSON s naposledy načteným nebo uloženým stavem. Přeskakování prvního běhu přes ref na StrictMode nestačí.
 
 ## 2026-10-30 — Mazání textu z mapy: na reliéfu a barevných pruzích selhává, T2 to nezachytil
 

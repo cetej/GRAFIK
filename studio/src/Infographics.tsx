@@ -375,10 +375,10 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   const [taken, setTaken] = useState<{ source: string; png: string; pdf: string; svg: string; warnings: string[] } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ i: number; what: 'anchor' | 'label' } | null>(null)
-  const loaded = useRef(false)
+  const savedJson = useRef('')
 
   useEffect(() => {
-    infoApi.get(id).then((d) => { setDoc(d); setReviewer(d.reviewed_by ?? '') }).catch((e) => onError(e.message))
+    infoApi.get(id).then((d) => { savedJson.current = JSON.stringify(d); setDoc(d); setReviewer(d.reviewed_by ?? '') }).catch((e) => onError(e.message))
     infoApi.schemas().then(setSchemas).catch(() => {})
     const refreshEdits = () => infoApi.vectorcraft(id).then((v) => { setVcAvailable(v.available); setVcEdits(v.edits.filter((x) => x.can_export)) }).catch(() => setVcAvailable(null))
     refreshEdits()
@@ -393,12 +393,13 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
     img.src = imageUrl(doc.base)
   }, [doc?.base]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // autosave, debounced
+  // autosave, debounced; only a real change saves (in dev StrictMode the load runs twice and sets a new object)
   useEffect(() => {
     if (!doc) return
-    if (!loaded.current) { loaded.current = true; return }
+    const json = JSON.stringify(doc)
+    if (json === savedJson.current) { setSaved(true); return }
     setSaved(false)
-    const t = setTimeout(() => infoApi.save(doc).then(() => setSaved(true)).catch((e) => onError(e.message)), 600)
+    const t = setTimeout(() => infoApi.save(doc).then(() => { savedJson.current = json; setSaved(true) }).catch((e) => onError(e.message)), 600)
     return () => clearTimeout(t)
   }, [doc, onError])
 
