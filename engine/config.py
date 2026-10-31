@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -10,6 +11,26 @@ from ngm_shared import knihovna
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FLUX_DIR = Path("C:/Users/stock/models/flux3-klein")
+
+
+BLENDER_SERIES = (5, 2)
+BLENDER_FALLBACK = "C:/Users/stock/tools/blender-5.2.3-windows-x64/blender.exe"
+
+
+def find_blender(base: Path | None = None) -> str:
+    """Newest 5.2.x portable Blender under %LOCALAPPDATA%/Programs/Blender (shared by all projects);
+    the old C:/Users/stock/tools copy only as a fallback. Never raises, a missing directory = fallback."""
+    if base is None:
+        base = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Blender"
+
+    def version(path: Path) -> tuple[int, ...]:
+        return tuple(int(n) for n in re.findall(r"\d+", path.parent.name))
+
+    try:
+        found = sorted((p for p in base.glob("blender-*/blender.exe") if version(p)[:2] == BLENDER_SERIES), key=version)
+    except OSError:
+        found = []
+    return found[-1].as_posix() if found else BLENDER_FALLBACK
 
 
 def _env(name: str, default):
@@ -49,7 +70,7 @@ class Settings:
     vae_tiling_above_pixels: int = 1280 * 1280
     # 3D step (docs/plans/2026-10-27-3d-v1.md): Blender command up to the script path, limits per step.
     blender_cmd: list = field(default_factory=lambda: [
-        os.environ.get("GRAFIK_BLENDER", "C:/Users/stock/tools/blender-5.2.3-windows-x64/blender.exe"),
+        os.environ.get("GRAFIK_BLENDER") or find_blender(),
         "-b", "--factory-startup", "-P"])
     blender_timeout_s: float = 180.0
     fal3d_timeout_s: float = 900.0
