@@ -29,7 +29,7 @@ from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
 from engine.styles import StyleError, StyleLibrary, palette, slugify
-from engine.infographics import InfoError, InfographicStore
+from engine.infographics import InfoError, InfographicStore, VectorCraftEdited, open_in_window
 from engine.termdb import TermDB
 from engine.translate import Translator
 from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
@@ -37,6 +37,7 @@ from engine.workflows import RotateStep, SideStep, Workflow, WorkflowRef, Workfl
 from ngm_shared import claude
 from ngm_shared.heavy_lock import holder
 from ngm_shared.knihovna import KnihovnaError
+from ngm_shared.textlayer.vc_client import find_desktop_app
 
 
 # Body models live at module level: with `from __future__ import annotations` FastAPI
@@ -112,6 +113,11 @@ class InfoUpload(BaseModel):
 class InfoExport(BaseModel):
     svg: str                        # rendered by the studio (one renderer: preview = export)
     format: str = "png"
+
+
+class InfoVectorCraft(BaseModel):
+    svg: str
+    mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
 
 
 class SchemaIn(BaseModel):
@@ -774,6 +780,33 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             raise HTTPException(404, "export neexistuje")
         media = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}[path.suffix[1:]]
         return FileResponse(path, media_type=media, filename=f"infografika-{info_id}{path.suffix}")
+
+    @app.get("/api/v2/infographics/{info_id}/vectorcraft")
+    def info_vectorcraft_state(info_id: str):
+        _info_or_404(info_id)
+        return {"available": find_desktop_app() is not None, "edits": infos.vectorcraft_edits(info_id)}
+
+    @app.post("/api/v2/infographics/{info_id}/vectorcraft")
+    def info_vectorcraft_open(info_id: str, body: InfoVectorCraft):
+        """Opens a copy in the window app for manual work. No heavy lock: the lock is for automated jobs, a
+        window can stay open for hours and would stop FLUX on the whole machine (DECISIONS 2026-10-31)."""
+        _info_or_404(info_id)
+        app_path = find_desktop_app()
+        if app_path is None:
+            raise HTTPException(503, "Okenní aplikace VectorCraft není nainstalovaná (složka Tools/Craft/vectorcraft, CRAFT_HOME).")
+        try:
+            out = infos.vectorcraft_file(info_id, body.svg, body.mode)
+        except VectorCraftEdited as e:
+            return JSONResponse(status_code=409, content={
+                "detail": f"Ve VectorCraftu je uložená ruční úprava {e.file}. Otevřete ji, nebo novou kopii z editoru? Úprava se nepřepíše.",
+                "edited": e.file})
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+        try:
+            open_in_window(app_path, out["path"])
+        except OSError as e:
+            raise HTTPException(502, f"VectorCraft se nepodařilo spustit ({e}).") from e
+        return {"opened": out["file"], "path": str(out["path"]), "created": out["created"]}
 
     @app.post("/api/v2/infographics/{info_id}/suggest-labels")
     def info_suggest(info_id: str, body: SuggestLabels):

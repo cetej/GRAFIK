@@ -6,7 +6,7 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from engine.infographics import InfoError, ai_note, clean_svg
+from engine.infographics import InfoError, ai_note, clean_svg, for_vectorcraft
 from tests.test_engine_v2 import _first_image, api, sd, settings  # noqa: F401  (fixtures)
 
 SVG = ('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="990"><rect width="1280" height="990" fill="#1d2532"/>'
@@ -93,6 +93,76 @@ def test_export_svg_png_pdf_with_provenance(api, settings):
     assert prov["ai_generated"] is True and prov["base"] == f"{base['job_id']}/0" and prov["base_provenance"]["backend"] == "flux-local"
     assert len(api.get(f"/api/v2/infographics/{doc['id']}").json()["exports"]) == 3
     assert api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": svg, "format": "gif"}).status_code == 400
+
+
+@pytest.fixture
+def vc_window(monkeypatch, tmp_path):
+    """Records instead of starting the window app (the real one is checked by hand, docs/spikes/2026-10-31-vectorcraft-okno.md)."""
+    opened = []
+    app_path = tmp_path / "vectorcraft.exe"
+    monkeypatch.setattr("engine.app.find_desktop_app", lambda: app_path)
+    monkeypatch.setattr("engine.app.open_in_window", lambda app, path: opened.append(path))
+    return opened
+
+
+def _info_with_note(api):
+    base = _first_image(api)
+    doc = api.post("/api/v2/infographics", json={"base": f"{base['job_id']}/0", "title": "Test"}).json()
+    return doc, SVG.format(note=doc["ai_note"]), f"/api/v2/infographics/{doc['id']}/vectorcraft"
+
+
+def test_vectorcraft_opens_a_saved_copy_and_reuses_it_while_unchanged(api, settings, vc_window):
+    doc, svg, url = _info_with_note(api)
+    assert api.get(url).json() == {"available": True, "edits": []}
+    r = api.post(url, json={"svg": svg})
+    assert r.status_code == 200 and r.json()["created"] is True
+    path = settings.library_dir / "infographics" / doc["id"] / "vectorcraft" / r.json()["opened"]
+    assert "Římská" in path.read_text(encoding="utf-8")
+    assert vc_window == [path]
+    again = api.post(url, json={"svg": svg}).json()
+    assert again["opened"] == r.json()["opened"] and again["created"] is False and len(vc_window) == 2
+    changed = api.post(url, json={"svg": svg.replace("Římská", "Řecká")}).json()
+    assert changed["opened"] != r.json()["opened"] and "Římská" in path.read_text(encoding="utf-8")   # older copy untouched
+
+
+def test_vectorcraft_never_overwrites_a_manual_edit(api, settings, vc_window):
+    doc, svg, url = _info_with_note(api)
+    first = api.post(url, json={"svg": svg}).json()
+    d = settings.library_dir / "infographics" / doc["id"] / "vectorcraft"
+    (d / first["opened"]).write_text("<svg>ruční úprava</svg>", encoding="utf-8")
+    assert api.get(url).json()["edits"][0]["file"] == first["opened"]
+    conflict = api.post(url, json={"svg": svg})
+    assert conflict.status_code == 409 and conflict.json()["edited"] == first["opened"] and "nepřepíše" in conflict.json()["detail"]
+    assert len(vc_window) == 1   # the question comes first, nothing opens
+    assert api.post(url, json={"svg": svg, "mode": "edited"}).json()["opened"] == first["opened"]
+    new = api.post(url, json={"svg": svg, "mode": "new"}).json()
+    assert new["opened"] != first["opened"] and new["created"] is True
+    assert (d / first["opened"]).read_text(encoding="utf-8") == "<svg>ruční úprava</svg>"
+    (d / "kopie.vectorcraft").write_text("{}", encoding="utf-8")   # Save As next to the copies counts too
+    assert api.post(url, json={"svg": svg, "mode": "edited"}).json()["opened"] == "kopie.vectorcraft"
+
+
+def test_vectorcraft_refusals_are_in_czech_and_open_nothing(api, vc_window, monkeypatch):
+    doc, svg, url = _info_with_note(api)
+    assert api.post(url, json={"svg": SVG.format(note="")}).status_code == 400   # AI label required, same as export
+    assert api.post(url, json={"svg": svg, "mode": "edited"}).status_code == 400   # no manual edit yet
+    assert api.post(url, json={"svg": svg, "mode": "pozdeji"}).status_code == 400
+    assert api.post("/api/v2/infographics/neni/vectorcraft", json={"svg": svg}).status_code == 404
+    monkeypatch.setattr("engine.app.find_desktop_app", lambda: None)
+    assert api.get(url).json()["available"] is False
+    missing = api.post(url, json={"svg": svg})
+    assert missing.status_code == 503 and "není nainstalovaná" in missing.json()["detail"]
+    assert vc_window == []
+
+
+def test_for_vectorcraft_names_the_condensed_font_with_its_weight():
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg"><g font-family="Bahnschrift, sans-serif" font-stretch="semi-condensed">'
+           '<text font-weight="700">A</text><text>B<tspan font-weight="700">C</tspan></text></g>'
+           '<text font-family="Segoe UI, sans-serif" font-weight="700">D</text></svg>')
+    out = for_vectorcraft(svg)
+    assert out.count('font-family="Bahnschrift Bold SemiCondensed"') == 2
+    assert out.count('font-family="Bahnschrift SemiCondensed"') == 1
+    assert 'font-family="Segoe UI, sans-serif"' in out   # other fonts stay as they are
 
 
 def test_schema_templates(api, settings):

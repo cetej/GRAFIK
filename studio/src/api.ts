@@ -86,10 +86,14 @@ export class PaymentRequired extends Error {
   }
 }
 
+/** A manual edit in VectorCraft exists: the operator chooses, Engine overwrites nothing. */
+export class ManualEdit extends Error {}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...init })
   const body = await r.json().catch(() => ({}))
   if (r.status === 402) throw new PaymentRequired(body.estimate_usd, body.items ?? [])
+  if (r.status === 409 && body.edited) throw new ManualEdit(body.detail)
   if (!r.ok) {
     const d = body.detail
     throw new Error(typeof d === 'string' ? d : Array.isArray(d) ? d.map((x: { msg: string }) => x.msg).join('; ') : `HTTP ${r.status}`)
@@ -307,6 +311,9 @@ export const infoApi = {
   remove: (id: string) => send<{ moved_to: string }>('DELETE', `/api/v2/infographics/${id}`),
   export: (id: string, svg: string, format: 'png' | 'svg' | 'pdf') =>
     post<{ file: string; url: string; bytes: number }>(`/api/v2/infographics/${id}/export`, { svg, format }),
+  vectorcraft: (id: string) => call<{ available: boolean; edits: { file: string; modified: string }[] }>(`/api/v2/infographics/${id}/vectorcraft`),
+  openVectorcraft: (id: string, svg: string, mode?: 'edited' | 'new') =>
+    post<{ opened: string; path: string; created: boolean }>(`/api/v2/infographics/${id}/vectorcraft`, { svg, mode }),
   suggest: (id: string, confirm: boolean) =>
     post<{ labels: { text: string; small: string; anchor: [number, number] }[] }>(`/api/v2/infographics/${id}/suggest-labels`, { confirm_cost: confirm }),
   schemas: () => call<{ slug: string; title: string; svg: string }[]>('/api/v2/schemas'),
