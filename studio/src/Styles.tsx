@@ -164,8 +164,9 @@ export default function Styles({ onError, onOpen, onSubmit, selectedImage, openD
 
   const samples = card ? card.sample_urls.map((u, i) => ({ url: u, name: card.samples[i] })) : pending.map((p) => ({ url: p.preview, name: '' }))
   // A film card from KLAPKA has its words in `look`, lens and grade, not in the fields of this editor.
-  const preview = !dirty && card ? card.prompt : promptText(draft) || card?.prompt
-  const empty = !['medium', 'light', 'line', 'composition'].some((k) => (draft[k as keyof StyleFields] as string).trim()) && !draft.palette.length && !card?.prompt
+  const described = (['medium', 'light', 'line', 'composition'] as const).some((k) => draft[k].trim())
+  const preview = card && (!dirty || !described) ? card.prompt : promptText(draft)
+  const empty = !described && !draft.palette.length && !card?.prompt
 
   return (
     <main className="styles">

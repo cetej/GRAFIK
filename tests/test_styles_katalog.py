@@ -2,9 +2,8 @@
 import importlib.util
 from pathlib import Path
 
+from engine.translate import is_czech  # first: engine/__init__.py puts this checkout's shared/ on sys.path
 from ngm_shared import knihovna
-
-from engine.translate import is_czech
 
 ROOT = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("styles_katalog", ROOT / "scripts" / "styles_katalog.py")

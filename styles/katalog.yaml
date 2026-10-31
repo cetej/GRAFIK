@@ -146,7 +146,7 @@ nove:
     composition: single object centred on a seamless neutral grey background, three-quarter view, generous margins
     avoid: hands, museum labels, display case, dramatic light
     signature: jeden předmět · neutrální šedá plocha · patina a stopy nástrojů
-    ukazky: [A Bronze Age sword with a decorated hilt, A Roman glass flask with iridescent weathering, A carved medieval wooden chest with iron fittings]
+    ukazky: [An ancient Greek bronze Corinthian helmet with green patina, A Roman glass flask with iridescent weathering, A carved medieval wooden chest with iron fittings]
 
   - slug: foto-letecka
     name: Letecký snímek
@@ -278,12 +278,12 @@ nove:
     kategorie: historicke
     poradi: 175
     note: 12. až 15. stol. Barevné sklo, olověné pásky, světlo zezadu.
-    medium: Gothic stained glass window, hand-blown coloured glass pieces joined by black lead cames, details painted in dark vitreous enamel
+    medium: Gothic stained glass window, the entire image including every figure, tree and the ground is assembled from flat pieces of hand-blown coloured glass joined by black lead cames, faces and folds painted in dark vitreous enamel
     light: strong daylight shining through the glass from behind, glowing saturated colour
-    line: thick black lead lines, small glass segments, slightly uneven glass surface
-    composition: figure inside a pointed lancet arch, geometric mosaic border, no depth
+    line: thick black lead lines cutting all forms into small flat glass segments, slightly uneven glass surface
+    composition: simplified flat figures inside a pointed lancet arch, geometric mosaic border, no depth
     palette: ["#1d3f8f cobalt", "#a01c2c ruby", "#2c7a4f emerald", "#d9a02e amber", "#0f0f0f lead black"]
-    avoid: smooth gradients, perspective, lettering
+    avoid: realistic painted scene behind the frame, smooth gradients, perspective, lettering
     signature: světlo prochází sklem · olověné pásky · lomený oblouk
     ukazky: [SPOLECNY, PORTRET, A rose window with radiating petals and small scenes]
 
@@ -308,7 +308,7 @@ nove:
     note: Dynastie Song a Yuan, 10. až 14. stol. Hory v mlze, velká prázdná plocha.
     medium: Song dynasty Chinese ink wash painting, black ink in graded washes and dry brush on aged silk
     light: misty atmospheric depth, no cast shadows
-    line: calligraphic brush strokes, texture strokes on the rocks, soft wet edges
+    line: sparse expressive calligraphic brush strokes, wet ink bleeding into silk, no pen hatching
     composition: vertical hanging-scroll arrangement with vast empty space, mountains fading into mist, tiny figures
     palette: ["#1a1a1a ink black", "#7c7a72 ink grey", "#d8cdb2 aged silk"]
     avoid: calligraphy, seal stamps, saturated colour
@@ -391,13 +391,13 @@ nove:
     poradi: 255
     note: Holandsko, 17. stol. (Vermeer, de Hooch). Tichý interiér, perleťové denní světlo.
     medium: Dutch Golden Age genre painting in the manner of Johannes Vermeer, oil on canvas with fine glazes
-    light: cool pearly daylight through a leaded window on the left, small glinting points of light
-    line: soft edges, pointille highlights on metal and bread, smooth plaster walls
-    composition: quiet domestic interior with a chequered floor, one figure absorbed in a task, calm geometric balance
+    light: cool pearly daylight falling from the left, small glinting points of light
+    line: soft edges, pointille highlights, smooth muted surfaces
+    composition: quiet still scene with one figure absorbed in a task, calm geometric balance
     palette: ["#22407a lead-tin blue", "#d9b93c lead-tin yellow", "#d9d3c2 plaster white", "#6b5a43 brown", "#242320 black"]
     avoid: dramatic action, dark tenebrism, modern objects
     signature: okno vlevo · perleťové světlo · modrá a žlutá
-    ukazky: [SPOLECNY, PORTRET, A maid pouring milk beside a window in a quiet kitchen]
+    ukazky: [SPOLECNY, PORTRET, A maid pouring milk beside a leaded window in a quiet kitchen with a chequered floor]
 
   - slug: hist-lept
     name: Barokní lept
@@ -716,7 +716,7 @@ nove:
     note: Čistá stejnoměrná linka a ploché barvy, propracovaná pozadí. Dobrodružství, cestování.
     medium: European ligne claire comic panel, uniform clean black outline, flat bright colours, no hatching, carefully detailed backgrounds, mid-20th-century Belgian album style
     light: even daylight with no cast shadows
-    line: single-weight black line everywhere, simplified faces, realistic objects and vehicles
+    line: single-weight black line everywhere, simplified faces, precisely drawn surroundings
     composition: single wide comic panel filling the whole frame, clear staging, readable background
     palette: ["#e2574c tomato red", "#4a90c2 sky blue", "#e9c46a sand", "#6fa56b foliage green", "#f5f1e6 paper"]
     avoid: speech bubbles, captions, lettering, hatching, gradients
@@ -798,12 +798,12 @@ nove:
     kategorie: komiks
     poradi: 890
     note: "Dnešní digitální kresba: akce, zkratky, malované světlo."
-    medium: modern digital adventure comic panel, dynamic foreshortening, rendered digital colours with soft gradients and rim light
-    light: cinematic coloured lighting with glowing highlights
-    line: crisp digital inks, sharp shadow shapes, fine texture
+    medium: modern American digital comic book panel, bold black inked outlines over vibrant digital colours, hard cel-shaded shadows, dynamic foreshortening
+    light: coloured rim light drawn as flat graphic shapes
+    line: crisp black inks on every contour, sharp shadow shapes, clearly drawn and not painted
     composition: single explosive panel filling the whole frame, extreme perspective
     palette: ["#143a5a deep blue", "#e0653a orange glow", "#d2d6da steel", "#1b1b1f near black"]
-    avoid: speech bubbles, captions, lettering, sound effects
+    avoid: photographic look, painterly rendering, speech bubbles, captions, lettering, sound effects
     signature: silná zkratka · barevné světlo · čistá digitální kresba
     ukazky: [SPOLECNY, PORTRET, A rescue climber swinging from a helicopter cable over a stormy sea]
 
