@@ -3,7 +3,7 @@
 ## 2026-10-31 — Výpis úloh četl celou databázi, Studio tím hladovělo
 
 - **Řazení bez indexu přečte i bloby.** `SELECT * … ORDER BY seq DESC LIMIT 60` bez indexu na `seq` načetl všech 499 řádků včetně předloh v base64 (167 MB) a držel přitom zámek `JobStore`. Na kopii skutečné databáze 1,51 s, s indexem 0,02 s.
-- **`setInterval` nečeká na odpověď.** Studio se ptá na `/health` a `/jobs` každé 2 s, i když předchozí dotaz ještě běží. Dotazy se hromadí, zaberou všech 6 spojení prohlížeče a obrázky čekají: `/jobs` 11,5 s, `/health` 6 až 9 s, 9 náhledů se nenačetlo ani za 45 s. Samotný obrázek přitom Engine vydal za 30 ms.
+- **`setInterval` nečeká na odpověď.** Studio se ptá na `/health` a `/jobs` každé 2 s, i když předchozí dotaz ještě běží. Dotazy se hromadí a obrázky čekají: `/jobs` 11,5 s, `/health` 6 až 9 s, 9 náhledů se nenačetlo ani za 45 s, Engine na 90 % jednoho jádra. Samotný obrázek přitom Engine vydal za 30 ms. Po indexu `/jobs` 0,10 s, `/health` 0,7 s, 9 náhledů 0,9 s, Engine 23 % jádra. `setInterval` zůstal, při pomalém Engine se dotazy hromadit můžou dál.
 - **Pomalou stránku nejdřív změř na serveru bez prohlížeče.** Rychlý soubor a pomalý `/health` ukázaly frontu, ne velikost obrázků. Skrytý panel prohlížeče navíc nespouští `loading="lazy"`, takže čekání na `img.complete` v něm nic neříká.
 
 ## 2026-10-31 — Karta stylu: FLUX kreslí každé podstatné jméno, i když popisuje techniku
