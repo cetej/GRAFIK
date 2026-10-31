@@ -356,11 +356,9 @@ if CUTAWAY:   # open the sea in front of the window too, so the hold below the w
     bpy.ops.object.modifier_apply(modifier="cutaway")
     bpy.data.objects.remove(cutter)
 clay = bpy.data.materials.new("clay")
-clay.use_nodes = True
 clay.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.6, 0.58, 0.54, 1)
 clay.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.9
 water = bpy.data.materials.new("sea")
-water.use_nodes = True
 water.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.12, 0.2, 0.28, 1)
 water.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.6
 for o in scene.objects:
@@ -376,7 +374,7 @@ if not CUTAWAY:
     scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
 scene.render.resolution_x, scene.render.resolution_y = 1280, 720
 scene.view_settings.view_transform = "Standard"
-world = bpy.data.worlds.new("w"); scene.world = world; world.use_nodes = True
+world = bpy.data.worlds.new("w"); scene.world = world
 world.node_tree.nodes["Background"].inputs[0].default_value = (0.15, 0.2, 0.25, 1)
 world.node_tree.nodes["Background"].inputs[1].default_value = 1.4
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN")); scene.collection.objects.link(sun)

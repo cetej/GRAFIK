@@ -32,7 +32,6 @@ if edit:
 
 if clay:
     mat = bpy.data.materials.new("clay")
-    mat.use_nodes = True
     bsdf = mat.node_tree.nodes["Principled BSDF"]
     bsdf.inputs["Base Color"].default_value = (0.62, 0.6, 0.56, 1)
     bsdf.inputs["Roughness"].default_value = 0.9
@@ -46,7 +45,7 @@ scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines el
 scene.render.resolution_x, scene.render.resolution_y = 1280, 720
 scene.render.film_transparent = True
 scene.view_settings.view_transform = "Standard"
-world = bpy.data.worlds.new("w"); scene.world = world; world.use_nodes = True
+world = bpy.data.worlds.new("w"); scene.world = world
 world.node_tree.nodes["Background"].inputs[1].default_value = 2.0
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN")); scene.collection.objects.link(sun)
 sun.data.energy = 5.0; sun.rotation_euler = (math.radians(50), 0, math.radians(30))

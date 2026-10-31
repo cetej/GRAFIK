@@ -111,7 +111,6 @@ print("STATS " + json.dumps({
     "objects": len(objs), "bbox": [round(v, 4) for v in (hi - lo)], "blender": bpy.app.version_string}))
 
 mat = bpy.data.materials.new("clay")
-mat.use_nodes = True
 bsdf = mat.node_tree.nodes["Principled BSDF"]
 bsdf.inputs["Base Color"].default_value = (0.62, 0.6, 0.56, 1)
 bsdf.inputs["Roughness"].default_value = 0.9
@@ -136,7 +135,6 @@ scene.render.film_transparent = True
 scene.view_settings.view_transform = "Standard"
 world = bpy.data.worlds.new("w")
 scene.world = world
-world.use_nodes = True
 world.node_tree.nodes["Background"].inputs[1].default_value = 2.0
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
 scene.collection.objects.link(sun)
