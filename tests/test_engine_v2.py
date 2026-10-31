@@ -263,6 +263,15 @@ def test_interrupted_running_job_marked_failed(settings):
     assert store.get(job_id)["status"] == "failed"
 
 
+def test_job_list_walks_the_index_instead_of_reading_every_row(settings):
+    from engine.jobs import JobStore
+    store = JobStore(settings.db_path)
+    plan = " ".join(r["detail"] for r in store.db.execute(
+        "EXPLAIN QUERY PLAN SELECT * FROM jobs WHERE COALESCE(kind, 'image') IN (?) ORDER BY seq DESC LIMIT ?",
+        ("image", 60)))
+    assert "jobs_seq" in plan and "TEMP B-TREE" not in plan
+
+
 # -- client (sc-9) ----------------------------------------------------------
 
 def test_client_is_stdlib_only():
