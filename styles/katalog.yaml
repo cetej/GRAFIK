@@ -435,7 +435,7 @@ nove:
     medium: 18th-century engraved encyclopedia plate in the manner of Diderot's Encyclopedie, black ink copper engraving on cream paper
     light: diagrammatic even light, tone only from regular cross-hatching
     line: clean engraver's burin lines, stipple, crisp contours
-    composition: a workshop scene in the upper half, tools and objects lined up below, neat orderly plate
+    composition: neat orderly plate, the main scene in the upper half, details of the same subject lined up below
     palette: ["#1a1815 engraving black", "#ece3cd cream paper"]
     avoid: letter labels, numbers, captions, colour, wash
     signature: pravidelné šrafy · scéna nahoře, nástroje dole · pořádek tabule
@@ -813,8 +813,8 @@ nove:
     kategorie: film
     poradi: 1010
     note: Ortochromatická černobílá, malované kulisy, škrábance.
-    look: 1920s silent film still, orthochromatic black and white, painted theatrical sets, heavy eye makeup, iris vignette
-    lens: hand-cranked camera, soft uncoated lens, static tripod
+    look: 1920s silent film still, orthochromatic black and white, painted theatrical sets, dark kohl-rimmed eyes, iris vignette
+    lens: hand-cranked uneven motion, soft uncoated lens, static frame
     grade: high contrast with blown highlights, flicker, scratches, dust and gate weave
     avoid: intertitles, lettering, colour, modern objects
     signature: kruhová clona · škrábance · malované kulisy
@@ -850,7 +850,7 @@ nove:
     poradi: 1045
     note: Prach, slunce, extrémní detaily očí proti širokým celkům.
     look: 1960s Italian western film still, sun-baked desert town, dust in the air, sweaty weathered faces
-    lens: 2-perf widescreen, extreme close-ups mixed with vast long shots, sudden zooms
+    lens: 2-perf widescreen, one unbroken frame, tight framing against a deep dusty distance
     grade: bleached yellow-brown palette, hard sun, high contrast, film grain
     avoid: lettering, watermark, modern objects, clean digital look
     signature: extrémní detail očí · prach a slunce · žlutohnědá
@@ -934,7 +934,7 @@ nove:
     poradi: 1110
     note: "Dnešní dokument o přírodě: dlouhé ohnisko, klid, skutečné chování."
     look: natural history documentary frame, real wild animals in natural behaviour, patient observational filming
-    lens: long telephoto lens on a stabilised mount, shallow depth of field, slow motion
+    lens: long telephoto compression, shallow depth of field, slow motion
     grade: natural colour with high clarity, dawn light
     avoid: lettering, watermark, captions, studio light
     signature: dlouhé ohnisko · skutečné chování · ranní světlo
