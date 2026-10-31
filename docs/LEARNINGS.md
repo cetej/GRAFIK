@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-10-31 — SVG ve VectorCraftu: co čte a co tiše vynechá
+
+- **`font-stretch` ignoruje**, `file.info` přesto hlásí `status: exact`. Text je o 15 % širší než v Chromiu. Řez musí být ve jméně rodiny (`Bahnschrift SemiCondensed`); samotné jméno ale ztratí tučnost, proto `Bahnschrift Bold SemiCondensed`. Shodu ověřuj šířkou a pohledem na render, ne stavem z `info`.
+- **Vrstva = `<g id>` přímo pod `<svg>`.** `inkscape:groupmode`, `data-name` ani `data-layer` vrstvu samy nedělají (test bez `id`). Vnořený `<g id>` je pojmenovaná skupina. Diakritika a mezery v `id` projdou.
+- **Násilné ukončení okna** (`Stop-Process`) nechá po dalším spuštění záložku „[Recovered]“.
+- **Otevření editoru v `npm run dev` přepíše `updated` infografiky**: React StrictMode spustí efekt dvakrát a `loaded.current` první běh nezastaví, takže proběhne autosave. Obsah se nemění, jen čas (kvinquerema 27. 10. → 31. 10.).
+
 ## 2026-10-30 — Mazání textu z mapy: na reliéfu a barevných pruzích selhává, T2 to nezachytil
 
 - **T2 měřil mapu s plochými barvami, Everest je stínovaný reliéf.** Šedé písmo má stejnou barvu jako stíny skal, takže maska z barvy zabere i terén a `cv2.inpaint` ho rozmaže. Tmavá fialová trasa a hranice v pásu otočeného popisku padly do masky a jsou přerušené. Bílý text na fialovém pruhu: bílá je i okolní sníh, pruh se rozteče a nový text není čitelný.

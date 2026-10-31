@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-10-31 — Infografika ve VectorCraftu: otevření z Studia, vrstvy, ruční úprava se nepřepisuje
+
+Princip operátora 31. 10.: samostatné objekty mají být ve vrstvách a vrstvený obsah má jít otevřít v aplikacích Craft přímo z UI, jako mapy v NG-ROBOT. Po vyzkoušení v okně operátor doplnil: grafiku a texty držet odděleně v nadřízených vrstvách.
+
+- **Vrstvy**: horní vrstvy `Grafika` (Podklad, Lišta, Vodítka, Schéma) a `Texty` (Nadpis, Fakta, Popisky, Popisky schématu, Patička). Vznikají ze `<g id>` v rendereru, takže je mají i SVG exporty. Vnořené `<g id>` VectorCraft čte jako pojmenované skupiny, ne jako podvrstvy. Popisky jsou od vodítek oddělené, text je vždy nad grafikou. PNG v Chromiu na kvinquereme beze změny (0 odlišných pixelů).
+- **Bez zámku těžké práce**: zámek patří automatickým úlohám, okno může být otevřené hodiny a zastavilo by FLUX na celém stroji. Stejně to dělá NG-ROBOT. Cena: okno zabírá paměť grafiky i souběžně s FLUX.
+- **Ruční úprava se nikdy nepřepíše**: každý stav dokumentu má vlastní kopii v `library/infographics/<id>/vectorcraft/`, Engine si pamatuje její sha256. Soubor, který se liší nebo přibyl (Uložit jako), je ruční úprava: tlačítko se zeptá (`409`), jestli otevřít ji, nebo novou kopii z editoru. Neuložené změny v otevřeném okně Engine nevidí.
+- **Do okna jde upravená kopie písma**: VectorCraft ignoruje `font-stretch` (text o 15 % širší než náhled) a řez čte ze jména rodiny, takže kopie má `Bahnschrift SemiCondensed` a `Bahnschrift Bold SemiCondensed`. Mimo kopii pro okno se nic nemění.
+- **Ruční úprava se do editoru ani do exportů Studia nevrací.** Export z ní dělá operátor ve VectorCraftu. Měření: [spike](spikes/2026-10-31-vectorcraft-okno.md).
+
 ## 2026-10-29 — Postavy, místa a rekvizity z KNIHOVNY jako předloha obrázku
 
 Operátor 29. 10. schválil náčrt 2 („Ano, podle 2“) po připomínce, že postav a míst budou desítky a víc.

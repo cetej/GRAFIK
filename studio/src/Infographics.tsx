@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from 'react'
-import { fileToB64, imageUrl, infoApi, PaymentRequired, termsApi, type Infographic, type InfoLabel, type TermResult } from './api.ts'
+import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, type Infographic, type InfoLabel, type TermResult } from './api.ts'
 
 // G5 — editor infografiky podle náčrtu schváleného 2026-10-23 (docs/spikes/img/g5-nacrt-*.png) a vzoru
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
@@ -108,13 +108,17 @@ export function leaderChecks(doc: Infographic, L: ReturnType<typeof layout>): { 
   return out
 }
 
-function schemaParts(svg: string): { viewBox: string; inner: string } | null {
+/** The schema split in two, drawing and its texts: they go to different layers (operator 2026-10-31). */
+function schemaParts(svg: string): { viewBox: string; drawing: string; texts: string } | null {
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
   const root = doc.documentElement
   if (root.nodeName !== 'svg') return null
   const vb = root.getAttribute('viewBox') || `0 0 ${parseFloat(root.getAttribute('width') || '500')} ${parseFloat(root.getAttribute('height') || '200')}`
   root.querySelectorAll('title').forEach((t) => t.remove())
-  return { viewBox: vb, inner: root.innerHTML }
+  const texts = root.cloneNode(true) as Element
+  texts.querySelectorAll('*').forEach((el) => { if (!el.closest('text') && !el.querySelector('text')) el.remove() })
+  root.querySelectorAll('text').forEach((t) => t.remove())
+  return { viewBox: vb, drawing: root.innerHTML, texts: texts.querySelector('text') ? texts.innerHTML : '' }
 }
 
 interface EditorHooks {
@@ -154,6 +158,9 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
     fy += Math.max(30 * k, lines.length * 19 * k) + 16 * k
     return { ...f, lines, y }
   })
+  const schemaBox = !schema ? null : pruh
+    ? (() => { const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number); const w = 0.38 * W; return { x: W - pad - w, y: pad + 26 * k, width: w, height: (w * vh) / vw } })()
+    : { x: W - pad - schemaW, y: bottomTop + 47 * k, width: schemaW, height: Math.min(200 * k, H - bottomTop - 47 * k - 30 * k) }
   const footer = wrap(`${doc.sources ? `Zdroj: ${doc.sources} ` : ''}${doc.ai_note}`, Math.floor((W - 2 * pad) / (5.4 * k)))
   const svgPoint = (e: { clientX: number; clientY: number }) => {
     const svg = svgRef?.current
@@ -171,85 +178,98 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
         <linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity=".85" /><stop offset="1" stopColor={t.bg} stopOpacity="0" /></linearGradient>
         <filter id="halo"><feDropShadow dx="0" dy={1 * k} stdDeviation={2 * k} floodColor={t.shadow} floodOpacity=".95" /></filter>
       </defs>
-      <rect width={W} height={H} fill={t.bg} />
-      <image href={href} x="0" y="0" width={W} height={imgH} preserveAspectRatio="xMidYMid slice" mask={pruh ? undefined : 'url(#fade-mask)'}
-        onClick={ed ? (e) => { const [x, y] = svgPoint(e); ed.onImageClick(x, y) } : undefined} style={ed ? { cursor: 'crosshair' } : undefined} />
-      {/* title top left in both layouts: the picture usually has room there, the bottom stays light */}
-      {!pruh && <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />}
-      <>
-        <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontWeight="700" fontSize={34 * k} letterSpacing={0.6 * k}>{doc.title.toUpperCase()}</text>
-        {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily={FONT} fontStretch="semi-condensed" fontSize={17 * k}>{doc.subtitle}</text>}
-      </>
-
-      {bar && (
-        <g fontFamily={FONT} fontStretch="semi-condensed">
-          <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".4" stopColor={t.bg} stopOpacity=".72" /><stop offset="1" stopColor={t.bg} stopOpacity=".86" /></linearGradient>
-            {/* backing only behind the fact block, fading out to the right; the footer gets a thin strip of its own */}
-            <linearGradient id="bar-h" gradientUnits="userSpaceOnUse" x1={pad + bar.w} y1="0" x2={pad + bar.w + 220 * k} y2="0"><stop offset="0" stopColor="#fff" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
-            <mask id="bar-mask"><rect x="0" y="0" width={W} height={H} fill="url(#bar-h)" /></mask></defs>
-          <rect x="0" y={bar.top - 30 * k} width={W} height={H - bar.top + 30 * k} fill="url(#bar)" mask="url(#bar-mask)" />
-          <rect x="0" y={H - 40 * k} width={W} height={40 * k} fill="url(#bar)" />
-          {bar.lines.map((line, j) => (
-            <text key={j} x={pad} y={bar.top + 22 * k + j * LINE * k} fontSize={18 * k}>
-              {line.map((f, n) => (
-                <tspan key={n}>
-                  {n > 0 && <tspan fill={t.rule}>{'   |   '}</tspan>}
-                  <tspan fill={doc.accent} fontWeight="700">{f.value}</tspan>
-                  {f.text && <tspan fill={t.ink}>{' '}{f.text}</tspan>}
-                </tspan>
-              ))}
-            </text>
-          ))}
+      {/* top-level <g id> = layer in VectorCraft, <g id> inside it = named group (checked on the real app);
+          drawing and text in separate parents, operator 2026-10-31 (DECISIONS) */}
+      <g id="Grafika">
+        <g id="Podklad">
+          <rect width={W} height={H} fill={t.bg} />
+          <image href={href} x="0" y="0" width={W} height={imgH} preserveAspectRatio="xMidYMid slice" mask={pruh ? undefined : 'url(#fade-mask)'}
+            onClick={ed ? (e) => { const [x, y] = svgPoint(e); ed.onImageClick(x, y) } : undefined} style={ed ? { cursor: 'crosshair' } : undefined} />
+          {/* title top left in both layouts: the picture usually has room there, the bottom stays light */}
+          {!pruh && <rect x="0" y="0" width={W} height={Math.min(170 * k, imgH)} fill="url(#scrim)" pointerEvents="none" />}
         </g>
-      )}
-
-      {doc.labels.map((l, i) => {
-        const pts = leader(l, L)
-        const [ax, ay] = pts[0]
-        const [px, py] = L.pos(l.pos)
-        const anchorEnd = l.align === 'right' ? 'end' : 'start'
-        return (
-          <g key={i} fontFamily={FONT} fontStretch="semi-condensed">
-            <polyline points={pts.map((q) => q.join(',')).join(' ')} stroke={t.lead} strokeWidth={1.1 * k} fill="none" />
-            <circle cx={ax} cy={ay} r={2.8 * k} fill={t.dot} />
-            <g filter="url(#halo)" stroke={t.shadow} strokeWidth={3 * k} strokeLinejoin="round" paintOrder="stroke">
-              <text x={px} y={py + 16 * k} textAnchor={anchorEnd} fill={doc.accent} fontSize={16 * k} fontWeight="700">{l.text}</text>
-              {l.small && <text x={px} y={py + 33 * k} textAnchor={anchorEnd} fill={t.ink} fontSize={14 * k}>{l.small}</text>}
-            </g>
+        {bar && (
+          <g id="Lišta">
+            <defs><linearGradient id="bar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={t.bg} stopOpacity="0" /><stop offset=".4" stopColor={t.bg} stopOpacity=".72" /><stop offset="1" stopColor={t.bg} stopOpacity=".86" /></linearGradient>
+              {/* backing only behind the fact block, fading out to the right; the footer gets a thin strip of its own */}
+              <linearGradient id="bar-h" gradientUnits="userSpaceOnUse" x1={pad + bar.w} y1="0" x2={pad + bar.w + 220 * k} y2="0"><stop offset="0" stopColor="#fff" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+              <mask id="bar-mask"><rect x="0" y="0" width={W} height={H} fill="url(#bar-h)" /></mask></defs>
+            <rect x="0" y={bar.top - 30 * k} width={W} height={H - bar.top + 30 * k} fill="url(#bar)" mask="url(#bar-mask)" />
+            <rect x="0" y={H - 40 * k} width={W} height={40 * k} fill="url(#bar)" />
           </g>
-        )
-      })}
-
-
-      {!pruh && (facts.length > 0 || schema) && <line x1={pad} y1={bottomTop} x2={W - pad} y2={bottomTop} stroke={t.rule} strokeWidth="1" />}
-      {!pruh && facts.map((f, i) => (
-        <g key={i} fontFamily="Segoe UI, sans-serif">
-          <text x={pad} y={f.y + 20 * k} fill={doc.accent} fontSize={22 * k} fontWeight="700">{f.value}</text>
-          {f.lines.map((line, j) => <text key={j} x={pad + 134 * k} y={f.y + 15 * k + j * 19 * k} fill={t.muted} fontSize={13.5 * k}>{line}</text>)}
+        )}
+        {!pruh && (facts.length > 0 || schema) && <line x1={pad} y1={bottomTop} x2={W - pad} y2={bottomTop} stroke={t.rule} strokeWidth="1" />}
+        <g id="Vodítka">
+          {doc.labels.map((l, i) => {
+            const pts = leader(l, L)
+            return (
+              <g key={i}>
+                <polyline points={pts.map((q) => q.join(',')).join(' ')} stroke={t.lead} strokeWidth={1.1 * k} fill="none" />
+                <circle cx={pts[0][0]} cy={pts[0][1]} r={2.8 * k} fill={t.dot} />
+              </g>
+            )
+          })}
         </g>
-      ))}
-      {schema && doc.schema && pruh && (() => {
-        const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number)
-        const iw2 = 0.38 * W
-        const ih2 = (iw2 * vh) / vw
-        const x = W - pad - iw2
-        const y = pad
-        return (
-          // no frame or panel: the inset is a cut-out picture (transparent background) lying on the main one (docs/infografiky-zasady.md)
-          <g fontFamily={FONT} fontStretch="semi-condensed">
-            <text x={x + iw2} y={y + 14 * k} textAnchor="end" fill={doc.accent} fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema!.title.toUpperCase()}</text>
-            <svg x={x} y={y + 26 * k} width={iw2} height={ih2} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
+        {schema && schemaBox && (
+          // pruh: no frame or panel, the inset is a cut-out picture (transparent background) lying on the main one (docs/infografiky-zasady.md)
+          <g id="Schéma"><svg {...schemaBox} viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.drawing }} /></g>
+        )}
+      </g>
+
+      <g id="Texty">
+        <g id="Nadpis">
+          <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontWeight="700" fontSize={34 * k} letterSpacing={0.6 * k}>{doc.title.toUpperCase()}</text>
+          {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily={FONT} fontStretch="semi-condensed" fontSize={17 * k}>{doc.subtitle}</text>}
+        </g>
+        {bar && (
+          <g id="Fakta" fontFamily={FONT} fontStretch="semi-condensed">
+            {bar.lines.map((line, j) => (
+              <text key={j} x={pad} y={bar.top + 22 * k + j * LINE * k} fontSize={18 * k}>
+                {line.map((f, n) => (
+                  <tspan key={n}>
+                    {n > 0 && <tspan fill={t.rule}>{'   |   '}</tspan>}
+                    <tspan fill={doc.accent} fontWeight="700">{f.value}</tspan>
+                    {f.text && <tspan fill={t.ink}>{' '}{f.text}</tspan>}
+                  </tspan>
+                ))}
+              </text>
+            ))}
           </g>
-        )
-      })()}
-      {schema && doc.schema && !pruh && (
-        <g>
-          <text x={W - pad - schemaW} y={bottomTop + 35 * k} fill={doc.accent} fontFamily="Segoe UI, sans-serif" fontSize={13 * k} fontWeight="700" letterSpacing={1 * k}>{doc.schema.title.toUpperCase()}</text>
-          <svg x={W - pad - schemaW} y={bottomTop + 47 * k} width={schemaW} height={Math.min(200 * k, H - bottomTop - 47 * k - 30 * k)}
-            viewBox={schema.viewBox} dangerouslySetInnerHTML={{ __html: schema.inner }} />
+        )}
+        {!pruh && facts.length > 0 && (
+          <g id="Fakta">
+            {facts.map((f, i) => (
+              <g key={i} fontFamily="Segoe UI, sans-serif">
+                <text x={pad} y={f.y + 20 * k} fill={doc.accent} fontSize={22 * k} fontWeight="700">{f.value}</text>
+                {f.lines.map((line, j) => <text key={j} x={pad + 134 * k} y={f.y + 15 * k + j * 19 * k} fill={t.muted} fontSize={13.5 * k}>{line}</text>)}
+              </g>
+            ))}
+          </g>
+        )}
+        <g id="Popisky" fontFamily={FONT} fontStretch="semi-condensed">
+          {doc.labels.map((l, i) => {
+            const [px, py] = L.pos(l.pos)
+            const anchorEnd = l.align === 'right' ? 'end' : 'start'
+            return (
+              <g key={i} filter="url(#halo)" stroke={t.shadow} strokeWidth={3 * k} strokeLinejoin="round" paintOrder="stroke">
+                <text x={px} y={py + 16 * k} textAnchor={anchorEnd} fill={doc.accent} fontSize={16 * k} fontWeight="700">{l.text}</text>
+                {l.small && <text x={px} y={py + 33 * k} textAnchor={anchorEnd} fill={t.ink} fontSize={14 * k}>{l.small}</text>}
+              </g>
+            )
+          })}
         </g>
-      )}
-      {footer.map((line, i) => <text key={i} x={pad} y={H - 8 * k - (footer.length - 1 - i) * 13 * k} fill={t.foot} fontFamily={FONT} fontStretch="semi-condensed" fontSize={11 * k}>{line}</text>)}
+        {schema && doc.schema && schemaBox && (
+          <g id="Popisky schématu">
+            {pruh
+              ? <text x={schemaBox.x + schemaBox.width} y={pad + 14 * k} textAnchor="end" fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema.title.toUpperCase()}</text>
+              : <text x={schemaBox.x} y={bottomTop + 35 * k} fill={doc.accent} fontFamily="Segoe UI, sans-serif" fontSize={13 * k} fontWeight="700" letterSpacing={1 * k}>{doc.schema.title.toUpperCase()}</text>}
+            {schema.texts && <svg {...schemaBox} viewBox={schema.viewBox} fontFamily={pruh ? FONT : undefined} fontStretch={pruh ? 'semi-condensed' : undefined} dangerouslySetInnerHTML={{ __html: schema.texts }} />}
+          </g>
+        )}
+        <g id="Patička">
+          {footer.map((line, i) => <text key={i} x={pad} y={H - 8 * k - (footer.length - 1 - i) * 13 * k} fill={t.foot} fontFamily={FONT} fontStretch="semi-condensed" fontSize={11 * k}>{line}</text>)}
+        </g>
+      </g>
 
       {ed && (
         <g className="ed">
@@ -348,6 +368,9 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   const [reviewer, setReviewer] = useState('')
   const [lastExport, setLastExport] = useState<string | null>(null)
   const [terms, setTerms] = useState<{ available: boolean; names: TermResult[]; facts: TermResult[] } | null>(null)
+  const [vcAvailable, setVcAvailable] = useState<boolean | null>(null)
+  const [vcAsk, setVcAsk] = useState<string | null>(null)
+  const [vcOpened, setVcOpened] = useState<string | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const drag = useRef<{ i: number; what: 'anchor' | 'label' } | null>(null)
   const loaded = useRef(false)
@@ -355,6 +378,7 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
   useEffect(() => {
     infoApi.get(id).then((d) => { setDoc(d); setReviewer(d.reviewed_by ?? '') }).catch((e) => onError(e.message))
     infoApi.schemas().then(setSchemas).catch(() => {})
+    infoApi.vectorcraft(id).then((v) => setVcAvailable(v.available)).catch(() => setVcAvailable(null))
   }, [id, onError])
   useEffect(() => {
     if (!doc) return
@@ -446,6 +470,17 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
       setLastExport(r.url)
       setDoc((d) => (d ? { ...d, exports: [r.file, ...d.exports] } : d))
     } catch (e) { onError((e as Error).message) } finally { setBusy(null) }
+  }
+  const openVectorcraft = async (mode?: 'edited' | 'new') => {
+    setBusy('vc')
+    setVcAsk(null)
+    try {
+      await infoApi.save(doc)
+      setVcOpened((await infoApi.openVectorcraft(doc.id, await exportSvg(svgRef.current!, doc.base), mode)).opened)
+    } catch (e) {
+      if (e instanceof ManualEdit) setVcAsk(e.message)
+      else onError((e as Error).message)
+    } finally { setBusy(null) }
   }
 
   const longLabels = doc.labels.map((l, i) => ({ i, n: (l.text + l.small).length })).filter((x) => x.n > MAX_LABEL_CHARS)
@@ -589,6 +624,23 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
         {doc.exports.length > 0 && (
           <ul className="exports">{doc.exports.slice(0, 6).map((n) => <li key={n}><a href={`/api/v2/infographics/${doc.id}/exports/${n}`} target="_blank" rel="noreferrer">{n}</a></li>)}</ul>
         )}
+
+        <h3>Ruční úprava</h3>
+        {vcAvailable === false && <p className="hint">Tlačítko pro VectorCraft tu není: okenní aplikace VectorCraft není na tomhle počítači nainstalovaná.</p>}
+        {vcAvailable && !vcAsk && (
+          <button className="btn" disabled={!!busy} onClick={() => openVectorcraft()}>{busy === 'vc' ? 'Otevírám…' : 'Otevřít ve VectorCraftu'}</button>
+        )}
+        {vcAsk && (
+          <>
+            <p className="hint">{vcAsk}</p>
+            <div className="row">
+              <button className="btn" disabled={!!busy} onClick={() => openVectorcraft('edited')}>Otevřít ruční úpravu</button>
+              <button className="btn" disabled={!!busy} onClick={() => openVectorcraft('new')}>Otevřít novou kopii</button>
+            </div>
+          </>
+        )}
+        {vcOpened && <p className="hint">Otevřeno: {vcOpened}</p>}
+        {vcAvailable && <p className="hint">Každý popisek, fakt i schéma tam jde upravit zvlášť, ve vrstvách. Uložte to tam (Ctrl+S). Do editoru a do exportů tady se ruční úprava nevrací.</p>}
       </section>
     </main>
   )
