@@ -2,6 +2,16 @@
 
 Všechny tři cesty končí ve **Schránce předloh** (`refs/library/`, `GET /api/v2/refs`). Ve studiu: Předlohy → „Schránka předloh“. Obrázky z Pinterestu mají licenci „neznámá — jen předloha“: slouží jako předloha pro generování, ne jako součást hotového obrázku.
 
+## K podkladům tématu
+
+Dossier nese `pinterest`: hotové dotazy z anglického názvu (`3D reconstruction`, `construction model`, `infographic`, `cross section`). Engine sám na Pinterest nemůže, bez přihlášení dostane jen zeď. Claude in Chrome v operátorově prohlížeči projde výsledky a vybrané piny pošle k dossieru:
+
+```bash
+curl -X POST http://127.0.0.1:8300/api/v2/research/<id>/inspirace -H "Content-Type: application/json" -d '{"piny": [{"pin": "https://cz.pinterest.com/pin/1/", "obrazek": "https://i.pinimg.com/736x/aa/bb/cc/a.jpg", "nazev": "popis", "dotaz": "Colosseum infographic"}]}'
+```
+
+Obrázek se stáhne jen z `i.pinimg.com`, nejvýš 60 pinů naráz, dossier se nemění (`inspirace.json` vedle něj). Ve Studiu oddíl „Inspirace z Pinterestu“ pod obrázky. Hodně pinů je generovaných: skladba a vzhled ano, fakta nikdy.
+
 ## 1. Claude in Chrome
 
 Řekněte Claude v Chrome na stránce pinu: „ulož tenhle pin do GRAFIK“. Claude přečte adresu obrázku (`og:image` nebo největší `i.pinimg.com` obrázek) a zavolá:
