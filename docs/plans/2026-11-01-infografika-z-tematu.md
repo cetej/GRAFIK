@@ -112,6 +112,17 @@ Složeno z naměřených kroků, skutečnou cenu změří první běh.
 - **3c Dokument s panely:** `panels[]` (obraz, rámec, popisky), volný formát včetně 1600 × 2400, kotvy popisků na bodech z `body.json`, vrstvy po objektech pro VectorCraft a `vectorcraft/export` i pro ně, kontroly pro všechny panely. Staré dokumenty beze změny, `schema_version`.
 - **Hotovo:** Pantheon vyjde z dokumentu v editoru, odchylka proti `library/plakaty/pantheon/pantheon.png` změřená a zapsaná, ve VectorCraftu jsou vrstvy Grafika a Texty. Hotový plakát se nepřepisuje.
 
+### Krok 3d: přeformátování hotové infografiky (po 3c, vlastní PR, UI s náčrtem)
+
+Operátor 1. 11.: „Máme tam možnos hotovou infografiku automaticky předělat na jiný formát?“ a na návrh tohoto kroku „Ano, přidat“. Dnes editor jen přepne plátno a obraz ořízne, plakát má formát napevno ve skriptu.
+
+- Editor: tlačítko „Předělat na formát“ s volbou cíle (16:9, 4:5, 1:1, 2:3, vlastní rozměr). Cena v tlačítku, bez placeného kroku 0 USD. Stávající přepínač formátu plátna se nemění.
+- Engine: `POST /api/v2/infographics/<id>/reformat` se `size`, úloha ve frontě. Vznikne nový dokument. Původní dokument, jeho exporty ani kopie ve VectorCraftu se nemění.
+- Panely se znovu rozmístí podle pořadí důležitosti uloženého v dokumentu. Žádný se neořízne ani potichu nezahodí: co se do formátu nevejde, ukáže hlášení a rozhodne operátor.
+- Popisky se znovu dosadí z bodů v `body.json`. Pohled, který se do nového rámu nehodí, se znovu vyrenderuje v Blenderu ze stejného modelu pod zámkem těžké práce (0 USD). Panel bez modelu se zmenší celý, bez ořezu.
+- Po přeskládání běží stejné kontroly jako u dokumentu a výsledek má vrstvy Grafika a Texty pro VectorCraft.
+- **Hotovo, 0 USD:** Pantheon z 2:3 na 16:9 a 4:5. Stejný počet panelů a textů jako originál, žádný objekt oříznutý okrajem rámu, medián vodítek do 6 %, 0 křížení, originál bajtově beze změny. Ověřeno v opravdovém Studiu a ve VectorCraftu bez okna. Vzhled posoudí operátor, číselné kontroly jen upozorní.
+
 ### Pravidla pro všechny fáze
 
 - Placené operace jen s výslovným souhlasem operátora a cenou předem. Testy nic neplatí (`GRAFIK_LIVE_TESTS`).

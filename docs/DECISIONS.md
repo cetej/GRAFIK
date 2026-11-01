@@ -8,8 +8,11 @@ Operátor 1. 11.: „aby projekt si byl schopen dohledat potřebná data i obraz
 
 K velké infografice Pantheonu operátor: „Celkově to vypadá moc pěkně - výborná práce“. Beru to jako přijetí vzhledu, fotorealistický průchod se bez pokynu nespouští.
 
+Operátor k návrhu automaticky předělat hotovou infografiku na jiný formát: „Ano, přidat“. V plánu je to krok 3d, staví se až po dokumentu s panely (3c).
+
 Volby níže jsou návrh session, operátor je ruší tady:
 
+- **Přeformátování dělá nový dokument a nic neořezává.** Co se do formátu nevejde, ukáže hlášení a rozhodne operátor.
 - **Nejdřív volné zdroje, placené hledání až na tlačítko s cenou.** Termdb zůstává bez placeného hledání (rozhodnutí 23. 10.), rešerše je samostatný krok.
 - **Dvě zastávky pro člověka:** výběr návrhu a kontrola textů. Cena se schvaluje jednou na celý řetězec.
 - **Rešerše patří do `ngm_shared`, převzatá z KLAPKY.** NG-ROBOT ani KLAPKA se v té session nemění.
