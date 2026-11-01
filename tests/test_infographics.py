@@ -35,6 +35,21 @@ def test_upload_from_computer_starts_an_infographic_without_touching_the_job_lis
     assert img.status_code == 200 and Image.open(BytesIO(img.content)).size == (64, 48)
     assert all(j["job_id"] != d["base"].split("/")[0] for j in api.get("/api/v2/jobs").json())
     assert api.post("/api/v2/infographics/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
+    assert d["ai_note"].startswith("Ilustrace: AI")   # a picture from outside may be generated, the footer stays careful
+
+
+def test_blender_render_is_not_labelled_as_ai(api, settings):
+    from base64 import b64encode
+
+    buf = BytesIO()
+    Image.new("RGB", (64, 48), (20, 50, 110)).save(buf, "PNG")
+    doc = api.post("/api/v2/infographics/upload", json={"b64": b64encode(buf.getvalue()).decode(), "name": "rez.png",
+                                                        "blender_render": True}).json()
+    assert doc["ai_note"] == "Model a render: Blender, bez AI; schéma a popisky redakčně."
+    r = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": SVG.format(note=doc["ai_note"]), "format": "svg"})
+    assert r.status_code == 201, r.text
+    prov = json.loads(next((settings.library_dir / "infographics" / doc["id"] / "exports").glob("*.svg.json")).read_text(encoding="utf-8"))
+    assert prov["ai_generated"] is False and prov["base_provenance"]["render"] == "Blender"
 
 
 def test_clean_svg_drops_scripts_handlers_and_external_links():
