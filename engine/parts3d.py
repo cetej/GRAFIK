@@ -19,12 +19,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from engine.models3d import Model3dError, Models3d, _now, is_glb, opaque_share
-from engine.parts_spec import CUTS, MAX_METRES, NAME, SpecError, validate
+from engine.parts_spec import CUT_FACES, CUTS, MAX_METRES, NAME, SpecError, validate
 
 BLENDER_DIR = Path(__file__).resolve().parent / "blender"
 PARTS_SCRIPT = BLENDER_DIR / "lod_parts.py"
 RENDER_SCRIPT = BLENDER_DIR / "render_parts.py"
-POHLEDY = ("celek", "rez", "pudorys", "pruceli", "bok", "rozklad")   # kopie klíčů VIEWS z render_parts.py, hlídá test
+POHLEDY = ("celek", "rez", "ctvrt", "pudorys", "pruceli", "bok", "rozklad")   # kopie klíčů VIEWS z render_parts.py, hlídá test
 MAX_LAYERS = 12     # víc dílů dá render_parts.py dohromady podle materiálu
 RENDER_DIR = re.compile(r"r-(\d+)")
 
@@ -36,6 +36,16 @@ class PartsIn(BaseModel):
     caller: str = "studio"
 
 
+class Sokl(BaseModel):
+    z: float        # do téhle výšky zůstává odříznutá čtvrtina stát, je vidět půdorys pilířů
+    pas: float      # šířka pásu od roviny řezu, který zůstává i pod zemí; za ním podzemí v řezu
+
+
+class Odkryv(BaseModel):
+    dily: list[str]
+    azimut: tuple[float, float]
+
+
 class RenderIn(BaseModel):
     pohled: str = "celek"
     res: tuple[int, int] = (1920, 1080)
@@ -43,6 +53,11 @@ class RenderIn(BaseModel):
     vrstvy: bool = False
     posuny: dict[str, float] = {}   # metry nahoru nebo dolů po dílech, rozložený pohled
     skupiny: dict[str, list[str]] | None = None     # vlastní vrstvy; bez nich po dílech, u víc dílů podle materiálu
+    rez: str = "kamen"      # plocha řezu, parts_spec.CUT_FACES; díl může mít vlastní
+    bez: list[str] = []     # díly vynechané v tomhle obraze, třeba podlaha arény, aby bylo vidět podzemí
+    kamera: dict[str, float] | None = None      # {"az", "el"} ve stupních místo kamery pojmenovaného pohledu
+    sokl: Sokl | None = None        # jen pohled ctvrt
+    odkryv: list[Odkryv] = []       # výseky dílů odebrané v tomhle obraze, třeba podlaha arény nad podzemím
     caller: str = "studio"
 
 
@@ -73,7 +88,28 @@ def check_render(body: RenderIn, spec: dict) -> dict:
         grouped = [n for group in body.skupiny.values() for n in group]
         if sorted(grouped) != sorted(names):     # díl mimo vrstvy by z ruční úpravy potichu zmizel
             raise Model3dError(f"vrstvy musí obsahovat každý díl právě jednou, díly modelu: {', '.join(names)}")
-    out = {"pohled": body.pohled, "res": list(body.res), "samples": body.samples, "posuny": body.posuny}
+    if body.rez not in CUT_FACES:
+        raise Model3dError(f"plocha řezu je {', '.join(CUT_FACES)}")
+    for name in body.bez:
+        if name not in names:
+            raise Model3dError(f"vynechaný díl {name!r}: takový díl model nemá")
+    if body.kamera is not None and (set(body.kamera) - {"az", "el"} or not -360 <= body.kamera.get("az", 0) <= 360 or not -89.9 <= body.kamera.get("el", 0) <= 89.9):
+        raise Model3dError("kamera je {az, el} ve stupních, el nejvýš 89,9")
+    if body.sokl is not None and (body.pohled != "ctvrt" or not -MAX_METRES <= body.sokl.z <= MAX_METRES or not 0 <= body.sokl.pas <= MAX_METRES):
+        raise Model3dError("sokl {z, pas} jde jen s pohledem ctvrt a pas nesmí být záporný")
+    for item in body.odkryv:
+        if not item.azimut[0] < item.azimut[1] < item.azimut[0] + 360:
+            raise Model3dError("odkryv: azimut chce [od, do] menší než celý kruh")
+        for name in item.dily:
+            if name not in names:
+                raise Model3dError(f"odkryv dílu {name!r}: takový díl model nemá")
+    out = {"pohled": body.pohled, "res": list(body.res), "samples": body.samples, "posuny": body.posuny, "rez": body.rez, "bez": body.bez}
+    if body.kamera:
+        out["kamera"] = body.kamera
+    if body.sokl is not None:
+        out["sokl"] = body.sokl.model_dump()
+    if body.odkryv:
+        out["odkryv"] = [item.model_dump() for item in body.odkryv]
     if body.vrstvy or body.skupiny is not None:
         out["vrstvy"] = True
     if body.skupiny is not None:
@@ -132,7 +168,7 @@ class Parts3d:
             self.m._fail(req, e)
             raise
         self.lib.update(mid, ver, status="model", glb_bytes=(d / "model.glb").stat().st_size, dily=sorted(dily["dily"]),
-                        bez_kontaktu=dily["bez_kontaktu"], timing_s={"model": round(time.time() - t0, 1)})
+                        bez_kontaktu=dily["bez_kontaktu"], rezy_bez_ucinku=dily.get("rezy_bez_ucinku", []), timing_s={"model": round(time.time() - t0, 1)})
         viewer_job = self.m.enqueue("viewer3d", req.get("caller", "studio"), "blender", {"model_id": mid, "version": ver})
         return {"model_id": mid, "version": ver, "glb": str(d / "model.glb"), "viewer_job": viewer_job, "bez_kontaktu": dily["bez_kontaktu"]}
 

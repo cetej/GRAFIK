@@ -29,6 +29,7 @@ if mode == "crash":
 if mode == "slow":
     time.sleep(30)
 
+CUTS = ("arkady", "vyrez", "ochoz", "schodiste", "sachty", "otvory", "dutina")
 STATS = {"verts": 1234, "faces": 2000, "objects": 1, "bbox": [4.7, 1.7, 1.5], "blender": "fake 0.0"}
 
 
@@ -42,13 +43,13 @@ def view(path):
 if script == "lod_parts.py":
     out, spec = Path(args[0]), json.loads(Path(args[1]).read_text(encoding="utf-8"))
     out.write_bytes(b"glTF\x02\x00\x00\x00" + b"\x00" * 64)
-    names = [p["nazev"] for p in spec["dily"] if p["typ"] not in ("arkady", "vyrez")]
+    names = [p["nazev"] for p in spec["dily"] if p["typ"] not in CUTS]
     Path(f"{out}.dily.json").write_text(json.dumps({"dily": {n: {"material": "kamen", "bbox": [[0, 0, 0], [1, 1, 1]]} for n in names},
                                                     "bez_kontaktu": []}), encoding="utf-8")
     sys.exit(0)
 if script == "render_parts.py":
     spec, out, req = json.loads(Path(args[0]).read_text(encoding="utf-8")), Path(args[1]), json.loads(args[2])
-    names = [p["nazev"] for p in spec["dily"] if p["typ"] not in ("arkady", "vyrez")]
+    names = [p["nazev"] for p in spec["dily"] if p["typ"] not in CUTS]
     view(out / "obraz.png")
     layers = {}
     if req.get("vrstvy"):

@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-01 — Model stavby: z dílů s GPT-6.1 Terra
+
+Na otázku „Mají se stavby dělat z dílů s modelem Terra?“ po tabulce měření operátor: „Ano, dokonči to“. Cesta C z plánu: model dodá jen JSON dílů, žádný generovaný kód se nespouští. Sonnet s prameny se ani jednou nepostavil (0,40 USD), Terra dala 49 dílů za 0,15 USD, Hunyuan z jedné fotky plochou desku. Měření: [spike](spikes/2026-11-01-model-cesty.md). Souhlas s dalším placeným během to není.
+
+K rozpočtu měření operátor: „Klidně navyš rozpočet na dokončení“. Celkem 1,5248 USD.
+
+Sochy, plachty a lidi v obraze chce operátor výslovně („malí lidičkové tomu také dodají hned lepší náboj“), takže model je smí obsahovat i bez doložené polohy. V popisu je napsané, co je oživení a co pramen; do rozměrů ani kontroly kontaktu se to nepočítá.
+
 ## 2026-11-01 — Infografika z tématu: náčrt schválen, modely i od OpenAI
 
 K náčrtu kroků Podklady a Návrhy skladby, tlačítka Do Knihovny a volby renderu z Blenderu operátor: „Schvaluji, stavět“. Souhlas s placením to není.

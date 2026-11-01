@@ -226,6 +226,7 @@ def aggregate(name, mortar_a, mortar_b, rocks, scale, rough=0.95):
 
 
 _cache = {}
+FLAT = {"provaz": "#5c4c35", "kuze": "#b98a66", "lide_1": "#8c2f26", "lide_2": "#e6dfcf", "lide_3": "#34507a", "lide_4": "#b9893a", "lide_5": "#5b6b45", "lide_6": "#d9c7a0"}
 
 
 def surface(name, radius=0.0):
@@ -234,7 +235,10 @@ def surface(name, radius=0.0):
     if key in _cache:
         return _cache[key]
     label = f"{name}_{key[1]}"
-    if name == "travertin":
+    if name in FLAT:
+        m, _t, bsdf = new_mat(label, 0.85)
+        bsdf.inputs["Base Color"].default_value = srgb(FLAT[name])
+    elif name == "travertin":
         m = masonry(label, "#b9ae98", "#c7bda8", "#857b6b", 2.4, 0.62, radius)
     elif name == "tuf":
         m = masonry(label, "#9d927b", "#ada28b", "#6f6755", 1.8, 0.55, radius)
@@ -250,19 +254,39 @@ def surface(name, radius=0.0):
         m = noisy(label, "#5f4a2b", "#8f7040", 6.0, 0.35, 0.9)
     elif name == "strecha":
         m = roof(label, "#73787b", "#7d8285")
+    elif name == "drevo":
+        m = noisy(label, "#7f5f36", "#a68455", 3.0, 0.75)
+    elif name == "omitka":
+        m = noisy(label, "#8c3325", "#a2412f", 1.4, 0.9, ao=0.6)
     elif name == "pisek":
         m = noisy(label, "#bfa77a", "#d2bd93", 2.0, 0.95)
+    elif name == "platno":
+        m = noisy(label, "#d8cdb4", "#e0d6bf", 0.5, 0.95, ao=0.3)
+    elif name == "platno_2":
+        m = noisy(label, "#c6b896", "#cfc2a2", 0.5, 0.95, ao=0.3)
+    elif name == "zemina":
+        m = noisy(label, "#5a4834", "#6e5a43", 2.5, 0.95)
+    elif name == "freska":
+        m = noisy(label, "#c0903a", "#d3a851", 1.5, 0.8, ao=0.5)
     else:
         m = noisy(label, "#b3aa98", "#c4bcab", 0.9, 0.75)
     _cache[key] = m
     return m
 
 
-def section(name):
-    """Cut face of a part: what the wall is made of inside."""
-    key = ("rez", name)
+def section(name, style="kamen"):
+    """Cut face of a part: what the wall is made of inside, or black like an architect's section, where the structure reads at a glance."""
+    key = ("rez", style if style in ("cerna", "tmava") else name)
+    if key not in _cache and style == "cerna":
+        m, t, bsdf = new_mat("rez_cerna", 0.95)
+        bsdf.inputs["Base Color"].default_value = srgb("#16130f")
+        _cache[key] = m
+    if key not in _cache and style == "tmava":
+        _cache[key] = aggregate("rez_tmava", "#26221c", "#2e2922", ("#3b342a", "#231f19", "#443c30", "#2c2720"), 1.6)
     if key not in _cache:
-        if name == "cihla":
+        if name == "zemina":
+            _cache[key] = aggregate("rez_zemina", "#54432f", "#63513b", ("#46382a", "#6f5c46", "#3b2f23", "#7d6a52"), 1.6)
+        elif name == "cihla":
             _cache[key] = aggregate("rez_cihla", "#a89c8c", "#b8ac9c", ("#9c4f37", "#ae6045", "#88442e", "#b86f52"), 2.3)
         elif name == "beton":
             _cache[key] = aggregate("rez_beton", "#a2988a", "#b1a798", ("#cfc5ae", "#85735f", "#9d5238", "#b5a88f", "#786656"), 2.3)
