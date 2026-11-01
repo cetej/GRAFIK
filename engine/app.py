@@ -24,7 +24,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, checks, localize, models3d as m3d, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, checks, localize, models3d as m3d, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -115,6 +115,11 @@ class InfoUpload(BaseModel):
     svg: str = ""                   # the same picture with its own layers, opens whole in VectorCraft
 
 
+class InfoFromRef(BaseModel):
+    ref_id: str                     # image from the reference library used directly: author and licence go to the footer
+    title: str = ""
+
+
 class InfoExport(BaseModel):
     svg: str                        # rendered by the studio (one renderer: preview = export)
     format: str = "png"
@@ -175,6 +180,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     worker.handlers.update(scenes.handlers())
     localizer = localize.Localizer(s, store, worker._log_cost, ask)
     worker.handlers.update(localizer.handlers())
+    researcher = research.Researcher(s, store, reflib, worker._log_cost)
+    worker.handlers.update(researcher.handlers())
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -197,6 +204,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     api3d.register(app, models3d, store, reflib)
     api_scenes3d.register(app, scenes, models3d, store)
     localize.register(app, localizer, store, reflib)
+    research.register(app, researcher, store)
     checks.register(app, store, reflib, worker._log_cost, ask)
     archive.register(app, s)
     api_knihovna.register(app, s)
@@ -776,6 +784,18 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def info_upload(body: InfoUpload):
         job_id = _store_upload(body, "upload", {"prompt": "", "refs": [], "source": body.name})
         return infos.create(f"{job_id}/0", Path(body.name).stem, _prov(f"{job_id}/0"), _fitting(f"{job_id}/0"))
+
+    @app.post("/api/v2/infographics/from-ref", status_code=201)
+    def info_from_ref(body: InfoFromRef):
+        meta = reflib.get(body.ref_id)
+        if meta is None:
+            raise HTTPException(404, f"předloha {body.ref_id} v knihovně neexistuje")
+        credit = ", ".join(x for x in (meta.get("author") or "autor neuveden", meta.get("license") or "licence neuvedena", "Wikimedia Commons" if meta["origin"] == "commons" else None) if x)
+        b64 = base64.b64encode(reflib.image_path(body.ref_id).read_bytes()).decode()
+        title = body.title or Path(meta["title"]).stem
+        job_id = _store_upload(InfoUpload(b64=b64, name=meta["title"]), "upload", {"prompt": "", "refs": [], "source": meta.get("page_url") or meta["title"]},
+                               {"credit": credit, "ref_id": body.ref_id, "license": meta.get("license"), "author": meta.get("author"), "page_url": meta.get("page_url")})
+        return infos.create(f"{job_id}/0", title, _prov(f"{job_id}/0"), _fitting(f"{job_id}/0"))
 
     @app.post("/api/v2/library/upload", status_code=201)
     def library_upload(body: InfoUpload):

@@ -29,6 +29,8 @@ CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:r
      python grafik_client.py variants "prompt" [--count 8] [--style SLUG ...] [--out DIR] [--no-open]
      python grafik_client.py ref-add <image or pin URL> [--page URL] [--title T]
      python grafik_client.py library-upload <image file> [--title T] [--blender]
+     python grafik_client.py research "téma" [--qid Q99309] [--no-images] [--wait]     (0 USD, volné zdroje)
+     python grafik_client.py research --extends <id> [--confirm-cost]                  (placené hledání na webu)
      python grafik_client.py model3d --glb model.glb [--title T]          (0 USD)
      python grafik_client.py model3d --ref front.png:front [--ref back.png:back] [--confirm-cost]
      python grafik_client.py views <model_id> [--version v1] [--elevation 20] [--out DIR]
@@ -187,6 +189,37 @@ def library_upload(path: str | Path, title: str = "", blender_render: bool = Fal
         timeout=120)
     if status != 201:
         raise GrafikError(f"Do Knihovny se {p.name} nedostal: {body}")
+    return body
+
+
+def research(topic: str = "", *, qid: str | None = None, images: bool = True, per_role: int = 4, extends: str | None = None,
+             question: str | None = None, confirm_cost: bool = False, caller: str = "grafik_client", wait_s: float | None = 600) -> dict:
+    """Dossier faktů a obrazových podkladů. Z volných zdrojů zdarma; `extends=<id>` doplní dossier z webu jen s confirm_cost.
+    Vrací dossier, s wait_s=None jen id a úlohu a stav se zjistí přes research_get()."""
+    status, body = _request("POST", "/api/v2/research", {
+        "topic": topic, "qid": qid, "images": images, "per_role": per_role, "extends": extends, "question": question,
+        "confirm_cost": confirm_cost, "caller": caller})
+    if status == 402:
+        raise CostConfirmationRequired(body["estimate_usd"], body.get("items", []))
+    if status != 202:
+        raise GrafikError(f"Rešerše se nespustila: {body.get('detail', body)}")
+    if wait_s is None:
+        return body
+    deadline = time.monotonic() + wait_s
+    while time.monotonic() < deadline:
+        state = research_get(body["id"])
+        if state["status"] == "done":
+            return state["dossier"]
+        if state["status"] in ("failed", "cancelled"):
+            raise GrafikError(f"Rešerše {body['id']} selhala: {state.get('error')}")
+        time.sleep(2)
+    raise GrafikError(f"Rešerše {body['id']} nedoběhla do {wait_s} s, běží dál")
+
+
+def research_get(research_id: str) -> dict:
+    status, body = _request("GET", f"/api/v2/research/{research_id}")
+    if status != 200:
+        raise GrafikError(f"Rešerše {research_id}: {body.get('detail', body)}")
     return body
 
 
@@ -402,6 +435,12 @@ def _cli(argv: list[str]) -> int:
     lu.add_argument("path")
     lu.add_argument("--title", default="")
     lu.add_argument("--blender", action="store_true", help="vlastní render z Blenderu, bez štítku AI")
+    rs = sub.add_parser("research", help="dossier faktů a obrázků k tématu, volné zdroje zdarma")
+    rs.add_argument("topic", nargs="?", default="")
+    rs.add_argument("--qid", help="položka Wikidaty, když hledání najde něco jiného")
+    rs.add_argument("--no-images", action="store_true")
+    rs.add_argument("--extends", help="id dossieru, který doplnit placeným hledáním na webu")
+    rs.add_argument("--confirm-cost", action="store_true")
     g = sub.add_parser("generate")
     g.add_argument("prompt")
     g.add_argument("--size", default="1024x1024")
@@ -477,6 +516,20 @@ def _cli(argv: list[str]) -> int:
             print(f"CHYBA: {e}", file=sys.stderr)
             return 1
         print(f"předloha {meta['id']} ({meta['origin']}, {meta['width']}x{meta['height']}) je ve schránce")
+        return 0
+    if a.cmd == "research":
+        try:
+            d = research(a.topic, qid=a.qid, images=not a.no_images, extends=a.extends, confirm_cost=a.confirm_cost, caller="grafik_client-cli")
+        except CostConfirmationRequired as e:
+            print(f"CHYBA: placené hledání ~{e.estimate_usd} USD, nic nespuštěno. Zopakujte s --confirm-cost.", file=sys.stderr)
+            return 1
+        except GrafikError as e:
+            print(f"CHYBA: {e}", file=sys.stderr)
+            return 1
+        conflicts = [f for f in d["facts"] if f["stav"] == "rozpor"]
+        print(f"{d['entita']['label']} ({d['entita']['qid']}): {len(d['facts'])} faktů, {len(conflicts)} rozporů, {len(d['images'])} obrázků, {d.get('cost_usd', 0)} USD")
+        for f in conflicts:
+            print(f"  rozpor: {f['tvrzeni']}")
         return 0
     if a.cmd == "library-upload":
         try:

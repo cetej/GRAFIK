@@ -91,6 +91,8 @@ def ai_note(prov: dict | None) -> str:
         return "Ilustrace: AI, schéma a popisky redakčně."
     if prov.get("render"):
         return f"Model a render: {prov['render']}, bez AI; schéma a popisky redakčně."
+    if prov.get("credit"):      # obraz použitý přímo (Commons): autor a licence patří do patičky
+        return f"Obraz: {prov['credit']}; schéma a popisky redakčně."
     model = BACKEND_NAMES.get(prov.get("backend"), prov.get("model") or prov.get("backend") or "AI")
     by_ref = any(r.get("sent_as") == "image" for r in prov.get("refs", []))
     return f"Ilustrace: {model} (AI){' podle předlohy' if by_ref else ''}, schéma a popisky redakčně."
