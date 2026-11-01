@@ -31,7 +31,8 @@ from engine.infographics import InfoError, canvas_size, clean_svg
 SCHEMA = 2
 KINDS = ("obraz", "fakta", "text", "osa", "kresba")
 THEMES = {"dark": {"bg": "#1d2532", "ink": "#f1ede4", "muted": "#a7b1bf", "foot": "#8b95a4", "lead": "#ffffff", "halo": "#000000"},
-          "light": {"bg": "#f2f3f5", "ink": "#1d1f23", "muted": "#5d636b", "foot": "#6b7079", "lead": "#1d1f23", "halo": "#ffffff"}}
+          "light": {"bg": "#f2f3f5", "ink": "#1d1f23", "muted": "#5d636b", "foot": "#6b7079", "lead": "#1d1f23", "halo": "#ffffff"},
+          "ruda": {"bg": "#3a0c10", "ink": "#f6ebdf", "muted": "#d9b8a8", "foot": "#bd9a8e", "lead": "#ffffff", "halo": "#000000"}}
 FONT = "Bahnschrift, 'Roboto Condensed', 'Arial Narrow', sans-serif"
 LINE_WIDTH = 0.47           # průměrná šířka znaku Bahnschrift semi-condensed v em, změřeno na patičce plakátu
 # kopie prahů z studio/src/Infographics.tsx a docs/infografiky-zasady.md
