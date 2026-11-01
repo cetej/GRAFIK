@@ -27,7 +27,7 @@ LOGIC = {"souhrn": "Dává smysl.", "ucel": "Ukázat stavbu.", "problemy": [{"co
 class FakeAsk:
     """Na návrhy i kontrolu; pamatuje si volání, cena z konstruktoru."""
 
-    def __init__(self, usd=0.05, reply=None):
+    def __init__(self, usd=0.01, reply=None):
         self.usd, self.reply, self.calls = usd, reply or REPLY, []
 
     def __call__(self, content, system, *, what, model, effort="low", max_tokens=16000):
@@ -95,7 +95,7 @@ def test_topic_runs_to_the_choice_without_clicks(lab, settings):
     first, second = wf["navrhy"]
     assert first["panely"][0]["fakta"] == ["f1"] and first["neznama_fakta"] == 1
     assert second["format"] == pp.DEFAULT_FORMAT and second["panely"][0]["w"] == 10     # panel oříznutý na plátno
-    assert wf["spent_usd"] == pytest.approx(0.05) and wf["budget_usd"] == pytest.approx(pp.estimate_usd(pp.DEFAULT_MODEL) + 0.07)
+    assert wf["spent_usd"] == pytest.approx(0.01) and wf["budget_usd"] == pytest.approx(pp.estimate_usd(pp.DEFAULT_MODEL) + 0.07)
 
     dossier = lab.get(f"/api/v2/research/{wf['research_id']}").json()
     assert dossier["status"] == "done" and dossier["dossier"]["facts"]
@@ -104,7 +104,7 @@ def test_topic_runs_to_the_choice_without_clicks(lab, settings):
     assert lab.get(f"/api/v2/workflows/{wf['id']}/navrhy/..%2Fx.svg").status_code == 404
 
     rows = [r for r in load_costs(settings.costs_path) if r["backend"] == "claude:navrhy"]
-    assert len(rows) == 1 and rows[0]["status"] == "ok" and rows[0]["usd"] == 0.05
+    assert len(rows) == 1 and rows[0]["status"] == "ok" and rows[0]["usd"] == 0.01
 
 
 def test_pick_runs_the_advisory_check_and_blocks_nothing(lab, settings):
@@ -114,9 +114,23 @@ def test_pick_runs_the_advisory_check_and_blocks_nothing(lab, settings):
     done = wait_stage(lab, wf["id"], ("hotovo", "stop"))
     assert done["stage"] == "hotovo" and done["vyber"] == 1
     assert done["kontrola"]["summary"] == "Dává smysl." and done["kontrola"]["warnings"][0]["what"] == "Malé písmo"
-    assert done["spent_usd"] == pytest.approx(0.10)
+    assert done["spent_usd"] == pytest.approx(0.02)
     assert {r["backend"] for r in load_costs(settings.costs_path)} >= {"claude:navrhy", "claude:check-logic"}
-    assert lab.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 1}).status_code == 409
+
+
+def test_changing_the_pick_checks_again_within_the_price(lab):
+    wf = wait_stage(lab, start(lab)["id"], ("vyber",))
+    lab.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 1})
+    wait_stage(lab, wf["id"], ("hotovo",))
+    assert lab.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 2}).status_code == 200
+    second = wait_stage(lab, wf["id"], ("hotovo", "stop"))
+    assert second["vyber"] == 2 and second["stage"] == "hotovo" and second["spent_usd"] == pytest.approx(0.03)
+
+
+def test_pick_is_refused_while_the_chain_runs(settings, sd):
+    with TestClient(make(settings, sd, FakeAsk(), start_worker=False)) as c:
+        wf = start(c)
+        assert c.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 1}).status_code == 409
 
 
 def test_failed_advisory_check_does_not_stop_the_chain(lab):
@@ -128,7 +142,7 @@ def test_failed_advisory_check_does_not_stop_the_chain(lab):
     lab.app.state.chain.check_ask = broken
     lab.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 1})
     done = wait_stage(lab, wf["id"], ("hotovo", "stop"))
-    assert done["stage"] == "hotovo" and "nedokončena" in done["kontrola"]["chyba"] and done["spent_usd"] == pytest.approx(0.06)
+    assert done["stage"] == "hotovo" and "nedokončena" in done["kontrola"]["chyba"] and done["spent_usd"] == pytest.approx(0.02)
 
 
 def test_broken_sketch_raster_does_not_stop_the_chain(lab):
@@ -140,7 +154,7 @@ def test_broken_sketch_raster_does_not_stop_the_chain(lab):
     lab.app.state.chain.raster = broken
     lab.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 1})
     done = wait_stage(lab, wf["id"], ("hotovo", "stop"))
-    assert done["stage"] == "hotovo" and "Chromium" in done["kontrola"]["chyba"] and done["spent_usd"] == pytest.approx(0.05)
+    assert done["stage"] == "hotovo" and "Chromium" in done["kontrola"]["chyba"] and done["spent_usd"] == pytest.approx(0.01)
 
 
 def test_corrupt_workflow_file_does_not_stop_the_engine(settings, sd):
@@ -161,7 +175,7 @@ def test_step_over_budget_stops_and_asks(lab):
 
     r = lab.post(f"/api/v2/workflows/{wf['id']}/continue", json={})
     assert r.status_code == 402 and r.json()["estimate_usd"] == pytest.approx(0.07)
-    lab.ask.usd = 0.05
+    lab.ask.usd = 0.01
     assert lab.post(f"/api/v2/workflows/{wf['id']}/continue", json={"confirm_cost": True}).status_code == 200
     assert wait_stage(lab, wf["id"], ("hotovo",))["kontrola"]["summary"]
 
@@ -267,7 +281,7 @@ def test_model_choice_goes_to_the_price_and_the_ledger(lab, settings):
     assert cheap["total_usd"] < dear["total_usd"] and "gpt-6.1-terra" in cheap["items"][1]["what"]
     wf = wait_stage(lab, start(lab, model="gpt-6.1-terra")["id"], ("vyber",))
     assert lab.ask.calls[-1]["model"] == "gpt-6.1-terra" and wf["model"] == "gpt-6.1-terra"
-    assert [r["usd"] for r in load_costs(settings.costs_path) if r["backend"] == "openai:navrhy"] == [0.05]
+    assert [r["usd"] for r in load_costs(settings.costs_path) if r["backend"] == "openai:navrhy"] == [0.01]
 
 
 def test_sketch_escapes_text_and_keeps_inside_the_panel():

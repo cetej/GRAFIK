@@ -54,16 +54,16 @@ Téma nebo vzor → Podklady → Návrhy skladby → Model a render → Stránka
 
 ### Odhad ceny jednoho běhu
 
-Složeno z naměřených kroků, skutečnou cenu změří první běh.
+Složeno z naměřených kroků. Návrhy a kontrola změřené živým během 1. 11. ([spike](../spikes/2026-11-01-retezec.md)), model a stránka zatím ne.
 
 | Krok | USD |
 |---|---|
 | Volné zdroje | 0 |
 | Placená rešerše, jen na tlačítko | 0,45 |
-| Návrhy z dossieru | 0,16 |
-| Kontroly | 0,05 |
+| Návrhy z dossieru, Sonnet 5.5 (naměřeno 0,025) | 0,04 |
+| Kontrola logiky návrhu, Opus 5.5 (naměřeno 0,049) | 0,07 |
 | Model: skript nebo díly (tokeny neměřené), nebo Hunyuan 3.1 Pro | 0 až 0,375 |
-| **Celkem** | **0,21 až 1,04** |
+| **Celkem** | **0,11 až 0,94** |
 
 ### Co automatika neslíbí
 

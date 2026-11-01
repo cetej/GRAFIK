@@ -8,9 +8,12 @@ K náčrtu kroků Podklady a Návrhy skladby, tlačítka Do Knihovny a volby ren
 
 Během stavby operátor: „Nezapomínej, že máme možnost využít i jiné modely ChatGPT, pokud jsou na něco lepší a levnější.“ U placených kroků se tedy srovnávají i modely OpenAI. Krok návrhů jde přepnout (`ngm_shared.gpt`), [ceny a postup](spikes/2026-11-01-retezec.md).
 
+K živému běhu Kolosea a srovnání pěti modelů za odhadem 0,43 USD operátor: „Ano, spustit“. Stálo to 0,1529 USD.
+
 Volby níže jsou návrh session, operátor je ruší tady:
 
-- **Výchozí model návrhů Claude Sonnet 5.5**, dokud operátor nerozhodne podle srovnání. Podle ceny je GPT-6.1 Terra na polovině, kvalita se ještě neměřila.
+- **Výchozí model návrhů zůstává Claude Sonnet 5.5** po srovnání pěti modelů na Koloseu ([stránka](spikes/img/2026-11-01-navrhy-srovnani.html)). Dal nejbohatší návrhy a nejrychleji. GPT-6.1 Terra je za polovinu, ale rozdíl je 1,2 centu na běh. Přepnutí je jedna konstanta `proposals.DEFAULT_MODEL`.
+- **Výběr návrhu jde změnit.** Kontrola logiky proběhne znovu v rámci schválené ceny, nad ní se řetězec zeptá.
 - **Němčina a italština v dossieru.** Bez nich se rozpor u okulu neukáže, čeština a angličtina se v mezích zaokrouhlení shodnou.
 - **Přerušený placený krok se po restartu sám nespustí.** Odhad se počítá do útraty a řetězec se zeptá.
 - **Kontrola logiky je součást ceny řetězce a běží po výběru návrhu,** nad náčrtem a slovním popisem. Nic neblokuje.

@@ -226,7 +226,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
     @app.post("/api/v2/workflows/{wf_id}/pick")
     def chain_pick(wf_id: str, body: PickIn):
         wf = get(wf_id)
-        if wf.stage != "vyber":
+        if wf.stage not in ("vyber", "hotovo"):     # hotovo: operátor si to rozmyslel, kontrola proběhne znovu v rámci ceny
             raise HTTPException(409, "návrh jde vybrat, až řetězec čeká na výběr")
         if not any(p["id"] == body.navrh for p in wf.navrhy):
             raise HTTPException(404, f"návrh {body.navrh} neexistuje")
