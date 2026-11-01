@@ -58,6 +58,7 @@ class RenderIn(BaseModel):
     kamera: dict[str, float] | None = None      # {"az", "el"} ve stupních místo kamery pojmenovaného pohledu
     sokl: Sokl | None = None        # jen pohled ctvrt
     odkryv: list[Odkryv] = []       # výseky dílů odebrané v tomhle obraze, třeba podlaha arény nad podzemím
+    zaber: list[list[float]] | None = None      # [[x, y, z], [x, y, z]]: kvádr, na který se kamera zaměří, jinak celý model
     caller: str = "studio"
 
 
@@ -103,7 +104,11 @@ def check_render(body: RenderIn, spec: dict) -> dict:
         for name in item.dily:
             if name not in names:
                 raise Model3dError(f"odkryv dílu {name!r}: takový díl model nemá")
+    if body.zaber is not None and (len(body.zaber) != 2 or any(len(c) != 3 or any(abs(v) > MAX_METRES for v in c) for c in body.zaber) or body.zaber[0] == body.zaber[1]):
+        raise Model3dError("záběr jsou dva rohy kvádru [[x, y, z], [x, y, z]] v metrech")
     out = {"pohled": body.pohled, "res": list(body.res), "samples": body.samples, "posuny": body.posuny, "rez": body.rez, "bez": body.bez}
+    if body.zaber is not None:
+        out["zaber"] = body.zaber
     if body.kamera:
         out["kamera"] = body.kamera
     if body.sokl is not None:

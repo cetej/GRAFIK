@@ -10,6 +10,15 @@
 - **Lapač stínu šedí celý snímek.** Na papíře to byl šedý obdélník kolem stroje; `without_veil` v `tesla_kopie.py` odečte úroveň z okraje snímku.
 - **Text u figury kontrolovat na plném náhledu.** Poznámka na okraji panelu skončila operátorovi přes obličej: figura se kreslí přes panely a žádná kontrola kolizi nehledá.
 
+## 2026-11-01 — Stránka z modelu: panel musí říct, co hlavní obraz neřekne
+
+- **Co se stalo:** první Koloseum z panelů mělo pod povedeným hlavním řezem čtyři menší rendery téhož modelu (řez, podzemí, fasáda, plachty). Operátor: „menší obrázky neukazují více než hlavní model“, celé „odbyté“. Pravidlo v `docs/infografiky-zasady.md` přitom existovalo; tvořil jsem panely podle toho, co Blender umí vyrenderovat, ne podle toho, co chce čtenář vědět.
+- **Jak příště:** před skládáním napsat ke každému panelu jednou větou otázku, kterou hlavní obraz nezodpoví. Když je odpověď jen „totéž zblízka“, panel na stránku nepatří. Téma infografiky je víc než objekt: u stavby i to, co se v ní dělo.
+- **Lidské tělo se nestaví z kapslí.** Ruka v Blenderu z kapslí a remeshe vypadala jako komiks i v mramoru; lokální FLUX udělal skutečnou ruku napoprvé a zdarma. Blender je na stavby a stroje, ne na tělo. Stejné semínko navíc dá šestkrát stejného člověka: u série postav jiné semínko a tělo.
+- **Výřez postavy s kovem chce zelené plátno a klíč změřený na obrázku.** Na tmavém pozadí se kov ztrácí. Na zeleném odráží plátno, poměr barev selhal v obou směrech, rozhodla až převaha zelené změřená na vzorcích. Kontrolovat výřez ve zvětšení, ne na zmenšené stránce: zubaté okraje a sežraný kov jsem na listu neviděl, operátor ano.
+- **Stín postavy se nevyrábí, bere se z obrázku.** Skvrna pod nohama udělala levitaci, vržený stín jedním směrem nesedl na světlo. Skutečný stín je v originálu na plátně a sedí sám.
+- **Slavný volný obraz se nekopíruje modelem.** FLUX s obrazem jako předlohou vrátil skoro stejný obraz s chybami a operátor ho odmítl jako „rádoby kopii“. Když je předloha public domain, patří na stránku ona.
+
 ## 2026-11-01 — Model z dílů: kontrola, zadání a podklady od operátora
 
 - **Dutá stavba je věc skladby, ne detailu.** Plný klín pod hledištěm s vyříznutými chodbami vypadal v řezu jako černá hmota s dírami. Až tenká deska pod stupni a radiální stěny daly prostor jako v rekonstrukčním řezu. Nejdřív oprav skladbu, potom přidávej díly.

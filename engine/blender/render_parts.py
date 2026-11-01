@@ -148,7 +148,7 @@ def world_points(objs):
     return np.vstack(out)
 
 
-def frame(objs, camera_dir, res):
+def frame(pts, camera_dir, res):
     """Orthographic camera that fits everything with a small margin: scale and centre. It measures the vertices, not the boxes:
     the corners of a box around an ellipse stick far out of the ellipse in a view from an angle."""
     up = Vector((0, 0, 1))
@@ -156,7 +156,6 @@ def frame(objs, camera_dir, res):
         up = Vector((0, 1, 0))
     right = camera_dir.cross(up).normalized()
     top = right.cross(camera_dir).normalized()
-    pts = world_points(objs)
     us, vs = pts @ np.array(right), pts @ np.array(top)
     span_u, span_v = float(us.max() - us.min()) * MARGIN, float(vs.max() - vs.min()) * MARGIN
     w, h = res
@@ -279,7 +278,9 @@ def main():
     az, el = math.radians(VIEW["az"]), math.radians(VIEW["el"])
     d = Vector((math.cos(az) * math.cos(el), math.sin(az) * math.cos(el), math.sin(el)))
     objs = list(objects.values())
-    scale, centre = frame(objs, -d, RES)
+    box = REQ.get("zaber")      # a part of the model fills the picture, the rest runs off its edges
+    pts = np.array([(x, y, z) for x in (box[0][0], box[1][0]) for y in (box[0][1], box[1][1]) for z in (box[0][2], box[1][2])], dtype=float) if box else world_points(objs)
+    scale, centre = frame(pts, -d, RES)
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
     scene.collection.objects.link(cam)
     scene.camera = cam
