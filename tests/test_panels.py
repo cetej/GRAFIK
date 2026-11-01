@@ -298,23 +298,49 @@ def test_green_screen_keeps_dark_metal_and_drops_the_screen():
     assert cut.getpixel((90, 50))[3] == 0 and cut.getpixel((70, 184))[3] == 0
 
 
-def test_cast_shadow_starts_at_the_feet_and_falls_to_the_side():
-    pic = Image.new("RGBA", (200, 300), (0, 0, 0, 0))
-    for x, y0, y1 in ((60, 40, 250), (120, 40, 270)):                                # dvě nohy na různé výšce
-        for xx in range(x, x + 20):
-            for y in range(y0, y1):
-                pic.putpixel((xx, y), (200, 150, 120, 255))
-    shaded = panels.cast_shadow(pic, widen=100)
-    assert shaded.size == (300, 300)
-    assert shaded.getpixel((70, 100)) == (200, 150, 120, 255)                        # postava se nemění
-    assert shaded.getpixel((88, 246))[3] > 60 and shaded.getpixel((88, 246))[:3] == (0, 0, 0)      # u chodidla těsně vedle nohy
-    assert shaded.getpixel((70, 262))[3] < 20 and shaded.getpixel((130, 282))[3] < 20    # pod nohama nic
+def test_shadow_comes_from_the_picture_and_stays_where_it_was():
+    pic = Image.new("RGB", (200, 300), (60, 170, 80))
+    for xx in range(90, 110):
+        for y in range(40, 260):
+            pic.putpixel((xx, y), (200, 150, 120))
+    for xx in range(40, 92):                                                         # stín padá doleva od chodidla
+        for y in range(250, 262):
+            pic.putpixel((xx, y), (30, 90, 40))
+    cut = panels.cut_out(pic.convert("RGBA"), shadow=True)
+    assert cut.getpixel((100, 100))[3] == 255
+    assert cut.getpixel((60, 256))[3] > 60 and cut.getpixel((60, 256))[:3] == (0, 0, 0)      # vlevo, kde byl
+    assert cut.getpixel((150, 256))[3] == 0 and cut.getpixel((100, 280))[3] == 0     # vpravo a pod chodidlem nic
+    assert cut.getpixel((60, 60))[3] == 0
+    assert panels.cut_out(pic.convert("RGBA")).getpixel((60, 256))[3] == 0
 
 
 def test_dark_red_theme_colours_the_page(tmp_path):
     svg = panels.render_svg({"size": "1600x1000", "title": "Věž", "template": "ruda", "ai_note": "x", "panels": [
         {"id": "cisla", "typ": "fakta", "rect": [0, 0, 800, 100], "nazev": "Čísla", "smer": "radek", "items": [{"value": "1", "text": "a"}]}]}, tmp_path)
     assert f'fill="{panels.THEMES["ruda"]["bg"]}"' in svg
+
+
+def test_dark_red_labels_have_a_soft_shadow_instead_of_an_outline(tmp_path):
+    source = tmp_path / "a.png"
+    Image.new("RGB", (100, 80), "red").save(source)
+    panels.copy_image(source, tmp_path, "obr")
+    doc = {"size": "1600x1000", "title": "Věž", "ai_note": "x", "panels": [{"id": "obr", "typ": "obraz", "rect": [0, 0, 800, 400], "nazev": "Obraz", "labels": [label("Vítěz", [10, 20, 0], pos=[900, 100])]}]}
+    doc["panels"] = panels.validate(doc)
+    red = panels.render_svg({**doc, "template": "ruda"}, tmp_path)
+    assert 'filter="url(#stin-textu)"' in red and 'stroke="#000000"' not in red
+    assert 'filter="url(#stin-textu)"' in panels.clean_svg(red, allow_data_images=True)
+    dark = panels.render_svg({**doc, "template": "dark"}, tmp_path)
+    assert "stin-textu" not in dark and 'stroke="#000000"' in dark
+
+
+def test_caption_without_a_heading_is_plain_text(tmp_path):
+    source = tmp_path / "a.png"
+    Image.new("RGB", (100, 80), "red").save(source)
+    panels.copy_image(source, tmp_path, "obr")
+    doc = {"size": "1600x1000", "title": "Věž", "ai_note": "x", "accent": "#dcb062", "panels": [{"id": "obr", "typ": "obraz", "rect": [0, 0, 800, 400], "nazev": "Obraz", "pod": {"small": "Autor, rok"}}]}
+    doc["panels"] = panels.validate(doc)
+    caption = re.search(r"<text[^>]*>Autor, rok</text>", panels.render_svg(doc, tmp_path)).group(0)
+    assert 'font-weight="400"' in caption and "#dcb062" not in caption and 'y="430.0"' in caption
 
 
 def test_thresholds_match_the_editor():
