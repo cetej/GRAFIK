@@ -111,10 +111,27 @@ def test_layers_by_part_and_own_groups(api, settings, built):
     ({"skupiny": {"stavba": ["zed"]}}, "každý díl právě jednou"),
     ({"skupiny": {"a": ["zed", "podlaha"], "b": ["zed"]}}, "každý díl právě jednou"),
     ({"skupiny": {"../a": ["zed", "podlaha"]}}, "název vrstvy"),
+    ({"rez": "cervena"}, "plocha řezu"),
+    ({"bez": ["neni"]}, "takový díl"),
+    ({"kamera": {"az": 10, "el": 95}}, "kamera"),
+    ({"kamera": {"vyska": 3}}, "kamera"),
+    ({"sokl": {"z": 1, "pas": 2}}, "sokl"),         # sokl jde jen s pohledem ctvrt
+    ({"pohled": "ctvrt", "sokl": {"z": 1, "pas": -2}}, "sokl"),
+    ({"odkryv": [{"dily": ["neni"], "azimut": [0, 90]}]}, "takový díl"),
+    ({"odkryv": [{"dily": ["oblouky"], "azimut": [0, 90]}]}, "takový díl"),
+    ({"odkryv": [{"dily": ["podlaha"], "azimut": [90, 0]}]}, "azimut"),
+    ({"odkryv": [{"dily": ["podlaha"], "azimut": [0, 400]}]}, "azimut"),
 ])
 def test_bad_render_request_is_refused_right_away(api, built, body, message):
     r = render(api, **body)
     assert r.status_code == 400 and message in r.json()["detail"]
+
+
+def test_section_options_reach_the_blender_script(api, settings, built):
+    job = render(api, pohled="ctvrt", rez="tmava", sokl={"z": 1.2, "pas": 12}, odkryv=[{"dily": ["podlaha"], "azimut": [-225, -25]}]).json()["job_id"]
+    assert wait(api, job)["status"] == "done"
+    args = [c for c in trace(settings) if c["script"] == "render_parts.py"][0]["args"][2]
+    assert '"sokl": {"z": 1.2, "pas": 12.0}' in args and '"odkryv": [{"dily": ["podlaha"], "azimut": [-225.0, -25.0]}]' in args and '"rez": "tmava"' in args
 
 
 def test_render_needs_a_parts_model(api):

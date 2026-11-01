@@ -1,5 +1,14 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Model z dílů: kontrola, zadání a podklady od operátora
+
+- **Dutá stavba je věc skladby, ne detailu.** Plný klín pod hledištěm s vyříznutými chodbami vypadal v řezu jako černá hmota s dírami. Až tenká deska pod stupni a radiální stěny daly prostor jako v rekonstrukčním řezu. Nejdřív oprav skladbu, potom přidávej díly.
+- **Kontrola musí umět selhat.** Řez mimo stavbu prošel rozměry i kontaktem. `rezy_bez_ucinku` porovnává objem před a po. Každou novou kontrolu vyzkoušej na záměrně rozbitém modelu.
+- **Co se měří, model splní i za cenu obsahu.** Výška počítaná s podzemím vedla k mazání hypogea, věta „model se ukazuje v řezu“ k odříznutí půlky stavby.
+- **Záběr podle `bound_box` je volný.** Rohy kvádru kolem elipsy trčí v pohledu pod úhlem daleko z elipsy, model pak zabíral 2/3 šířky. `frame()` v `render_parts.py` měří vrcholy.
+- **Obrázek od operátora po kompakci nevidím, jen svůj popis.** Leží v transkriptu jako `attachment.prompt[]` s base64, ne v řádku `user`. Popis z paměti nestačí: až síť po metrech přes jeho řez odhalila, že jsem patra odhadoval špatně.
+- **Odečítání ze sítě.** Řez nebo půdorys s čarami po 5 m dá rozměry, které text neuvádí, a jde je zapsat jako `z řezu`. Zdroj má být obrázek, který jsem přeměřil, ne dojem z něj.
+- **Zámek těžké práce drží i ostatní projekty, klidně minuty.** Testy se skutečným Blenderem se pak přeskočí (`s` ve výstupu pytestu). Přeskočené je neměřené, pusť je znovu a ukaž `passed`.
 ## 2026-11-01 — Slovník výslovnosti: co Whisper mění, i když to zní stejně
 
 - **Zpětný přepis se liší i u správně namluvené věty.** Deset vět buňky (OmniVoice, Whisper small na CPU): bunka, Rybozome, výdou, Sou, douznovu, Vjádře, toho to, na jednou. Porovnání proto stírá diakritiku, i/y a j před s, d, spojuje slovo rozdělené nebo slepené přepisem a nebere rozdíl jen v koncovce. Těchto deset vět pak nedá žádného kandidáta a mitokondrie, orkerst a inustracie zůstanou nálezem.

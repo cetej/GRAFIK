@@ -93,6 +93,8 @@ def problems(report: dict, dims: list[float] | None, tol_pct: float, bodies: int
         out.append(f"díl bez kontaktu: střed {part['stred']}, rozměr {part['rozmer']}, mezera {part['mezera']}")
     if report["casti"]["fragmentu_navic"]:
         out.append(f"{report['casti']['fragmentu_navic']} dalších úlomků, nezkontrolováno")
+    for name in report.get("rezy_bez_ucinku", []):
+        out.append(f"řez {name} nic neprořízl: otvory v modelu nejsou, oprav polohu (osy, odsazení, z)")
     if bodies is not None:
         for cut, found in report["prurezy"].items():
             if float(cut) <= 0.5 and len(found) > bodies:
@@ -141,7 +143,7 @@ def main() -> int:
     glb = a.glb or a.out / "model.glb"
     spec = None
     if a.parts:
-        from engine.parts_spec import SpecError, validate
+        from engine.parts_spec import DECOR, SpecError, validate
         try:
             spec = validate(json.loads(a.parts.read_text(encoding="utf-8")))
         except (SpecError, ValueError) as e:
@@ -164,12 +166,21 @@ def main() -> int:
         return 2
     report = json.loads((a.out / "inspect.json").read_text(encoding="utf-8"))
     if a.parts:     # pieces inside a part are built to touch; what counts is contact between named parts
-        loose = json.loads(Path(f"{glb}.dily.json").read_text(encoding="utf-8"))["bez_kontaktu"]
+        built_parts = json.loads(Path(f"{glb}.dily.json").read_text(encoding="utf-8"))
+        loose = built_parts["bez_kontaktu"]
         report["casti"] = {**report["casti"], "bez_kontaktu": [{"stred": p["nazev"], "rozmer": "díl", "mezera": p["mezera"]} for p in loose], "fragmentu_navic": 0}
+        report["rezy_bez_ucinku"] = built_parts.get("rezy_bez_ucinku", [])
+        # stožáry velaria stojí nad korunou zdi, terasa a oživení obrazu nejsou rozměr stavby
+        outside = {p["nazev"] for p in spec["dily"] if p.get("rad") == "stozar" or p.get("okoli") or p["typ"] in DECOR}
+        boxes = [p["bbox"] for name, p in built_parts["dily"].items() if name not in outside]
+        report["delka"] = max(b[1][0] for b in boxes) - min(b[0][0] for b in boxes)
+        report["sirka"] = max(b[1][1] for b in boxes) - min(b[0][1] for b in boxes)
+        report["vyska"] = max(b[1][2] for b in boxes)      # z = 0 je terén: podzemí (hypogeum) se do výšky stavby nepočítá
+        report["pod_terenem"] = -min(0.0, *(b[0][2] for b in boxes))
     dims = a.dim or (dims_from_lod(a.lod) if a.lod else [spec["dim"][k] for k in ("length", "width", "height")] if spec else None)
     result = {"pomery": {"sirka_delka": round(report["sirka"] / report["delka"], 3),
                          "vyska_delka": round(report["vyska"] / report["delka"], 3)},
-              "bbox_m": [report["delka"], report["sirka"], report["vyska"]], "cil_m": dims,
+              "bbox_m": [report["delka"], report["sirka"], report["vyska"]], "pod_terenem_m": report.get("pod_terenem", 0.0), "cil_m": dims,
               "problemy": problems(report, dims, a.tol, a.tel)}
     overlay = None
     if a.ref:
