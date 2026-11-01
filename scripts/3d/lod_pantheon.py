@@ -71,8 +71,8 @@ RES = [int(v) for v in opt("--res", (1920, 1080), 2)]
 CAM_AZ = float(opt("--az", -122))
 CAM_EL = float(opt("--el", 10))
 CAM_SCALE = float(opt("--scale", 120))
-CAM_DX = float(opt("--dx", 9.0))
-CAM_DZ = float(opt("--dz", 18))
+CAM_DX = float(opt("--dx", 12.75))
+CAM_DZ = float(opt("--dz", 15.46))
 
 R_I = DIM["inner_d"] / 2
 R_O = R_I + DIM["wall"]

@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-01 — Infografika z renderu bez AI, označení podle původu
+
+Zadání operátora 1. 11.: složit v projektu infografiku podle vloženého vzoru Pantheonu, popsat postup, zkusit vzor vylepšit. Volby níže jsou návrh session, operátor je ruší tady.
+
+- **Render z Blenderu smí být konečný podklad.** Dosavadní postup z 23. 10. končí kresbou modelem. U stavby, kde záleží na počtech a nápisu, je render přesnější: lokální FLUX rozbil nápis a posunul díly ([měření](spikes/2026-11-01-pantheon.md)). Placená kresba zůstává volbou se souhlasem a cenou.
+- **Patička říká pravdu o původu.** Upload s `blender_render: true` dá „Model a render: Blender, bez AI“ a `ai_generated: false` v provenienci exportu. Obrázek z počítače bez té volby zůstává označený jako AI, protože o něm nevíme, jak vznikl. Studio tu volbu nenabízí, posílá ji jen skript, který render vyrobil.
+- **Popisky sedí na bodech modelu**, ne na pixelech: kamera je pravoúhlá, poloha se počítá z rozměrů v metrech.
+- **Vzor se nekopíruje** (zásady z 23. 10.): místo 8 stejných panelů jeden řez a půdorys, který ukáže, co řez neukáže. Fakta vzoru jsem ověřil a chyby neopakoval.
+
 ## 2026-10-31 — Styly v šesti kategoriích, katalog v gitu
 
 Zadání operátora 31. 10.: rozřídit styly do kategorií Fotografie, Historické (od pravěku po klasicismus), Ilustrace, 3D, Komiks, Film, navrhnout doplnění a vytvořit je s ukázkami. Volby níže jsou návrh session, operátor je ruší tady.
