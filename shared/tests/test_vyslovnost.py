@@ -1,6 +1,7 @@
 """Sdílený slovník výslovnosti: přesné tvary jako dřív v NG-ROBOT, kmeny, zápis z editoru, hlášení kandidátů."""
 import json
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -102,6 +103,13 @@ def test_kmen_zkratky_a_jmena_nebere_jinou_velikost():
     assert V.apply("cern a Cernu", entries)[0] == "cern a Cernu"
 
 
+def test_kmen_bez_prepisu_slovo_nerozbije_a_hlasi_se():
+    rows = [{"grapheme": "mitochondri", "alias": "", "kmen": True}]
+    out, applied = V.apply("mitochondrie a Mitochondrie", rows)
+    assert out == "mitochondrie a Mitochondrie"
+    assert applied == [{"grapheme": "mitochondri", "alias": "", "count": 2}]
+
+
 def test_presny_tvar_ma_prednost_pred_kmenem_a_delsi_kmen_pred_kratsim():
     entries = {**KMEN, "mitochondrie": "jinak"}
     assert V.apply("mitochondrie a mitochondrií", entries)[0] == "jinak a mito-chondrií"
@@ -128,6 +136,22 @@ def test_load_chybejici_je_prazdny_rozbity_je_chyba(tmp_path):
     bad.write_text("{", encoding="utf-8")
     with pytest.raises(ValueError, match="rozbitý"):
         V.load(bad)
+
+
+def test_load_pocka_kdyz_windows_docasne_odmitne_cteni(tmp_path, monkeypatch):
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({"entries": [{"grapheme": "A", "alias": "a"}]}), encoding="utf-8")
+    real, calls = Path.read_text, []
+
+    def busy(self, *args, **kwargs):
+        calls.append(self)
+        if len(calls) < 3:
+            raise PermissionError(13, "Přístup byl odepřen")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", busy)
+    assert V.load(path) == [{"grapheme": "A", "alias": "a"}]
+    assert len(calls) == 3
 
 
 def test_cesta_jde_prepsat_z_prostredi(tmp_path, monkeypatch):
