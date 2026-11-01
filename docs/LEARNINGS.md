@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Render řezu v Blenderu: boolean, světlo a paprsek
+
+- **Plocha po booleanu nese index materiálu z řezacího tělesa.** Řez země byl šedobílý, protože jeho plochy měly index mimo sloty a Cycles použil výchozí materiál. Po každém booleanu přiřazovat materiály znovu podle polohy a normály plochy.
+- **Řezná rovina nesmí vést přes vrcholy.** Rotační tělesa jsou posunutá o půl segmentu, takže rovina `y = 0` prochází plochami a Manifold nedělá drobné plošky.
+- **Odebraná polovina musí dál stínit slunce**, jinak zaleje celý vnitřek a z okulu žádný paprsek není. Kopie viditelná jen pro stíny a doplňkové světlo s `blocker_collection`, aby na něj nepůsobila.
+- **Hustota vzduchu v paprsku zhasne skvrnu na podlaze.** Při 0,06 zbylo ze slunce u podlahy asi 6 %. Viditelný paprsek dělá slabá emise objemu, rozptyl je jen 0,012.
+- **Druhé slunce se stejným směrem a `receiver_collection` jen pro paprsek zhaslo to první** (fasáda zmodrala, skvrna zmizela). Příčinu jsem nehledal, emise objemu to řeší jednodušeji.
+- **FLUX s předlohou `geometry` nedrží nápis ani proluky.** Tvar stavby zůstal, písmena se rozpadla a díly se posunuly o desítky pixelů. Kde záleží na nápisu nebo na popiscích přesně na bodech modelu, je render lepší podklad.
+- **Editor kontroluje délku popisku včetně vysvětlení** (název + vysvětlení do 40 znaků). Delší první verze prošla API bez chyby, hlášení je až ve Studiu, tak po každé změně otevřít sekci Kontrola.
+
 ## 2026-10-31 — Výpis úloh četl celou databázi, Studio tím hladovělo
 
 - **Řazení bez indexu přečte i bloby.** `SELECT * … ORDER BY seq DESC LIMIT 60` bez indexu na `seq` načetl všech 499 řádků včetně předloh v base64 (167 MB) a držel přitom zámek `JobStore`. Na kopii skutečné databáze 1,51 s, s indexem 0,02 s.
