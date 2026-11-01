@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { api, imageUrl, isCzech, type Box, type EditAction, type Estimate, type ImageRequest, type Job } from './api.ts'
+import { api, imageUrl, isCzech, ManualEdit, type Box, type EditAction, type Estimate, type ImageRequest, type Job } from './api.ts'
 import { fmtTime, priceLabel } from './App.tsx'
 
 const ACTIONS: { id: EditAction; label: string; hint: string }[] = [
@@ -19,13 +19,24 @@ interface Props {
   onVariant: (ref: string) => void
   onInfographic: (ref: string) => void
   onLocalize: (ref: string) => void
+  onError: (msg: string) => void
   footer: ReactNode
 }
 
 type Mode = 'view' | 'compare' | 'box'
 
-export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, footer }: Props) {
+export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, onError, footer }: Props) {
   const [mode, setMode] = useState<Mode>('view')
+  // a finished picture with its own layers opens whole in VectorCraft, without a 16:9 document around it
+  const [layered, setLayered] = useState(false)
+  const [vcAsk, setVcAsk] = useState<string | null>(null)
+  const [vcOpened, setVcOpened] = useState<string | null>(null)
+  useEffect(() => {
+    setLayered(false)
+    setVcAsk(null)
+    setVcOpened(null)
+    if (selected) api.provenance(selected).then((p) => setLayered(!!p.vectorcraft_svg)).catch(() => setLayered(false))
+  }, [selected])
   const parent = job?.request.parent ?? null
   // "before" = the parent version, else the first image reference (image-to-image)
   const firstImageRef = job?.request.refs.findIndex((r) => r.role !== 'style') ?? -1
@@ -47,6 +58,15 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   }
 
   const src = imageUrl(selected)
+  const openVectorcraft = async (how?: 'edited' | 'new') => {
+    setVcAsk(null)
+    try {
+      setVcOpened((await api.openVectorcraft(selected, how)).opened)
+    } catch (e) {
+      if (e instanceof ManualEdit) setVcAsk(e.message)
+      else onError((e as Error).message)
+    }
+  }
   return (
     <section className="stage">
       <div className="toolbar">
@@ -58,9 +78,18 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
         <button className="btn" onClick={() => onUseAsRef(selected)}>→ Použít jako předlohu</button>
         {job && !job.request.edit && <button className="btn" onClick={() => onReuse(job)}>✎ Upravit zadání</button>}
         <a className="btn" href={src} download={`grafik-${selected.replace('/', '-')}.png`}>⤓ Stáhnout PNG</a>
-        <button className="btn go" onClick={() => onInfographic(selected)}>→ Infografika</button>
+        {layered && <button className="btn go" onClick={() => openVectorcraft()} title="Celý obrázek, každý popisek a objekt zvlášť ve vrstvách">Otevřít ve VectorCraftu</button>}
+        <button className={`btn ${layered ? '' : 'go'}`} onClick={() => onInfographic(selected)}>→ Infografika</button>
         <button className="btn" onClick={() => onLocalize(selected)}>→ Počeštit</button>
       </div>
+      {vcAsk && (
+        <div className="row">
+          <span className="hint">{vcAsk}</span>
+          <button className="btn small" onClick={() => openVectorcraft('edited')}>Otevřít ruční úpravu</button>
+          <button className="btn small" onClick={() => openVectorcraft('new')}>Otevřít novou kopii</button>
+        </div>
+      )}
+      {vcOpened && <p className="hint">Otevřeno ve VectorCraftu: {vcOpened}</p>}
       <div className="canvas">
         {mode === 'compare' && before ? (
           <Compare before={before} after={src} />

@@ -79,6 +79,7 @@ export interface Provenance {
   ai_generated: boolean
   reviewed_by: string | null
   reviewed_at?: string
+  vectorcraft_svg?: string
 }
 
 export class PaymentRequired extends Error {
@@ -118,6 +119,8 @@ export const api = {
   lineage: (ref: string) => call<LineageNode[]>(`/api/v2/lineage/${ref}`),
   provenance: (ref: string) => call<Provenance>(`/api/v2/jobs/${ref.replace('/', '/images/')}/provenance`),
   review: (ref: string, who: string) => post<Provenance>(`/api/v2/jobs/${ref.replace('/', '/images/')}/review`, { reviewed_by: who }),
+  openVectorcraft: (ref: string, mode?: 'edited' | 'new') =>
+    post<{ opened: string; path: string; created: boolean }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/vectorcraft`, { mode }),
   expand: (text: string, confirm: boolean) => post<{ prompt: string; usd: number }>('/api/v2/prompt/expand', { text, confirm_cost: confirm }),
   costs: () => call<{ total_usd: number; entries: { ts: string; usd: number }[] }>('/api/v2/costs?limit=500'),
 }
@@ -286,7 +289,7 @@ export interface Infographic {
   subtitle: string
   template: 'dark' | 'light'
   layout?: 'klasika' | 'pruh'
-  size: '1280x990' | '1920x1080' | '1080x1350'
+  size: string   // "WxH": a preset or the picture's own format
   accent: string
   labels: InfoLabel[]
   facts: InfoFact[]

@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Plakát 2:3 se ve VectorCraftu otevřel ořezaný na 16:9
+
+- **Ověřit cestu, kterou půjde operátor.** Vrstvy plakátu jsem ověřil příkazem nad vlastním souborem. Operátor šel přes tlačítka: Knihovna → Studio → „→ Infografika“ → „Otevřít ve VectorCraftu“. Tam vznikl dokument s pevným 1920×1080 a renderer obraz ořízl (`preserveAspectRatio="xMidYMid slice"`). Příkaz v chatu není rozhraní.
+- **Dokument dostane formát podle obrázku** (`fitting_size`, předvolba jen do 3 % rozdílu tvaru). Obrázek s vlastními vrstvami nese `image-0.svg` a Studio ho otevře přímo.
+- **Chromium přidá k PDF s inline SVG prázdnou druhou stranu.** Mezera pod SVG přeteče stránku; `page_ranges="1"`.
+
 ## 2026-11-01 — Nahraný obrázek shodil celé Studio
 
 - **Každý obrázek v Knihovně má plný záznam o původu.** `POST /api/v2/library/upload` zapisoval zkrácený záznam bez `cost_usd`, `params`, `refs` a `timing_s`. Studio po načtení vybere nejnovější obrázek, `HistoryPanel` spadl na `fmtUsd(undefined)` a bez error boundary zůstala bílá stránka celé aplikace (10:03 až 10:07, oprava dat přímo v `image-0.json`).

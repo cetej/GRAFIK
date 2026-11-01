@@ -29,7 +29,8 @@ from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
 from engine.styles import StyleError, StyleLibrary, palette, slugify
-from engine.infographics import InfoError, InfographicStore, VectorCraftEdited, open_in_window
+from engine.infographics import (InfoError, InfographicStore, VectorCraftEdited, clean_svg, fitting_size, for_vectorcraft,
+                                 open_in_window, vc_copy)
 from engine.termdb import TermDB
 from engine.translate import Translator
 from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
@@ -111,6 +112,7 @@ class InfoUpload(BaseModel):
     name: str = ""
     blender_render: bool = False    # our own render of a 3D model: no generator made it, the footer says so
     title: str = ""                 # caption in the Knihovna tab (/library/upload)
+    svg: str = ""                   # the same picture with its own layers, opens whole in VectorCraft
 
 
 class InfoExport(BaseModel):
@@ -121,6 +123,10 @@ class InfoExport(BaseModel):
 class InfoVectorCraft(BaseModel):
     svg: str
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
+
+
+class ImageVectorCraft(BaseModel):
+    mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the picture's layers
 
 
 class InfoManualExport(BaseModel):
@@ -730,7 +736,11 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def info_create(body: InfoNew):
         if store.image_path(body.base) is None:
             raise HTTPException(404, f"obrázek {body.base} neexistuje")
-        return infos.create(body.base, body.title.strip(), _prov(body.base))
+        return infos.create(body.base, body.title.strip(), _prov(body.base), _fitting(body.base))
+
+    def _fitting(ref: str) -> str:
+        with Image.open(store.image_path(ref)) as im:
+            return fitting_size(im.width, im.height)
 
     def _store_upload(body: InfoUpload, kind: str, request: dict, origin: dict | None = None) -> str:
         try:
@@ -739,11 +749,17 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                 rgb = im.convert("RGB")
         except (ValueError, OSError) as e:
             raise HTTPException(400, f"obrázek nejde přečíst ({e})") from e
+        try:
+            layers = for_vectorcraft(clean_svg(body.svg, allow_data_images=True)) if body.svg else None
+        except InfoError as e:
+            raise HTTPException(400, f"vrstvy nejdou přečíst ({e})") from e
         job_id = store.add_done(kind, "studio", request, {"files": []})
         job_dir = s.library_dir / datetime.now().strftime("%Y-%m") / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
         path = job_dir / "image-0.png"
         rgb.save(path)
+        if layers:
+            path.with_suffix(".svg").write_text(layers, encoding="utf-8")
         # same shape as a generated picture: the Studio's history panel reads all of it (generate None = not measured)
         (job_dir / "image-0.json").write_text(json.dumps({
             "job_id": job_id, "file": path.name, "source": body.name, "seed": None,
@@ -751,6 +767,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             "translations": [], "refs": [], "parent": None, "edit": None, "ai_generated": False, "reviewed_by": None,
             "cost_usd": 0.0, "timing_s": {"queue": 0.0, "generate": None},
             **({"backend": "Blender", "render": "Blender"} if body.blender_render else {}), **(origin or {}),
+            **({"vectorcraft_svg": path.with_suffix(".svg").name} if layers else {}),
             "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
         store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
         return job_id
@@ -758,7 +775,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     @app.post("/api/v2/infographics/upload", status_code=201)
     def info_upload(body: InfoUpload):
         job_id = _store_upload(body, "upload", {"prompt": "", "refs": [], "source": body.name})
-        return infos.create(f"{job_id}/0", Path(body.name).stem, _prov(f"{job_id}/0"))
+        return infos.create(f"{job_id}/0", Path(body.name).stem, _prov(f"{job_id}/0"), _fitting(f"{job_id}/0"))
 
     @app.post("/api/v2/library/upload", status_code=201)
     def library_upload(body: InfoUpload):
@@ -829,19 +846,17 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         _info_or_404(info_id)
         return {"available": find_desktop_app() is not None, "edits": infos.vectorcraft_edits(info_id)}
 
-    @app.post("/api/v2/infographics/{info_id}/vectorcraft")
-    def info_vectorcraft_open(info_id: str, body: InfoVectorCraft):
+    def _open_in_vectorcraft(copy):
         """Opens a copy in the window app for manual work. No heavy lock: the lock is for automated jobs, a
         window can stay open for hours and would stop FLUX on the whole machine (DECISIONS 2026-10-31)."""
-        _info_or_404(info_id)
         app_path = find_desktop_app()
         if app_path is None:
             raise HTTPException(503, "Okenní aplikace VectorCraft není nainstalovaná (složka Tools/Craft/vectorcraft, CRAFT_HOME).")
         try:
-            out = infos.vectorcraft_file(info_id, body.svg, body.mode)
+            out = copy()
         except VectorCraftEdited as e:
             return JSONResponse(status_code=409, content={
-                "detail": f"Ve VectorCraftu je uložená ruční úprava {e.file}. Otevřete ji, nebo novou kopii z editoru? Úprava se nepřepíše.",
+                "detail": f"Ve VectorCraftu je uložená ruční úprava {e.file}. Otevřete ji, nebo novou kopii? Úprava se nepřepíše.",
                 "edited": e.file})
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
@@ -850,6 +865,20 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         except OSError as e:
             raise HTTPException(502, f"VectorCraft se nepodařilo spustit ({e}).") from e
         return {"opened": out["file"], "path": str(out["path"]), "created": out["created"]}
+
+    @app.post("/api/v2/infographics/{info_id}/vectorcraft")
+    def info_vectorcraft_open(info_id: str, body: InfoVectorCraft):
+        _info_or_404(info_id)
+        return _open_in_vectorcraft(lambda: infos.vectorcraft_file(info_id, body.svg, body.mode))
+
+    @app.post("/api/v2/jobs/{job_id}/images/{n}/vectorcraft")
+    def image_vectorcraft(job_id: str, n: int, body: ImageVectorCraft):
+        """A finished picture that came with its own layers (/library/upload `svg`): whole, in its own format."""
+        files = ((store.get(job_id) or {}).get("result") or {}).get("files", [])
+        layers = Path(files[n]).with_suffix(".svg") if 0 <= n < len(files) else None
+        if layers is None or not layers.exists():
+            raise HTTPException(404, "Tenhle obrázek nemá vrstvy pro VectorCraft.")
+        return _open_in_vectorcraft(lambda: vc_copy(layers.parent / "vectorcraft", layers.read_bytes, body.mode))
 
     @app.post("/api/v2/infographics/{info_id}/vectorcraft/export", status_code=201)
     def info_vectorcraft_export(info_id: str, body: InfoManualExport):
