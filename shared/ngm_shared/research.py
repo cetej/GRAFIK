@@ -218,8 +218,12 @@ def load_page(lang: str, title: str, get: Get = get_json) -> dict | None:
             "datum": rev["timestamp"][:10], "text": pg["extract"]}
 
 
+_WORK_ABOUT = re.compile(r"\b(?:film|movie|documentary|docudrama|television|novel|album|song|video game)\b", re.I)
+
+
 def load_pages(entity: dict, langs=LANGS, related: int = RELATED_PAGES, get: Get = get_json) -> list[dict]:
-    """Hlavní stránky jazyků a podobné anglické stránky, které entitu aspoň třikrát jmenují (u nich jen odstavce s jejím jménem)."""
+    """Hlavní stránky jazyků a podobné anglické stránky, které entitu jmenují v úvodu a aspoň třikrát celkem (u nich jen odstavce
+    s jejím jménem). Úvod odfiltruje stránky o něčem jiném, co ji jen zmiňuje (Volkshalle, Roman amphitheatre), i film nebo knihu o ní."""
     pages = [p for lang in langs if lang in entity["sitelinks"] for p in [load_page(lang, entity["sitelinks"][lang], get)] if p]
     en_title = entity["sitelinks"].get("en")
     if related and en_title:
@@ -227,7 +231,8 @@ def load_pages(entity: dict, langs=LANGS, related: int = RELATED_PAGES, get: Get
         short = re.split(r"[,(]", en_title)[0].strip()
         for hit in (found.get("query") or {}).get("search", []):
             page = load_page("en", hit["title"], get)
-            if page and len(re.findall(rf"\b{re.escape(short)}\b", page["text"])) >= 3:
+            lead = page["text"].split("\n==")[0] if page else ""
+            if short in lead and not _WORK_ABOUT.search(lead[:200]) and len(re.findall(rf"\b{re.escape(short)}\b", page["text"])) >= 3:
                 pages.append({**page, "jen_s_nazvem": short})
     return pages
 

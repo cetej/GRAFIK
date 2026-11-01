@@ -3,6 +3,7 @@ import {
   api, imageUrl, onlyTranslation, PaymentRequired, refsApi, wfApi,
   type Estimate, type ImageRequest, type Job, type LineageNode, type RefMeta, type Role, type Workflow,
 } from './api.ts'
+import Podklady, { TopicStart } from './Podklady.tsx'
 import { fmtTime, priceLabel, refFromMeta, ROLE_LABEL, type Confirm, type FormRef } from './App.tsx'
 import RefPicker, { type PickerTab } from './RefPicker.tsx'
 import { BoxEditor } from './Stage.tsx'
@@ -20,16 +21,24 @@ interface Props {
   onError: (msg: string) => void
   onOpenInStudio: (ref: string) => void
   onInfographic: (ref: string, title: string) => void
+  onInfographicDoc: (id: string) => void
+  onUseRef: (m: RefMeta) => void
 }
 
 export default function Wizard(props: Props) {
   const [list, setList] = useState<Workflow[]>([])
   const [wf, setWf] = useState<Workflow | null>(null)
+  const [research, setResearch] = useState<string | null>(null)
   useEffect(() => { wfApi.list().then(setList).catch((e) => props.onError(e.message)) }, [wf?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (research) {
+    return <Podklady id={research} onBack={() => setResearch(null)} onOpenVersion={setResearch} onOpen={props.onOpen} setConfirm={props.setConfirm}
+      onError={props.onError} onUseRef={props.onUseRef} onInfographicDoc={props.onInfographicDoc} />
+  }
   if (!wf) {
     return (
       <main className="guide-start">
+        <TopicStart onOpen={setResearch} onError={props.onError} />
         <section className="card">
           <h2>Průvodce historickým objektem</h2>
           <p>Postup ověřený 22. 10.: předloha → čistý bokorys → oprava v rámečku → natočený pohled 3/4 shora → popisky.
