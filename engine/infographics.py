@@ -89,6 +89,8 @@ def ai_note(prov: dict | None) -> str:
     """Footer line required by the FLUX licence § 2e and the operator's rule: AI image, human text."""
     if not prov:
         return "Ilustrace: AI, schéma a popisky redakčně."
+    if prov.get("render"):
+        return f"Model a render: {prov['render']}, bez AI; schéma a popisky redakčně."
     model = BACKEND_NAMES.get(prov.get("backend"), prov.get("model") or prov.get("backend") or "AI")
     by_ref = any(r.get("sent_as") == "image" for r in prov.get("refs", []))
     return f"Ilustrace: {model} (AI){' podle předlohy' if by_ref else ''}, schéma a popisky redakčně."
@@ -256,7 +258,7 @@ class InfographicStore:
         (ex / name).write_bytes(data)
         prov = {"infographic": info_id, "file": name, "format": fmt, "size": doc["size"], "base": doc["base"],
                 "base_provenance": base_prov, "title": doc["title"], "labels": doc["labels"], "facts": doc["facts"],
-                "sources": doc["sources"], "ai_note": doc["ai_note"], "ai_generated": True,
+                "sources": doc["sources"], "ai_note": doc["ai_note"], "ai_generated": not (base_prov or {}).get("render"),
                 "text_by": "redakce (editor GRAFIK)", "reviewed_by": doc.get("reviewed_by"),
                 "created": datetime.now().isoformat(timespec="seconds")}
         (ex / f"{name}.json").write_text(json.dumps(prov, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -333,7 +335,7 @@ class InfographicStore:
             name = f"{stem}.{fmt}"
             prov = {"infographic": info_id, "file": name, "format": fmt, "size": size, "base": doc["base"],
                     "base_provenance": base_prov, "title": doc["title"], "sources": doc["sources"],
-                    "ai_note": doc["ai_note"], "ai_note_checked": True, "ai_generated": True,
+                    "ai_note": doc["ai_note"], "ai_note_checked": True, "ai_generated": not (base_prov or {}).get("render"),
                     "text_by": "redakce (ruční úprava ve VectorCraftu)",
                     "texts": texts,
                     "manual_edit": {"file": src.name, "sha256": sha,

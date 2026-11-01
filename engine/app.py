@@ -109,6 +109,7 @@ class InfoNew(BaseModel):
 class InfoUpload(BaseModel):
     b64: str                        # image from the operator's computer
     name: str = ""
+    blender_render: bool = False    # our own render of a 3D model: no generator made it, the footer says so
 
 
 class InfoExport(BaseModel):
@@ -745,6 +746,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         rgb.save(path)
         (job_dir / "image-0.json").write_text(json.dumps({
             "job_id": job_id, "file": path.name, "source": body.name, "ai_generated": False, "reviewed_by": None,
+            **({"render": "Blender"} if body.blender_render else {}),
             "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
         store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
         return infos.create(f"{job_id}/0", Path(body.name).stem, _prov(f"{job_id}/0"))
