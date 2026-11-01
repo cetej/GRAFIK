@@ -11,6 +11,30 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 Úsudek o tom, co stojí za popisek a zda celek působí vyváženě, zůstává na člověku. Číselné kontroly jen upozorní na rozháranost.
 
+## Stránka z víc obrazů (Koloseum, 1. 11., výtky operátora)
+
+**Skladba**
+- Než se začne skládat, napiš ke každému panelu otázku čtenáře, na kterou hlavní obraz neodpoví (`otazka`). Když je odpověď „totéž zblízka“, panel na stránku nepatří. Co jde říct přímo na hlavním obraze (kdo kde seděl), patří tam: číslované značky a legenda, ne další řez.
+- Téma je víc než objekt. U stavby i to, co se v ní dělo a kdo v ní byl: Koloseum bez gladiátorů „nedává smysl“.
+
+**Odkud obraz vznikne**
+- Stavby a stroje: model z dílů v Blenderu.
+- Slavné volné dílo: originál, celé. Generátor z něj dělá „rádoby kopii“. Výřez, který je skoro stejně velký jako obraz vedle, nemá smysl.
+- Lidé a zvířata: fotorealistický generátor. Tělo z kapslí v Blenderu je „komiks“, ani mramor to nezachrání.
+- Série postav: každá jiné semínko, tělo a postoj, výbava podle pramene (`grafik_client.figures`). Stejné semínko dá šestkrát stejného člověka.
+- Jedna věc v několika pozicích (ruka): stejná osoba a velikost, předloha `subject`, a anatomicky správně. Pravá ruka s palcem dolů ukazuje hřbet, ne dlaň.
+
+**Výřez a stín**
+- Postava s kovem jen na zeleném plátně (`zdroj.vyriznout`): na tmavém pozadí se kov ztrácí. Klíč je změřený na obrázku, ne odhadnutý.
+- Stín se nevyrábí, bere se z originálu (`zdroj.stin`). Skvrna pod nohama je levitace, vržený stín jedním směrem nesedí na světlo.
+- Výřez kontroluj ve zvětšení: zubaté okraje a sežraný kov na zmenšené stránce nejsou vidět.
+
+**Text**
+- Spor v pramenech a populární mýtus: verze vedle sebe, u každé kdo ji tvrdí, a rozdíl musí být vidět na první pohled. Dvě gesta se stejným významem čtenáři nic neřeknou. Verzi od operátora dohledej a uveď, jak je doložená.
+- Zlatá a tučná jen pro názvy. Popisek pod obrazem je obyčejné písmo v barvě textu.
+- Na barevné stránce popisky bez černého obrysu, jen měkký stín (`template: "ruda"`).
+- Vodítko nesmí přeškrtnout text: bod vpravo od textu chce text zarovnaný doprava. Hlídá to `GET …/kontrola`.
+
 ## Měřitelné kontroly (editor, sekce Kontrola)
 
 | Kontrola | Práh | Vzor | Kvinquerema před úpravou | Kvinquerema po úpravě |

@@ -286,6 +286,19 @@ def generate(prompt: str, *, out_dir: str | Path = ".", timeout: float = 900, **
     return download(wait(submit(prompt, **kw), timeout=timeout), out_dir)
 
 
+FIGURE_SCREEN = ("The whole figure from head to feet with space around it, centred, standing on the floor of a seamless solid bright chroma key green studio, "
+                 "green wall and green floor, one even green colour, soft natural shadow on the floor under the feet, soft studio light. Nothing else in the picture. ")
+
+
+def figures(descriptions: list[str], *, common: str = "", size: str = "768x1152", first_seed: int = 101, timeout: float = 900, **kw) -> list[str]:
+    """Série postav k výřezu: zelené plátno a každá vlastní semínko. Vrátí `<job>/0` pro panel se `zdroj: {obraz, vyriznout, stin}`.
+    Popis má říct i tělo a postoj: se stejným semínkem a popisem vyjde pokaždé stejný člověk."""
+    jobs = [submit(f"{FIGURE_SCREEN}{common}{text}", size=size, seed=first_seed + i, **kw) for i, text in enumerate(descriptions)]
+    for job in jobs:
+        wait(job, timeout=timeout)
+    return [f"{job}/0" for job in jobs]
+
+
 def model3d(*, refs: list | None = None, glb: str | Path | None = None, title: str = "", method: str | None = None,
             model_id: str | None = None, origin: str = "", caller: str | None = None, confirm_cost: bool = False,
             timeout: float = 1200) -> dict:

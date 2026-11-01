@@ -296,3 +296,10 @@ def test_dossier_text_is_one_line_per_fact_and_cut():
                "facts": [{"id": "f1", "stav": "rozpor", "tema": "stavba", "tvrzeni": "x" * 500}]}
     text = pp.dossier_text(dossier)
     assert "rez 1" in text and "f1 [rozpor, stavba] " + "x" * pp.MAX_FACT_TEXT in text and "x" * (pp.MAX_FACT_TEXT + 1) not in text
+
+
+def test_proposal_panel_says_its_question_and_where_the_picture_comes_from():
+    known = {"f1": {}}
+    panel = pp._panel({"titulek": "Scéna", "x": 0, "y": 0, "w": 50, "h": 50, "otazka": "Co se tu dělo?", "obrazek": "obraz", "fakta": ["f1"]}, 0, known)
+    assert panel["otazka"] == "Co se tu dělo?" and panel["obrazek"] == "obraz"
+    assert pp._panel({"x": 0, "y": 0, "w": 50, "h": 50, "obrazek": "kouzlo"}, 0, known)["obrazek"] is None

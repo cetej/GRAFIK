@@ -131,6 +131,14 @@ Operátor 1. 11. po stisku „Další varianta“ u plakátu: „udělalo jen ji
 - Fakta a popisky se znovu nevymýšlejí, berou se z dossieru a dokumentu. Výsledek je nový dokument, původní se nemění. Cena v tlačítku, bez návrhu od Claude 0 USD.
 - **Hotovo:** z Pantheonu 3 varianty, které se liší skladbou, se stejnými fakty a stejnými kontrolami jako originál. Ověřeno kliknutím v opravdovém Studiu. Placený návrh jen se souhlasem operátora.
 
+### Krok 3f: obrazy panelů podle jejich zdroje (po 3c, vlastní PR)
+
+Zkušenost z Kolosea: dokument s panely umí skript, řetězec z tématu zatím ne, a většinu práce dalo sehnat obrazy, které nejsou model. Návrh skladby už říká `otazka`, `obrazek` a `doplnit`, nic je ale zatím nepoužívá.
+
+- `obrazek` řídí krok: `model` render, `obraz` předloha z dossieru v originále, `ilustrace` série přes `grafik_client.figures` a výřez se stínem, `kresba` šablona. Témata z `doplnit` jdou do další volné rešerše, dossier se doplní jako nová verze.
+- Kontroly jako nyní (`GET …/kontrola`) a kontrolní list výřezů ve zvětšení, který člověk vidí před složením stránky. Lokální FLUX 0 USD, placený model jen s cenou předem.
+- **Hotovo:** z tématu vznikne stránka srovnatelná s Koloseem bez ručních skriptů, ověřeno v opravdovém Studiu a na druhém tématu mimo stavby.
+
 ### Pravidla pro všechny fáze
 
 - Placené operace jen s výslovným souhlasem operátora a cenou předem. Testy nic neplatí (`GRAFIK_LIVE_TESTS`).

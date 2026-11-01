@@ -88,17 +88,17 @@ def page(sources: dict[str, dict]) -> dict:
                 label("Hypogeum", ["dvě patra chodeb a klecí", "80 šachet s výtahy do arény"], [-12.0, 2.0, -3.0], 763, 821),
                 label("Základ z tufu", "7 až 13 m podle zdroje", "k_zaklad", 578, 895),
             ], "znacky": [{"text": str(i + 1), "kotva": point} for i, point in enumerate(SEATS)]},
-            {"id": "mista", "typ": "fakta", "poradi": 2, "nazev": "Kdo kde seděl", "titulek": {"text": "Kdo kde seděl", "x": 50, "y": 214}, "rect": [50, 222, 240, 135], "smer": "sloupec", "size": 21, "small_size": 21, "krok": 27, "fakta": ["f32", "f33", "f34", "f44"], "items": [
+            {"id": "mista", "typ": "fakta", "poradi": 2, "nazev": "Kdo kde seděl", "otazka": "Kdo seděl kde?", "titulek": {"text": "Kdo kde seděl", "x": 50, "y": 214}, "rect": [50, 222, 240, 135], "smer": "sloupec", "size": 21, "small_size": 21, "krok": 27, "fakta": ["f32", "f33", "f34", "f44"], "items": [
                 {"value": "1", "text": "senátoři"}, {"value": "2", "text": "jezdci"}, {"value": "3", "text": "bohatí občané"}, {"value": "4", "text": "chudí občané"}, {"value": "5", "text": "chudina, otroci, ženy"}]},
-            {"id": "cisla", "typ": "fakta", "poradi": 17, "nazev": "Čísla", "rect": [50, 1018, 1500, 75], "size": 34, "small_size": 20, "fakta": ["f3", "f4", "f5", "f6", "f7"], "items": [
+            {"id": "cisla", "typ": "fakta", "poradi": 17, "nazev": "Čísla", "otazka": "Jak je velká?", "rect": [50, 1018, 1500, 75], "size": 34, "small_size": 20, "fakta": ["f3", "f4", "f5", "f6", "f7"], "items": [
                 {"value": "187–189 m", "text": "délka"}, {"value": "155–156 m", "text": "šířka"}, {"value": "48 m", "text": "výška"}, {"value": "24 000 m²", "text": "plocha"}, {"value": "50–80 tisíc", "text": "míst podle zdroje"}]},
-            {"id": "scena", "typ": "obraz", "poradi": 3, "nazev": "Pollice Verso", "titulek": {"text": "Milost, nebo smrt?", "x": 50, "y": 1132}, "rect": [50, 1146, 900, 605], "zdroj": {"ref_id": POLLICE_VERSO}, "labels": [
+            {"id": "scena", "typ": "obraz", "poradi": 3, "nazev": "Pollice Verso", "otazka": "Co se v aréně dělo, když poražený čekal?", "titulek": {"text": "Milost, nebo smrt?", "x": 50, "y": 1132}, "rect": [50, 1146, 900, 605], "zdroj": {"ref_id": POLLICE_VERSO}, "labels": [
                 label("Poražený zvedá prsty", "žádá o milost, ad digitum", [1010, 975, 0], 610, 1590),
                 label("Vítěz čeká na verdikt", "sám nerozhoduje", [640, 640, 0], 300, 1520, "right"),
                 label("Císař v lóži", "rozhodoval, řídil se davem", [545, 440, 0], 281, 1440, "right"),
                 label("Vestálky a palec dolů", "tenhle obraz ho rozšířil", [1470, 345, 0], 706, 1450),
             ], "pod": {"small": "J.-L. Gérôme: Pollice Verso, 1872. U opravdového boje stál i rozhodčí, na obraze chybí."}},
-            {"id": "palec", "typ": "text", "poradi": 4, "nazev": "Palec", "titulek": {"text": "Palec nahoru, nebo dolů?", "x": 985, "y": 1132}, "rect": [985, 1142, 575, 85], "size": 24, "small_size": 20, "krok": 85, "items": [
+            {"id": "palec", "typ": "text", "poradi": 4, "nazev": "Palec", "otazka": "Jak to bylo s palcem?", "titulek": {"text": "Palec nahoru, nebo dolů?", "x": 985, "y": 1132}, "rect": [985, 1142, 575, 85], "size": 24, "small_size": 20, "krok": 85, "items": [
                 {"value": "Pollice verso", "text": "znamená jen „s otočeným palcem“. Kam se otáčel, žádný římský text přesně neříká."}]},
             gesture("nahoru", "Palec nahoru", 1222, 6),
             gesture("dolu", "Palec dolů", 1362, 7),
@@ -115,7 +115,7 @@ def page(sources: dict[str, dict]) -> dict:
             gladiator("thraex", "Thraex", 800, 13),
             gladiator("hoplomachus", "Hoplomachus", 1050, 14),
             gladiator("provocator", "Provocator", 1300, 15),
-            {"id": "druhy", "typ": "fakta", "poradi": 9, "nazev": "Druhy gladiátorů", "titulek": {"text": "Šest druhů gladiátorů a kdo proti komu", "x": 50, "y": 1826}, "rect": [50, 2130, 1500, 150], "size": 26, "small_size": 19, "sirka": 28, "items": [
+            {"id": "druhy", "typ": "fakta", "poradi": 9, "nazev": "Druhy gladiátorů", "otazka": "Kdo proti komu bojoval?", "titulek": {"text": "Šest druhů gladiátorů a kdo proti komu", "x": 50, "y": 1826}, "rect": [50, 2130, 1500, 150], "size": 26, "small_size": 19, "sirka": 28, "items": [
                 {"value": "Retiarius", "text": "Trojzubec a síť, bez helmy. Proti němu secutor."},
                 {"value": "Secutor", "text": "Hladká helma, ať se nezachytí v síti. Proti němu retiarius."},
                 {"value": "Murmillo", "text": "Helma s hřebenem, vysoký štít. Proti němu thraex, hoplomachus."},
