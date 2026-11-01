@@ -54,6 +54,8 @@ def test_library_upload_shows_in_the_job_list_with_its_origin(api):
     assert prov["backend"] == "Blender" and prov["cost_usd"] == 0 and prov["params"]["size"] == "64x96"
     assert prov["refs"] == [] and prov["timing_s"]["generate"] is None and prov["prompt_sent"] == "Pantheon"
     assert api.get("/api/v2/infographics").json() == []   # a picture for the library is not a document to edit
+    # its caption is not a prompt: "Další varianta" on the poster drew a new building (operator 1 Nov)
+    assert api.post(f"/api/v2/jobs/{r.json()['job_id']}/repeat", json={"n": 0}).status_code == 400
     assert api.post("/api/v2/library/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
 
 

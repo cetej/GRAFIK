@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Popisek hotového plakátu skončil ve FLUX jako zadání
+
+- **Nová cesta k datům dědí všechna tlačítka okolo.** Upload do Knihovny dostal druh `image` a Studio mu nabídlo totéž co generovanému obrázku. „Další varianta“ poslala popisek „Pantheon: velká infografika…“ do FLUX a stála 0,01 USD za překlad. Průzkum na to upozornil, ale tu pasti jsem hned neopravil. Kromě dat ověřit i tlačítka, která se u nového druhu ukážou.
+
 ## 2026-11-01 — Plakát 2:3 se ve VectorCraftu otevřel ořezaný na 16:9
 
 - **Ověřit cestu, kterou půjde operátor.** Vrstvy plakátu jsem ověřil příkazem nad vlastním souborem. Operátor šel přes tlačítka: Knihovna → Studio → „→ Infografika“ → „Otevřít ve VectorCraftu“. Tam vznikl dokument s pevným 1920×1080 a renderer obraz ořízl (`preserveAspectRatio="xMidYMid slice"`). Příkaz v chatu není rozhraní.

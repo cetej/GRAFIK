@@ -10,6 +10,8 @@ K velké infografice Pantheonu operátor: „Celkově to vypadá moc pěkně - v
 
 Operátor k návrhu automaticky předělat hotovou infografiku na jiný formát: „Ano, přidat“. V plánu je to krok 3d, staví se až po dokumentu s panely (3c).
 
+Operátor k „Další variantě“ u plakátu: „udělalo jen jiný obrázek základní budovy - To je pochopitelné u jednotlivého obrázku ne u infografiky.“ Varianta infografiky má být nová skladba, v plánu krok 3e. Do té doby hotový obrázek bez generátoru tlačítka pro generování nemá.
+
 Volby níže jsou návrh session, operátor je ruší tady:
 
 - **Přeformátování dělá nový dokument a nic neořezává.** Co se do formátu nevejde, ukáže hlášení a rozhodne operátor.

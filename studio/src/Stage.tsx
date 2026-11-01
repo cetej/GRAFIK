@@ -29,13 +29,16 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   const [mode, setMode] = useState<Mode>('view')
   // a finished picture with its own layers opens whole in VectorCraft, without a 16:9 document around it
   const [layered, setLayered] = useState(false)
+  // not from a generator: its caption is no prompt, so no variant and no generator edit
+  const [finished, setFinished] = useState(false)
   const [vcAsk, setVcAsk] = useState<string | null>(null)
   const [vcOpened, setVcOpened] = useState<string | null>(null)
   useEffect(() => {
     setLayered(false)
+    setFinished(false)
     setVcAsk(null)
     setVcOpened(null)
-    if (selected) api.provenance(selected).then((p) => setLayered(!!p.vectorcraft_svg)).catch(() => setLayered(false))
+    if (selected) api.provenance(selected).then((p) => { setLayered(!!p.vectorcraft_svg); setFinished(p.ai_generated === false) }).catch(() => setLayered(false))
   }, [selected])
   const parent = job?.request.parent ?? null
   // "before" = the parent version, else the first image reference (image-to-image)
@@ -70,13 +73,13 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   return (
     <section className="stage">
       <div className="toolbar">
-        <button className={`btn ${mode === 'box' ? 'active' : ''}`} onClick={() => setMode(mode === 'box' ? 'view' : 'box')}>▭ Upravit v rámečku</button>
+        {!finished && <button className={`btn ${mode === 'box' ? 'active' : ''}`} onClick={() => setMode(mode === 'box' ? 'view' : 'box')}>▭ Upravit v rámečku</button>}
         <button className={`btn ${mode === 'compare' ? 'active' : ''}`} disabled={!before}
           title={before ? 'Posuvníkem porovnáte s předchozí verzí nebo předlohou' : 'Tenhle obrázek nemá předchozí verzi ani předlohu'}
           onClick={() => setMode(mode === 'compare' ? 'view' : 'compare')}>⇔ Porovnat před/po</button>
-        <button className="btn" onClick={() => onVariant(selected)} title="Stejné zadání i předlohy, nový seed">↻ Další varianta</button>
+        {!finished && <button className="btn" onClick={() => onVariant(selected)} title="Stejné zadání i předlohy, nový seed">↻ Další varianta</button>}
         <button className="btn" onClick={() => onUseAsRef(selected)}>→ Použít jako předlohu</button>
-        {job && !job.request.edit && <button className="btn" onClick={() => onReuse(job)}>✎ Upravit zadání</button>}
+        {job && !job.request.edit && !finished && <button className="btn" onClick={() => onReuse(job)}>✎ Upravit zadání</button>}
         <a className="btn" href={src} download={`grafik-${selected.replace('/', '-')}.png`}>⤓ Stáhnout PNG</a>
         {layered && <button className="btn go" onClick={() => openVectorcraft()} title="Celý obrázek, každý popisek a objekt zvlášť ve vrstvách">Otevřít ve VectorCraftu</button>}
         {!layered && <button className="btn go" onClick={() => onInfographic(selected)}>→ Infografika</button>}
