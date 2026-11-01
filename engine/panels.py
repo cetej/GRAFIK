@@ -141,7 +141,7 @@ def validate(doc: dict) -> list[dict]:
         rect = _numbers(f"panel {pid}: rect", raw.get("rect"), 4)
         if rect[2] <= 0 or rect[3] <= 0 or rect[0] < 0 or rect[1] < 0 or rect[0] + rect[2] > W + 0.5 or rect[1] + rect[3] > H + 0.5:
             raise InfoError(f"panel {pid}: rect {rect} je mimo plátno {W} × {H}")
-        panel = {"id": pid, "typ": raw["typ"], "rect": rect, "poradi": int(_number(f"panel {pid}: poradi", raw.get("poradi", i + 1))), "nazev": str(raw.get("nazev") or pid), "fakta": _lines(raw.get("fakta"))}
+        panel = {"id": pid, "typ": raw["typ"], "rect": rect, "poradi": int(_number(f"panel {pid}: poradi", raw.get("poradi", i + 1))), "nazev": str(raw.get("nazev") or pid), "fakta": _lines(raw.get("fakta")), "otazka": str(raw.get("otazka") or "")}
         if raw.get("titulek"):
             title = raw["titulek"] if isinstance(raw["titulek"], dict) else {"text": str(raw["titulek"])}
             panel["titulek"] = {"text": str(title.get("text") or ""), **{k: _number(f"panel {pid}: titulek", title[k]) for k in ("x", "y") if title.get(k) is not None}}
@@ -470,6 +470,12 @@ def _segments(poly):
     return list(zip(poly, poly[1:]))
 
 
+def _strikes(poly, box) -> bool:
+    """Vodítko vede přes text jako přeškrtnutí."""
+    x, y, w, h = box
+    return any(x < a[0] + (b[0] - a[0]) * i / 24 < x + w and y < a[1] + (b[1] - a[1]) * i / 24 < y + h for a, b in _segments(poly) for i in range(25))
+
+
 def _text_box(label: dict, size: float) -> tuple[float, float, float, float]:
     width = max([len(label["text"]) * size * LINE_WIDTH * 1.08] + [len(s) * size * 0.86 * LINE_WIDTH for s in label["small"]])
     height = size * (1.2 + 1.1 * len(label["small"]))
@@ -486,6 +492,11 @@ def checks(doc: dict, root: Path) -> list[dict]:
     labels = 0
     too_small = None
     boxes = []
+    struck = []
+    pictures = [p for p in doc["panels"] if p["typ"] == "obraz"]
+    hero = min(pictures, key=lambda p: p["poradi"]) if pictures else None
+    model_of = lambda p: (p.get("zdroj") or {}).get("model_id")
+    repeats = [p["nazev"] for p in pictures if p is not hero and model_of(p) and model_of(p) == model_of(hero) and not p.get("otazka")]
     for panel in doc["panels"]:
         if panel["typ"] != "obraz":
             continue
@@ -514,6 +525,8 @@ def checks(doc: dict, root: Path) -> list[dict]:
             px = size * 1280 / W
             if px < MIN_NAME_PX or (label["small"] and px * 0.86 < MIN_SMALL_PX):
                 too_small = round(px, 1)
+        own_boxes = [_text_box(label, label.get("size", 23 * k)) for label in panel["labels"]]
+        struck += [panel["labels"][i]["text"] for i, poly in enumerate(polys) for box in own_boxes if _strikes(poly, box)] if len(polys) == len(panel["labels"]) else []
         for i in range(len(polys)):
             for j in range(i + 1, len(polys)):
                 crossings += any(_cross(a, b, c, d) for a, b in _segments(polys[i]) for c, d in _segments(polys[j]))
@@ -524,6 +537,9 @@ def checks(doc: dict, root: Path) -> list[dict]:
         far = [x for x in lengths if x > LEADER_MAX]
         out.append({"ok": not far, "text": f"{len(far)} vodítek delších než {LEADER_MAX * 100:.0f} % šířky" if far else "žádné vodítko není dlouhé"})
     out.append({"ok": crossings == 0, "text": f"{crossings}× se vodítka kříží" if crossings else "vodítka se nekříží"})
+    out.append({"ok": not struck, "text": f"vodítko přeškrtává text: {', '.join(dict.fromkeys(struck))}" if struck else "vodítka nepřeškrtávají text"})
+    if repeats:
+        out.append({"ok": False, "text": f"opakují hlavní model a neříkají proč: {', '.join(repeats)}. Co ukážou víc než hlavní obraz?"})
     out.append({"ok": not long_lines, "text": f"{long_lines} popisků delších než {MAX_LABEL_CHARS} znaků" if long_lines else "popisky krátké"})
     out.append({"ok": too_small is None, "text": f"písmo popisku {too_small} px při šířce 1280, chce aspoň {MIN_NAME_PX}" if too_small else "písmo popisků čitelné"})
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
@@ -542,7 +558,7 @@ def checks(doc: dict, root: Path) -> list[dict]:
 
 def texts_of(doc: dict) -> list[dict]:
     """Co dokument říká, do provenience exportu: bez obrázků a kreseb."""
-    keep = ("id", "typ", "poradi", "titulek", "labels", "znacky", "items", "pod", "zdroj", "fakta")
+    keep = ("id", "typ", "poradi", "titulek", "otazka", "labels", "znacky", "items", "pod", "zdroj", "fakta")
     return [{k: p[k] for k in keep if k in p} for p in doc["panels"]]
 
 

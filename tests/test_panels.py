@@ -343,6 +343,28 @@ def test_caption_without_a_heading_is_plain_text(tmp_path):
     assert 'font-weight="400"' in caption and "#dcb062" not in caption and 'y="430.0"' in caption
 
 
+def test_checks_catch_a_struck_label_and_a_second_view_of_the_same_model(tmp_path):
+    source = tmp_path / "a.png"
+    Image.new("RGB", (100, 100), "red").save(source)
+    for panel_id in ("hlavni", "detail", "jiny"):
+        panels.copy_image(source, tmp_path, panel_id)
+    same = {"model_id": "m", "version": "v1", "render": "r-1"}
+    doc = {"size": "1600x1000", "title": "Věž", "ai_note": "x", "sources": "zdroj", "panels": [
+        {"id": "hlavni", "typ": "obraz", "poradi": 1, "rect": [0, 0, 100, 100], "nazev": "Hlavní", "zdroj": same,
+         "labels": [label("Dlouhý popisek", [90, 50, 0], pos=[20, 44])]},           # bod vpravo, text doleva: vodítko jde přes něj
+        {"id": "detail", "typ": "obraz", "poradi": 2, "rect": [200, 0, 100, 100], "nazev": "Detail", "zdroj": same},
+        {"id": "jiny", "typ": "obraz", "poradi": 3, "rect": [400, 0, 100, 100], "nazev": "Obraz", "zdroj": {"ref_id": "x"}}]}
+    doc["panels"] = panels.validate(doc)
+    found = {c["text"]: c["ok"] for c in panels.checks(doc, tmp_path)}
+    assert found["vodítko přeškrtává text: Dlouhý popisek"] is False
+    assert found["opakují hlavní model a neříkají proč: Detail. Co ukážou víc než hlavní obraz?"] is False
+    doc["panels"][1]["otazka"] = "Co je pod pískem?"
+    doc["panels"][0]["labels"][0]["align"] = "right"
+    doc["panels"][0]["labels"][0]["pos"] = [80, 44]
+    found = {c["text"]: c["ok"] for c in panels.checks(doc, tmp_path)}
+    assert found["vodítka nepřeškrtávají text"] is True and not any("opakují" in text for text in found)
+
+
 def test_thresholds_match_the_editor():
     source = (REPO / "studio" / "src" / "Infographics.tsx").read_text(encoding="utf-8")
     assert f"const MAX_LABELS = {panels.MAX_LABELS}" in source and f"const MAX_LABEL_CHARS = {panels.MAX_LABEL_CHARS}" in source

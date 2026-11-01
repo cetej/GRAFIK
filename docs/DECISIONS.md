@@ -4,6 +4,8 @@ Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
 ## 2026-11-01 — Infografika Kolosea: hlavní model zůstává, výřezy ustupují příběhu
 
+- **Zkušenosti do projektu (operátor 1. 11.):** „zpracuj zkušenosti pro upřesnění nebo doplnění projektu, aby byl schopen zpracovávat kvalitně infografiky sám.“ Výtky jsou v `docs/infografiky-zasady.md`, v zadání návrhů skladby, v automatických kontrolách a v `grafik_client.figures`; zbytek je krok 3f plánu.
+
 - **Co:** menší obrázky, které ukazují jen znovu model, ze stránky pryč. Místo nich scéna z arény jako variace obrazu Pollice Verso, skutečnost o palci nahoru a dolů, druhy gladiátorů.
 - **Proč:** operátor 1. 11.: „To Koloseum celkové - je dost odbyté a nedává smysl. Ty detaily - menší obrázky neukazují více než hlavní model - ten je naopak povedený. Měla by tam být scéna z arény - variace slvného obrazu jak se gladiátor ptá davů a císaře, zda má zabít protivníka. Druhy gladiátorů - jak to bylo ve skutečnosti s palcem nahoru a dolu.“
 - **Důsledek:** kdo kde seděl je přímo na hlavním modelu (číslované značky), ne ve zvláštním řezu. Gladiátoři jsou AI ilustrace z lokálního FLUX, označené v patičce po panelech.
