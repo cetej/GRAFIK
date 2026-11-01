@@ -17,9 +17,10 @@ from sazba import cover, crop_alpha, fit, group, image_tag, text, wrap, write_po
 S = 2
 W, H = 736 * S, 1308 * S
 SERIF = "'Palatino Linotype', 'Book Antiqua', Georgia, serif"
-INK, BODY, LINE = "#2a2218", "#3f3528", "#4a3a28"
-COPPER, STEEL, PALE = "#b0683a", "#4f7690", "#f2efe3"
+INK, BODY, LINE = "#15110b", "#2a2319", "#2a2218"
+COPPER, STEEL, PALE = "#c2521c", "#1c6ea4", "#f4f0e4"
 NB = " "
+NIGHT = "#14171c"
 PANELS = {"motor": (28, 117, 332, 324), "vez": (377, 117, 330, 376), "proudy": (28, 465, 220, 227), "civka": (492, 507, 215, 468),
           "radio": (28, 708, 220, 267), "trubice": (28, 992, 220, 285), "turbina": (260, 1055, 218, 222), "voda": (492, 992, 215, 285)}
 
@@ -32,12 +33,12 @@ def label(x, y, s, size=8.2, anchor="start", weight=400, italic=False, fill=BODY
     return text(u(x), u(y), s, round(size * S, 1), fill, weight, anchor, italic=italic)
 
 
-def body(x, y, s, n, size=7.8, leading=1.27, anchor="start") -> str:
-    return "".join(label(x, y + i * size * leading, line, size, anchor, italic=True) for i, line in enumerate(wrap(s, n)))
+def body(x, y, s, n, size=7.8, leading=1.27, anchor="start", fill=BODY) -> str:
+    return "".join(label(x, y + i * size * leading, line, size, anchor, italic=True, fill=fill) for i, line in enumerate(wrap(s, n)))
 
 
-def head(x, y, s, size=12.6, anchor="start") -> str:
-    return label(x, y, s, size, anchor, 700, fill=INK)
+def head(x, y, s, size=12.6, anchor="start", fill=INK) -> str:
+    return label(x, y, s, size, anchor, 700, fill=fill)
 
 
 def ink(im: Image.Image) -> Image.Image:
@@ -49,13 +50,25 @@ def ink(im: Image.Image) -> Image.Image:
     yy, xx = np.mgrid[0:h, 0:w]
     a *= np.clip(np.minimum.reduce([xx, w - 1 - xx, yy, h - 1 - yy]) / 30.0, 0, 1)
     col = np.clip((rgb - (1 - a[..., None]) * paper) / np.maximum(a[..., None], 0.05), 0, 255)
+    # on a light paper the plate needs real darks and colours
+    grey = col.mean(axis=2, keepdims=True)
+    col = 255 * (np.clip(grey + (col - grey) * 1.5, 0, 255) / 255) ** 1.22
     return Image.fromarray(np.dstack([col, a * 255]).astype("uint8"), "RGBA")
 
 
-def placed(renders: Path, shot: str, x, y, w, h):
-    """The solid part of the machine fills the box; its shadow may spill out of it."""
-    full = Image.open(renders / "rytiny" / f"{shot}.png")
-    im, shift = crop_alpha(ink(full))
+def placed(renders: Path, shot: str, x, y, w, h, glow=False):
+    """The solid part of the machine fills the box; its shadow may spill out of it. glow: the render itself with a halo, for the dark panel."""
+    full = Image.open(renders / shot / "obraz.png").convert("RGBA") if glow else Image.open(renders / "rytiny" / f"{shot}.png")
+    im, shift = crop_alpha(full if glow else ink(full))
+    if glow:
+        rgba = np.asarray(im, dtype=np.float32).copy()
+        grey = rgba[..., :3].mean(axis=2, keepdims=True)
+        rgba[..., :3] = np.clip(grey + (rgba[..., :3] - grey) * 2.4, 0, 255)
+        im = Image.fromarray(rgba.astype("uint8"), "RGBA")
+        halo = im.filter(ImageFilter.GaussianBlur(34))
+        halo.alpha_composite(im.filter(ImageFilter.GaussianBlur(12)))
+        halo.alpha_composite(im)
+        im = halo
     box = im.getchannel("A").point(lambda v: 255 if v > 200 else 0).getbbox()
     k = min(u(w) / (box[2] - box[0]), u(h) / (box[3] - box[1]))
     left = u(x) + (u(w) - (box[2] - box[0]) * k) / 2 - box[0] * k
@@ -63,8 +76,8 @@ def placed(renders: Path, shot: str, x, y, w, h):
     return im, shift, left, top, k, full.width
 
 
-def picture(renders: Path, shot: str, x, y, w, h) -> str:
-    im, _, left, top, k, _ = placed(renders, shot, x, y, w, h)
+def picture(renders: Path, shot: str, x, y, w, h, glow=False) -> str:
+    im, _, left, top, k, _ = placed(renders, shot, x, y, w, h, glow)
     return fit(im, left, top, im.width * k, im.height * k)
 
 
@@ -152,9 +165,9 @@ def page(assets: Path) -> str:
     tex = tex / np.median(tex)
     yy, xx = np.mgrid[0:H, 0:W]
     edge = np.minimum.reduce([xx, W - xx, yy, H - yy]) / 180.0
-    vignette = 0.88 + 0.12 * np.clip(edge, 0, 1)
-    shade = (1 + (np.clip(tex, 0.75, 1.15) - 1) * 0.6) * vignette
-    cream = np.array((233, 217, 186), dtype=np.float32)
+    vignette = 0.965 + 0.035 * np.clip(edge, 0, 1)
+    shade = (1 + (np.clip(tex, 0.75, 1.15) - 1) * 0.3) * vignette
+    cream = np.array((248, 243, 231), dtype=np.float32)
     paper = Image.fromarray(np.clip(shade[..., None] * cream, 0, 255).astype("uint8"), "RGB")
     return group("Pergamen", image_tag(paper, 0, 0, W, H, "JPEG"))
 
@@ -163,7 +176,7 @@ def figure(assets: Path) -> str:
     """The figure with the soft shadow it casts on the paper on the sample."""
     fig, _ = crop_alpha(Image.open(assets / "postava.png").convert("RGBA"), 0)
     tone = np.asarray(fig, dtype=np.float32).copy()
-    tone[..., :3] *= (0.84, 0.82, 0.76)
+    tone[..., :3] = np.clip((tone[..., :3] / 255 - 0.5) * 1.14 + 0.44, 0, 1) * 255
     fig = Image.fromarray(tone.astype("uint8"), "RGBA")
     x, y, w, h = 253, 342, 230, 705
     k = min(u(w) / fig.width, u(h) / fig.height)
@@ -205,7 +218,7 @@ def poster(renders: Path, assets: Path) -> str:
                      + body(450, 480, f"Šachta 37{NB}m, na dně podle Tesly 16 železných trubek.", 70)))
 
     # 3 war of the currents: AC swings, DC does not
-    g = axes(48, 500, 80, 76) + wave(48, 500, 80, 76, 1, 0) + axes(150, 500, 80, 76) + line(150, 516, 230, 516, INK, 2.4) + axes(150, 628, 80, 44) + wave(150, 628, 80, 44, 1, 0, COPPER, 2) + wave(150, 642, 80, 16, 1, 0, STEEL, 2)
+    g = axes(48, 500, 80, 76) + wave(48, 500, 80, 76, 1, 0, COPPER, 3.0) + axes(150, 500, 80, 76) + line(150, 516, 230, 516, STEEL, 3.2) + axes(150, 628, 80, 44) + wave(150, 628, 80, 44, 1, 0, COPPER, 2) + wave(150, 642, 80, 16, 1, 0, STEEL, 2)
     gfx.append(group("Grafy proudů", g))
     txt.append(group("Proudy text", head(138, 481, "VÁLKA PROUDŮ", 13, "middle") + label(88, 498, "STŘÍDAVÝ", 8.4, "middle", 700) + label(190, 498, "STEJNOSMĚRNÝ", 8.4, "middle", 700)
                      + body(38, 592, f"16.{NB}11.{NB}1896 dorazil střídavý proud z{NB}Niagary do Buffala, 42{NB}km.", 25)
@@ -232,15 +245,18 @@ def poster(renders: Path, assets: Path) -> str:
                      + body(38, 950, f"Teslova loď bez posádky, řízená elektrickými kmity. Madison Square Garden, září 1898. Patent US{NB}613,809.", 50)))
 
     # 6 tubes
-    gfx.append(group("Výbojka", picture(renders, "trubice", 38, 1046, 204, 66)))
-    gfx.append(group("Dvě trubice", picture(renders, "trubice2", 62, 1140, 62, 104)))
+    px, py, pw, ph = PANELS["trubice"]
+    gfx.append(group("Tmavý panel", f'<rect x="{u(px)}" y="{u(py)}" width="{u(pw)}" height="{u(ph)}" fill="{NIGHT}"/>'))
+    gfx.append(group("Výbojka", picture(renders, "trubice", 38, 1046, 204, 66, glow=True)))
+    gfx.append(group("Dvě trubice", picture(renders, "trubice2", 62, 1140, 62, 104, glow=True)))
     shadow = np.asarray(Image.open(assets / "rentgen.png").convert("L").filter(ImageFilter.GaussianBlur(16)), dtype=np.float32) / 255
-    shadow = Image.fromarray(np.dstack([shadow * 222 + 18, shadow * 200 + 16, shadow * 164 + 14]).astype("uint8"), "RGB")
+    shadow = shadow ** 1.3
+    shadow = Image.fromarray(np.dstack([shadow * 232 + 16, shadow * 236 + 16, shadow * 240 + 20]).astype("uint8"), "RGB")
     gfx.append(group("Stínový snímek", cover(shadow, u(146), u(1148), u(88), u(92))))
-    txt.append(group("Trubice text", head(138, 1008, "VÝBOJKY A RENTGEN", 12.6, "middle")
-                     + body(38, 1024, "V 90. letech rozsvěcel Tesla výbojky bez drátů pomocí svých cívek, i při veřejných ukázkách.", 50)
-                     + body(38, 1122, "Trubice dávaly jasné nazelenalé světlo, komerčně neuspěly.", 50)
-                     + body(38, 1254, "Výbojky svítí bez přívodního drátu.", 21) + body(146, 1254, "Stínový snímek, rentgen 1896 (ilustrace).", 25, 7.2)))
+    txt.append(group("Trubice text", head(138, 1008, "VÝBOJKY A RENTGEN", 12.6, "middle", PALE)
+                     + body(38, 1024, "V 90. letech rozsvěcel Tesla výbojky bez drátů pomocí svých cívek, i při veřejných ukázkách.", 50, fill=PALE)
+                     + body(38, 1122, "Trubice dávaly jasné nazelenalé světlo, komerčně neuspěly.", 50, fill=PALE)
+                     + body(38, 1254, "Výbojky svítí bez přívodního drátu.", 21, fill=PALE) + body(146, 1254, "Stínový snímek, rentgen 1896 (ilustrace).", 25, 7.2, fill=PALE)))
 
     # 7 turbine
     gfx.append(group("Turbína", picture(renders, "turbina", 276, 1110, 188, 138)))
@@ -260,7 +276,7 @@ def poster(renders: Path, assets: Path) -> str:
     words += label(627, 1174, "turbína", 7.6, weight=700) + label(573, 1232, f"odpadní tunel, asi 2{NB}km", 7.6, weight=700)
     words += label(670, 1120, "vodopády", 7.6, "middle", 700) + label(at["reka"][0], at["reka"][1] + 2, "řeka", 7.2, "middle", 700) + label(517, 1079, "řeka", 7.2, weight=700)
     # labels lie on the hatched ground: a thin outline in the colour of the paper keeps them readable
-    words = f'<g style="paint-order:stroke;stroke:#e9d9ba;stroke-width:3px;stroke-linejoin:round">{words}</g>'
+    words = f'<g style="paint-order:stroke;stroke:#f8f3e7;stroke-width:3px;stroke-linejoin:round">{words}</g>'
     txt.append(group("Voda text", head(600, 1009, "VODNÍ ELEKTRÁRNA", 12.6, "middle") + words
                      + body(502, 1246, f"Elektrárna Adams, Niagara, 1895. Voda padá šachtou asi 50{NB}m na turbínu, hřídel točí generátorem v{NB}hale, tunel ji odvádí pod vodopády. Deset generátorů po 5{NB}000 koňských silách (3,7{NB}MW). Řez není v{NB}měřítku.", 56, 7.2)))
 
