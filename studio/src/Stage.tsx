@@ -79,7 +79,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
         {job && !job.request.edit && <button className="btn" onClick={() => onReuse(job)}>✎ Upravit zadání</button>}
         <a className="btn" href={src} download={`grafik-${selected.replace('/', '-')}.png`}>⤓ Stáhnout PNG</a>
         {layered && <button className="btn go" onClick={() => openVectorcraft()} title="Celý obrázek, každý popisek a objekt zvlášť ve vrstvách">Otevřít ve VectorCraftu</button>}
-        <button className={`btn ${layered ? '' : 'go'}`} onClick={() => onInfographic(selected)}>→ Infografika</button>
+        {!layered && <button className="btn go" onClick={() => onInfographic(selected)}>→ Infografika</button>}
         <button className="btn" onClick={() => onLocalize(selected)}>→ Počeštit</button>
       </div>
       {vcAsk && (
