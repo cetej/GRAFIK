@@ -1,5 +1,10 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Restart Engine: kontrola fronty těsně před zabitím
+
+- **Co se stalo:** čekací skript po druhé kontrole prázdné fronty ještě 20 s spal a pak zabil Engine. Mezitím přišla úloha POHYB (`20261101-201901-b431cc`) a restart ji ve 20:19:26 přerušil. Klient ji za 11 s sám zopakoval se stejným semínkem, nic se neztratilo.
+- **Jak příště:** poslední kontrola fronty je bezprostředně před `taskkill`, bez pauzy mezi nimi. Fronta je přes den prakticky pořád plná, okno je krátké; Engine zatím neumí přestat přijímat úlohy před restartem.
+
 ## 2026-11-01 — Plakát podle cizího vzoru přes 3D modely
 
 - **FLUX si z předlohy `geometry` bere i barvy a povrch.** Render axolotla s červenými vlákny a leskem vyšel jako červené ostny a guma. Render pro FLUX má mít paletu a matnost cíle, nebo ať je bílý.
