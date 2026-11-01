@@ -2,6 +2,19 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-01 — Cíl: projekt si sám dohledá data a obrazové podklady
+
+Operátor 1. 11.: „aby projekt si byl schopen dohledat potřebná data i obrazové podklady, tak aby projekt fungoval co nejvíce automaticky“. Analýza a zadání pro samostatnou session: [plán](plans/2026-11-01-infografika-z-tematu.md).
+
+K velké infografice Pantheonu operátor: „Celkově to vypadá moc pěkně - výborná práce“. Beru to jako přijetí vzhledu, fotorealistický průchod se bez pokynu nespouští.
+
+Volby níže jsou návrh session, operátor je ruší tady:
+
+- **Nejdřív volné zdroje, placené hledání až na tlačítko s cenou.** Termdb zůstává bez placeného hledání (rozhodnutí 23. 10.), rešerše je samostatný krok.
+- **Dvě zastávky pro člověka:** výběr návrhu a kontrola textů. Cena se schvaluje jednou na celý řetězec.
+- **Rešerše patří do `ngm_shared`, převzatá z KLAPKY.** NG-ROBOT ani KLAPKA se v té session nemění.
+- **Cesta k 3D modelu se rozhodne až po měření.** Doporučení: díly z `lod_pantheon.py` a JSON parametrů, protože nespouští vygenerovaný kód.
+
 ## 2026-11-01 — „Podobnou a vylepšenou“ infografiku: žánr vzoru, vlastní skladba, realistické 3D
 
 Zadání operátora 1. 11.: složit v projektu infografiku podle vloženého vzoru Pantheonu a zkusit ji vylepšit. Operátor opravil směr třikrát:
