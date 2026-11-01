@@ -128,6 +128,32 @@ def test_related_page_counts_only_where_it_names_the_thing_before_the_number():
     assert [(r["predmet"], r["hodnota"]) for r in rs.page_facts(page, ["Pantheon"]) if r["hodnota"] is not None] == [("kupole", 43.4)]
 
 
+def test_related_page_must_name_the_thing_in_its_lead():
+    texts = {"Pantheon, Rome": "The Pantheon.", "Domes": "Domes like the Pantheon.\n== Hadrian ==\nPantheon and Pantheon.",
+             "Volkshalle": "A planned hall.\n== Design ==\nPantheon, Pantheon, Pantheon, Pantheon."}
+
+    def get(host, params):
+        if params.get("list") == "search":
+            return {"query": {"search": [{"title": "Domes"}, {"title": "Volkshalle"}]}}
+        title = params["titles"]
+        return {"query": {"pages": [{"title": title, "extract": texts[title], "fullurl": f"https://x/{title}", "revisions": [{"revid": 1, "timestamp": "2026-10-22T10:00:00Z"}]}]}}
+
+    pages = rs.load_pages({"sitelinks": {"en": "Pantheon, Rome"}}, langs=("en",), get=get)
+    assert [(p["title"], p.get("jen_s_nazvem")) for p in pages] == [("Pantheon, Rome", None), ("Domes", "Pantheon")]
+
+
+def test_related_page_about_a_film_is_left_out():
+    texts = {"Colosseum": "The Colosseum.", "Colosseum: Rome's Arena of Death": "Colosseum: Rome's Arena of Death is a 2003 BBC docudrama.\n== Plot ==\nColosseum, Colosseum, Colosseum."}
+
+    def get(host, params):
+        if params.get("list") == "search":
+            return {"query": {"search": [{"title": "Colosseum: Rome's Arena of Death"}]}}
+        title = params["titles"]
+        return {"query": {"pages": [{"title": title, "extract": texts[title], "fullurl": f"https://x/{title}", "revisions": [{"revid": 1, "timestamp": "2026-10-22T10:00:00Z"}]}]}}
+
+    assert [p["title"] for p in rs.load_pages({"sitelinks": {"en": "Colosseum"}}, langs=("en",), get=get)] == ["Colosseum"]
+
+
 def test_related_page_sentence_about_something_else_is_left_out():
     page = {"lang": "en", "title": "Roman amphitheatre", "url": "u", "permalink": "p", "datum": "d", "jen_s_nazvem": "Colosseum", "text": (
         "== El Jem ==\nIt is a free-standing amphitheatre built entirely out of stone blocks, similar in structure to the Roman Colosseum.\n"
