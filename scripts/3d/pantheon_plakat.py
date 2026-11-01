@@ -294,7 +294,7 @@ def main() -> int:
     if "--knihovna" in sys.argv:
         engine = sys.argv[sys.argv.index("--knihovna") + 1]
         body = {"b64": base64.b64encode((out / "pantheon.png").read_bytes()).decode(), "name": "pantheon.png",
-                "title": "Pantheon: infografika z modelu v Blenderu", "blender_render": True}
+                "title": "Pantheon: infografika z modelu v Blenderu", "blender_render": True, "svg": svg}
         req = urllib.request.Request(engine + "/api/v2/library/upload", data=json.dumps(body).encode("utf-8"),
                                      headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=120) as r:

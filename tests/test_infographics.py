@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from engine.infographics import InfoError, ai_note, clean_svg, for_vectorcraft
+from engine.infographics import InfoError, ai_note, clean_svg, for_vectorcraft, rasterize
 from ngm_shared.heavy_lock import HeavyBusy
 from ngm_shared.textlayer.vc_client import VectorCraftError
 from tests.test_engine_v2 import _first_image, api, sd, settings  # noqa: F401  (fixtures)
@@ -57,6 +57,55 @@ def test_library_upload_shows_in_the_job_list_with_its_origin(api):
     assert api.post("/api/v2/library/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
 
 
+def _upload(api, route, size, **extra):
+    from base64 import b64encode
+
+    buf = BytesIO()
+    Image.new("RGB", size, (20, 50, 110)).save(buf, "PNG")
+    return api.post(route, json={"b64": b64encode(buf.getvalue()).decode(), "name": "plakat.png", **extra})
+
+
+def test_new_document_keeps_the_whole_picture(api):
+    # a 2:3 poster opened as 16:9 lost two thirds of the page, in the editor and in VectorCraft (operator 1 Nov)
+    route = "/api/v2/infographics/upload"
+    doc = _upload(api, route, (1600, 2400)).json()
+    assert doc["size"] == "1600x2400"
+    assert _upload(api, route, (1344, 768)).json()["size"] == "1920x1080"   # within 3 %: the preset, as before
+    assert _upload(api, route, (800, 1000)).json()["size"] == "1080x1350"
+    assert _upload(api, route, (64, 96)).json()["size"] == "1080x1620"
+    r = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": SVG.format(note=doc["ai_note"]), "format": "png"})
+    assert r.status_code == 201, r.text
+    assert Image.open(BytesIO(api.get(r.json()["url"]).content)).size == (1600, 2400)
+    assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "size": "obrovsky"}).status_code == 400
+
+
+def test_pdf_has_one_page_for_a_tall_canvas():
+    pdf = rasterize('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600"/></svg>', 400, 600, "pdf")
+    assert pdf.startswith(b"%PDF") and pdf.count(b"/MediaBox") == 1
+
+
+def test_picture_with_layers_opens_whole_in_the_window(api, settings, vc_window):
+    layered = ('<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2400" viewBox="0 0 1600 2400">'
+               '<g id="Grafika"><rect width="1600" height="2400"/></g><g id="Texty"><text x="9" y="9">Pantheon</text></g></svg>')
+    ref = _upload(api, "/api/v2/library/upload", (64, 96), title="Plakát", blender_render=True, svg=layered).json()["ref"]
+    base = "/api/v2/jobs/" + ref.replace("/", "/images/")
+    assert api.get(base + "/provenance").json()["vectorcraft_svg"] == "image-0.svg"
+    first = api.post(base + "/vectorcraft", json={})
+    assert first.status_code == 200, first.text
+    copy = vc_window[0]
+    text = copy.read_text(encoding="utf-8")
+    assert 'viewBox="0 0 1600 2400"' in text and 'id="Grafika"' in text and 'id="Texty"' in text
+    assert api.post(base + "/vectorcraft", json={}).json() == {**first.json(), "created": False}
+    copy.write_text(text + "<!-- ruční úprava -->", encoding="utf-8")
+    assert api.post(base + "/vectorcraft", json={}).status_code == 409
+    assert api.post(base + "/vectorcraft", json={"mode": "edited"}).json()["opened"] == copy.name
+    assert api.post(base + "/vectorcraft", json={"mode": "new"}).json()["opened"] != copy.name
+    assert copy.read_text(encoding="utf-8").endswith("<!-- ruční úprava -->")
+    plain = _upload(api, "/api/v2/library/upload", (64, 96)).json()["ref"]
+    assert api.post("/api/v2/jobs/" + plain.replace("/", "/images/") + "/vectorcraft", json={}).status_code == 404
+    assert _upload(api, "/api/v2/library/upload", (64, 96), svg="<html/>").status_code == 400
+
+
 def test_blender_render_is_not_labelled_as_ai(api, settings):
     from base64 import b64encode
 
@@ -99,7 +148,7 @@ def test_infographic_document_lifecycle(api, settings):
     ref = f"{base['job_id']}/0"
     assert api.post("/api/v2/infographics", json={"base": "nope-1/0"}).status_code == 404
     doc = api.post("/api/v2/infographics", json={"base": ref, "title": "Římská kvinquerema"}).json()
-    assert doc["ai_note"].startswith("Ilustrace: FLUX 3 Klein (AI)") and doc["size"] == "1920x1080"
+    assert doc["ai_note"].startswith("Ilustrace: FLUX 3 Klein (AI)") and doc["size"] == "1080x540"   # the whole 2:1 test picture
     assert doc["layout"] == "pruh"   # new documents: image over the whole canvas, facts in a bar
     labels = [{"text": "Corvus", "small": "sklopný most", "anchor": [210, 540], "pos": [120, 296]}]
     doc = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "labels": labels, "ai_note": "smazáno",
@@ -126,7 +175,7 @@ def test_export_svg_png_pdf_with_provenance(api, settings):
         r = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": svg, "format": fmt})
         assert r.status_code == 201, r.text
         out[fmt] = api.get(r.json()["url"])
-    assert Image.open(BytesIO(out["png"].content)).size == (1920, 1080)   # new documents default to the wide format
+    assert Image.open(BytesIO(out["png"].content)).size == (1080, 540)   # the document keeps the shape of its picture
     assert out["pdf"].content.startswith(b"%PDF") and "Římská" in out["svg"].text
     ex = settings.library_dir / "infographics" / doc["id"] / "exports"
     prov = json.loads(next(ex.glob("*.png.json")).read_text(encoding="utf-8"))
