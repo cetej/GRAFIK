@@ -14,8 +14,9 @@ Položka souboru `vyslovnost_cz.json` (cesta `NGM_VYSLOVNOST`, jinak vedle tohot
 
 Bez `kmen` platí přesně zapsaný tvar: celé slovo, velikost písmen se rozlišuje, delší klíč vyhrává („Artemis II“
 nad „Artemis“). S `kmen` platí i tvary s koncovkou z `KONCOVKY`, jiné pokračování slova ne, takže kmen nezasáhne
-slovo, které jím jen začíná. Klíč s malým písmenem platí i na začátku věty a přepis pak dostane velké písmeno. Klíč
+slovo, které jím jen začíná. Kmen s malým písmenem platí i na začátku věty a přepis pak dostane velké písmeno. Kmen
 s velkým písmenem (jméno, zkratka) platí jen tak, jak je zapsaný. Přesně zapsaný tvar má před kmenem přednost.
+Položka bez `kmen` s malým písmenem na začátku věty neplatí („rover“ nezachytí „Rover“), stejně jako před sloučením.
 
 Oprava z editoru (`save_entry`) platí hned ve všech projektech, protože editovatelná instalace čte tento soubor
 z hlavního checkoutu GRAFIK. V gitu ale není, dokud ji někdo necommitne (GRAFIK CLAUDE.md).
@@ -33,6 +34,8 @@ import unicodedata
 from collections.abc import Mapping
 from difflib import SequenceMatcher
 from pathlib import Path
+
+from ngm_shared.knihovna import KnihovnaBusy, _os_lock, _retry, _unlock_byte
 
 ENTRY_TYPES = ("name", "latin", "toponym", "term", "other")
 # Pádové koncovky podstatných a přídavných jmen a tvary jmen osob (Hubblovi, Webbův). Slovesa sem nepatří.
@@ -58,7 +61,8 @@ def load(path=None) -> list[dict]:
     if not p.exists():
         return []
     try:
-        return json.loads(p.read_text(encoding="utf-8")).get("entries", [])
+        # Windows na okamžik odmítne čtení, když `save_entry` právě soubor nahrazuje.
+        return json.loads(_retry(p.read_text, "utf-8")).get("entries", [])
     except ValueError as e:
         raise ValueError(f"Slovník výslovnosti {p} je rozbitý: {e}") from e
 
@@ -100,9 +104,9 @@ def _forms(rows: list[dict]) -> dict[str, tuple[dict, str]]:
             out[word] = (row, say)
             continue
         for end in KONCOVKY:
-            out[word + end] = (row, say + end)
+            out[word + end] = (row, say and say + end)
             if word[0].islower():
-                out[word[0].upper() + word[1:] + end] = (row, say[:1].upper() + say[1:] + end)
+                out[word[0].upper() + word[1:] + end] = (row, say and say[0].upper() + say[1:] + end)
     return out
 
 
@@ -176,8 +180,6 @@ def save_entry(grapheme: str, alias: str, etype: str = "other", note: str = "", 
     """Přidá nebo přepíše položku (editor „Opravit výslovnost“). Stejný klíč se nahradí, zbytek souboru zůstane.
 
     Před zápisem projde celý slovník `validate`; při problému se nic nezapíše. Vrací (uloženo, problémy)."""
-    from ngm_shared.knihovna import KnihovnaBusy, _os_lock, _retry, _unlock_byte
-
     target = Path(path) if path else dict_path()
     grapheme, alias = (grapheme or "").strip(), (alias or "").strip()
     new: dict = {"grapheme": grapheme, "alias": alias, "type": etype if etype in ENTRY_TYPES else "other"}
@@ -190,7 +192,7 @@ def save_entry(grapheme: str, alias: str, etype: str = "other", note: str = "", 
     except KnihovnaBusy as e:
         return False, [str(e)]
     try:
-        data = json.loads(target.read_text(encoding="utf-8")) if target.exists() else {"entries": []}
+        data = json.loads(_retry(target.read_text, "utf-8")) if target.exists() else {"entries": []}
         entries = [e for e in data.get("entries", []) if (e.get("grapheme") or "").strip() != grapheme] + [new]
         problems = validate(entries)
         if alias == grapheme:
