@@ -9,6 +9,7 @@ Operátor poslal vzory plakátů Nikoly Tesly a axolotla. Vlastní skladby odmí
 - Kopie drží skladbu vzoru a jde přes 3D modely („já bych rád zase šel přes 3D modely“). Axolotl má být „detailní model, 3D realismus“.
 - Texty jsou česky a věcné chyby vzoru se opravují už v kopii („Některé ty detaily u Tesly nejsou správně. A samozřejmě to má být česky“).
 - Vylepšení se navrhují, staví se až po výběru.
+- Shoda se vzorem neznamená jeden tón: „mít všechno zatažené do jednoho tónu je trochu na píču“, u Tesly světlejší papír a práce s kontrasty.
 - Placené modely: schváleno 0,75 USD (2 × Hunyuan 3.1 Pro, „udělej je, co nejlepší“), utraceno 0,75 USD. Další placený krok chce nový odhad a souhlas.
 - Stejný obsah dvakrát na plakát nepatří (fotka věže vedle modelu věže) a ilustrace musí vysvětlit, jak věc funguje („Ilustraci vodní elektrárny nechápu“): vodní elektrárna je řez s popisky a šipkami toku.
 
