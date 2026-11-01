@@ -4,6 +4,18 @@
 
 - **Nová cesta k datům dědí všechna tlačítka okolo.** Upload do Knihovny dostal druh `image` a Studio mu nabídlo totéž co generovanému obrázku. „Další varianta“ poslala popisek „Pantheon: velká infografika…“ do FLUX a stála 0,01 USD za překlad. Průzkum na to upozornil, ale tu pasti jsem hned neopravil. Kromě dat ověřit i tlačítka, která se u nového druhu ukážou.
 
+## 2026-11-01 — Dossier z volných zdrojů
+
+- **Výsledky hledání MediaWiki mění pořadí mezi voláními.** „Pantheon, Řím“ jednou vyšel na Paříž. První výsledek se proto nebere: entita se boduje podle hlavního slova v názvu a upřesnění v popisu a dossier ji ukazuje, aby šla opravit přes `qid`.
+- **Commons: jméno bez uvozovek.** `filetype:bitmap "Pantheon Rome"` nenajde skoro nic, bez uvozovek je výtěžek použitelný.
+- **Podobné stránky jsou největší zdroj falešných rozporů.** „Třikrát jmenuje“ nestačí: Volkshalle, Roman amphitheatre i dokument BBC to splňují. Podobná stránka musí věc jmenovat v úvodu a nesmí být o filmu nebo knize; z ní se bere jen věta s názvem, která věc nesrovnává.
+- **Stejné číslo z jiné Wikipedie není druhé měření.** Stránky se překládají. Čeština a angličtina se na okulu shodly (9 a 9,1 m v mezích zaokrouhlení), rozpor ukázaly až němčina a italština.
+- **`load_costs` drží poslední řádek na `job_id`.** Běh, který platí víc kroků, zapisuje jeden řádek s kumulativní částkou, ne součet řádků.
+
+## 2026-11-01 — `gh pr merge` a smazání větve v jednom řetězci
+
+- **Merge selhal na konfliktu, ale další příkaz v řetězci smazal vzdálenou větev a tím PR zavřel.** Větev se maže až po ověření výsledku merge, samostatným krokem. PR #107 šel obnovit přes `gh pr reopen`, teď merge kontroluji stavem PR.
+
 ## 2026-11-01 — Plakát 2:3 se ve VectorCraftu otevřel ořezaný na 16:9
 
 - **Ověřit cestu, kterou půjde operátor.** Vrstvy plakátu jsem ověřil příkazem nad vlastním souborem. Operátor šel přes tlačítka: Knihovna → Studio → „→ Infografika“ → „Otevřít ve VectorCraftu“. Tam vznikl dokument s pevným 1920×1080 a renderer obraz ořízl (`preserveAspectRatio="xMidYMid slice"`). Příkaz v chatu není rozhraní.

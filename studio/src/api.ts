@@ -300,6 +300,62 @@ export interface Infographic {
   reviewed_at: string | null
   updated: string
   exports: string[]
+  in_library?: Record<string, string>   // PNG export -> its picture in the Knihovna tab
+}
+
+// -- rešerše k tématu (engine/research.py) ----------------------------------------------------------------
+export interface FactSource { url: string; nazev: string; citace: string; datum: string; jazyk: string; hodnota?: number | number[] }
+export interface Fact {
+  id: string
+  tvrzeni: string
+  predmet: string | null
+  velicina: string | null
+  hodnota: number | number[] | null
+  jednotka: string | null
+  zdroje: FactSource[]
+  stav: 'shoda' | 'rozpor' | 'jediny_zdroj'
+  tema: 'rozmery' | 'vznik' | 'stavba' | 'rekord' | 'ostatni'
+}
+export interface DossierImage {
+  file: string
+  nazev: string
+  url: string
+  stranka: string | null
+  autor: string | null
+  licence: string | null
+  popis: string
+  sirka: number | null
+  vyska: number | null
+  role: 'pudorys' | 'rez' | 'pruceli' | 'interier' | 'detail' | 'material' | 'nezarazeno'
+  ref_id?: string
+  chyba?: string
+}
+export interface Dossier {
+  id: string
+  tema: string
+  verze: number
+  entita: { qid: string; label: string; popis: string; url: string }
+  facts: Fact[]
+  images: DossierImage[]
+  otazky_bez_odpovedi: string[]
+  cost_usd: number
+}
+export interface ResearchState {
+  id: string
+  tema: string
+  verze: number
+  status: Job['status']
+  error: string | null
+  dossier: Dossier | null
+  page: string | null
+}
+export interface ResearchRow extends Omit<ResearchState, 'dossier'> { entita: string | null; facts: number; rozpory: number; images: number; cost_usd: number | null }
+export const researchApi = {
+  list: () => call<ResearchRow[]>('/api/v2/research'),
+  get: (id: string) => call<ResearchState>(`/api/v2/research/${id}`),
+  estimate: (paid: boolean) => call<{ total_usd: number; items: CostItem[] }>(`/api/v2/research/estimate?paid=${paid}`),
+  start: (topic: string, qid?: string) => post<{ id: string; job_id: string }>('/api/v2/research', { topic, qid }),
+  extend: (id: string, confirm: boolean) => post<{ id: string; job_id: string }>('/api/v2/research', { extends: id, confirm_cost: confirm }),
 }
 
 // -- počeštění cizí infografiky nebo mapy (engine/localize.py) ---------------------------------------------
@@ -328,6 +384,7 @@ export const infoApi = {
   list: () => call<Infographic[]>('/api/v2/infographics'),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
   upload: (b64: string, name: string, blenderRender = false) => post<Infographic>('/api/v2/infographics/upload', { b64, name, blender_render: blenderRender }),
+  fromRef: (refId: string, title: string) => post<Infographic>('/api/v2/infographics/from-ref', { ref_id: refId, title }),
   toLibrary: (id: string, name: string) => post<{ ref: string; created: boolean }>(`/api/v2/infographics/${id}/exports/${name}/library`, {}),
   get: (id: string) => call<Infographic>(`/api/v2/infographics/${id}`),
   save: (doc: Infographic) => send<Infographic>('PUT', `/api/v2/infographics/${doc.id}`, doc),

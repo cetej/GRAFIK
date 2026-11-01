@@ -321,6 +321,7 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
   onError: (msg: string) => void
 }) {
   const [list, setList] = useState<Infographic[]>([])
+  const [blender, setBlender] = useState(false)
   useEffect(() => { if (!openId) infoApi.list().then(setList).catch((e) => onError(e.message)) }, [openId, onError])
 
   if (openId) return <Editor key={openId} id={openId} onClose={() => setOpenId(null)} recentImages={recentImages} onError={onError} />
@@ -332,7 +333,7 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
   const upload = async (file?: File) => {
     if (!file) return
     if (!file.type.startsWith('image/')) { onError(`${file.name} není obrázek.`); return }
-    try { setOpenId((await infoApi.upload(await fileToB64(file), file.name)).id) } catch (e) { onError((e as Error).message) }
+    try { setOpenId((await infoApi.upload(await fileToB64(file), file.name, blender)).id) } catch (e) { onError((e as Error).message) }
   }
   return (
     <main className="guide-start" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); upload(e.dataTransfer.files[0]) }}>
@@ -344,6 +345,10 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
         </label>
         <button className="btn go" disabled={!selectedImage} onClick={create} title={selectedImage ? '' : 'Ve studiu není vybraný obrázek'}>+ Nová z vybraného obrázku</button>
       </div>
+      <label className="row check">
+        <input type="checkbox" checked={blender} onChange={(e) => setBlender(e.target.checked)} />
+        Nahrávám render z Blenderu <span className="hint">patička řekne „bez AI“; jinak píše „Ilustrace: AI“</span>
+      </label>
       <p className="hint">Popisky, fakta a schéma píšete česky v editoru; generátor text nikdy nekreslí. Infografiku založíte i z kroku 5 Průvodce nebo tlačítkem „→ Infografika“ u obrázku ve studiu.</p>
       <div className="wf-list">
         {list.map((d) => (
@@ -477,6 +482,13 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
       const r = await infoApi.export(doc.id, await exportSvg(svgRef.current!, doc.base), fmt)
       setLastExport(r.url)
       setDoc((d) => (d ? { ...d, exports: [r.file, ...d.exports] } : d))
+    } catch (e) { onError((e as Error).message) } finally { setBusy(null) }
+  }
+  const toLibrary = async (name: string) => {
+    setBusy(`lib:${name}`)
+    try {
+      const r = await infoApi.toLibrary(doc.id, name)
+      setDoc((d) => (d ? { ...d, in_library: { ...d.in_library, [name]: r.ref } } : d))
     } catch (e) { onError((e as Error).message) } finally { setBusy(null) }
   }
   const openVectorcraft = async (mode?: 'edited' | 'new') => {
@@ -642,7 +654,14 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
         {lastExport && <p className="hint">Hotovo: <a href={lastExport} target="_blank" rel="noreferrer">{lastExport.split('/').pop()}</a></p>}
         <p className="hint">Uloží se do knihovny (library/infographics) i s proveniencí: zdroje, označení AI, kdo kontroloval. Popisky zůstanou upravitelné.</p>
         {doc.exports.length > 0 && (
-          <ul className="exports">{doc.exports.slice(0, 6).map((n) => <li key={n}><a href={`/api/v2/infographics/${doc.id}/exports/${n}`} target="_blank" rel="noreferrer">{n}</a></li>)}</ul>
+          <ul className="exports">{doc.exports.slice(0, 6).map((n) => (
+            <li key={n}>
+              <a href={`/api/v2/infographics/${doc.id}/exports/${n}`} target="_blank" rel="noreferrer">{n}</a>
+              {n.endsWith('.png') && (doc.in_library?.[n]
+                ? <span className="tag ok">v Knihovně</span>
+                : <button className="btn small" disabled={!!busy} onClick={() => toLibrary(n)}>{busy === `lib:${n}` ? 'Ukládám…' : 'Do Knihovny'}</button>)}
+            </li>
+          ))}</ul>
         )}
 
         <h3>Ruční úprava</h3>

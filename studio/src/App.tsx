@@ -331,7 +331,9 @@ export default function App() {
           onUse={(slug) => { setStyleSel(slug); setTab('studio') }} />
       ) : tab === 'guide' ? (
         <Wizard jobs={jobs} onOpen={setLightbox} onSubmit={submit} setConfirm={setConfirm} onError={setToast}
-          onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} onInfographic={openInfographic} />
+          onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} onInfographic={openInfographic}
+          onInfographicDoc={(id) => { setInfoId(id); setTab('info') }}
+          onUseRef={(m) => { pickRef(m); setTab('studio'); setToast(`${m.title} je v předlohách.`) }} />
       ) : tab === 'library' ? (
         <main className="library">
           {doneImages.length === 0 && <p className="empty">Knihovna je prázdná.</p>}
