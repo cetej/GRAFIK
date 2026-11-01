@@ -744,9 +744,13 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         job_dir.mkdir(parents=True, exist_ok=True)
         path = job_dir / "image-0.png"
         rgb.save(path)
+        # same shape as a generated picture: the Studio's history panel reads all of it (generate None = not measured)
         (job_dir / "image-0.json").write_text(json.dumps({
-            "job_id": job_id, "file": path.name, "source": body.name, "ai_generated": False, "reviewed_by": None,
-            **({"render": "Blender"} if body.blender_render else {}),
+            "job_id": job_id, "file": path.name, "source": body.name, "seed": None,
+            "params": {"size": f"{rgb.width}x{rgb.height}"}, "prompt_original": request["prompt"], "prompt_sent": request["prompt"],
+            "translations": [], "refs": [], "parent": None, "edit": None, "ai_generated": False, "reviewed_by": None,
+            "cost_usd": 0.0, "timing_s": {"queue": 0.0, "generate": None},
+            **({"backend": "Blender", "render": "Blender"} if body.blender_render else {}),
             "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
         store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
         return job_id
