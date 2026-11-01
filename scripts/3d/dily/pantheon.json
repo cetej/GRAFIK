@@ -1,0 +1,23 @@
+{
+  "nazev": "Pantheon, Řím",
+  "dim": {"length": 79.5, "width": 56.9, "height": 48.7},
+  "zdroje": {
+    "polomer kupole 21,65": "fakt: průměr rotundy 43,3 m",
+    "okulus 4,5": "fakt: rozpor 8,95 až 9,1 m, zvoleno 9 m",
+    "zeď 6,2": "fakt: tloušťka 5,93 až 6,4 m",
+    "kazety 5 × 28": "fakt: five rings of 28",
+    "sloupy 11,9 a 1,5": "fakt",
+    "portik 14,2, blok 5,15, štít 7,55": "odhad"
+  },
+  "dily": [
+    {"typ": "prstenec", "nazev": "zaklad", "material": "beton", "profil": [[21.25, -4.7], [28.45, -4.7], [28.45, 0], [21.25, 0]]},
+    {"typ": "disk", "nazev": "podlaha", "material": "mramor", "osy": [21.66, 21.66], "z0": -0.6, "z1": 0.01},
+    {"typ": "prstenec", "nazev": "zed", "material": "cihla", "profil": [[21.65, 0], [27.85, 0], [27.85, 31.7], [26.5, 31.7], [21.65, 21.65]]},
+    {"typ": "prstenec", "nazev": "stupne", "material": "beton", "profil": [[21.65, 31.7], [27.25, 31.7], [27.25, 32.3], [26.3, 32.3], [26.3, 32.9], [25.35, 32.9], [25.35, 33.5], [24.4, 33.5], [24.4, 34.1], [23.45, 34.1], [23.45, 34.7], [21.65, 34.7]]},
+    {"typ": "kopule", "nazev": "kupole", "material": "beton", "polomer": 21.65, "tloustka": [6.2, 1.2], "okulus": 4.5, "z_patka": 21.65, "kazety": {"rad": 5, "v_rade": 28, "hloubka": 1.15}},
+    {"typ": "arkady", "nazev": "vyklenky", "cil": "zed", "odsazeni": [21.4, 25.35], "z0": 0, "vyska": 9.9, "sirka": 8.6, "pocet": 8, "tvar": "obdelnik", "vyjma": [[170, 190]]},
+    {"typ": "kvadr", "nazev": "blok", "material": "cihla", "od": [-33.0, -17.8, 0], "do": [-22.0, 17.8, 31.7]},
+    {"typ": "vyrez", "nazev": "vchod", "cile": ["zed", "blok"], "kvadr": {"od": [-34, -4, -0.5], "do": [-20, 4, 9.5]}},
+    {"typ": "portik", "nazev": "portik", "material": "zula", "x_sloupy": -47.2, "x_zed": -33.0, "sirka": 33.6, "pocet": 8, "d": 1.5, "drik": 11.9, "z0": 1.3, "stit": 7.55, "schodu": 5, "zadni_rady": [4.8, 9.6], "zadni_indexy": [0, 2, 5, 7]}
+  ]
+}
