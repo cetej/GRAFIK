@@ -125,7 +125,7 @@ Operátor 1. 11.: „Máme tam možnos hotovou infografiku automaticky předěla
 
 ### Krok 3e: varianta infografiky (po 3c, vlastní PR, UI s náčrtem)
 
-Operátor 1. 11. po stisku „Další varianta“ u plakátu: „udělalo jen jiný obrázek základní budovy - To je pochopitelné u jednotlivého obrázku ne u infografiky.“ Od GRAFIK#112 hotový obrázek bez generátoru tlačítko nemá; skutečná varianta vznikne až nad dokumentem s panely.
+Operátor 1. 11. po stisku „Další varianta“ u plakátu: „udělalo jen jiný obrázek základní budovy - To je pochopitelné u jednotlivého obrázku ne u infografiky.“ Od GRAFIK#113 hotový obrázek bez generátoru tlačítko nemá; skutečná varianta vznikne až nad dokumentem s panely.
 
 - Tlačítko „Další varianta“ na infografice dá novou skladbu ze stejného dossieru a modelu: jiné rozmístění panelů, jiný hlavní pohled nebo jiný výběr panelů. Stejný mechanismus jako návrhy skladby ve fázi 2.
 - Fakta a popisky se znovu nevymýšlejí, berou se z dossieru a dokumentu. Výsledek je nový dokument, původní se nemění. Cena v tlačítku, bez návrhu od Claude 0 USD.
