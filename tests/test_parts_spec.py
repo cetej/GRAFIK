@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from ngm_shared.heavy_lock import HeavyBusy, heavy
+from PIL import Image
 
 from engine.config import Settings
 from engine.parts_spec import SpecError, validate
@@ -54,22 +56,66 @@ def test_bad_description_says_what_is_wrong(bad, message):
         validate(bad)
 
 
+def test_anchors_are_named_points_of_the_model():
+    out = validate({**spec(RING), "kotvy": [{"nazev": "okulus", "xyz": [0, 0, 5], "dil": "zed", "skript": "x"}]})
+    assert out["kotvy"] == [{"nazev": "okulus", "xyz": [0.0, 0.0, 5.0], "dil": "zed"}]
+    assert validate(spec(RING))["kotvy"] == []
+
+
+@pytest.mark.parametrize("anchors, message", [
+    ("okulus", "seznam"),
+    ([{"nazev": "../x", "xyz": [0, 0, 0]}], "nazev"),
+    ([{"nazev": "zed", "xyz": [0, 0, 0]}], "opakuje"),
+    ([{"nazev": "a", "xyz": [0, 0]}], "tři čísla"),
+    ([{"nazev": "a", "xyz": [0, 0, "x"]}], "není číslo"),
+    ([{"nazev": "a", "xyz": [0, 0, 0], "dil": "neni"}], "v popisu není"),
+])
+def test_bad_anchor_says_what_is_wrong(anchors, message):
+    with pytest.raises(SpecError, match=message):
+        validate({**spec(RING), "kotvy": anchors})
+
+
 def test_cut_only_a_solid_declared_before():
     columns = {"typ": "sloupy", "nazev": "s", "d": 1, "drik": 4, "pocet": 4, "osy": [10, 8]}
     with pytest.raises(SpecError, match="plný díl"):
         validate(spec(columns, {"typ": "vyrez", "nazev": "v", "cile": ["s"], "azimut": [0, 90], "z": [0, 1]}))
 
 
-def test_real_blender_builds_named_parts(tmp_path):
+def real_blender(script: str, *args: str) -> None:
     blender = Settings().blender_cmd[0]
     if not Path(blender).is_file():
         pytest.skip("Blender není nainstalovaný")
+    try:
+        with heavy("blender", owner="grafik-test", caller="test dílů", wait_s=30):
+            run = subprocess.run([blender, "-b", "--factory-startup", "-P", str(REPO / "engine" / "blender" / script), "--", *args],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240)
+    except HeavyBusy as e:
+        pytest.skip(f"zámek těžké práce je obsazený: {e}")
+    assert run.returncode == 0, run.stderr[-800:]
+
+
+def test_real_blender_renders_parts_with_anchors_and_layers(tmp_path):
+    clean = tmp_path / "spec.json"
+    source = json.loads(PANTHEON.read_text(encoding="utf-8"))
+    clean.write_text(json.dumps(validate({**source, "kotvy": [{"nazev": "okulus", "xyz": [0, 0, 44], "dil": "kupole"}, {"nazev": "uvnitr", "xyz": [0, 0, 8]}]})), encoding="utf-8")
+    groups = {"stavba": ["zaklad", "podlaha", "zed", "stupne", "kupole", "blok"], "portik": ["portik"]}
+    request = {"pohled": "celek", "res": [240, 135], "samples": 8, "cpu": True, "vrstvy": True, "skupiny": groups, "posuny": {"kupole": 10}}
+    real_blender("render_parts.py", str(clean), str(tmp_path), json.dumps(request))
+    body = json.loads((tmp_path / "body.json").read_text(encoding="utf-8"))
+    assert body["res"] == [240, 135] and body["vrstvy"] == groups
+    assert set(groups["stavba"]) | {"portik", "okulus", "uvnitr"} == set(body["points"])
+    assert "okulus" in body["viditelne"] and "uvnitr" not in body["viditelne"]      # bod uvnitř stavby kamera nevidí
+    assert all(0 <= x <= 240 and 0 <= y <= 135 for x, y in body["points"].values())
+    full, portico = Image.open(tmp_path / "obraz.png"), Image.open(tmp_path / "vrstva-portik.png")
+    assert full.size == (240, 135) and full.mode == "RGBA"
+    assert 0 < sum(portico.getchannel("A").histogram()[128:]) < sum(full.getchannel("A").histogram()[128:])
+
+
+def test_real_blender_builds_named_parts(tmp_path):
     clean = tmp_path / "spec.json"
     clean.write_text(json.dumps(validate(json.loads(PANTHEON.read_text(encoding="utf-8")))), encoding="utf-8")
     glb = tmp_path / "model.glb"
-    run = subprocess.run([blender, "-b", "--factory-startup", "-P", str(REPO / "engine" / "blender" / "lod_parts.py"), "--", str(glb), str(clean)],
-                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240)
-    assert run.returncode == 0, run.stderr[-800:]
+    real_blender("lod_parts.py", str(glb), str(clean))
     report = json.loads(Path(f"{glb}.dily.json").read_text(encoding="utf-8"))
     assert set(report["dily"]) == {"zaklad", "podlaha", "zed", "stupne", "kupole", "blok", "portik"}     # řezy nejsou díly
     assert report["bez_kontaktu"] == []

@@ -1,8 +1,9 @@
 # Model from a parts description (JSON, engine/parts_spec.py), no generated code runs. Free:
 #   blender -b --factory-startup -P engine/blender/lod_parts.py -- out.glb spec.json
 # Every part is a named object, so a later render can work object by object. Writes <out>.dily.json next to the GLB:
-# name, material and bounding box of each part. Geometry comes from scripts/3d/lod_pantheon.py, generalised to ellipses;
-# the description is checked before it gets here (engine.parts_spec.validate).
+# name, material and bounding box of each part, and the parts that touch nothing. Geometry comes from
+# scripts/3d/lod_pantheon.py, generalised to ellipses; the description is checked before it gets here
+# (engine.parts_spec.validate). engine/blender/render_parts.py imports build() from this file.
 import json
 import math
 import sys
@@ -12,13 +13,8 @@ import bmesh
 import bpy
 from mathutils.bvhtree import BVHTree
 
-args = sys.argv[sys.argv.index("--") + 1:]
-OUT, SPEC = args[0], json.loads(Path(args[1]).read_text(encoding="utf-8"))
 N = 360
 ARC_TABLE = 720
-
-bpy.ops.wm.read_factory_settings(use_empty=True)
-scene = bpy.context.scene
 COLORS = {"travertin": "#d9cfbc", "tuf": "#a89a80", "cihla": "#a5573d", "beton": "#9a958c", "mramor": "#e6e2da", "zula": "#7d7f83",
           "bronz": "#6f5a35", "strecha": "#8f8778", "pisek": "#c9b38a", "kamen": "#b5ac9c"}
 
@@ -27,7 +23,8 @@ def material(name):
     mat = bpy.data.materials.get(name)
     if mat is None:
         mat = bpy.data.materials.new(name)
-        mat.use_nodes = True
+        if not mat.node_tree:
+            mat.use_nodes = True
         h = COLORS.get(name, "#b5ac9c").lstrip("#")
         rgb = [(int(h[i:i + 2], 16) / 255) ** 2.2 for i in (0, 2, 4)]
         mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (*rgb, 1)
@@ -44,7 +41,7 @@ def mesh_object(name, verts, faces, mat=None):
     bm.free()
     me.update()
     o = bpy.data.objects.new(name, me)
-    scene.collection.objects.link(o)
+    bpy.context.scene.collection.objects.link(o)
     if mat:
         o.data.materials.append(material(mat))
     return o
@@ -55,8 +52,6 @@ def boolean(o, cutter):
     m.operation, m.object, m.solver = "DIFFERENCE", cutter, "MANIFOLD"
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.modifier_apply(modifier=m.name)
-    if not o.data.polygons:
-        raise RuntimeError(f"boolean emptied {o.name}")
 
 
 def rotated(az):
@@ -65,16 +60,18 @@ def rotated(az):
 
 
 class Geo:
-    """Loose closed pieces merged into one mesh: columns, porticoes, cutters."""
+    """Loose closed pieces merged into one mesh, each with its material: columns, porticoes, cutters."""
 
-    def __init__(self, place=None):
-        self.v, self.f = [], []
+    def __init__(self, mat=None, place=None):
+        self.v, self.f, self.tags = [], [], []
+        self.mat = mat
         self.place = place or (lambda x, y, z: (x, y, z))
 
     def add(self, verts, faces):
         base = len(self.v)
         self.v.extend(self.place(*v) for v in verts)
         self.f.extend([i + base for i in f] for f in faces)
+        self.tags.extend([self.mat] * len(faces))
 
     def box(self, lo, hi):
         (a, b, c), (d, e, f) = lo, hi
@@ -91,6 +88,16 @@ class Geo:
         v = [(x0, y, z) for y, z in pts] + [(x1, y, z) for y, z in pts]
         f = [list(range(n - 1, -1, -1)), list(range(n, 2 * n))] + [(i, (i + 1) % n, n + (i + 1) % n, n + i) for i in range(n)]
         self.add(v, f)
+
+    def object(self, name):
+        o = mesh_object(name, self.v, self.f)
+        slots = {}
+        for mat in dict.fromkeys(self.tags):
+            slots[mat] = len(slots)
+            o.data.materials.append(material(mat))
+        for poly, tag in zip(o.data.polygons, self.tags):
+            poly.material_index = slots[tag]
+        return o
 
 
 def ring_solid(name, poly, axes, mat, n=N):
@@ -187,31 +194,28 @@ def column(g, x, y, z0, shaft, d, order):
     g.box((x - r * 1.42, y - r * 1.42, z + cap * 0.84), (x + r * 1.42, y + r * 1.42, z + cap))
 
 
-def columns(name, p):
-    g = Geo()
+def columns(name, p, kept):
+    g = Geo(p["material"])
     if "od" in p:
         (x0, y0), (x1, y1) = p["od"], p["to"]
         n = max(1, p["pocet"] - 1)
-        for i in range(p["pocet"]):
-            column(g, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, p["z0"], p["drik"], p["d"], p["rad"])
+        spots = [(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n) for i in range(p["pocet"])]
     else:
         a, b = p["osy"][0] + p["odsazeni"], p["osy"][1] + p["odsazeni"]
-        for t in along_ellipse(p["osy"], p["odsazeni"], p["pocet"], p["faze"]):
-            if not excluded(t, p["vyjma"]):
-                column(g, a * math.cos(t), b * math.sin(t), p["z0"], p["drik"], p["d"], p["rad"])
-    return mesh_object(name, g.v, g.f, p["material"])
+        spots = [(a * math.cos(t), b * math.sin(t)) for t in along_ellipse(p["osy"], p["odsazeni"], p["pocet"], p["faze"]) if not excluded(t, p["vyjma"])]
+    for x, y in spots:
+        if kept(x, y):
+            column(g, x, y, p["z0"], p["drik"], p["d"], p["rad"])
+    return g.object(name) if g.v else None
 
 
 def portico(name, p):
     """Temple front facing -x at azimuth 0: steps, columns, entablature, pediment, roof, up to the wall at x_zed."""
-    g = Geo(rotated(p["azimut"]))
+    g = Geo(p["material"], rotated(p["azimut"]))
     w = p["sirka"] / 2
     x_col, x_wall, z_p = p["x_sloupy"], p["x_zed"], p["z0"]
     x_front = x_col - p["d"] * 0.9
     steps = p["schodu"]
-    if z_p > 0:
-        for i in range(steps):
-            g.box((x_front - 0.5 * (steps - i), -w - p["d"], z_p * i / steps), (x_wall, w + p["d"], z_p * (i + 1) / steps))
     ys = [-w + p["sirka"] * i / (p["pocet"] - 1) for i in range(p["pocet"])]
     for y in ys:
         column(g, x_col, y, z_p, p["drik"], p["d"], "korintsky")
@@ -219,6 +223,11 @@ def portico(name, p):
         for i in p["zadni_indexy"] or range(p["pocet"]):
             if i < len(ys):
                 column(g, x_col + offset, ys[i], z_p, p["drik"], p["d"], "korintsky")
+    g.mat = "travertin"
+    if z_p > 0:
+        for i in range(steps):
+            g.box((x_front - 0.5 * (steps - i), -w - p["d"], z_p * i / steps), (x_wall, w + p["d"], z_p * (i + 1) / steps))
+    g.mat = "mramor"
     z_ent = z_p + p["drik"] + p["d"] * 1.6
     h = w + p["d"] * 0.7
     g.box((x_front + 0.3, -h, z_ent), (x_wall, h, z_ent + p["d"] * 0.7))
@@ -226,7 +235,9 @@ def portico(name, p):
     z_roof = z_ent + p["d"] * 2.0
     g.box((x_front - 0.1, -h - 0.45, z_ent + p["d"] * 1.5), (x_wall, h + 0.45, z_roof))
     g.prism_x([(-h - 0.45, z_roof), (h + 0.45, z_roof), (0, z_roof + p["stit"])], x_front + 0.5, x_wall)
-    return mesh_object(name, g.v, g.f, p["material"])
+    g.mat = "strecha"
+    g.prism_x([(-h - 0.9, z_roof + 0.05), (h + 0.9, z_roof + 0.05), (0, z_roof + p["stit"] + 0.25)], x_front + 0.15, x_wall + 0.3)
+    return g.object(name)
 
 
 def dome(name, p):
@@ -292,7 +303,7 @@ def seating(name, p):
 
 
 def box_solid(name, p, mat=None):
-    g = Geo(rotated(p["azimut"]))
+    g = Geo(place=rotated(p["azimut"]))
     g.box(p["od"], p["do"])
     return mesh_object(name, g.v, g.f, mat)
 
@@ -308,48 +319,53 @@ def wedge_cutter(name, span, z_range):
     return mesh_object(f"{name}_cut", v, f)
 
 
-objects = {}
-parts_meta = {}
-for part in SPEC["dily"]:
-    kind, name = part["typ"], part["nazev"]
-    if kind == "prstenec":
-        objects[name] = ring_solid(name, [tuple(p) for p in part["profil"]], part["osy"], part["material"])
-    elif kind == "hlediste":
-        objects[name] = seating(name, part)
-    elif kind == "kopule":
-        objects[name] = dome(name, part)
-    elif kind == "kvadr":
-        objects[name] = box_solid(name, part, part["material"])
-    elif kind == "disk":
-        objects[name] = disc_solid(name, part["osy"], part["z0"], part["z1"], part["material"])
-    elif kind == "sloupy":
-        objects[name] = columns(name, part)
-    elif kind == "portik":
-        objects[name] = portico(name, part)
-    elif kind == "arkady":
-        cutter = arcade_cutter(name, part)
-        boolean(objects[part["cil"]], cutter)
-        bpy.data.objects.remove(cutter)
-    elif kind == "vyrez":
-        cutter = box_solid(f"{name}_cut", part["kvadr"]) if "kvadr" in part else wedge_cutter(name, part["azimut"], part["z"])
-        for target in part["cile"]:
-            boolean(objects[target], cutter)
-        bpy.data.objects.remove(cutter)
+def build(spec, kept=lambda x, y: True):
+    """Named objects from the description; kept(x, y) says which loose columns stay (a section view)."""
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    objects = {}
+    for part in spec["dily"]:
+        kind, name = part["typ"], part["nazev"]
+        if kind == "prstenec":
+            objects[name] = ring_solid(name, [tuple(p) for p in part["profil"]], part["osy"], part["material"])
+        elif kind == "hlediste":
+            objects[name] = seating(name, part)
+        elif kind == "kopule":
+            objects[name] = dome(name, part)
+        elif kind == "kvadr":
+            objects[name] = box_solid(name, part, part["material"])
+        elif kind == "disk":
+            objects[name] = disc_solid(name, part["osy"], part["z0"], part["z1"], part["material"])
+        elif kind == "sloupy":
+            o = columns(name, part, kept)
+            if o:
+                objects[name] = o
+        elif kind == "portik":
+            objects[name] = portico(name, part)
+        elif kind == "arkady":
+            cutter = arcade_cutter(name, part)
+            boolean(objects[part["cil"]], cutter)
+            bpy.data.objects.remove(cutter)
+        elif kind == "vyrez":
+            cutter = box_solid(f"{name}_cut", part["kvadr"]) if "kvadr" in part else wedge_cutter(name, part["azimut"], part["z"])
+            for target in part["cile"]:
+                boolean(objects[target], cutter)
+            bpy.data.objects.remove(cutter)
+    bpy.context.view_layer.update()
+    return objects
 
-bpy.context.view_layer.update()
-for name, o in objects.items():
+
+def bbox_of(o):
     xs, ys, zs = zip(*(o.matrix_world @ v.co for v in o.data.vertices))
-    parts_meta[name] = {"material": o.data.materials[0].name if o.data.materials else None,
-                        "bbox": [[round(min(xs), 3), round(min(ys), 3), round(min(zs), 3)], [round(max(xs), 3), round(max(ys), 3), round(max(zs), 3)]]}
+    return [[round(min(xs), 3), round(min(ys), 3), round(min(zs), 3)], [round(max(xs), 3), round(max(ys), 3), round(max(zs), 3)]]
 
 
-def loose_parts(tol):
+def loose_parts(objects, meta, tol):
     """Named parts not reaching the largest one, directly or through others. Pieces inside a part (a column's base and
     shaft) are built to touch, so the check that counts for a parts model is this one, not per fragment."""
     meshes = {}
     for name, o in objects.items():
         verts = [v.co.copy() for v in o.data.vertices]
-        meshes[name] = (verts, BVHTree.FromPolygons(verts, [tuple(p.vertices) for p in o.data.polygons], epsilon=0.0), *parts_meta[name]["bbox"])
+        meshes[name] = (verts, BVHTree.FromPolygons(verts, [tuple(p.vertices) for p in o.data.polygons], epsilon=0.0), *meta[name]["bbox"])
     names = list(meshes)
     group = {n: n for n in names}
 
@@ -375,16 +391,24 @@ def loose_parts(tol):
                 group[root(a)] = root(b)
 
     def volume(n):
-        lo, hi = parts_meta[n]["bbox"]
+        lo, hi = meta[n]["bbox"]
         return (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2])
 
     main = root(max(names, key=volume))
     return [{"nazev": n, "mezera": round(nearest[n], 3)} for n in names if root(n) != main]
 
 
-longest = max(SPEC["dim"].values())
-report = {"dily": parts_meta, "bez_kontaktu": loose_parts(0.003 * longest)}
-bpy.ops.object.select_all(action="DESELECT")
-bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", export_apply=True)
-Path(f"{OUT}.dily.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
-print("bbox target", SPEC["dim"])
+def main():
+    args = sys.argv[sys.argv.index("--") + 1:]
+    out, spec = args[0], json.loads(Path(args[1]).read_text(encoding="utf-8"))
+    objects = build(spec)
+    meta = {name: {"material": o.data.materials[0].name if o.data.materials else None, "bbox": bbox_of(o)} for name, o in objects.items()}
+    report = {"dily": meta, "bez_kontaktu": loose_parts(objects, meta, 0.003 * max(spec["dim"].values()))}
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_apply=True)
+    Path(f"{out}.dily.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    print("bbox target", spec["dim"])
+
+
+if __name__ == "__main__":
+    main()
