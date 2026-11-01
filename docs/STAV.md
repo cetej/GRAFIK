@@ -4,7 +4,7 @@ Aktualizováno 2026-11-01.
 
 ## Teď
 
-**Infografika z tématu (2026-11-01)** ([plán](plans/2026-11-01-infografika-z-tematu.md), DECISIONS 2026-11-01): Studio → Průvodce → téma. Hotové fáze 0 (GRAFIK#107), 1 (GRAFIK#111, #112) a kód fáze 2.
+**Infografika z tématu (2026-11-01)** ([plán](plans/2026-11-01-infografika-z-tematu.md), DECISIONS 2026-11-01): Studio → Průvodce → téma. Hotové fáze 0 (GRAFIK#107), 1 (GRAFIK#111, #112) a kód fáze 2 (GRAFIK#114). Nasazeno 1. 11.: Engine :8300 restartovaný jen podle PID při prázdné frontě (3892 → 35744), v opravdovém Studiu tlačítko „Podklady a návrhy · 0,17 USD“, dialog ceny a „Pokračovat k návrhům“ na dossieru; útrata beze změny, žádný řetězec se naostro nespustil.
 - **Podklady, 0 USD** ([měření](spikes/2026-11-01-dossier.md)): Wikidata, Wikipedia cs/en/de/it a Commons; fakta se zdroji, rozpory nahoře, obrázky po rolích. Pantheon: 7 z 8 faktických řádků tabulky s URL, okulus jako rozpor 8,95 až 9,1 m (8,2 m volné zdroje neukázaly). V opravdovém Studiu je dossier `pantheon-rim-v1`. Placené „Dohledat na webu“ naostro neběželo, odhad 0,45 USD je z KLAPKY.
 - **Řetězec k výběru návrhu** ([ověření a ceny](spikes/2026-11-01-retezec.md)): jedna cena předem, dva restarty Engine přežil, ale ověřený s **falešným modelem**. Cena v ledgeru a kvalita návrhů změřené nejsou, čeká na souhlas operátora.
 - **Model návrhů:** výchozí Claude Sonnet 5.5, jde přepnout na OpenAI (`ngm_shared.gpt`, naostro neběželo). Srovnání pěti modelů `scripts/navrhy_srovnani.py`, odhad 0,26 USD.
