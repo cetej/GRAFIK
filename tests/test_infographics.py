@@ -50,6 +50,9 @@ def test_library_upload_shows_in_the_job_list_with_its_origin(api):
     assert job["status"] == "done" and len(job["images"]) == 1 and job["request"]["prompt"] == "Pantheon"
     prov = api.get("/api/v2/jobs/" + r.json()["ref"].replace("/", "/images/") + "/provenance").json()
     assert prov["ai_generated"] is False and prov["render"] == "Blender"
+    # the history panel reads these right after the upload; one missing key blanked the whole Studio on 1 Nov
+    assert prov["backend"] == "Blender" and prov["cost_usd"] == 0 and prov["params"]["size"] == "64x96"
+    assert prov["refs"] == [] and prov["timing_s"]["generate"] is None and prov["prompt_sent"] == "Pantheon"
     assert api.get("/api/v2/infographics").json() == []   # a picture for the library is not a document to edit
     assert api.post("/api/v2/library/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
 

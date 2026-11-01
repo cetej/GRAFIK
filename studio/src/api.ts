@@ -72,7 +72,7 @@ export interface Provenance {
   parent: string | null
   edit: { action: EditAction; instruction: string } | null
   cost_usd: number
-  timing_s: { queue: number; generate: number }
+  timing_s: { queue: number; generate: number | null }
   translations?: { field: string; cs: string; en: string; paid: boolean }[]
   style_id?: string | null
   ai_generated: boolean

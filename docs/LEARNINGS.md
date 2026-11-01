@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Nahraný obrázek shodil celé Studio
+
+- **Každý obrázek v Knihovně má plný záznam o původu.** `POST /api/v2/library/upload` zapisoval zkrácený záznam bez `cost_usd`, `params`, `refs` a `timing_s`. Studio po načtení vybere nejnovější obrázek, `HistoryPanel` spadl na `fmtUsd(undefined)` a bez error boundary zůstala bílá stránka celé aplikace (10:03 až 10:07, oprava dat přímo v `image-0.json`).
+- **Test API nestačí, když data čte Studio.** Můj test kontroloval výpis úloh a `ai_generated`, ne to, co panel čte. Novou cestu k datům ověřovat otevřením Studia ještě před hlášením „je v Knihovně“.
+- **Nezměřené je `null`, ne nula.** Render v Blenderu nemá u uploadu změřený čas, panel řádek Čas vynechá. Stejně tak štítek „AI“ se ukazuje jen při `ai_generated`.
+
 ## 2026-11-01 — Render řezu v Blenderu: boolean, světlo a paprsek
 
 - **Plocha po booleanu nese index materiálu z řezacího tělesa.** Řez země byl šedobílý, protože jeho plochy měly index mimo sloty a Cycles použil výchozí materiál. Po každém booleanu přiřazovat materiály znovu podle polohy a normály plochy.

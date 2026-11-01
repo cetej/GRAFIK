@@ -59,11 +59,11 @@ export function HistoryPanel({ selected, jobs, onSelect }: {
             {prov.style_id && <><dt>Styl</dt><dd>{prov.style_id}</dd></>}
             <dt>Předlohy</dt>
             <dd>{prov.refs.length ? prov.refs.map((r, i) => <div key={i}>{r.source ?? 'obrázek'} ({r.role}{r.license ? `, ${r.license}` : ''})</div>) : '—'}</dd>
-            <dt>Čas</dt><dd>{Math.round(prov.timing_s.generate)} s{prov.timing_s.queue > 2 ? ` + ${Math.round(prov.timing_s.queue)} s ve frontě` : ''}</dd>
+            {prov.timing_s.generate !== null && <><dt>Čas</dt><dd>{Math.round(prov.timing_s.generate)} s{prov.timing_s.queue > 2 ? ` + ${Math.round(prov.timing_s.queue)} s ve frontě` : ''}</dd></>}
             <dt>Stav</dt>
             <dd>{prov.reviewed_by
               ? <span className="tag ok">zkontroloval {prov.reviewed_by}</span>
-              : <span className="tag ai">AI · čeká na kontrolu člověkem</span>}</dd>
+              : <span className="tag ai">{prov.ai_generated ? 'AI · čeká na kontrolu člověkem' : 'čeká na kontrolu člověkem'}</span>}</dd>
           </dl>
           <div className="row">
             {!prov.reviewed_by && <button className="btn small" onClick={() => api.review(selected, 'operátor').then(setProv)}>✓ Zkontrolováno</button>}
