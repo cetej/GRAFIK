@@ -4,7 +4,7 @@ Pattern approved by the operator 2026-10-23 (models/flux3-klein/overlay_quinq3.h
 labels with thin leader lines outside the object, three facts, a vector section drawing, one dark
 background, a footer with sources and the AI label. Text in the image never comes from the model.
 
-library/infographics/<id>/info.json   the document (what the studio editor edits)
+library/infographics/<id>/info.json   the document (what the studio editor edits); with `schema_version` 2 it has panels, engine/panels.py
 library/infographics/<id>/exports/    PNG / SVG / PDF + a provenance JSON per export (*-rucni-*: from a manual edit)
 library/infographics/<id>/vectorcraft/ copies opened in the VectorCraft window, the operator's edits live here
 schemas/<slug>.svg                     reusable vector schemas ("Ze šablony schémat")
@@ -266,6 +266,31 @@ class InfographicStore:
         doc = new_doc(base, title, prov, size)
         return self.save(doc["id"], doc, new=True)
 
+    def create_panels(self, fields: dict, source_of, make_base, note_of) -> dict:
+        """A panel document: pictures are copied into it, so a later render of the model does not change it. source_of(panel) gives the
+        folder of a render or the file of a finished picture, make_base(png bytes) the upload the document list shows, note_of(panels, prov)
+        the footer line and whether a picture is AI."""
+        from engine import panels
+        draft = {**fields, "schema_version": panels.SCHEMA}
+        validated = panels.validate(draft)
+        doc = new_doc("", fields.get("title") or "", None, fields["size"])
+        root = self._dir(doc["id"])
+        try:
+            for panel in validated:
+                if panel["typ"] == "obraz":
+                    source = source_of(panel)
+                    if source.is_file():
+                        origin = panel.get("zdroj") or {}
+                        panels.copy_image(source, root, panel["id"], origin.get("vyrez"), bool(origin.get("vyriznout")), bool(origin.get("stin")))
+                    else:
+                        panels.copy_render(source, root, panel["id"])
+            base, prov = make_base(panels.flat_hero(root, {**draft, "panels": validated}))
+            note, is_ai = note_of(validated, prov)
+            return self.save(doc["id"], {**doc, **draft, "panels": validated, "base": base, "ai_note": note, "ai_generated": is_ai, "layout": "pruh"}, new=True)
+        except Exception:
+            shutil.rmtree(root, ignore_errors=True)     # no half document in the list
+            raise
+
     def save(self, info_id: str, data: dict, new: bool = False) -> dict:
         d = self._dir(info_id)
         old = self.get(info_id)
@@ -280,6 +305,11 @@ class InfographicStore:
         doc.setdefault("layout", "klasika")   # documents from before the bar layout keep their look
         if doc["layout"] not in LAYOUTS:
             raise InfoError(f"neznámé rozvržení {doc['layout']!r}")
+        if doc.get("schema_version") is not None:
+            from engine import panels
+            if doc["schema_version"] != panels.SCHEMA:
+                raise InfoError(f"neznámá verze dokumentu {doc['schema_version']!r}")
+            doc["panels"] = panels.validate(doc)
         if doc.get("schema") and doc["schema"].get("svg"):
             # a schema may hold a raster picture too (e.g. a cross-section render next to the main image)
             doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"], allow_data_images=True)}
@@ -318,6 +348,11 @@ class InfographicStore:
                 "sources": doc["sources"], "ai_note": doc["ai_note"], "ai_generated": not (base_prov or {}).get("render"),
                 "text_by": "redakce (editor GRAFIK)", "reviewed_by": doc.get("reviewed_by"),
                 "created": datetime.now().isoformat(timespec="seconds")}
+        if doc.get("schema_version"):
+            from engine import panels
+            prov["panels"] = panels.texts_of(doc)
+            prov["ai_generated"] = doc.get("ai_generated", prov["ai_generated"])
+            (ex / f"{name}.vrstvy").write_text(svg, encoding="utf-8")     # the same picture in layers, for its copy in the Knihovna tab
         (ex / f"{name}.json").write_text(json.dumps(prov, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"file": name, "bytes": len(data)}
 
@@ -389,7 +424,7 @@ class InfographicStore:
             name = f"{stem}.{fmt}"
             prov = {"infographic": info_id, "file": name, "format": fmt, "size": size, "base": doc["base"],
                     "base_provenance": base_prov, "title": doc["title"], "sources": doc["sources"],
-                    "ai_note": doc["ai_note"], "ai_note_checked": True, "ai_generated": not (base_prov or {}).get("render"),
+                    "ai_note": doc["ai_note"], "ai_note_checked": True, "ai_generated": doc.get("ai_generated", not (base_prov or {}).get("render")),
                     "text_by": "redakce (ruční úprava ve VectorCraftu)",
                     "texts": texts,
                     "manual_edit": {"file": src.name, "sha256": sha,

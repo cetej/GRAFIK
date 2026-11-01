@@ -44,8 +44,9 @@ def walls(name, profile, count, thick, phase=0.0, material="travertin", axes=AXE
 # -- základ a terasa ---------------------------------------------------------------------------------------------------
 ring("zaklad", 0.0, EDGE, BOTTOM, 0.0, "tuf", rez="tmava")
 add("disk", "zaklad_pod_arenou", osy=ARENA, z0=BOTTOM, z1=HYP, material="beton", rez="tmava")
-ring("zemina", 17.5, 0.0, BOTTOM, -0.35, "zemina", okoli=True, rez="kamen")
-ring("terasa", 17.5, 0.0, -0.35, 0.0, "travertin", okoli=True)
+ring("zemina", 20.0, 0.0, BOTTOM, -0.35, "zemina", okoli=True, rez="kamen")
+ring("terasa", 20.0, 0.0, -0.35, 0.0, "travertin", okoli=True)
+add("sloupy", "kamenne_sloupky", osy=AXES, odsazeni=18.0, pocet=80, z0=0.0, d=0.7, drik=3.2, rad="hladky", material="travertin", okoli=True)
 add("prstenec", "stupne_paty", osy=AXES, profil=[[0.0, 0.0], [1.6, 0.0], [1.6, 0.3], [0.8, 0.3], [0.8, 0.6], [0.0, 0.6]], material="travertin", okoli=True)
 
 # -- hypogeum podle půdorysu: rovné řady cel podél hlavní osy, příčná chodba na malé ose, dvě křivé zdi, volné pilíře, zubatý okraj ----------
@@ -226,20 +227,30 @@ for name, od, do, z0, z1, count, height in (("lide_podium", -50.0, -47.0, 4.3, 6
                                             ("lide_summum", -16.0, -10.6, 33.9, 39.0, 300, 1.15), ("lide_ligneis", -9.0, -3.0, 40.3, 44.8, 240, 1.15)):
     add("lide", name, osy=AXES, od=od, do=do, z0=z0, z1=z1, pocet=count, azimut=BACK, vyska=height)
 add("lide", "gladiatori", osy=ARENA, od=-20.0, do=-3.0, z0=0.12, pocet=14, azimut=[-30.0, 150.0], vyska=1.8)
-add("lide", "lide_venku", osy=AXES, od=3.0, do=15.5, z0=0.0, pocet=150, azimut=[[100.0, 195.0], [-100.0, -5.0]], vyska=1.75)
+add("lide", "lide_venku", osy=AXES, od=3.0, do=17.0, z0=0.0, pocet=170, azimut=[[100.0, 195.0], [-100.0, -5.0]], vyska=1.75)
 for name, od, do, z0 in (("lide_ochoz_1", -6.8, -3.0, 0.0), ("lide_ochoz_1b", -13.8, -10.0, 0.0), ("lide_ochoz_2", -6.8, -3.0, FLOOR_2), ("lide_ochoz_3", -6.8, -3.0, FLOOR_3)):
     add("lide", name, osy=AXES, od=od, do=do, z0=z0, pocet=70, azimut=[[172.0, 200.0], [262.0, 290.0]], vyska=1.75)
 add("lide", "lide_chodba", osy=ARENA, od=-26.3, do=-26.0, z0=HYP, pocet=40, azimut=[0.0, 360.0], vyska=1.75)
 add("lide", "lide_pavlac", osy=ARENA, od=-19.3, do=-18.6, z0=-2.8, pocet=30, azimut=[0.0, 360.0], vyska=1.75)
 
+ANCHORS = [{"nazev": k, "xyz": v} for k, v in {
+    "k_velarium": [62.0, 40.0, 49.0], "k_stozary": [-47.0, 66.5, 55.0], "k_ligneis": [-16.0, 64.0, 43.0], "k_aedikula": [-10.0, 59.0, 30.0],
+    "k_vstup": [-A * 0.72, -B * 0.695, 3.0], "k_socha": [0.0, -B + 1.2, FLOOR_2 + 2.0], "k_sloupek": [A + 5.0, -60.0, 1.5], "k_arena": [20.0, 8.0, 0.12],
+    "k_hypogeum": [-14.0, 0.0, -3.0], "k_zaklad": [-68.0, 0.0, -9.0], "k_pilire": [0.0, -66.0, 1.0],
+    "r_podium": [-45.0, 0.0, 6.0], "r_primum": [-52.0, 0.0, 10.0], "r_immum": [-67.0, 0.0, 20.8], "r_summum": [-81.0, 0.0, 36.0], "r_ligneis": [-88.0, 0.0, 41.5], "r_kolonada": [-84.0, 0.0, 47.0],
+    "r_klenba": [-89.1, 0.0, 11.0], "r_vomitorium": [-59.0, 0.0, 4.0], "r_schody": [-75.0, 0.0, 3.5], "r_zaklad": [-60.0, 0.0, -9.0], "r_tunel": [-62.0, 0.0, -4.0],
+    "h_vytah": [X0 + 1.3, -3.4, -1.0], "h_cela": [10.0, -10.9, -0.6], "h_stredni": [20.0, 0.0, -5.5], "h_krivka": [-25.0, -13.5, -0.6], "h_pilir": [-37.0, -8.0, -0.6], "h_tunel": [-43.0, 0.0, -5.0], "h_zub": [32.0, -18.5, -0.6],
+    "f_dorsky": [3.4, -B - 0.5, 5.0], "f_ionsky": [3.4, -B - 0.5, 17.0], "f_korintsky": [3.4, -B - 0.5, 28.5], "f_pilastr": [3.4, -B - 0.5, 41.0], "f_stozar": [8.3, -B - 0.9, TOP + 4.0],
+}.items()]
+
 spec = {"nazev": "Koloseum", "dim": {"length": 188.0, "width": 155.5, "height": TOP}, "dily": parts,
-        "kotvy": [{"nazev": "hypogeum_stred", "xyz": [0.0, 0.0, -3.0]}, {"nazev": "uroven_1", "xyz": [-A + 5.0, 0.0, 5.0]}, {"nazev": "uroven_2", "xyz": [-A + 5.0, 0.0, FLOOR_2 + 4.0]},
-                  {"nazev": "uroven_3", "xyz": [-A + 5.0, 0.0, FLOOR_3 + 3.0]}, {"nazev": "uroven_5", "xyz": [-A + 5.0, 0.0, 43.0]}],
+        "kotvy": ANCHORS,
         "zdroje": {"délka 188, šířka 156, výška 48,5": "fakta f3, f5 a italské heslo", "aréna 86 × 54": "italské heslo, anglické 83 × 48",
                    "základ asi 13 m z tufu": "italské heslo, německé uvádí 7 m", "dno hypogea -6 m": "odhad",
                    "skladba hypogea (řady cel, křivé zdi, pilíře)": "půdorys AmphitheatrumFlavium, po metrech", "80 výtahů": "italské heslo; rozdělení 48 + 32 je odhad podle půdorysu",
                    "dvě patra hypogea": "anglické heslo", "úrovně, schodiště, klenby, zeď se sochami": "rekonstrukční řez od operátora a Rosengarten Fig 225, řád metrů",
                    "dřevěná sedadla a kolonáda nahoře": "italské heslo (maenianum summum in ligneis), řez", "sochy v arkádách": "anglické heslo", "240 stožárů": "anglické heslo",
+                   "kamenné sloupky 18 m od stavby": "anglické heslo; počet 80 a výška jsou odhad",
                    "plachty a lidé": "oživení obrazu, tvar plachet podle anglického hesla (síť lan, otvor uprostřed), rozmístění vymyšlené"}}
 sys.stdout.reconfigure(encoding="utf-8")
 print(json.dumps(spec, ensure_ascii=False, indent=1))

@@ -59,11 +59,11 @@
      -13.0
     ],
     [
-     17.5,
+     20.0,
      -13.0
     ],
     [
-     17.5,
+     20.0,
      -0.35
     ],
     [
@@ -88,11 +88,11 @@
      -0.35
     ],
     [
-     17.5,
+     20.0,
      -0.35
     ],
     [
-     17.5,
+     20.0,
      0.0
     ],
     [
@@ -100,6 +100,22 @@
      0.0
     ]
    ],
+   "material": "travertin",
+   "okoli": true
+  },
+  {
+   "typ": "sloupy",
+   "nazev": "kamenne_sloupky",
+   "osy": [
+    94.0,
+    77.75
+   ],
+   "odsazeni": 18.0,
+   "pocet": 80,
+   "z0": 0.0,
+   "d": 0.7,
+   "drik": 3.2,
+   "rad": "hladky",
    "material": "travertin",
    "okoli": true
   },
@@ -4642,9 +4658,9 @@
     77.75
    ],
    "od": 3.0,
-   "do": 15.5,
+   "do": 17.0,
    "z0": 0.0,
-   "pocet": 150,
+   "pocet": 170,
    "azimut": [
     [
      100.0,
@@ -4786,43 +4802,275 @@
  ],
  "kotvy": [
   {
-   "nazev": "hypogeum_stred",
+   "nazev": "k_velarium",
+   "xyz": [
+    62.0,
+    40.0,
+    49.0
+   ]
+  },
+  {
+   "nazev": "k_stozary",
+   "xyz": [
+    -47.0,
+    66.5,
+    55.0
+   ]
+  },
+  {
+   "nazev": "k_ligneis",
+   "xyz": [
+    -16.0,
+    64.0,
+    43.0
+   ]
+  },
+  {
+   "nazev": "k_aedikula",
+   "xyz": [
+    -10.0,
+    59.0,
+    30.0
+   ]
+  },
+  {
+   "nazev": "k_vstup",
+   "xyz": [
+    -67.67999999999999,
+    -54.036249999999995,
+    3.0
+   ]
+  },
+  {
+   "nazev": "k_socha",
    "xyz": [
     0.0,
+    -76.55,
+    15.2
+   ]
+  },
+  {
+   "nazev": "k_sloupek",
+   "xyz": [
+    99.0,
+    -60.0,
+    1.5
+   ]
+  },
+  {
+   "nazev": "k_arena",
+   "xyz": [
+    20.0,
+    8.0,
+    0.12
+   ]
+  },
+  {
+   "nazev": "k_hypogeum",
+   "xyz": [
+    -14.0,
     0.0,
     -3.0
    ]
   },
   {
-   "nazev": "uroven_1",
+   "nazev": "k_zaklad",
    "xyz": [
-    -89.0,
+    -68.0,
     0.0,
+    -9.0
+   ]
+  },
+  {
+   "nazev": "k_pilire",
+   "xyz": [
+    0.0,
+    -66.0,
+    1.0
+   ]
+  },
+  {
+   "nazev": "r_podium",
+   "xyz": [
+    -45.0,
+    0.0,
+    6.0
+   ]
+  },
+  {
+   "nazev": "r_primum",
+   "xyz": [
+    -52.0,
+    0.0,
+    10.0
+   ]
+  },
+  {
+   "nazev": "r_immum",
+   "xyz": [
+    -67.0,
+    0.0,
+    20.8
+   ]
+  },
+  {
+   "nazev": "r_summum",
+   "xyz": [
+    -81.0,
+    0.0,
+    36.0
+   ]
+  },
+  {
+   "nazev": "r_ligneis",
+   "xyz": [
+    -88.0,
+    0.0,
+    41.5
+   ]
+  },
+  {
+   "nazev": "r_kolonada",
+   "xyz": [
+    -84.0,
+    0.0,
+    47.0
+   ]
+  },
+  {
+   "nazev": "r_klenba",
+   "xyz": [
+    -89.1,
+    0.0,
+    11.0
+   ]
+  },
+  {
+   "nazev": "r_vomitorium",
+   "xyz": [
+    -59.0,
+    0.0,
+    4.0
+   ]
+  },
+  {
+   "nazev": "r_schody",
+   "xyz": [
+    -75.0,
+    0.0,
+    3.5
+   ]
+  },
+  {
+   "nazev": "r_zaklad",
+   "xyz": [
+    -60.0,
+    0.0,
+    -9.0
+   ]
+  },
+  {
+   "nazev": "r_tunel",
+   "xyz": [
+    -62.0,
+    0.0,
+    -4.0
+   ]
+  },
+  {
+   "nazev": "h_vytah",
+   "xyz": [
+    2.9000000000000004,
+    -3.4,
+    -1.0
+   ]
+  },
+  {
+   "nazev": "h_cela",
+   "xyz": [
+    10.0,
+    -10.9,
+    -0.6
+   ]
+  },
+  {
+   "nazev": "h_stredni",
+   "xyz": [
+    20.0,
+    0.0,
+    -5.5
+   ]
+  },
+  {
+   "nazev": "h_krivka",
+   "xyz": [
+    -25.0,
+    -13.5,
+    -0.6
+   ]
+  },
+  {
+   "nazev": "h_pilir",
+   "xyz": [
+    -37.0,
+    -8.0,
+    -0.6
+   ]
+  },
+  {
+   "nazev": "h_tunel",
+   "xyz": [
+    -43.0,
+    0.0,
+    -5.0
+   ]
+  },
+  {
+   "nazev": "h_zub",
+   "xyz": [
+    32.0,
+    -18.5,
+    -0.6
+   ]
+  },
+  {
+   "nazev": "f_dorsky",
+   "xyz": [
+    3.4,
+    -78.25,
     5.0
    ]
   },
   {
-   "nazev": "uroven_2",
+   "nazev": "f_ionsky",
    "xyz": [
-    -89.0,
-    0.0,
-    17.2
+    3.4,
+    -78.25,
+    17.0
    ]
   },
   {
-   "nazev": "uroven_3",
+   "nazev": "f_korintsky",
    "xyz": [
-    -89.0,
-    0.0,
-    28.2
+    3.4,
+    -78.25,
+    28.5
    ]
   },
   {
-   "nazev": "uroven_5",
+   "nazev": "f_pilastr",
    "xyz": [
-    -89.0,
-    0.0,
-    43.0
+    3.4,
+    -78.25,
+    41.0
+   ]
+  },
+  {
+   "nazev": "f_stozar",
+   "xyz": [
+    8.3,
+    -78.65,
+    52.5
    ]
   }
  ],
@@ -4838,6 +5086,7 @@
   "dřevěná sedadla a kolonáda nahoře": "italské heslo (maenianum summum in ligneis), řez",
   "sochy v arkádách": "anglické heslo",
   "240 stožárů": "anglické heslo",
+  "kamenné sloupky 18 m od stavby": "anglické heslo; počet 80 a výška jsou odhad",
   "plachty a lidé": "oživení obrazu, tvar plachet podle anglického hesla (síť lan, otvor uprostřed), rozmístění vymyšlené"
  }
 }

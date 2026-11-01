@@ -2,6 +2,15 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-01 — Infografika Kolosea: hlavní model zůstává, výřezy ustupují příběhu
+
+- **Co:** menší obrázky, které ukazují jen znovu model, ze stránky pryč. Místo nich scéna z arény jako variace obrazu Pollice Verso, skutečnost o palci nahoru a dolů, druhy gladiátorů.
+- **Proč:** operátor 1. 11.: „To Koloseum celkové - je dost odbyté a nedává smysl. Ty detaily - menší obrázky neukazují více než hlavní model - ten je naopak povedený. Měla by tam být scéna z arény - variace slvného obrazu jak se gladiátor ptá davů a císaře, zda má zabít protivníka. Druhy gladiátorů - jak to bylo ve skutečnosti s palcem nahoru a dolu.“
+- **Důsledek:** kdo kde seděl je přímo na hlavním modelu (číslované značky), ne ve zvláštním řezu. Gladiátoři jsou AI ilustrace z lokálního FLUX, označené v patičce po panelech.
+- **Scéna (operátor 1. 11.):** „Ta rádoby kopie obrazu je příšerná - buď vezmi obraz, nebo ho předělej detailním 3D modelem.“ Vybral jsem původní obraz, je volný a hned k dispozici; 3D scéna s postavami by potřebovala placené modely.
+- **Ruce (operátor 1. 11.):** „Detail vestálek skoro stejně velký jako na obraze opět nemá smysl.“ a o modelu z Blenderu „Lidskou ruku prosím, stále je to comix, je mi jedno jakým modelem, ale pořádně“. Výřez obrazu ani model z kapslí na stránce nejsou, tři gesta jsou realistická lidská ruka z lokálního FLUX, označená v patičce.
+- **Palec (operátor 1. 11.):** „palec nahoru bylo tasit meč a zabít. Palec dolů bylo naopak meč do pochvy. Nemáš rozdíl mezi palcem nahoru a dolu, palec v pěsti ovšem smysl dává“. Oddíl rozlišuje tři gesta: nahoru smrt (Corbeill i populární výklad), dolů spor (Gérôme smrt, populární výklad meč do pochvy, doklad z Říma nemá ani jeden), v pěsti milost (medailon z Cavillargues). Zdroje `docs/spikes/2026-11-01-koloseum.md`.
+
 ## 2026-11-01 — Model stavby: z dílů s GPT-6.1 Terra
 
 Na otázku „Mají se stavby dělat z dílů s modelem Terra?“ po tabulce měření operátor: „Ano, dokonči to“. Cesta C z plánu: model dodá jen JSON dílů, žádný generovaný kód se nespouští. Sonnet s prameny se ani jednou nepostavil (0,40 USD), Terra dala 49 dílů za 0,15 USD, Hunyuan z jedné fotky plochou desku. Měření: [spike](spikes/2026-11-01-model-cesty.md). Souhlas s dalším placeným během to není.

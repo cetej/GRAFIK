@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from PIL import Image
 from pydantic import BaseModel
 
@@ -24,12 +24,12 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, parts3d, research, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
 from engine.styles import StyleError, StyleLibrary, palette, slugify
-from engine.infographics import (InfoError, InfographicStore, VectorCraftEdited, clean_svg, fitting_size, for_vectorcraft,
+from engine.infographics import (BACKEND_NAMES, InfoError, InfographicStore, VectorCraftEdited, clean_svg, fitting_size, for_vectorcraft,
                                  open_in_window, vc_copy)
 from engine.termdb import TermDB
 from engine.translate import Translator
@@ -121,13 +121,25 @@ class InfoFromRef(BaseModel):
 
 
 class InfoExport(BaseModel):
-    svg: str                        # rendered by the studio (one renderer: preview = export)
+    svg: str = ""                   # rendered by the studio (one renderer: preview = export); a panel document is drawn by the Engine
     format: str = "png"
 
 
 class InfoVectorCraft(BaseModel):
-    svg: str
+    svg: str = ""
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
+
+
+class InfoPanels(BaseModel):
+    title: str
+    subtitle: str = ""
+    size: str = "1600x2400"
+    template: str = "dark"
+    accent: str = "#dcb062"
+    sources: str = ""
+    nadpis: dict | None = None
+    paticka_y: float | None = None
+    panels: list[dict]              # engine/panels.py; `zdroj` of a picture: {model_id, version, render}, {slozka} under the library, {obraz: "<job>/<n>"} or {ref_id}, the last two with {vyrez}
 
 
 class ImageVectorCraft(BaseModel):
@@ -748,9 +760,90 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             raise HTTPException(404, "infografika neexistuje")
         return doc
 
+    def _doc_svg(doc: dict, given: str) -> str:
+        if panels.is_panel_doc(doc):
+            return panels.render_svg(doc, infos._dir(doc["id"]))
+        if not given:
+            raise HTTPException(400, "chybí SVG dokumentu")
+        return given
+
     @app.get("/api/v2/infographics")
-    def info_list():
-        return infos.list()
+    def info_list(panely: bool = False):
+        """Panel documents only on request: the Studio editor does not draw them yet."""
+        return [d for d in infos.list() if panely or not panels.is_panel_doc(d)]
+
+    @app.post("/api/v2/infographics/panels", status_code=201)
+    def info_panels(body: InfoPanels):
+        def source_of(panel: dict) -> Path:
+            source = panel.get("zdroj") or {}
+            if source.get("obraz") or source.get("ref_id"):
+                try:
+                    path = store.image_path(source["obraz"]) if source.get("obraz") else reflib.image_path(source["ref_id"])
+                except (RefLibError, ValueError, IndexError) as e:
+                    raise InfoError(f"panel {panel['id']}: {e}") from e
+                if path is None:
+                    raise InfoError(f"panel {panel['id']}: obrázek {source.get('obraz') or source.get('ref_id')} neexistuje")
+                return Path(path)
+            if source.get("slozka"):
+                folder = (s.library_dir / source["slozka"]).resolve()
+                if not folder.is_relative_to(s.library_dir.resolve()):
+                    raise InfoError(f"panel {panel['id']}: složka je mimo knihovnu")
+                return folder
+            try:
+                return models3d.lib.vdir(source.get("model_id"), source.get("version")) / "renders" / str(source.get("render"))
+            except m3d.Model3dError as e:
+                raise InfoError(f"panel {panel['id']}: {e}") from e
+
+        def make_base(png: bytes) -> tuple[str, dict | None]:
+            job_id = _store_upload(InfoUpload(b64=base64.b64encode(png).decode(), name=f"{body.title}.png", blender_render=True), "upload", {"prompt": "", "refs": [], "source": body.title})
+            return f"{job_id}/0", _prov(f"{job_id}/0")
+
+        def note_of(validated: list[dict], prov: dict | None) -> tuple[str, bool]:
+            """The footer names every AI picture and every foreign one: the upload that makes the thumbnail says nothing about them."""
+            illustrated: dict[str, list[str]] = {}
+            credits = []
+            for panel in validated:
+                source = panel.get("zdroj") or {}
+                if source.get("obraz"):
+                    origin = _prov(source["obraz"]) or {}
+                    if origin.get("ai_generated", True) and not origin.get("render"):
+                        illustrated.setdefault(BACKEND_NAMES.get(origin.get("backend"), origin.get("model") or origin.get("backend") or "AI"), []).append(panel["nazev"])
+                elif source.get("ref_id"):
+                    meta = reflib.get(source["ref_id"]) or {}
+                    credits.append(f"{panel['nazev']}: {meta.get('author') or 'autor neuveden'}, {meta.get('license') or 'licence neuvedena'}")
+            return panels.compose_note(bool((prov or {}).get("render")), illustrated, credits), bool(illustrated)
+
+        try:
+            return infos.create_panels(body.model_dump(), source_of, make_base, note_of)
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.get("/api/v2/infographics/{info_id}/svg")
+    def info_panels_svg(info_id: str):
+        """Preview of a panel document: the same drawing as the export, pictures by link."""
+        doc = _info_or_404(info_id)
+        if not panels.is_panel_doc(doc):
+            raise HTTPException(404, "tenhle dokument kreslí Studio")
+        try:
+            svg = panels.render_svg(doc, infos._dir(info_id), lambda p, f: f"/api/v2/infographics/{info_id}/panely/{p}/{f}")
+        except (InfoError, OSError) as e:
+            raise HTTPException(400, str(e)) from e
+        return Response(svg, media_type="image/svg+xml")
+
+    @app.get("/api/v2/infographics/{info_id}/panely/{panel}/{name}")
+    def info_panel_file(info_id: str, panel: str, name: str):
+        _info_or_404(info_id)
+        path = panels.panel_dir(infos._dir(info_id), panel) / "orez" / name
+        if not panels.PANEL_ID.fullmatch(panel) or not panels.FILE_NAME.fullmatch(name) or not path.is_file():
+            raise HTTPException(404, "soubor panelu neexistuje")
+        return FileResponse(path)
+
+    @app.get("/api/v2/infographics/{info_id}/kontrola")
+    def info_panels_checks(info_id: str):
+        doc = _info_or_404(info_id)
+        if not panels.is_panel_doc(doc):
+            raise HTTPException(404, "tenhle dokument kontroluje editor")
+        return panels.checks(doc, infos._dir(info_id))
 
     @app.post("/api/v2/infographics", status_code=201)
     def info_create(body: InfoNew):
@@ -838,7 +931,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def info_export(info_id: str, body: InfoExport):
         doc = _info_or_404(info_id)
         try:
-            out = infos.export(info_id, body.svg, body.format, _prov(doc["base"]))
+            out = infos.export(info_id, _doc_svg(doc, body.svg), body.format, _prov(doc["base"]))
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
         return {**out, "url": f"/api/v2/infographics/{info_id}/exports/{out['file']}"}
@@ -864,10 +957,11 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         prov = json.loads(path.with_name(f"{name}.json").read_text(encoding="utf-8"))
         base = prov.get("base_provenance") or {}
         title = prov.get("title") or doc["title"] or path.stem
+        layers = path.with_name(f"{name}.vrstvy")
         job_id = _store_upload(
-            InfoUpload(b64=base64.b64encode(path.read_bytes()).decode(), name=name, title=title), "image",
+            InfoUpload(b64=base64.b64encode(path.read_bytes()).decode(), name=name, title=title, svg=layers.read_text(encoding="utf-8") if layers.exists() else ""), "image",
             {"prompt": title, "refs": [], "source": f"infografika {info_id}, export {name}"},
-            {"backend": base.get("backend"), **({"render": base["render"]} if base.get("render") else {}),
+            {"backend": base.get("backend"), **({"render": base["render"]} if base.get("render") and not prov.get("ai_generated") else {}),
              "ai_generated": prov.get("ai_generated", True), "reviewed_by": prov.get("reviewed_by"),
              "infographic": info_id})
         infos.library_note(info_id, name, f"{job_id}/0")
@@ -900,8 +994,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
     @app.post("/api/v2/infographics/{info_id}/vectorcraft")
     def info_vectorcraft_open(info_id: str, body: InfoVectorCraft):
-        _info_or_404(info_id)
-        return _open_in_vectorcraft(lambda: infos.vectorcraft_file(info_id, body.svg, body.mode))
+        doc = _info_or_404(info_id)
+        return _open_in_vectorcraft(lambda: infos.vectorcraft_file(info_id, _doc_svg(doc, body.svg), body.mode))
 
     @app.post("/api/v2/jobs/{job_id}/images/{n}/vectorcraft")
     def image_vectorcraft(job_id: str, n: int, body: ImageVectorCraft):
