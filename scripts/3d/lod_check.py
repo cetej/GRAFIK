@@ -1,6 +1,7 @@
 # One round of the render + measure loop for scripts/3d/lod_*.py (GRAFIK#71, free; steps: docs/3d-lod-postup.md):
 #   python scripts/3d/lod_check.py OUT_DIR --lod scripts/3d/lod_tatra87.py [--ref silueta.png] [--tel 5] [--tol 5]
 #   python scripts/3d/lod_check.py OUT_DIR --glb model.glb [--dim 4.74 1.67 1.50] [--ref silueta.png]
+#   python scripts/3d/lod_check.py OUT_DIR --parts scripts/3d/dily/pantheon.json
 # Builds the model (--lod), runs engine/blender/inspect_model.py under the heavy lock, writes OUT_DIR/kontrola.json
 # (`problemy` = what to fix) and OUT_DIR/pohledy.png. Exit 0 = nothing to fix, 1 = see `problemy`.
 # --ref: side outline of the real object (alpha, or anything on white), long axis across the frame; --zrcadlit when
@@ -21,6 +22,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 INSPECT = REPO / "engine" / "blender" / "inspect_model.py"
+PARTS = REPO / "engine" / "blender" / "lod_parts.py"
 TIMEOUT_S = 300
 PROFILE_W = 1000
 
@@ -125,6 +127,7 @@ def main() -> int:
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--lod", type=Path)
     src.add_argument("--glb", type=Path)
+    src.add_argument("--parts", type=Path, help="parts description (engine/parts_spec.py), built by engine/blender/lod_parts.py")
     ap.add_argument("--dim", type=float, nargs=3, metavar=("L", "W", "H"))
     ap.add_argument("--ref", type=Path)
     ap.add_argument("--zrcadlit", action="store_true", help="the model in side.png faces the other way than --ref")
@@ -136,10 +139,23 @@ def main() -> int:
     a.out.mkdir(parents=True, exist_ok=True)
     blender = find_blender()
     glb = a.glb or a.out / "model.glb"
+    spec = None
+    if a.parts:
+        from engine.parts_spec import SpecError, validate
+        try:
+            spec = validate(json.loads(a.parts.read_text(encoding="utf-8")))
+        except (SpecError, ValueError) as e:
+            print(f"popis nejde postavit: {e}")
+            return 2
+        (a.out / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=1), encoding="utf-8")
+    command = [blender, "-b", "--factory-startup", "-P", str(a.lod), "--", str(glb)] if a.lod else (
+        [blender, "-b", "--factory-startup", "-P", str(PARTS), "--", str(glb), str(a.out / "spec.json")] if a.parts else None)
     with heavy("blender", owner="grafik", caller="lod-check", wait_s=TIMEOUT_S):
-        if a.lod:
-            subprocess.run([blender, "-b", "--factory-startup", "-P", str(a.lod), "--", str(glb)],
-                           check=True, capture_output=True, timeout=TIMEOUT_S)
+        if command:
+            built = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT_S)
+            if built.returncode or not glb.exists():
+                print(built.stdout[-1500:], built.stderr[-1500:])
+                return 2
         run = subprocess.run([blender, "-b", "--factory-startup", "-P", str(INSPECT), "--", str(glb), str(a.out),
                               "--size", str(a.size)], capture_output=True, text=True, encoding="utf-8",
                              errors="replace", timeout=TIMEOUT_S)
@@ -147,7 +163,10 @@ def main() -> int:
         print(run.stdout[-1500:], run.stderr[-1500:])
         return 2
     report = json.loads((a.out / "inspect.json").read_text(encoding="utf-8"))
-    dims = a.dim or (dims_from_lod(a.lod) if a.lod else None)
+    if a.parts:     # pieces inside a part are built to touch; what counts is contact between named parts
+        loose = json.loads(Path(f"{glb}.dily.json").read_text(encoding="utf-8"))["bez_kontaktu"]
+        report["casti"] = {**report["casti"], "bez_kontaktu": [{"stred": p["nazev"], "rozmer": "díl", "mezera": p["mezera"]} for p in loose], "fragmentu_navic": 0}
+    dims = a.dim or (dims_from_lod(a.lod) if a.lod else [spec["dim"][k] for k in ("length", "width", "height")] if spec else None)
     result = {"pomery": {"sirka_delka": round(report["sirka"] / report["delka"], 3),
                          "vyska_delka": round(report["vyska"] / report["delka"], 3)},
               "bbox_m": [report["delka"], report["sirka"], report["vyska"]], "cil_m": dims,
