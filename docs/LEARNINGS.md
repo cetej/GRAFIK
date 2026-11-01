@@ -10,6 +10,7 @@
 
 - **Slova o technice se mění v předměty.** „Glow of a tallow lamp“ dokreslilo do jeskynní malby lampu na zdi, „realistic objects and vehicles“ přidalo do ligne claire dvě červená auta na polní cestu. Do karty stylu patří vlastnosti (měkké, ploché, bez stínu), ne věci, které v obraze být nemají. Zdroj světla pojmenovat, jen když do obrazu patří.
 - **Slova o střihu a výbavě kamery dopadnou stejně.** „Extreme close-ups mixed with vast long shots“ udělalo z westernu koláž tří záběrů, „stabilised mount“ pověsilo nad velrybu kameru, „static tripod“ postavilo vedle sedláka kameru na stativu. Karta popisuje jeden snímek.
+- **Karta umí přebít zadání a umí ho zanechat beze stylu.** „Arch of the galaxy“ v astrofotografii dal na zadání o Měsíci dvakrát Mléčnou dráhu. Surrealismus popsaný jen technikou byl obyčejná krajina, pomohl až balvan ve vzduchu přímo v kartě. Když styl stojí na obsahu, věc do karty patří; když ne, karta jmenuje jen vlastnosti.
 - **YAML katalogu:** dvojtečka v textu rozbije nekvotovanou hodnotu a čárka ve `[…]` rozdělí zadání ukázky na dvě. `test_styles_katalog.py` hlídá počet ukázek u každého stylu.
 
 ## 2026-10-31 — Převzetí ruční úpravy: kontrola textu v SVG nestačí, zámek nesmí mít vlastníka fronty

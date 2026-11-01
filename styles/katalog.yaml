@@ -3,7 +3,7 @@
 #
 # Do promptu jdou anglická pole (medium, light, line, composition, look, lens, grade, avoid, palette) a musí
 # zůstat bez diakritiky, jinak by je Engine překládal za peníze. Česky jsou jen name, note a signature.
-# Mrtví staří mistři smějí jmenovat techniku; živé autory a chráněné značky nikdy, styl se popisuje slovy.
+# Autory mrtvé déle než 70 let prompt smí jmenovat; živé, mladší a chráněné značky nikdy, styl se popisuje slovy.
 #
 # ukazky: zadání ukázek v pořadí, první je náhled v knihovně. SPOLECNY a PORTRET jsou společná zadání
 # (viz scripts/styles_katalog.py), díky nim jde styly porovnat na stejném motivu.
@@ -111,7 +111,7 @@ nove:
     name: Diapozitiv (60. léta)
     kategorie: fotografie
     poradi: 60
-    note: Barevný diapozitiv z rodinného alba nebo časopisu 60. let.
+    note: Retro a vintage. Barevný diapozitiv z rodinného alba nebo časopisu 60. let.
     medium: 1960s colour slide photograph, Kodachrome transparency film, the picture fills the frame with no slide mount
     light: bright midday sun with hard shadows
     line: fine grain, slightly soft lens, gentle vignetting, slide-film contrast
@@ -125,7 +125,7 @@ nove:
     name: Kolodiová fotografie (19. století)
     kategorie: fotografie
     poradi: 70
-    note: Nejstarší fotografie, kolem 1860. Strnulé pózy, stříbrné tóny, chemické skvrny.
+    note: Retro a vintage. Nejstarší fotografie, kolem 1860. Strnulé pózy, stříbrné tóny, chemické skvrny.
     medium: mid-19th-century wet-plate collodion tintype photograph, antique brass portrait lens, long exposure
     light: flat north skylight from a glass-roofed studio
     line: silvery metallic tones, swirling blur at the edges, chemical flow marks, scratches and dark pitted borders
@@ -174,7 +174,120 @@ nove:
     signature: svítící hrany · tmavé pozadí · hloubka ostrosti přes celý objekt
     ukazky: [A pollen grain with a spiky surface, The compound eye of a fly, A snowflake-like cluster of salt crystals]
 
-  # ----------------------------------------------------------------- HISTORICKÉ (chronologicky, pravěk až klasicismus)
+  - slug: foto-architektura
+    name: Architektura
+    kategorie: fotografie
+    poradi: 35
+    note: Stavby a interiéry. Svislé linie rovně, přesné materiály, člověk nejvýš pro měřítko.
+    medium: professional architectural photograph, all vertical lines perfectly straight, front-to-back sharpness, accurate materials
+    light: soft blue-hour or even overcast light, balanced exposure of inside and outside
+    line: crisp edges, true textures of stone concrete and glass, clean geometry
+    composition: symmetrical or strong one-point framing, strict geometry, small figures only for scale
+    palette: ["#2f4a66 dusk blue", "#d9b98a warm window", "#a8a8a2 concrete", "#3a3a38 shadow"]
+    avoid: tilted verticals, fisheye distortion, HDR halos, illustration
+    signature: rovné svislice · přísná geometrie · modrá hodina
+    ukazky: [A Gothic cathedral nave with tall stone columns, A modern concrete museum at dusk, An old stone bridge over a river in a medieval town]
+
+  - slug: foto-podvodni
+    name: Podmořská fotografie
+    kategorie: fotografie
+    poradi: 42
+    note: Korálové útesy a mořská zvířata. Modrá voda, paprsky od hladiny, vrácené barvy v popředí.
+    medium: underwater wildlife photograph, wide-angle view, natural colours of the reef fully restored in the foreground
+    light: sun rays from the surface fading into deep blue, foreground softly filled with light
+    line: floating particles, fine scale detail, gentle water haze in the distance
+    composition: subject close to the viewer with open blue water behind, looking slightly upward to the surface
+    palette: ["#0f4a7a deep blue", "#1f8fb5 lagoon", "#e8743b coral", "#f0d27a sun ray"]
+    avoid: aquarium glass, blown highlights, illustration
+    signature: modrý sloup vody · paprsky od hladiny · barvy v popředí
+    ukazky: [A green sea turtle above a coral reef, A diver exploring a sunken wooden ship, A school of silver fish swirling in a kelp forest]
+
+  - slug: foto-autochrom
+    name: Autochrom (kolem 1910)
+    kategorie: fotografie
+    poradi: 75
+    note: Retro a vintage. První barevná fotografie, 1907 až 1930. Zrnitý pastel, měkké jako malba. Pro začátek 20. století.
+    medium: early colour autochrome photograph from 1910, starch grain mosaic, soft pastel colour
+    light: long exposure in soft even daylight, slight blur where something moved
+    line: visible speckled grain over the whole image, gentle focus, faded dye colours
+    composition: calm posed people in period clothes, still scene, plain documentary framing
+    palette: ["#b89a6a faded ochre", "#7f8f6a dusty green", "#a86a5f muted red", "#6f7f95 soft blue", "#d9cdb0 pale cream"]
+    avoid: sharp digital look, saturated colour, modern clothes, modern objects
+    signature: zrnitá mozaika · vybledlý pastel · dlouhá expozice
+    ukazky: [SPOLECNY, PORTRET, A family in traditional folk costume outside a wooden village house]
+
+  - slug: foto-satelit
+    name: Družicový snímek
+    kategorie: fotografie
+    poradi: 92
+    note: Země z oběžné dráhy, kolmo shora a ve skutečných barvách. Řeky, města, ledovce.
+    medium: real satellite photograph of the Earth, straight-down view from orbit, natural true colour, photographic detail
+    light: even high sun, faint cloud shadows, thin atmospheric haze
+    line: extremely fine natural terrain texture, irregular fields, river branches and coastline
+    composition: straight-down view with no horizon, the landscape fills the whole picture
+    palette: ["#1f4f7a ocean", "#7a8f6a muted vegetation", "#b5a27f dry land", "#8fb0a5 sediment", "#efeee8 cloud"]
+    avoid: illustration, map symbols, horizon, oblique angle, labels, grid lines, borders, letters
+    signature: kolmo shora · bez horizontu · skutečné barvy
+    ukazky: [A river delta branching into the sea, The grid of a large city beside a bay, A glacier flowing between mountain ranges]
+
+  - slug: foto-astro
+    name: Astrofotografie
+    kategorie: fotografie
+    poradi: 94
+    note: Noční obloha a vesmír. Mléčná dráha z dlouhé expozice, mlhoviny, povrch Měsíce.
+    medium: astrophotograph, very long exposure, many stacked frames, very high dynamic range
+    light: only the light of the sky objects themselves, deep black background
+    line: pin-sharp fine detail, tiny diffraction spikes on bright points
+    composition: the subject large and sharp against black space, or a wide night sky above a dark landscape
+    palette: ["#070b16 space black", "#1f2f5f deep blue", "#b5487a hydrogen pink", "#e8c98a star gold", "#6fb5c9 oxygen teal"]
+    avoid: star trails, daylight, cartoon planets, illustration, letters
+    signature: dlouhá expozice · ostré hvězdy · černá obloha
+    ukazky: [The dense glowing band of the Milky Way rising diagonally above a desert rock arch at night, A colourful nebula with dark dust pillars, A close view of the grey cratered surface of the Moon filling the whole picture]
+
+  - slug: foto-mikroskop
+    name: Světelný mikroskop
+    kategorie: fotografie
+    poradi: 97
+    note: Barvené řezy tkání, buňky a krystaly v polarizovaném světle. Doplněk k elektronovému mikroskopu.
+    medium: light microscope micrograph, stained tissue section at high magnification, shallow focal plane
+    light: bright transmitted light from below, soft glow through the sample
+    line: fine cell membranes, nuclei and fibres, slightly out-of-focus layers
+    composition: pattern of cells filling the whole picture, no borders
+    palette: ["#d65f9a eosin pink", "#5a3f9a hematoxylin violet", "#f2e6ef bright background", "#2f8fa8 polarised blue"]
+    avoid: scale bar, labels, letters, laboratory equipment, 3D render look
+    signature: barvený řez · světlo zespodu · vzor buněk
+    ukazky: [A stained section of a plant stem with round cells, Human muscle fibres in pink and purple, Colourful crystals in polarised light]
+
+  # Retro a vintage není kategorie: styl patří podle vzhledu, slova „Retro a vintage“ v poznámce ho najdou v hledání Studia.
+  - slug: foto-polaroid
+    name: Polaroid (70. léta)
+    kategorie: fotografie
+    poradi: 62
+    note: Retro a vintage. Okamžitá fotka z rodinného alba, bílý rámeček, vybledlé teplé barvy.
+    medium: 1970s instant film photograph, square picture inside a wide white border, soft focus, chemical colour shift
+    light: harsh direct flash or hazy sunlight, blown highlights
+    line: low sharpness, creamy shadows, faded magenta and green cast, small chemical blemishes at the edges
+    composition: casual snapshot, subject in the middle, slightly tilted, everyday moment
+    palette: ["#e8dcc0 aged white border", "#c98f6a warm skin", "#7f8f6a faded green", "#a86a7a magenta cast", "#3f3a36 soft shadow"]
+    avoid: handwriting, letters, sharp digital look, modern objects
+    signature: bílý rámeček · vybledlé barvy · momentka
+    ukazky: [SPOLECNY, PORTRET, Children blowing out birthday candles at a kitchen table]
+
+  - slug: foto-kolorovana
+    name: Ručně kolorovaná fotografie (kolem 1900)
+    kategorie: fotografie
+    poradi: 72
+    note: Retro a vintage. Černobílý snímek domalovaný barvami, jako stará pohlednice. 1890 až 1930.
+    medium: hand-coloured photograph from 1900, clearly visible transparent oil dyes painted over a sepia print, pale blue sky, soft green foliage, rosy skin and coloured clothes, old postcard look
+    light: soft daylight of an early long exposure
+    line: fine photographic detail with flat colour washes on top, colours slightly outside the edges
+    composition: tidy postcard view or stiff studio pose, people in period clothes
+    palette: ["#d9c9a5 sepia paper", "#8fa8a0 tinted sky", "#b5716a rose tint", "#7f9a6a green tint", "#4a3a2a sepia shadow"]
+    avoid: letters, captions, saturated colour, modern clothes, modern objects
+    signature: sépie a barviva · barva přes okraj · stará pohlednice
+    ukazky: [SPOLECNY, PORTRET, A busy square in an old European town with horse carriages]
+
+  # ----------------------------------------------------------------- HISTORICKÉ (chronologicky, pravěk až pop art)
   - slug: hist-jeskynni-malba
     name: Jeskynní malba
     kategorie: historicke
@@ -469,6 +582,429 @@ nove:
     signature: hladká malba bez tahů · figury jako socha · přísná antická architektura
     ukazky: [SPOLECNY, PORTRET, Roman senators swearing an oath in a colonnade]
 
+  # doplněno 2026-10-31: mezery před klasicismem
+  - slug: hist-relief
+    name: Starověký kamenný reliéf
+    kategorie: historicke
+    poradi: 125
+    note: Asýrie a Persie, 9. až 5. stol. př. n. l. (Ninive, Persepolis). Postavy z profilu vytesané do kamene.
+    medium: Assyrian palace bas-relief carved in pale alabaster, low relief chiselled into a flat slab, the whole picture is stone
+    light: low raking side light revealing the carved edges, soft shadow in the cuts
+    line: incised chisel lines, stylised curled beards and hair, rows of patterned detail, weathered chipped surface
+    composition: figures in strict side profile on a shared ground line, horizontal frieze, flat stone fills all empty space
+    palette: ["#cfc4ae pale alabaster", "#a89a80 warm limestone", "#6f6452 carved shadow", "#3f382e deep cut"]
+    avoid: colour paint, perspective, modern objects, cuneiform, letters
+    signature: kámen · profil na jedné lince · stočené vousy
+    ukazky: [SPOLECNY, Head and shoulders of a bearded king in profile, A royal lion hunt with a chariot and archers]
+
+  - slug: hist-tapiserie
+    name: Středověká tapiserie (Bayeux)
+    kategorie: historicke
+    poradi: 165
+    note: 11. stol. Vyšívané vyprávění na plátně. Bitvy a události jako dlouhý pruh.
+    medium: medieval embroidered narrative wall hanging in the manner of the Bayeux Tapestry, coloured wool on unbleached linen, the whole image is visible thread
+    light: flat even light on cloth, no cast shadows
+    line: stem stitch outlines and laid wool fill, visible woven linen texture, simple naive figures
+    composition: horizontal band with a running scene, figures and animals in profile, narrow decorative border strips above and below
+    palette: ["#d9cfb3 unbleached linen", "#8c2f23 madder red", "#c49a3a weld yellow", "#3f5a3a green wool", "#2f3f58 woad blue"]
+    avoid: perspective, shading, photo realism, letters, inscriptions
+    signature: výšivka na plátně · pruh s vyprávěním · naivní postavy
+    ukazky: [SPOLECNY, PORTRET, Norman knights on horseback charging beside ships on a shore]
+
+  - slug: hist-leonardo
+    name: Renesanční studie (Leonardo)
+    kategorie: historicke
+    poradi: 205
+    note: Kolem 1500. Rudka a pero na nažloutlém papíře, stroje a anatomie. Skvělé na výklad.
+    medium: Renaissance study drawing in the manner of Leonardo da Vinci, red chalk and brown iron gall ink on aged toned paper
+    light: soft modelling with fine parallel hatching from the upper left, smoky shading
+    line: delicate diagonal hatching, searching contours, some parts left unfinished
+    composition: one main study of the whole subject with smaller detail sketches beside it on the same sheet, generous empty paper
+    palette: ["#e2cfa6 aged paper", "#8a3f26 red chalk", "#4a2f1c iron gall ink", "#b79a6c paper stain"]
+    avoid: handwriting, script, letters, colour paint, modern objects
+    signature: rudka a pero · šrafy zleva · více studií na listu
+    ukazky: [SPOLECNY, PORTRET, Studies of a flying machine with wooden ribs and cloth wings]
+
+  - slug: hist-mezoamerika
+    name: Mayská a aztécká malba
+    kategorie: historicke
+    poradi: 235
+    note: Mezoamerika, 8. až 16. stol. (Bonampak, kodexy). Ploché postavy s černou konturou, tyrkys a červená.
+    medium: Mesoamerican painted codex and Maya mural, mineral pigments on white lime plaster
+    light: flat with no shading, no cast shadows
+    line: even black outline around every form, stylised profile heads, elaborate feathered headdresses, blocks of pure colour
+    composition: everything drawn flat in side profile on a plain plaster ground, one horizontal register, stepped geometric border, no landscape depth
+    palette: ["#efe6d2 lime plaster", "#b53a25 cochineal red", "#2f8c8a maya blue", "#d9a227 ochre yellow", "#1c1a17 black outline"]
+    avoid: glyphs, letters, perspective, shading, photo realism
+    signature: černá kontura · profil ve vodorovných pásech · mayská modř
+    ukazky: [SPOLECNY, Head and shoulders of a Maya noble in a feathered headdress, A procession of warriors and musicians in a temple courtyard]
+
+  # doplněno 2026-10-31 na pokyn operátora: romantismus, realismus, impresionismus, moderna
+  - slug: hist-romantismus-krajina
+    name: Romantická krajina (Turner, Friedrich)
+    kategorie: historicke
+    poradi: 310
+    note: 1800 až 1850. Mlha, bouře a malý člověk před velikostí přírody.
+    medium: Romantic oil painting in the manner of J. M. W. Turner and Caspar David Friedrich, thin veils of glaze and scumbled paint on canvas
+    light: a luminous hazy glow breaking through mist and storm clouds
+    line: soft dissolving edges, atmospheric brushwork, forms melting into the air
+    composition: vast sublime landscape with an enormous sky, small solitary figures seen from far away
+    palette: ["#e9d7a8 sulphur light", "#c98a3f amber", "#6d7a86 storm grey", "#2f3a45 slate dark", "#a8402c ember red"]
+    avoid: sharp outlines, flat colour, modern objects
+    signature: mlha a světlo · obrovská obloha · malý člověk
+    ukazky: [SPOLECNY, PORTRET, A lone wanderer on a rocky peak above a sea of fog]
+
+  - slug: hist-romantismus-drama
+    name: Romantická dějinná malba (Delacroix)
+    kategorie: historicke
+    poradi: 314
+    note: Francie, 1820 až 1850 (Delacroix, Géricault). Vášeň, pohyb, bouřlivé barvy.
+    medium: French Romantic oil painting in the manner of Eugene Delacroix and Theodore Gericault, vigorous loaded brushwork on canvas
+    light: stormy dramatic light from one side, deep warm shadows
+    line: energetic visible strokes, broken edges, flickering highlights, turbulent drapery
+    composition: swirling diagonal masses in violent motion, turbulent smoke and sky
+    palette: ["#8f1f1f crimson", "#1f3a66 prussian blue", "#c8962f raw gold", "#2a211a bitumen dark", "#d8c3a2 flesh light"]
+    avoid: smooth finish, calm symmetry, pastel colours, modern objects
+    signature: bouřlivý pohyb · diagonály · karmín a pruská modř
+    ukazky: [SPOLECNY, PORTRET, Shipwreck survivors on a raft waving at a distant sail]
+
+  - slug: hist-realismus
+    name: Realismus (Millet, Courbet)
+    kategorie: historicke
+    poradi: 318
+    note: Francie, 1850 až 1880. Obyčejná práce a lidé bez příkras, zemité barvy.
+    medium: French Realist oil painting in the manner of Jean-Francois Millet and Gustave Courbet, solid earthy paint on canvas
+    light: plain late afternoon daylight, heavy grounded shadows
+    line: broad honest brushwork, palette knife texture, sturdy forms
+    composition: ordinary working people at full size in their everyday surroundings, low horizon, no idealisation
+    palette: ["#5b4a32 earth brown", "#8a7a4f straw", "#3f4a3a dull green", "#b9a98a dusty sky", "#2b241c dark soil"]
+    avoid: glamour, bright saturated colour, mythological figures, modern objects
+    signature: zemité barvy · obyčejná práce · bez příkras
+    ukazky: [SPOLECNY, PORTRET, Two peasant women gathering wheat in a harvested field at dusk]
+
+  - slug: hist-akademismus
+    name: Akademická dějinná malba (19. stol.)
+    kategorie: historicke
+    poradi: 322
+    note: 1850 až 1900 (Brožík, Gérôme, Alma-Tadema). Velké dějinné výjevy, přesné kostýmy. Pro historické články.
+    medium: 19th-century academic history painting in the manner of Jean-Leon Gerome, Lawrence Alma-Tadema and Vaclav Brozik, highly finished oil on canvas
+    light: clear theatrical light on the main figures, warm controlled shadows
+    line: invisible brushwork, archaeologically exact costumes and surroundings, polished surfaces and rich fabrics
+    composition: grand staged historical scene, clear central action, deep setting
+    palette: ["#c9a76a warm marble", "#8a2f26 roman red", "#2f4a5f deep blue", "#d9c7a8 linen", "#3a2a1c bronze shadow"]
+    avoid: loose brushwork, flat colour, modern objects, lettering
+    signature: dějinný výjev · přesné kostýmy · vypilovaný povrch
+    ukazky: [SPOLECNY, PORTRET, A medieval scholar standing before a crowded church council in a great hall]
+
+  - slug: hist-impresionismus
+    name: Impresionismus (Monet, Renoir)
+    kategorie: historicke
+    poradi: 330
+    note: Francie, 1870 až 1890. Viditelné tahy, světlo a okamžik. Čisté barvy vedle sebe.
+    medium: French Impressionist oil painting in the manner of Claude Monet and Pierre-Auguste Renoir, painted outdoors, short separate dabs of unmixed colour on canvas
+    light: fleeting open-air sunlight with coloured shadows, violet and blue in the shade, shimmering air
+    line: no outlines, visible comma-shaped brushstrokes, forms dissolving in light, thick wet paint
+    composition: casual cropped everyday scene, high horizon, light playing on foliage
+    palette: ["#7fa7c9 sky blue", "#e9c46a sun yellow", "#8fb573 fresh green", "#b58fc9 violet shadow", "#e99f8a rose"]
+    avoid: black shadows, sharp detail, smooth finish, modern objects
+    signature: krátké tahy · barevné stíny · světlo a okamžik
+    ukazky: [SPOLECNY, PORTRET, Boats on a river with sunlight flickering on the water]
+
+  - slug: hist-pointilismus
+    name: Pointilismus (Seurat)
+    kategorie: historicke
+    poradi: 334
+    note: Francie, 1885 až 1900 (Seurat, Signac). Obraz z drobných teček čisté barvy.
+    medium: Neo-Impressionist pointillist painting in the manner of Georges Seurat and Paul Signac, the whole image built of tiny separate round dots of pure colour
+    light: still bright hazy sunlight, luminous optical colour mixing
+    line: no lines at all, edges formed only by clusters of dots, complementary colours side by side
+    composition: calm frozen figures in stiff silhouettes, orderly horizontal layout
+    palette: ["#2f6fb3 cobalt", "#f0c93f cadmium", "#e8743b orange", "#3f9a5a emerald", "#b56fc2 violet"]
+    avoid: brush strokes, solid flat colour, outlines, modern objects
+    signature: tečky čisté barvy · ztuhlé postavy · slunečný opar
+    ukazky: [SPOLECNY, PORTRET, People resting on a river bank on a sunny afternoon]
+
+  - slug: hist-postimpresionismus
+    name: Postimpresionismus (van Gogh)
+    kategorie: historicke
+    poradi: 338
+    note: Francie, 1886 až 1890. Hutná barva, vířící tahy, silné emoce.
+    medium: Post-Impressionist oil painting in the manner of Vincent van Gogh, very thick impasto laid directly on canvas
+    light: intense glowing colour instead of realistic light, blazing yellows against deep blues
+    line: swirling rhythmic directional strokes following every form, dark blue contour lines
+    composition: close vibrant scene with tilted perspective, whirling air, everything in motion
+    palette: ["#f2c230 chrome yellow", "#1f4a9a ultramarine", "#3f8f6a viridian", "#d9622b orange", "#13294f night blue"]
+    avoid: smooth finish, muted colour, photo realism, modern objects
+    signature: vířící tahy · hutná barva · žlutá proti modré
+    ukazky: [SPOLECNY, PORTRET, A village under a swirling night sky with bright stars]
+
+  - slug: hist-syntetismus
+    name: Syntetismus (Gauguin)
+    kategorie: historicke
+    poradi: 342
+    note: 1888 až 1903 (Gauguin, škola z Pont-Avenu). Ploché syté barvy a tmavá kontura.
+    medium: Synthetist painting in the manner of Paul Gauguin, flat areas of saturated oil colour on coarse canvas
+    light: no modelled light, colour replaces shadow
+    line: dark outlines around simplified shapes, visible rough canvas weave
+    composition: simplified flat shapes in decorative layers, calm figures, pink and yellow ground
+    palette: ["#d9773a burnt orange", "#2f6b5a deep green", "#e5b7a5 pink ground", "#f0c75a yellow", "#2a3f6b dark blue"]
+    avoid: perspective depth, realistic shading, modern objects
+    signature: ploché syté plochy · tmavá kontura · hrubé plátno
+    ukazky: [SPOLECNY, PORTRET, Two women sitting on a beach under palm trees]
+
+  - slug: hist-secese
+    name: Secese (Mucha)
+    kategorie: historicke
+    poradi: 350
+    note: Kolem 1900, Alfons Mucha. Zvlněné křivky, květinové ornamenty, kruh za hlavou. Bez nápisů.
+    medium: Art Nouveau decorative lithograph in the manner of Alphonse Mucha, soft muted colour lithography on cream paper
+    light: flat gentle modelling, no cast shadows
+    line: long flowing whiplash outlines of even weight, swirling hair and drapery, stylised flowers and ornaments
+    composition: a central figure in front of a large decorative circle, ornamental border, elegant arrangement
+    palette: ["#e7d9b8 cream", "#c7a25a antique gold", "#9fae8a sage", "#c98f7d dusty rose", "#5a4a3a sepia outline"]
+    avoid: letters, words, title text, harsh shadows, modern objects
+    signature: zvlněná linka · kruh za postavou · květinový ornament
+    ukazky: [SPOLECNY, PORTRET, A young woman with flowing hair among lilies]
+
+  - slug: hist-klimt
+    name: Vídeňská secese (Klimt)
+    kategorie: historicke
+    poradi: 354
+    note: Vídeň, 1900 až 1915. Plátkové zlato, ornamenty místo oblečení, realistická je jen tvář.
+    medium: Vienna Secession painting in the manner of Gustav Klimt, oil with real gold leaf on canvas
+    light: golden shimmer from the leaf, soft delicate modelling only on faces and hands
+    line: flat mosaic patterns of spirals, rectangles and circles covering clothing and background, gentle contours
+    composition: shallow flat space, figures merged into a golden ornamental field
+    palette: ["#c9a23a gold leaf", "#8a6b1f old gold", "#2f5a4f emerald", "#a8382a vermilion", "#e8cfb5 pale skin"]
+    avoid: deep perspective, realistic clothing, letters, modern objects
+    signature: plátkové zlato · spirály a mozaika · realistická tvář
+    ukazky: [SPOLECNY, PORTRET, A woman in a golden patterned robe in a meadow of flowers]
+
+  - slug: hist-expresionismus
+    name: Expresionismus (Munch, Kirchner)
+    kategorie: historicke
+    poradi: 358
+    note: 1905 až 1925. Zkřivené tvary, neklidné barvy, úzkost místo popisu.
+    medium: German Expressionist painting in the manner of Edvard Munch and Ernst Ludwig Kirchner, raw rapid oil paint on coarse canvas
+    light: unnatural acid light, no logical shadows, sickly greens and hot reds
+    line: jagged angular strokes, harsh black outlines, distorted elongated bodies and mask-like faces
+    composition: steep tilted space, uneasy figures, wavy or slashed background
+    palette: ["#d9342b hot red", "#3f8f4a acid green", "#e8b62f sulphur", "#2a3f8f cold blue", "#15120f black"]
+    avoid: naturalistic colour, smooth finish, calm symmetry, modern objects
+    signature: zkřivené tvary · kyselé barvy · úzkost
+    ukazky: [SPOLECNY, PORTRET, A crowded city street at night with tall thin figures in hats]
+
+  - slug: hist-fauvismus
+    name: Fauvismus (Matisse, Derain)
+    kategorie: historicke
+    poradi: 362
+    note: Francie, 1905 až 1910. Divoké čisté barvy nezávislé na skutečnosti.
+    medium: Fauvist painting in the manner of Henri Matisse and Andre Derain, pure colour straight from the tube on white primed canvas
+    light: no shading at all, light expressed only by bright colour contrasts
+    line: loose broad patches, bare canvas between strokes, free simplified drawing
+    composition: simple joyful arrangement, flat space, strong complementary colour clashes
+    palette: ["#e8342b vermilion", "#18a37a emerald", "#f2b81f cadmium yellow", "#2b54c9 cobalt", "#e85fa8 pink"]
+    avoid: realistic colour, grey tones, fine detail, modern objects
+    signature: čistá barva z tuby · holé plátno · barvy mimo skutečnost
+    ukazky: [SPOLECNY, PORTRET, A small harbour with colourful boats and red trees]
+
+  - slug: hist-kubismus
+    name: Kubismus
+    kategorie: historicke
+    poradi: 366
+    note: 1908 až 1920. Předmět rozložený na plošky a viděný z více stran naráz. Autoři se nejmenují, díla jsou chráněná.
+    medium: Analytical Cubist oil painting, the subject broken into overlapping angular facets seen from several viewpoints at once
+    light: shifting small planes of light and shade, no single light source
+    line: straight scaffolding lines and arcs, transparent overlapping planes
+    composition: fragmented shallow space, central pyramid of facets fading towards the edges
+    palette: ["#7a6a4f ochre brown", "#b9a77f sand", "#4f4a45 warm grey", "#2b2622 near black", "#8a8f86 silver grey"]
+    avoid: letters, newspaper text, realistic perspective, smooth shading, modern objects
+    signature: plošky z více pohledů · okr a šedá · rozložený předmět
+    ukazky: [SPOLECNY, PORTRET, A still life with a guitar and a bottle on a table]
+
+  - slug: hist-futurismus
+    name: Futurismus (Boccioni)
+    kategorie: historicke
+    poradi: 370
+    note: Itálie, 1909 až 1920. Pohyb, stroje a rychlost, opakované obrysy.
+    medium: Italian Futurist painting in the manner of Umberto Boccioni, bright divided brushstrokes on canvas
+    light: radiating beams and lines of force cutting through the scene
+    line: repeated overlapping contours showing motion, sharp wedges, vibrating strokes
+    composition: explosive diagonal movement, forms dissolving into speed
+    palette: ["#e8432b signal red", "#f2a81f orange", "#2b6fc9 electric blue", "#d9d3c0 pale metal", "#1f1c19 soot black"]
+    avoid: static pose, calm symmetry, letters, words
+    signature: opakované obrysy · silové čáry · rychlost
+    ukazky: [SPOLECNY, PORTRET, An early locomotive rushing through a city at night]
+
+  - slug: hist-abstrakce
+    name: Geometrická abstrakce (Mondrian, Malevič)
+    kategorie: historicke
+    poradi: 374
+    note: 1915 až 1930. Čisté tvary a základní barvy, předmět je jen naznačený.
+    medium: early geometric abstract painting in the manner of Piet Mondrian and Kazimir Malevich, flat opaque paint on white canvas
+    light: no light and no shadow at all
+    line: straight edges, ruled rectangles and circles, hard flat boundaries
+    composition: the subject reduced to a few floating geometric shapes, strong asymmetrical balance, much empty ground
+    palette: ["#d92b1f primary red", "#f2c91f primary yellow", "#1f4fa8 primary blue", "#111111 black", "#f4f1e8 white"]
+    avoid: realistic figures, gradients, texture, letters
+    signature: čisté tvary · základní barvy · žádný stín
+    ukazky: [SPOLECNY, PORTRET, A city skyline reduced to rectangles]
+
+  - slug: hist-konstruktivismus
+    name: Konstruktivismus a Bauhaus
+    kategorie: historicke
+    poradi: 378
+    note: "1920 až 1933. Ruská avantgarda a Bauhaus: diagonály, červená a černá, fotomontáž. Bez nápisů."
+    medium: 1920s Constructivist and Bauhaus poster art, flat lithographic ink and photomontage on off-white paper
+    light: flat printed tones, black and white photographic cut-outs
+    line: ruled diagonals, hard wedges and circles, cut paper edges
+    composition: a strong diagonal axis, one large figure in a dramatic low angle, geometric red shapes as the main force
+    palette: ["#c8231f signal red", "#141414 black", "#efe7d6 off-white", "#7a7a76 photographic grey"]
+    avoid: letters, words, slogans, gradients
+    signature: diagonála · červená a černá · fotomontáž
+    ukazky: [SPOLECNY, PORTRET, A factory worker raising a hammer beside giant gears]
+
+  - slug: hist-artdeco
+    name: Art deco (malba 20. let)
+    kategorie: historicke
+    poradi: 382
+    note: 1920 až 1935. Uhlazené objemy, lesklé plochy, elegance. Portréty a móda.
+    medium: Art Deco oil painting of the 1920s, polished metallic surfaces, smooth enamel-like paint
+    light: cool sharp sheen with hard glossy highlights
+    line: crisp sculptural volumes, tubular limbs, angular folds like sheet metal
+    composition: tightly cropped elegant figure against a faceted geometric background, strong rhythm
+    palette: ["#1f2f3f gunmetal", "#b8bcc2 chrome", "#8a1f2f lacquer red", "#d9b45a champagne gold", "#efe5d5 ivory"]
+    avoid: loose brushwork, rustic texture, letters, modern objects
+    signature: kovový lesk · trubicové objemy · ostrá elegance
+    ukazky: [SPOLECNY, PORTRET, A glamorous woman in a silver dress driving an open car]
+
+  - slug: hist-americky-realismus
+    name: Americký realismus (30. až 40. léta)
+    kategorie: historicke
+    poradi: 386
+    note: Ticho, samota a ostré světlo v ulicích a na venkově. Autoři se nejmenují, díla jsou chráněná.
+    medium: American realist oil painting of the 1930s and 1940s, quiet smooth matte paint on canvas
+    light: hard raking sunlight or cold artificial light, long geometric shadow shapes
+    line: simplified clean planes, few details, sharp edge between light and shadow
+    composition: empty spacious scene with one or two still figures, large flat surfaces, silence and isolation
+    palette: ["#d9c48a dry sunlight", "#3f6a6a teal shade", "#a8402c brick red", "#efe6cf pale wall", "#22303a night blue"]
+    avoid: movement, crowded scene, visible brush flourish, modern objects
+    signature: ostré světlo · prázdný prostor · samota
+    ukazky: [SPOLECNY, PORTRET, A lone waitress at a corner diner at night seen through a big window]
+
+  - slug: hist-surrealismus
+    name: Surrealismus
+    kategorie: historicke
+    poradi: 390
+    note: 1925 až 1950. Sny a nemožná setkání věcí, malované přesně jako fotografie. Autoři se nejmenují, díla jsou chráněná.
+    medium: Surrealist oil painting, meticulous illusionistic finish with invisible brushwork
+    light: clear cold dreamlike light, long sharp shadows
+    line: precise edges, impossible scale, things melting or floating
+    composition: a vast empty plain with a low horizon, a huge smooth boulder hovering in the sky, a lone door standing on the plain, everything out of scale
+    palette: ["#d9c28f pale sand", "#7f9fbf dream sky", "#2f3f55 cold shadow", "#b5532f rust", "#efe7d4 bone"]
+    avoid: loose brushwork, abstract shapes, letters, modern objects
+    signature: sen jako fotografie · prázdná pláň · nemožná setkání
+    ukazky: [SPOLECNY, PORTRET, A giant floating rock above a calm sea with a small castle on top]
+
+  - slug: hist-socrealismus
+    name: Socialistický realismus
+    kategorie: historicke
+    poradi: 394
+    note: 1930 až 1960. Hrdinové práce v oleji, optimismus, monumentální podhled. Pro dějiny 20. století.
+    medium: Socialist Realist oil painting, academic technique with broad confident brushwork on a large canvas
+    light: bright optimistic sunlight from above, clean heroic modelling
+    line: solid sturdy bodies, clear readable contours, rippling work clothes
+    composition: monumental low angle, confident figures striding forward, wide horizon far behind
+    palette: ["#b5261f banner red", "#d9a73a wheat gold", "#4f7fa8 clear sky", "#5a4a3a work clothes", "#e5d4b8 sunlit skin"]
+    avoid: letters, slogans, irony, gloom, modern objects
+    signature: podhled · hrdinové práce · optimismus
+    ukazky: [SPOLECNY, PORTRET, Women driving tractors across a vast wheat field]
+
+  - slug: hist-popart
+    name: Pop art (sítotisk)
+    kategorie: historicke
+    poradi: 398
+    note: 60. léta. Sítotisk a rastr, křiklavé barvy, masová kultura. Autoři se nejmenují, díla jsou chráněná.
+    medium: 1960s Pop Art silkscreen print, flat fluorescent inks slightly out of register on paper
+    light: no modelling, high contrast photographic shadows reduced to solid black
+    line: heavy black printed shapes, visible halftone dots, misaligned colour blocks
+    composition: one bold cropped subject on a flat loud colour background, no depth
+    palette: ["#f23f8f hot pink", "#f2e01f acid yellow", "#1fb5d9 cyan", "#f2762b orange", "#141414 black"]
+    avoid: letters, words, speech bubbles, product logos, realistic colour, painterly texture, repeated grid of images
+    signature: sítotisk · rastr · křiklavé barvy
+    ukazky: [SPOLECNY, PORTRET, An ice cream cone on a plain pink background]
+
+  # Propagandistické plakáty: karta popisuje vzhled, co je v obraze, určuje zadání (operátor 2026-11-01). Nápisy jsou zakázané jako všude, model je neumí.
+  - slug: hist-propaganda-sovet
+    name: Sovětský propagandistický plakát
+    kategorie: historicke
+    poradi: 380
+    note: 1930 až 1950. Červená a černá, hrdinská postava z podhledu, velká gesta.
+    medium: Soviet poster of the 1930s and 1940s in the manner of Dmitry Moor and Viktor Deni, stone lithograph with flat inks on paper
+    light: hard graphic modelling, strong sun from one side, few flat tones
+    line: bold contour drawing, massive simplified bodies, sweeping gestures
+    composition: one giant heroic figure from a low angle, diagonal thrust, large masses of flat red
+    palette: ["#c4201c poster red", "#181512 black", "#eadfc4 cream paper", "#d99a2b ochre", "#5a6670 steel"]
+    avoid: letters, words, slogans, photo realism, modern objects
+    signature: červená a černá · hrdina z podhledu · velké gesto
+    ukazky: [SPOLECNY, PORTRET, A steelworker and a woman tractor driver looking towards the horizon]
+
+  - slug: hist-propaganda-nacisticka
+    name: Nacistický plakát (1933 až 1945)
+    kategorie: historicke
+    poradi: 384
+    note: Německo, 1933 až 1945 (Hohlwein). Monumentální strnulé postavy, tmavé plochy, ostrý stín.
+    medium: German poster of the 1930s in the manner of Ludwig Hohlwein, flat stencil-like colour masses, stone lithograph on paper
+    light: stark side light reduced to two or three flat tones, faces half in deep shadow
+    line: no outlines, shapes defined by colour alone, severe angular chiselled faces
+    composition: monumental stiff figures seen from below, rigid vertical order, dark empty ground
+    palette: ["#141311 near black", "#8a1f1a dull red", "#d9c7a0 parchment", "#6f6a55 field grey", "#b89a4a tarnished gold"]
+    avoid: letters, words, slogans, photo realism
+    signature: tmavé plochy · kamenné tváře · strnulý řád
+    ukazky: [SPOLECNY, PORTRET, A road worker with a shovel beside a new motorway]
+
+  - slug: hist-propaganda-usa
+    name: Americký válečný plakát (40. léta)
+    kategorie: historicke
+    poradi: 388
+    note: Druhá světová válka, domácí fronta. Kvaš, jasné barvy, odhodlaný optimismus. Autoři se nejmenují.
+    medium: American World War II home front poster, gouache illustration reproduced in offset lithography with flat inks on paper
+    light: bright clean daylight, simple warm modelling
+    line: confident commercial illustration line, friendly determined faces
+    composition: one or two large figures cropped at the waist against a plain solid colour field
+    palette: ["#1f3a6b navy", "#c8321f poster red", "#e9b72e yellow", "#efe6d0 cream", "#d9a77f warm skin"]
+    avoid: letters, words, slogans, photo realism
+    signature: odhodlaný optimismus · jednobarevné pozadí · kvaš
+    ukazky: [SPOLECNY, PORTRET, A woman welder in overalls at a shipyard]
+
+  - slug: hist-propaganda-cs
+    name: Československý budovatelský plakát
+    kategorie: historicke
+    poradi: 395
+    note: 1948 až 1960. Domácí podoba socialistického realismu, zedníci, horníci, žně. Pro české dějiny.
+    medium: Czechoslovak poster of the 1950s, flat lithographic inks on slightly yellowed paper, cheerful realist illustration
+    light: sunny morning light, simple broad modelling
+    line: clean friendly drawing, broad painted planes, rosy cheeks, plain work clothes
+    composition: smiling figures striding forward, low horizon far behind them, open sky
+    palette: ["#c8321f poster red", "#2f5f9a workwear blue", "#e5b73f wheat", "#efe6d0 paper", "#4f7a4a field green"]
+    avoid: letters, words, slogans, photo realism, modern objects
+    signature: úsměv a práce · sytá litografie · otevřené nebe
+    ukazky: [SPOLECNY, PORTRET, A bricklayer and a young woman miner on a new housing estate]
+
+  - slug: hist-propaganda-cina
+    name: Čínský propagandistický plakát
+    kategorie: historicke
+    poradi: 396
+    note: 1950 až 1976, éra Mao Ce-tunga. Zářící tváře, červené slunce, syté jásavé barvy.
+    medium: Chinese revolutionary poster of the 1960s, gouache and ink reproduced in saturated offset print on paper
+    light: radiant sunrise light on glowing rosy faces, rays spreading across the sky
+    line: clean smooth modelling, idealised happy faces, simple contours
+    composition: cheerful figures in a strong triangular group looking upward, huge red sun with radiating rays behind them
+    palette: ["#d81f1a vermilion", "#f2c22b sun yellow", "#f08a3c orange", "#1f6f5a green", "#2f3a6b blue"]
+    avoid: letters, characters, words, slogans, photo realism
+    signature: červené slunce · zářící tváře · jásavé barvy
+    ukazky: [SPOLECNY, PORTRET, Smiling workers and farmers walking together with their tools at sunrise]
+
   # ----------------------------------------------------------------- ILUSTRACE
   - slug: il-skica
     name: Skica rukou (černá linka)
@@ -572,7 +1108,7 @@ nove:
     name: Cestovní plakát (30. léta)
     kategorie: ilustrace
     poradi: 500
-    note: Litografický plakát art deco. Silueta, odstupňované plochy. Bez nápisu.
+    note: Retro a vintage. Litografický plakát art deco. Silueta, odstupňované plochy. Bez nápisu.
     medium: 1930s lithographic travel poster illustration, Art Deco simplified shapes, flat stepped tones, strong silhouette
     light: dramatic sunset or sunrise rendered in flat graded bands
     line: crisp stylised edges, airbrushed bands of colour, slight paper tooth
@@ -595,6 +1131,188 @@ nove:
     avoid: numbers, letters, title block, perspective render, colour shading
     signature: bílá na pruské modři · řez a šrafy · kóty bez čísel
     ukazky: [Side elevation of a steam locomotive, Cross-section of a stone lighthouse, Side elevation of a 1930s streamlined car]
+
+  - slug: il-perovka
+    name: Pérovka (dobrodružná kniha)
+    kategorie: ilustrace
+    poradi: 445
+    note: Černá tuš perem, husté křížové šrafy. Dobrodružné knihy a historie první poloviny 20. století.
+    medium: black ink pen drawing for an adventure book, steel nib on white paper, dense cross-hatching
+    light: strong dramatic shadow built from cross-hatching, bright untouched paper in the lights
+    line: confident tapered pen lines, layered hatching following the form, precise costume and anatomy
+    composition: dynamic adventure scene, figure in action in a detailed setting
+    palette: ["#111111 india ink", "#f5f2e8 white paper"]
+    avoid: grey wash, colour, loose sketch lines, letters
+    signature: křížové šrafy · černá tuš · dobrodružství
+    ukazky: [SPOLECNY, PORTRET, An explorer crossing a rope bridge over a jungle gorge]
+
+  - slug: il-tabule
+    name: Přírodovědná tabule (chromolitografie)
+    kategorie: ilustrace
+    poradi: 465
+    note: 19. stol. (Haeckel). Barevná tabule z atlasu, víc druhů na jedné stránce. Bez popisků.
+    medium: 19th-century chromolithograph natural history plate in the manner of Ernst Haeckel, printed colour on aged cream paper
+    light: even flat illustration light, careful tonal modelling
+    line: fine engraved contour lines, meticulous scientific detail, symmetrical ornamental forms
+    composition: several specimens of the same group arranged symmetrically on one page, pale empty background
+    palette: ["#e9dfc6 aged cream", "#2f6f6a sea green", "#b5532f rust red", "#d9a93a ochre", "#3f3f6a slate violet"]
+    avoid: letters, numbers, captions, labels, photo realism
+    signature: tabule z atlasu · souměrné uspořádání · bez popisků
+    ukazky: [Jellyfish and sea anemones, Beetles of many colours, SPOLECNY]
+
+  - slug: il-cesky-venkov
+    name: Naivní český venkov
+    kategorie: ilustrace
+    poradi: 485
+    note: Tlustá linka, ploché veselé barvy, vesnice a zima. V duchu české knižní tradice (Josef Lada), prompt ho nejmenuje.
+    medium: naive Central European book illustration, opaque flat colours on matte paper
+    light: no cast shadows, simple flat tones
+    line: thick soft rounded black outline around every shape, short stubby figures with round heads
+    composition: cheerful scene seen from slightly above, clear simple layout
+    palette: ["#f2f0e8 snow white", "#c8432b barn red", "#e5b73f straw yellow", "#4f8f5a meadow green", "#2b3a45 ink black"]
+    avoid: realistic shading, gradients, photo realism, letters
+    signature: tlustá kulatá linka · ploché barvy · vesnice
+    ukazky: [SPOLECNY, PORTRET, A snowy village with children sledding on a pond]
+
+  - slug: il-vystrihovanka
+    name: Papírová vystřihovánka
+    kategorie: ilustrace
+    poradi: 495
+    note: Vrstvy barevného papíru s jemnými stíny. Ploché, ale s hloubkou. Pro děti a výklad.
+    medium: cut paper collage illustration, layered sheets of matte coloured card seen from straight above
+    light: soft overhead light with small real drop shadows between the layers
+    line: clean scissor-cut edges, subtle paper fibre texture, no drawn lines
+    composition: simple bold shapes stacked in depth from back to front
+    palette: ["#e9dcc3 kraft cream", "#d9623b tangerine", "#2f7f7a teal", "#f0c14e mustard", "#2b3f5a ink blue"]
+    avoid: gradients, drawn outlines, 3D render gloss, letters
+    signature: vrstvy papíru · drobné stíny · čisté střihy
+    ukazky: [SPOLECNY, PORTRET, A coral reef with fish and seaweed]
+
+  - slug: il-rez
+    name: Technický řez (malovaný)
+    kategorie: ilustrace
+    poradi: 515
+    note: Průřez stavbou nebo strojem, vidět dovnitř. Malovaná klasika naučných knih. Popisky se doplní zvlášť.
+    medium: hand-painted technical cutaway illustration for an encyclopedia, gouache and airbrush on board, highly detailed
+    light: clean even illustrative light, soft airbrushed modelling
+    line: precise contours, sliced walls shown as flat cut surfaces, tiny people and parts visible inside
+    composition: three-quarter or side view with the outer walls removed, every level or part of the interior visible, white background
+    palette: ["#f4efe3 paper white", "#b5532f cut brick", "#3f6a8a steel blue", "#d9a93a brass", "#4a4036 dark line"]
+    avoid: letters, numbers, labels, arrows, callouts, photo realism
+    signature: průřez · vidět dovnitř · kvaš a airbrush
+    ukazky: [A cutaway of a medieval castle with people inside, A cutaway of a steam locomotive, A cutaway of an ocean liner]
+
+  - slug: il-midcentury
+    name: Mid-century ilustrace (50. léta)
+    kategorie: ilustrace
+    poradi: 501
+    note: Retro a vintage. Ploché tvary, tlumené barvy, suchý štětec a lehce posunutý tisk. Učebnice a obálky 50. let.
+    medium: 1950s mid-century modern book illustration, flat gouache shapes printed in three or four spot colours with dry brush texture
+    light: no realistic light, simple flat shadow shapes
+    line: loose offset ink lines that do not quite match the colour shapes, angular stylised figures
+    composition: playful flat layout with overlapping shapes and lots of air
+    palette: ["#e9dfc8 aged paper", "#d9623b burnt orange", "#3f7a78 teal", "#e5b73f mustard", "#2b2b2b ink"]
+    avoid: gradients, photo realism, 3D shading, letters
+    signature: ploché tvary · posunutý tisk · suchý štětec
+    ukazky: [SPOLECNY, PORTRET, A family looking at a comet through a telescope in the backyard]
+
+  - slug: il-brusel
+    name: Bruselský styl (Expo 58)
+    kategorie: ilustrace
+    poradi: 502
+    note: Retro a vintage. Československý design přelomu 50. a 60. let. Oblé tvary, pastel, hravá lehkost.
+    medium: Czechoslovak late 1950s applied art illustration, organic kidney shapes, flat pastel colours, matte print on paper
+    light: no shadows, flat tints
+    line: thin calligraphic ink line over soft colour areas, playful elongated figures
+    composition: airy asymmetric arrangement with floating rounded shapes
+    palette: ["#f1e9d8 paper", "#9fc7bf sea green pastel", "#e8a79a salmon", "#e9cf7a pale yellow", "#33403f ink"]
+    avoid: heavy shadows, gradients, photo realism, letters
+    signature: oblé tvary · pastel · tenká linka
+    ukazky: [SPOLECNY, PORTRET, A glass exhibition pavilion with visitors and a fountain]
+
+  - slug: il-reklama
+    name: Vintage reklama (50. léta)
+    kategorie: ilustrace
+    poradi: 503
+    note: Retro a vintage. Malovaná časopisecká reklama, nablýskaný optimismus. Bez nápisů a značek.
+    medium: 1950s magazine advertisement illustration, glossy gouache painting, idealised and cheerful, slightly faded offset print
+    light: bright flattering light, rosy highlights
+    line: smooth airbrushed forms, perfect smiles, polished surfaces and pastel colours
+    composition: smiling figures close up against a plain pastel background
+    palette: ["#f2d9c0 peach", "#7fc7c0 turquoise", "#e8574b coral red", "#f2e3a0 butter yellow", "#4a3f3a brown shadow"]
+    avoid: letters, words, logos, brand names, photo realism
+    signature: dokonalý úsměv · pastelové pozadí · lesklá kvaš
+    ukazky: [SPOLECNY, PORTRET, A smiling housewife presenting a new refrigerator]
+
+  - slug: il-retrofuturismus
+    name: Retrofuturismus (50. a 60. léta)
+    kategorie: ilustrace
+    poradi: 504
+    note: Retro a vintage. Budoucnost, jak si ji představoval vesmírný věk. Rakety, kopule, létající auta.
+    medium: 1950s space age retrofuturist illustration, gouache and airbrush painting in the style of vintage science magazines
+    light: clean optimistic sunlight, glowing pastel sky
+    line: streamlined smooth forms, chrome fins, tiny elegant people
+    composition: sweeping view into a gleaming future, domed towers and rockets on the horizon
+    palette: ["#9fd0d9 pale sky", "#f2c38a peach glow", "#d9e0e5 chrome", "#d9534a rocket red", "#2f4a66 deep blue"]
+    avoid: letters, dystopia, modern screens
+    signature: vesmírný věk · chrom a kopule · optimismus
+    ukazky: [SPOLECNY, PORTRET, A family in a bubble car flying over a domed city]
+
+  - slug: il-70leta
+    name: Retro 70. léta
+    kategorie: ilustrace
+    poradi: 505
+    note: Retro a vintage. Zemité barvy, oblé pruhy, teplá hutná grafika.
+    medium: 1970s retro illustration, warm screen print with thick rounded stripes and a grainy paper texture
+    light: flat warm tones, soft sun glow in the background
+    line: smooth rounded shapes, bold concentric curves, simplified figures
+    composition: a large setting sun with wide curved bands sweeping around the subject
+    palette: ["#d9773a burnt orange", "#b5532f rust", "#e5b73f harvest gold", "#5a6b3a avocado", "#4a2f1f chocolate"]
+    avoid: letters, gradients, neon colour, photo realism
+    signature: oblé pruhy · zemité barvy · velké slunce
+    ukazky: [SPOLECNY, PORTRET, A camper van on a desert road]
+
+  - slug: il-retrowave
+    name: Retrowave (80. léta)
+    kategorie: ilustrace
+    poradi: 506
+    note: Retro a vintage. Neon, mřížka, airbrush a západ slunce. Hudba, sci-fi, nostalgie.
+    medium: 1980s retrowave illustration, airbrushed chrome and glowing neon on a dark purple night
+    light: intense magenta and cyan glow, huge striped setting sun
+    line: glowing grid lines on the ground, hard chrome reflections
+    composition: central subject on a glowing perspective grid running to the horizon, striped sun behind
+    palette: ["#1a0b3b night purple", "#f23f9f magenta", "#1fd9e8 cyan", "#f2a83f sunset orange", "#efe6ff pale glow"]
+    avoid: letters, daylight, natural colour, photo realism
+    signature: neonová mřížka · pruhované slunce · chrom
+    ukazky: [SPOLECNY, PORTRET, A sports car driving towards the sunset]
+
+  - slug: il-pixel
+    name: Pixel art (8 a 16 bitů)
+    kategorie: ilustrace
+    poradi: 507
+    note: Retro a vintage. Hry 80. a 90. let. Viditelné čtverečky, málo barev.
+    medium: 16-bit video game pixel art, every shape built of large visible square pixels, limited indexed colour palette
+    light: simple flat shading with two or three tones, dithering patterns
+    line: crisp hard pixel edges, no anti-aliasing, no blur
+    composition: side-view game scene with a tile-based background
+    palette: ["#1f2a44 dark navy", "#3f8f6a pixel green", "#e8b13f gold", "#c8432b red", "#f2efd9 light"]
+    avoid: smooth gradients, blur, letters, interface, score display
+    signature: viditelné čtverečky · málo barev · pohled z boku
+    ukazky: [SPOLECNY, PORTRET, A knight standing in front of a castle gate]
+
+  - slug: il-riso
+    name: Risografie
+    kategorie: ilustrace
+    poradi: 512
+    note: Retro a vintage. Levný tisk dvěma barvami. Zrno, posun vrstev, přetisk. Zíny a plakáty.
+    medium: risograph print in two spot inks, fluorescent pink and blue overlapping on uncoated paper
+    light: tone built only from coarse grain and halftone
+    line: slightly misregistered layers, visible speckled ink, the overprint makes a third colour
+    composition: bold simple image with flat areas and open paper
+    palette: ["#f25a8f fluorescent pink", "#2b5fc9 riso blue", "#3a2f6b overprint purple", "#f2efe6 uncoated paper"]
+    avoid: photo realism, smooth gradients, letters
+    signature: dvě barvy · zrno · posunuté vrstvy
+    ukazky: [SPOLECNY, PORTRET, A cat on a windowsill with potted plants]
 
   # ----------------------------------------------------------------- 3D
   - slug: 3d-fotorealismus
@@ -694,12 +1412,54 @@ nove:
     signature: vše z kostek · malý ostrov · měkké stíny
     ukazky: [SPOLECNY, PORTRET, A small castle with a moat on a floating island]
 
+  - slug: 3d-veda
+    name: Vědecká vizualizace
+    kategorie: 3d
+    poradi: 675
+    note: Molekuly, buňky a viry jako v biologické animaci. Je to model, ne fotografie.
+    medium: photoreal scientific 3D render in the style of cinematic molecular animation, physically based translucent wet organic materials, real volume and depth
+    light: soft rim light on a dark blue background, volumetric glow, strong shallow depth of field
+    line: lumpy globular protein surfaces, glossy membranes, tiny floating particles blurred in the foreground
+    composition: a single structure large in the picture seen in perspective, depth fading into the dark
+    palette: ["#0b1a33 deep navy", "#2fb5c9 teal", "#d9a23f amber"]
+    avoid: labels, letters, arrows, plastic toy look
+    signature: molekuly a buňky · světlo z okraje · tmavé pozadí
+    ukazky: [A virus particle with spike proteins, A DNA double helix being unwound by an enzyme, A living cell with its inner parts visible]
+
+  - slug: 3d-wireframe
+    name: Drátěný model (hologram)
+    kategorie: 3d
+    poradi: 685
+    note: Jen hrany modelu, svítící na tmavém. Stroje, stavby, sci-fi a výklad konstrukce.
+    medium: technical wireframe 3D render, only the polygon edges are visible, glowing thin lines on a dark background
+    light: no surface shading, the lines themselves emit a faint glow
+    line: uniform thin mesh lines, visible triangles and quads, dense detail on curves
+    composition: the object floating in empty dark space in a three-quarter view
+    palette: ["#06121f near black", "#2fd0e8 cyan line", "#7f9fbf dim grid", "#e8f6ff white highlight"]
+    avoid: solid surfaces, textures, letters, numbers, interface panels
+    signature: jen hrany · svítící linky · tmavý prostor
+    ukazky: [SPOLECNY, PORTRET, A jet engine]
+
+  - slug: 3d-ps1
+    name: Hra z 90. let
+    kategorie: 3d
+    poradi: 683
+    note: Retro a vintage. Raná 3D grafika první PlayStation. Málo polygonů, rozmazané textury, mlha v dálce.
+    medium: 1990s first generation 3D console game screenshot at 320 by 240, chunky angular models made of very few big flat triangles, blocky hands and heads, pixelated stretched textures, no anti-aliasing
+    light: simple flat vertex lighting, flat fog hiding the distance
+    line: jagged stair-step edges, plants as flat crossed texture planes, large visible square texture pixels
+    composition: third-person game view with a short draw distance, nothing looks real
+    palette: ["#3a3f46 fog grey", "#6f6a4f muddy olive", "#8a5a3f rust brown", "#2a2f3a dark blue", "#b5a98a dusty light"]
+    avoid: letters, interface, health bar, photo realism, high detail
+    signature: málo polygonů · rozmazané textury · mlha
+    ukazky: [SPOLECNY, PORTRET, A lone hero in the courtyard of a spooky mansion at night]
+
   # ----------------------------------------------------------------- KOMIKS
   - slug: kom-silver-age
     name: Americký komiks (60. léta)
     kategorie: komiks
     poradi: 820
-    note: Tiskový rastr, tučná linka, žluté novinové pozadí. Bez bublin.
+    note: Retro a vintage. Tiskový rastr, tučná linka, žluté novinové pozadí. Bez bublin.
     medium: 1960s American comic book panel, bold black brush inks, flat CMYK colours printed with visible halftone dots on yellowed newsprint
     light: dramatic flat shadows spotted in solid black
     line: thick confident ink contours, speed lines, slightly misregistered colour
@@ -769,7 +1529,7 @@ nove:
     name: Pop-art komiks (60. a 70. léta)
     kategorie: komiks
     poradi: 870
-    note: Československý časopisecký komiks té doby. Plné křivky, psychedelické barvy.
+    note: Retro a vintage. Československý časopisecký komiks té doby. Plné křivky, psychedelické barvy.
     medium: late-1960s Czechoslovak pop-art magazine comic panel, stylised curving figures, flat saturated gouache colours, black brush contours
     light: flat graphic colour fields instead of shadows, bold contrast
     line: voluptuous curves, thick and thin brush line, decorative hair and clouds
@@ -807,6 +1567,34 @@ nove:
     signature: silná zkratka · barevné světlo · čistá digitální kresba
     ukazky: [SPOLECNY, PORTRET, A rescue climber swinging from a helicopter cable over a stormy sea]
 
+  - slug: kom-pulp
+    name: Pulpová obálka (30. až 50. léta)
+    kategorie: komiks
+    poradi: 815
+    note: Retro a vintage. Malovaná obálka levného časopisu. Dobrodružství, sci-fi, napětí. Bez titulků.
+    medium: 1940s pulp magazine cover painting, vivid gouache and oil on board, lurid saturated colour
+    light: dramatic coloured lighting, rim light, deep painted shadows
+    line: bold painterly modelling, dynamic anatomy, strong silhouettes
+    composition: a single moment at the peak of danger, diagonal arrangement, figure close to the viewer
+    palette: ["#d9342b pulp red", "#f2b81f yellow", "#1f5fa8 ultramarine", "#1f7a5a jungle green", "#1a1410 black"]
+    avoid: letters, title, masthead, prices, speech bubbles
+    signature: křiklavá malba · vrchol nebezpečí · bez titulků
+    ukazky: [SPOLECNY, PORTRET, An explorer fighting a giant octopus on the deck of a ship]
+
+  - slug: kom-karikatura
+    name: Novinová karikatura (19. století)
+    kategorie: komiks
+    poradi: 885
+    note: Daumier, časopis Punch, české Humoristické listy. Velké hlavy, šrafy, satira.
+    medium: 19th-century satirical newspaper caricature in the manner of Honore Daumier, black lithographic crayon and pen on newsprint
+    light: strong crayon shadows, bright paper
+    line: exaggerated big heads on small bodies, bold hatching, expressive scrawled contours
+    composition: one or two large figures filling the picture in a comic situation, sparsely drawn ground
+    palette: ["#1a1815 lithographic black", "#e5dcc6 newsprint", "#8a8578 crayon grey"]
+    avoid: letters, captions, speech bubbles, colour
+    signature: velká hlava · litografická křída · satira
+    ukazky: [SPOLECNY, PORTRET, A pompous politician with an enormous belly giving a speech on a wobbly crate]
+
   # ----------------------------------------------------------------- FILM (lens a grade jako u stylů KLAPKY)
   - slug: film-nemy
     name: Němý film (20. léta)
@@ -824,7 +1612,7 @@ nove:
     name: Technicolor (50. léta)
     kategorie: film
     poradi: 1030
-    note: "Hollywoodská velkoprodukce: syté základní barvy, malované horizonty."
+    note: "Retro a vintage. Hollywoodská velkoprodukce: syté základní barvy, malované horizonty."
     look: 1950s three-strip Technicolor Hollywood epic, painted matte backdrops, glamorous studio lighting, lavish costumes
     lens: Cinemascope anamorphic framing, formal staging, slow crane
     grade: vivid saturated primaries, deep reds, clean highlights, fine grain
@@ -860,7 +1648,7 @@ nove:
     name: New Hollywood (70. léta)
     kategorie: film
     poradi: 1050
-    note: "Americký film 70. let: špinavá města, teplé tlumené barvy, zrno."
+    note: "Retro a vintage. Americký film 70. let: špinavá města, teplé tlumené barvy, zrno."
     look: 1970s American cinema still, gritty real locations, available light, muted earthy tones, lived-in costumes
     lens: anamorphic lens with horizontal flares, slow zooms
     grade: warm low-contrast tungsten film stock, lifted blacks, heavy grain
@@ -872,7 +1660,7 @@ nove:
     name: Domácí film (Super 8)
     kategorie: film
     poradi: 1060
-    note: Rodinné záběry 70. let, vzpomínky, flashbacky.
+    note: Retro a vintage. Rodinné záběry 70. let, vzpomínky, flashbacky.
     look: 1970s Super 8 home movie frame, amateur framing, candid family moment
     lens: cheap fixed-focus zoom, slightly out of focus, shaky handheld
     grade: warm faded colour, heavy grain, light leaks, rounded frame corners
@@ -884,7 +1672,7 @@ nove:
     name: VHS (90. léta)
     kategorie: film
     poradi: 1070
-    note: "Domácí kamera na kazetu: rozpitá barva, pruhy, automatická expozice."
+    note: "Retro a vintage. Domácí kamera na kazetu: rozpitá barva, pruhy, automatická expozice."
     look: 1990s VHS camcorder footage frame, consumer home video, on-camera light
     lens: camcorder autofocus and automatic exposure, handheld, wobbly zoom
     grade: low resolution, chroma bleeding, tracking lines, blown highlights, muddy colours
@@ -939,3 +1727,75 @@ nove:
     avoid: lettering, watermark, captions, studio light
     signature: dlouhé ohnisko · skutečné chování · ranní světlo
     ukazky: [A herd of elephants crossing a shallow river at dawn, SPOLECNY, Humpback whales breaching near a glacier]
+
+  - slug: film-expresionismus
+    name: Německý expresionismus (20. léta)
+    kategorie: film
+    poradi: 1012
+    note: Výmarský film (Kabinet doktora Caligariho, Nosferatu). Křivé kulisy, malované stíny.
+    look: 1920s German Expressionist silent film still, black and white with sepia tint, crooked painted sets with slanted walls, stark painted shadows, pale faces with dark eyes
+    lens: static frame, low angle, distorted perspective
+    grade: extreme contrast, hard theatrical light, flicker, dust and scratches
+    avoid: intertitles, lettering, colour, modern objects
+    signature: křivé kulisy · malované stíny · bledé tváře
+    ukazky: [SPOLECNY, PORTRET, A sleepwalker in black gliding down a narrow slanted street at night]
+
+  - slug: film-tydenik
+    name: Filmový týdeník (30. a 40. léta)
+    kategorie: film
+    poradi: 1016
+    note: Retro a vintage. Předfilmové zpravodajství a válečné záběry. Zrno, škrábance, záběr z ruky. Pro dokumenty o 20. století.
+    look: 1940s newsreel footage frame, black and white documentary, real events caught on location, people glancing at the viewer
+    lens: handheld, slightly soft 35mm, abrupt framing
+    grade: high contrast nitrate film, blown skies, heavy grain, scratches, dust and flicker
+    avoid: lettering, captions, timecode, colour, modern objects
+    signature: zrno a škrábance · z ruky · skutečná událost
+    ukazky: [SPOLECNY, PORTRET, Crowds waving at soldiers marching down a bombed city street]
+
+  - slug: film-silueta
+    name: Stínová animace (siluety)
+    kategorie: film
+    poradi: 1172
+    note: Černé papírové loutky proti barevnému pozadí (Lotte Reinigerová, 20. léta). Pohádky a mýty.
+    look: 1920s silhouette animation frame, black paper cut-out figures with lace-like detail in front of glowing colour washes
+    lens: flat view straight on, slight depth in the background layers
+    grade: pure black shapes against amber and teal tinted backlight, soft hand-tinted gradient
+    avoid: lettering, facial details, 3D shading, modern objects
+    signature: černé siluety · krajkové detaily · tónované pozadí
+    ukazky: [SPOLECNY, PORTRET, A prince riding a flying horse past a crescent moon and palace towers]
+
+  - slug: film-anime
+    name: Japonský anime film
+    kategorie: film
+    poradi: 1178
+    note: Ručně kreslená postava a malované pozadí, oblaka a světlo. Studia se nejmenují.
+    look: Japanese hand-drawn anime feature film frame, clean cel animation of characters over lush hand-painted watercolour backgrounds, towering summer clouds
+    lens: 2D layered composition, gentle wide view, soft depth
+    grade: bright clear daylight, luminous greens and blues, subtle cel shadows
+    avoid: lettering, subtitles, 3D render, photo realism, studio logos
+    signature: cel a malované pozadí · letní oblaka · čistá linka
+    ukazky: [SPOLECNY, PORTRET, A girl on a bicycle riding along a seaside road in summer]
+
+  - slug: film-kresleny-30
+    name: Kreslený film 30. let
+    kategorie: film
+    poradi: 1171
+    note: Retro a vintage. Gumové končetiny, černobílé kreslení, škrábance. Autoři a postavy se nejmenují.
+    look: 1930s rubber hose cartoon frame, black and white hand-inked animation, bouncy noodle limbs, simple round eyes with a wedge cut out
+    lens: flat static background in grey wash, slight gate weave
+    grade: high contrast black and white, film grain, dust and scratches
+    avoid: lettering, famous cartoon characters, colour, 3D render
+    signature: gumové končetiny · černobílé · škrábance
+    ukazky: [SPOLECNY, PORTRET, A cheerful little train dancing along a hillside]
+
+  - slug: film-vecernicek
+    name: Československý večerníček (70. léta)
+    kategorie: film
+    poradi: 1174
+    note: Retro a vintage. Ručně kreslená a stříhaná animace pro děti, pastelky a akvarel. Postavy se nejmenují.
+    look: 1970s Czechoslovak hand-drawn children's television cartoon frame, gentle watercolour and coloured pencil backgrounds, simple cut-out characters with round heads
+    lens: flat view, slow horizontal movement, slight jitter
+    grade: soft faded 16mm television colours, light film grain
+    avoid: lettering, subtitles, famous cartoon characters, 3D render, photo realism
+    signature: pastelky a akvarel · stříhané postavičky · vybledlá televize
+    ukazky: [SPOLECNY, PORTRET, A small hedgehog and a rabbit picking mushrooms in a forest]
