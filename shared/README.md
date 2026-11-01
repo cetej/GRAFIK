@@ -15,6 +15,7 @@ Lehký sdílený kód projektů NGM, jeden zdroj místo kopií v každém projek
 | `ngm_shared.image_checks` | poradní kontrola obrázku proti zadání a kontrolnímu seznamu (`check_brief`, test T4) a kontrola logiky scény (`check_logic`: plán se skicou nebo hotový obrázek, „proč a kam děj směřuje“, fyzika, reálie, měřítko; test T7); Claude Opus 5.5 effort low, ~0,01 a ~0,05 USD | anthropic, Pillow |
 | `ngm_shared.archive` | archiv výstupů fronty GRAFIK Engine s hledáním nad `GRAFIK/run/jobs.sqlite` (jen pro čtení, i bez běžícího Engine): slova bez diakritiky v zadání, promptu, stylu, počeštění; filtry volající, druh úlohy, datum, stav; cesta k obrázku a náhledu | jen stdlib (náhled Pillow) |
 | `ngm_shared.knihovna` | sdílená knihovna postav, míst, rekvizit a stylů (složka `KNIHOVNA`, fáze 4): čtení, výpis, zápis pod zámkem karty a atomicky, předloha s původem a licencí, koš; společná karta stylu a text stylu do promptu obrázku (`image_text`) i videa (`video_lines`, `film_fields`) | PyYAML |
+| `ngm_shared.vyslovnost` | český slovník výslovnosti pro TTS, jeden pro všechny projekty (`vyslovnost_cz.json`): přepis slova až těsně před hlasem, shoda celého tvaru nebo podle kmene (`apply`), zápis z editoru (`save_entry`), hlášení slov, která zpětný přepis napsal jinak (`kandidati`) | jen stdlib (`save_entry` PyYAML přes `knihovna`) |
 | `ngm_shared.knihovna_prevod` | převod KLAPKA `studio/library/` a GRAFIK `styles/` do knihovny: jen kopíruje, opakovatelný, `--dry-run`, při kolizi skončí bez zápisu | PyYAML |
 
 Staré cesty `GRAFIK/clients/grafik_client.py` a `GRAFIK/clients/variants_page.py` zůstávají jako re-export, CLI i `import grafik_client` fungují beze změny.
@@ -97,6 +98,21 @@ archive.facets()                                             # volající a druh
 ```
 
 Databáze `GRAFIK_JOBS_DB` nebo `C:/Users/stock/Documents/000_NGM/GRAFIK/run/jobs.sqlite`; otevírá se jen pro čtení. GRAFIK Engine: `GET /api/v2/archive?q=&caller=&kind=&since=&until=&status=done|all&limit=` a `GET /api/v2/archive/facets`.
+
+## Slovník výslovnosti
+
+```python
+from ngm_shared.vyslovnost import apply, kandidati, save_entry
+
+apply("Mitochondrie vyrábějí energii.")      # ("Mito-chondrie vyrábějí energii.", [{grapheme, alias, count}])
+apply(text, {"Runyon": "Raňan"})             # vlastní položky místo slovníku, stejná pravidla
+save_entry("Egypt", "Ídžipt", note="číst anglicky")          # (uloženo, problémy); kmen=True pro všechny pády
+kandidati("Tu vyrábějí mitochondrie.", "Tu vyrábějí mitokondrie.")   # [{"slovo": "mitochondrie", "slysel": "mitokondrie"}]
+```
+
+- **Přesný tvar** je výchozí: celé slovo, velikost písmen se rozlišuje, delší klíč vyhrává. **`"kmen": true`** přidá pádové koncovky (`KONCOVKY`), jiné pokračování slova nezasáhne. Kmen s malým písmenem platí i na začátku věty, kmen s velkým (jméno, zkratka) jen přesně tak, jak je zapsaný. Přesný tvar má před kmenem přednost.
+- **Zápis:** editovatelná instalace čte soubor z hlavního checkoutu GRAFIK, takže `save_entry` platí hned ve všech projektech a v gitu se objeví jako necommitnutá změna. Tu nezahazuj, commitni ji (CLAUDE.md). `NGM_VYSLOVNOST` přesměruje slovník jinam, v testech na dočasný soubor.
+- **`kandidati` je jen hlášení.** Odlišný přepis je nález, stejný přepis důkaz není: Whisper píše i podle pravopisu a měkké a tvrdé souhlásky neslyší. Slovník nikdy nemění, správnost potvrzuje poslech. Před voláním `/transcribe` po `/generate` uvolni GPU (`free_gpu`), jinak to shodí VoiceStudio.
 
 ## Sdílená knihovna postav, míst, rekvizit a stylů
 
