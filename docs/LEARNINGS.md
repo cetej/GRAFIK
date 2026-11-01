@@ -1,5 +1,10 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Restart Engine: kontrola fronty těsně před zabitím
+
+- **Co se stalo:** čekací skript po druhé kontrole prázdné fronty ještě 20 s spal a pak zabil Engine. Mezitím přišla úloha POHYB (`20261101-201901-b431cc`) a restart ji ve 20:19:26 přerušil. Klient ji za 11 s sám zopakoval se stejným semínkem, nic se neztratilo.
+- **Jak příště:** poslední kontrola fronty je bezprostředně před `taskkill`, bez pauzy mezi nimi. Fronta je přes den prakticky pořád plná, okno je krátké; Engine zatím neumí přestat přijímat úlohy před restartem.
+
 ## 2026-11-01 — Stránka z modelu: panel musí říct, co hlavní obraz neřekne
 
 - **Co se stalo:** první Koloseum z panelů mělo pod povedeným hlavním řezem čtyři menší rendery téhož modelu (řez, podzemí, fasáda, plachty). Operátor: „menší obrázky neukazují více než hlavní model“, celé „odbyté“. Pravidlo v `docs/infografiky-zasady.md` přitom existovalo; tvořil jsem panely podle toho, co Blender umí vyrenderovat, ne podle toho, co chce čtenář vědět.
