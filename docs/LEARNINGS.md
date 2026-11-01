@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Plakát podle cizího vzoru přes 3D modely
+
+- **FLUX si z předlohy `geometry` bere i barvy a povrch.** Render axolotla s červenými vlákny a leskem vyšel jako červené ostny a guma. Render pro FLUX má mít paletu a matnost cíle, nebo ať je bílý.
+- **Podobu dělá kamera.** Hlava axolotla byla malá a nízko kvůli ohnisku 120 mm; na vzoru je zvíře blízko a hlava vpředu. Kameru změřit na vzoru dřív než generovat.
+- **Přímá projekce barev na model Hunyuan kazí obličej a ruce** (fleky, rozmazaná ústa). Stejná geometrie jako `geometry` a čistý obrázek jako `subject` dá čistý výsledek ve stejné póze.
+- **Relativní `render.filepath` v Blenderu míří jinam než pracovní adresář.** `OUT.mkdir` a `body.json` skončily ve scratchpadu, PNG jinde, exit 0, staré PNG zůstalo a vypadalo jako nové. Dvakrát jsem tak složil plakát se starým přijímačem. Cestu předat přes `Path.resolve()` a po renderu kontrolovat čas souboru.
+- **`tesla_render.py` tiše nedělal nic, když název záběru nebyl v `SHOTS`.** Prázdný seznam teď končí chybou.
+- **Lapač stínu šedí celý snímek.** Na papíře to byl šedý obdélník kolem stroje; `without_veil` v `tesla_kopie.py` odečte úroveň z okraje snímku.
+- **Text u figury kontrolovat na plném náhledu.** Poznámka na okraji panelu skončila operátorovi přes obličej: figura se kreslí přes panely a žádná kontrola kolizi nehledá.
+
 ## 2026-11-01 — Model z dílů: kontrola, zadání a podklady od operátora
 
 - **Dutá stavba je věc skladby, ne detailu.** Plný klín pod hledištěm s vyříznutými chodbami vypadal v řezu jako černá hmota s dírami. Až tenká deska pod stupni a radiální stěny daly prostor jako v rekonstrukčním řezu. Nejdřív oprav skladbu, potom přidávej díly.

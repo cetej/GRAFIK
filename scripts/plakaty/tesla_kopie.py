@@ -40,9 +40,21 @@ def head(x, y, s, size=12.6, anchor="start") -> str:
     return label(x, y, s, size, anchor, 700, fill=INK)
 
 
+def without_veil(im: Image.Image) -> Image.Image:
+    """The shadow catcher greys the whole frame a little, on the paper that would show as a grey rectangle."""
+    rgba = np.asarray(im, dtype=np.float32).copy()
+    a = rgba[..., 3]
+    frame = np.concatenate([a[:6].ravel(), a[-6:].ravel(), a[:, :6].ravel(), a[:, -6:].ravel()])
+    veil = np.percentile(frame, 95)
+    yy, xx = np.mgrid[0:a.shape[0], 0:a.shape[1]]
+    fade = np.clip(np.minimum.reduce([xx, a.shape[1] - 1 - xx, yy, a.shape[0] - 1 - yy]) / 40.0, 0, 1)
+    rgba[..., 3] = np.clip((a - veil) / max(255 - veil, 1), 0, 1) * 255 * fade
+    return Image.fromarray(rgba.astype("uint8"), "RGBA")
+
+
 def placed(renders: Path, shot: str, x, y, w, h):
     """The solid part of the machine fills the box; its shadow may spill out of it."""
-    im, shift = crop_alpha(Image.open(renders / shot / "obraz.png").convert("RGBA"))
+    im, shift = crop_alpha(without_veil(Image.open(renders / shot / "obraz.png").convert("RGBA")))
     box = im.getchannel("A").point(lambda v: 255 if v > 225 else 0).getbbox()
     k = min(u(w) / (box[2] - box[0]), u(h) / (box[3] - box[1]))
     left = u(x) + (u(w) - (box[2] - box[0]) * k) / 2 - box[0] * k

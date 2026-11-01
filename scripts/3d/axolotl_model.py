@@ -52,7 +52,7 @@ def skin_material():
     sep = t.nodes.new("ShaderNodeSeparateColor")
     t.links.new(attr.outputs["Color"], sep.inputs[0])
     base = pm.ramp_of(t, pm.noise_of(t, co, 26.0, 5.0), "#f1d8c8", "#f6e5d8", 0.3, 0.7)
-    gill_col = pm.ramp_of(t, sep.outputs["Blue"], "#eaa2a4", "#e8868e", 0.15, 0.8)
+    gill_col = pm.ramp_of(t, sep.outputs["Blue"], "#f0bcb8", "#eb9a9c", 0.15, 0.8)
     # big peach freckles on the head and back, fine dark specks everywhere
     freck = pm.noise_of(t, co, 70.0, 2.0)
     fr = t.nodes.new("ShaderNodeValToRGB")
@@ -162,7 +162,7 @@ def main():
         for sx in (-1, 1):
             start = Vector((centre.x + sx * 0.181 * half, lo.y - 1.0, lo.z + 0.518 * span_z))
             hit = tree.ray_cast(start, Vector((0, 1, 0)))[0]
-            found.append((sx * 0.181, (hit.y + 0.0095 - lo.y) / span_y, 0.518, 0.0118 / half))
+            found.append((sx * 0.181, (hit.y + 0.0045 - lo.y) / span_y, 0.518, 0.0066 / half))
         eye = pm.new_mat("eye", 0.08)
         eye[2].inputs["Base Color"].default_value = (0.008, 0.007, 0.007, 1)
         eye[2].inputs["Specular IOR Level"].default_value = 0.8
@@ -199,7 +199,7 @@ def main():
                 q = q + d * length / 4
             count += 1
         fil = pm.new_mat("filament", 0.38)
-        fil[2].inputs["Base Color"].default_value = pm.srgb("#e88e92")
+        fil[2].inputs["Base Color"].default_value = pm.srgb("#efa9a6")
         fil[2].inputs["Subsurface Weight"].default_value = 0.5
         fil[2].inputs["Subsurface Radius"].default_value = (0.01, 0.002, 0.002)
         hairs.materials.append(fil[0])

@@ -33,7 +33,7 @@ Fakta a zdroje vznikaly mimo repo; do plakátu šly jen údaje dohledané v prim
 | stejnosměrný proud jako vlna | vodorovná čára | definice |
 | polární diagram, póly N/E/S/W | dvě fáze posunuté o 90°, prstenec se dvěma póly | Tesla 1888, AIEE |
 | železné jádro a popisek „spark gap“ u cívky | vlastní obvod cívky bez železa: kondenzátor, jiskřiště, primár, sekundár | patent US 454,622 |
-| komíny na vodní elektrárně | vodopád a skutečná hala Adams | Westinghouse Works 1904 |
+| komíny na vodní elektrárně | řez elektrárnou Adams z modelu v Blenderu: řeka, přivaděč, šachta, turbína, hřídel, generátor, tunel. Šachta „asi 50 m“, zdroje uvádějí 135 až 180 stop (41 až 55 m), tunel 6 700 až 7 000 stop (asi 2 km). Řez není v měřítku | [Wikipedie „Adams Power Plant“](https://en.wikipedia.org/wiki/Adams_Power_Plant), [Clio](https://theclio.com/entry/154629), [SAH Archipedia](https://sah-archipedia.org/node/83587) |
 | televizní anténa na přijímači | jen stožár | dobově nesmysl |
 | loď s komínem a okénky | nízká loď na baterie s tyčemi a lampami | Tesla, Century 1900; patent US 613,809 |
 
@@ -51,6 +51,7 @@ Rozpory, které zůstaly otevřené: patent na turbínu má datum udělení 6. 5
 
 - **„Proč jde text přes Teslův obličej“:** poznámku o šachtě jsem dal na levý okraj panelu, kam potom přišla hlava. Text u postavy se staví až s jejím obrysem; panely pod ní mají text mimo její plochu.
 - **„Ta věž nahoře je tam ještě jednou na umrněné fotce“:** fotku z roku 1903 jsem přidal jako doklad, na plakátu ale jen opakovala model. Pryč. Stejný obsah dvakrát na jednom plakátu nepatří.
+- **„Ilustraci vodní elektrárny nechápu“:** vodopád a rozmazaná fotka haly nad sebou nic nevysvětlovaly. Teď jeden řez s popisky a šipkami toku vody, stejným postupem jako věž.
 - **„A ta podoba Axolotla se moc nepovedla“:** render s červenými vlákny a leskem vrátil FLUX jako červené ostny a gumu, malá hlava vzešla z dlouhého ohniska. FLUX si z předlohy `geometry` bere i barvy, proto musí mít render paletu cíle. Kamera se bere ze vzoru (krátké ohnisko, hlava vpředu).
 
 ## Zůstává
