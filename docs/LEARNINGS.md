@@ -9,6 +9,10 @@
 - **Obrázek od operátora po kompakci nevidím, jen svůj popis.** Leží v transkriptu jako `attachment.prompt[]` s base64, ne v řádku `user`. Popis z paměti nestačí: až síť po metrech přes jeho řez odhalila, že jsem patra odhadoval špatně.
 - **Odečítání ze sítě.** Řez nebo půdorys s čarami po 5 m dá rozměry, které text neuvádí, a jde je zapsat jako `z řezu`. Zdroj má být obrázek, který jsem přeměřil, ne dojem z něj.
 - **Zámek těžké práce drží i ostatní projekty, klidně minuty.** Testy se skutečným Blenderem se pak přeskočí (`s` ve výstupu pytestu). Přeskočené je neměřené, pusť je znovu a ukaž `passed`.
+## 2026-11-01 — Slovník výslovnosti: co Whisper mění, i když to zní stejně
+
+- **Zpětný přepis se liší i u správně namluvené věty.** Deset vět buňky (OmniVoice, Whisper small na CPU): bunka, Rybozome, výdou, Sou, douznovu, Vjádře, toho to, na jednou. Porovnání proto stírá diakritiku, i/y a j před s, d, spojuje slovo rozdělené nebo slepené přepisem a nebere rozdíl jen v koncovce. Těchto deset vět pak nedá žádného kandidáta a mitokondrie, orkerst a inustracie zůstanou nálezem.
+- **Dosavadní kontrola v NG-ROBOT mitokondrii neviděla.** `unheard_words` bere od podobnosti 0,8 slovo jako slyšené a mitochondrie/mitokondrie má 0,87. Proto `kandidati` hlásí podobná slova a `unheard_words` jiná; překrývají se jen v pásmu 0,6–0,8.
 
 ## 2026-11-01 — Obrázky k tématu: špatný zdroj a výběr podle názvu souboru
 

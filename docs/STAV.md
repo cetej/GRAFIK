@@ -4,6 +4,8 @@ Aktualizováno 2026-11-01.
 
 ## Teď
 
+**Sdílený slovník výslovnosti (2026-11-01)** (DECISIONS 2026-11-01): `ngm_shared.vyslovnost` a `vyslovnost_cz.json` nahradily dva slovníky v NG-ROBOT a jeden v POHYB. Sloučeno 71 položek, rozpor žádný (společné bylo jen Yellowstone se stejným přepisem). Položka může platit podle kmene pro všechny pády; zatím tak platí jen mitochondrie. Výslovnost nakonec posoudí operátor poslechem.
+
 **Infografika z tématu (2026-11-01)** ([plán](plans/2026-11-01-infografika-z-tematu.md), DECISIONS 2026-11-01): Studio → Průvodce → téma. Hotové fáze 0 (GRAFIK#107), 1 (GRAFIK#111, #112) a 2 (GRAFIK#114, #116). Nasazeno 1. 11.: Engine :8300 restartovaný jen podle PID při prázdné frontě (15316 → 4656), v opravdovém Studiu tlačítko „Podklady a návrhy · 0,11 USD“ a řetězec Koloseum se třemi návrhy a výsledkem kontroly.
 - **Podklady, 0 USD** ([měření](spikes/2026-11-01-dossier.md)): Wikidata, Wikipedia cs/en/de/it a Commons; fakta se zdroji, rozpory nahoře, obrázky po rolích. Pantheon: 7 z 8 faktických řádků tabulky s URL, okulus jako rozpor 8,95 až 9,1 m (8,2 m volné zdroje neukázaly). V opravdovém Studiu je dossier `pantheon-rim-v1`. Placené „Dohledat na webu“ naostro neběželo, odhad 0,45 USD je z KLAPKY.
 - **Řetězec k výběru návrhu** ([měření](spikes/2026-11-01-retezec.md)): živý běh z tématu Koloseum doběhl bez kliknutí k výběru, přežil restart Engine v kroku Podklady a stál 0,0744 USD proti původnímu odhadu 0,17 USD (−56 %, kritérium ±50 % neprošlo). Odhad opravený na 0,11 USD (−32 %), ověřený jen tímtéž během. Řetězec `20261101-132001-d9eb` je ve Studiu, návrh „Stavba po patrech“ jsem vybral jen kvůli změření kontroly, výběr jde změnit.

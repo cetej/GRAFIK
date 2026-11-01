@@ -9,6 +9,15 @@ Na otázku „Mají se stavby dělat z dílů s modelem Terra?“ po tabulce mě
 K rozpočtu měření operátor: „Klidně navyš rozpočet na dokončení“. Celkem 1,5248 USD.
 
 Sochy, plachty a lidi v obraze chce operátor výslovně („malí lidičkové tomu také dodají hned lepší náboj“), takže model je smí obsahovat i bez doložené polohy. V popisu je napsané, co je oživení a co pramen; do rozměrů ani kontroly kontaktu se to nepočítá.
+## 2026-11-01 — Jeden slovník výslovnosti v `ngm_shared`
+
+Operátor slyšel v POHYB „mitokondrie“ a zeptal se, jestli jde výslovnost ošetřit obecně. Oprava slova má platit všude, proto jeden soubor místo dvou slovníků v NG-ROBOT a jednoho v POHYB.
+
+- **Soubor je v balíčku a v gitu** (`shared/ngm_shared/vyslovnost_cz.json`), ne ve složce KNIHOVNA: ta je mimo git a bez zálohy a CI projektů by slovník neměla. Cena: „Opravit výslovnost“ zapisuje do hlavního checkoutu GRAFIK a zůstane tam necommitnutá změna, dokud ji někdo nepřevezme PR. Platí hned všude, ale do historie se dostane až s tím PR (CLAUDE.md).
+- **Kmen je volba položky, ne nové výchozí chování.** Stávající položky platí dál jako přesný tvar, takže se jejich výstup nezměnil. Plošný převod na kmeny by změnil čtení jmen a zkratek, a to bez poslechu ověřit nejde.
+- **Koncovky jsou seznam, ne libovolný konec slova.** Volný konec by z kmene dělal shodu uvnitř jiných slov. Přídavné jméno má proto vlastní položku (`mitochondriáln`).
+- **Zpětný přepis jen hlásí.** `kandidati` slovník nemění: Whisper píše i podle pravopisu, takže odlišný přepis je nález, stejný důkaz není.
+- **Bez plošného pravidla na „ch“.** Měření POHYB 2026-11-01: ze 19 slov s „ch“ Whisper napsal K jen u mitochondrie, mitochondrií a orchestru. Orchestr ve slovníku není, opravu nikdo neověřil poslechem.
 
 ## 2026-11-01 — Infografika z tématu: náčrt schválen, modely i od OpenAI
 
