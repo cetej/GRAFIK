@@ -1000,11 +1000,16 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     @app.post("/api/v2/jobs/{job_id}/images/{n}/vectorcraft")
     def image_vectorcraft(job_id: str, n: int, body: ImageVectorCraft):
         """A finished picture that came with its own layers (/library/upload `svg`): whole, in its own format."""
-        files = ((store.get(job_id) or {}).get("result") or {}).get("files", [])
+        job = store.get(job_id) or {}
+        files = (job.get("result") or {}).get("files", [])
         layers = Path(files[n]).with_suffix(".svg") if 0 <= n < len(files) else None
         if layers is None or not layers.exists():
             raise HTTPException(404, "Tenhle obrázek nemá vrstvy pro VectorCraft.")
-        return _open_in_vectorcraft(lambda: vc_copy(layers.parent / "vectorcraft", layers.read_bytes, body.mode))
+        make = layers.read_bytes
+        if job.get("kind") == localize.KIND:        # SVG počeštění odkazuje na podklad vedle sebe
+            base = Path(job["result"]["base"])
+            make = lambda: localize.tl.for_window(layers.read_text(encoding="utf-8"), base).encode("utf-8")     # noqa: E731
+        return _open_in_vectorcraft(lambda: vc_copy(layers.parent / "vectorcraft", make, body.mode))
 
     @app.post("/api/v2/infographics/{info_id}/vectorcraft/export", status_code=201)
     def info_vectorcraft_export(info_id: str, body: InfoManualExport):

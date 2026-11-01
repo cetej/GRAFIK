@@ -71,3 +71,22 @@ def test_normalize_keeps_path_and_markers():
     assert out["markers"] == [[20.0, 20.0, 40.0, 40.0]]
     assert out["elements"][0]["path"] == [[20.0, 40.0], [60.0, 80.0]]
     assert out["elements"][0]["size_px"] == 50
+
+
+def test_svg_has_layers_baseline_and_room_on_the_curve(tmp_path):
+    from PIL import Image
+    el = _el(path=[[300, 300], [800, 300]], path_width=100, size_px=40, italic=True)
+    h = {**_el(id=2, en="X", cs="Čína", box=[100, 50, 300, 90]), "upright": True, "spaced": False}
+    layout = [{"L": 500.0, "pitch": 40.0, "center": (500, 300), "rot_px": 30.0, "curve": None, "plate": None,
+               "protect": np.zeros((600, 1200), np.uint8), "residue": 0.0},
+              {"L": 200.0, "pitch": 40.0, "center": (200, 70), "rot_px": 30.0, "curve": None, "plate": None,
+               "protect": np.zeros((600, 1200), np.uint8), "residue": 0.0}]
+    _, svg, _ = pcraft.typeset(Image.fromarray(_map()), [el, h], layout, "podklad.png")
+    assert '<g id="Podklad">' in svg and '<g id="Texty">' in svg and "dominant-baseline" not in svg
+    assert "'NatGeo Peele', serif" in svg
+    last = svg.split('id="krivka-0" d="M')[1].split('"')[0].split(" L")[-1]
+    assert float(last.split()[0]) > 800 - 300                                       # křivka má rezervu za textem
+    base = tmp_path / "podklad.png"
+    base.write_bytes(b"PNGDATA")
+    window = lz.for_window(svg, base)
+    assert 'href="podklad.png"' not in window and "data:image/png;base64,UE5HREFUQQ==" in window

@@ -62,6 +62,7 @@ class Localizer:
         prov = {"job_id": job_id, "file": "image-0.png", "kind": KIND, "source": req.get("source"),
                 "caller": caller, "texts_from": req.get("texts_from") or (f"claude:{cost['model']}" if cost else "zadané"),
                 "image_kind": out["kind"], "warnings": out["warnings"], "layout": out["layout"],
+                "vectorcraft_svg": Path(out["svg"]).name,
                 "cost_usd": cost["usd"] if cost else 0.0, "usage": cost,
                 # obraz je originál, text vysázel kód; překlad je od Claude → kontrola člověkem před zveřejněním
                 "ai_generated": False, "ai_translated": bool(cost or req.get("texts_from")), "reviewed_by": None,
