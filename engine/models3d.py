@@ -48,7 +48,7 @@ VIEWER_TRIANGLES = 100_000
 # Textures (none in the clay copy today) go to WebP of at most 2048 px.
 OPTIMIZE_ARGS = ["optimize", "--compress", "meshopt", "--simplify", "false", "--join", "false", "--instance", "false",
                  "--texture-compress", "webp", "--texture-size", "2048"]
-KINDS = ("model3d", "viewer3d", "views3d", "camera3d", "stretch3d")
+KINDS = ("model3d", "viewer3d", "views3d", "camera3d", "stretch3d", "parts3d", "render3d")
 VERSION_RE = re.compile(r"^v(\d+)$")
 # A version whose step was running when the Engine stopped.
 RUNNING = ("generating", "rendering", "stretching", "viewer")

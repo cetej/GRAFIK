@@ -195,4 +195,29 @@ def validate(spec: dict) -> dict:
             if target not in solids:
                 raise SpecError(f"{name}: řeže {target!r}, ale řezat jde jen plný díl uvedený dřív ({', '.join(sorted(solids)) or 'žádný'})")
         parts.append(part)
-    return {"nazev": str(spec.get("nazev") or "model"), "dim": dims, "dily": parts, "zdroje": spec.get("zdroje") or {}}
+    return {"nazev": str(spec.get("nazev") or "model"), "dim": dims, "dily": parts, "kotvy": _anchors(spec.get("kotvy") or [], parts),
+            "zdroje": spec.get("zdroje") or {}}
+
+
+def _anchors(raw: list, parts: list[dict]) -> list[dict]:
+    """Pojmenované body modelu, kam míří popisky (render je promítne do obrazu): `xyz` v metrech, `dil` = díl, se kterým se bod hýbe v rozkladu."""
+    if not isinstance(raw, list) or len(raw) > MAX_PARTS:
+        raise SpecError(f"kotvy musí být seznam nejvýš {MAX_PARTS} bodů")
+    names = {p["nazev"] for p in parts if p["typ"] not in CUTS}
+    out = []
+    for item in raw:
+        name = str(item.get("nazev") or "") if isinstance(item, dict) else ""
+        if not NAME.fullmatch(name):
+            raise SpecError(f"kotva {name!r}: nazev musí být malá písmena bez diakritiky, číslice a podtržítka")
+        if name in names or any(a["nazev"] == name for a in out):
+            raise SpecError(f"kotva {name}: název se opakuje")
+        xyz = item.get("xyz")
+        if not isinstance(xyz, (list, tuple)) or len(xyz) != 3:
+            raise SpecError(f"kotva {name}: xyz musí být tři čísla")
+        anchor = {"nazev": name, "xyz": [_num(f"kotva {name}", "xyz", v) for v in xyz]}
+        if item.get("dil") is not None:
+            if item["dil"] not in names:
+                raise SpecError(f"kotva {name}: díl {item['dil']!r} v popisu není")
+            anchor["dil"] = item["dil"]
+        out.append(anchor)
+    return out

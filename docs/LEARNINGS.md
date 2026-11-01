@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Barevný render dílů (krok 3b)
+
+- **`bpy_prop_collection` neumí krok v řezu.** `o.data.vertices[::5]` padne s `slice steps not supported`, indexovat přes `range`.
+- **Kotva nemusí ležet na povrchu.** Střed okulu je vzduch, paprsek z kamery v něm nic netrefí. Viditelnost kotvy proto znamená „před bodem nic nestojí“, ne „paprsek trefil povrch v tomhle bodě“. Bod dílu naopak na díl dopadnout musí.
+- **Render na GPU vs. CPU (1920 × 1080, 96 vzorků, Pantheon, 7 dílů):** 9 s na snímek proti 61 s. Barevný render proto na rozdíl od bílých pohledů jde na GPU a před ním se zastaví vlastní sd-server. S vrstvami je to 8 snímků, 74 s proti ~8 min, a po celou dobu se drží zámek pro všechny projekty.
+- **Vrstvy přes `is_holdout` složené přes sebe dávají celý obraz:** průměrná odchylka barvy 0,26 z 255, p99 2,0, alfa 0,17 (Pantheon, řez, 7 vrstev). Vrstva si nechává stíny od ostatních dílů, takže se dá upravit bez přepočítání.
+
 ## 2026-11-01 — Řetězec kroků nad jednou frontou
 
 - **Úloha se nesmí rozběhnout dřív, než je zapsaná.** `add_task` a uložení `step_job` jsou dva kroky a worker může úlohu vzít mezi nimi. Pak si přečte starý stav a API ho potom přepíše. Oba kroky proto drží jeden zámek a worker si stav čte přes tentýž zámek.

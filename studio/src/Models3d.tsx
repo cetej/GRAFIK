@@ -26,7 +26,7 @@ const num = (x: number, d = 0) => x.toLocaleString('cs-CZ', { maximumFractionDig
 type LastRef = { url: string; source: string; model: string }
 let lastRefMemo: LastRef | null = null
 const METHOD_LABEL: Record<string, string> = {
-  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry',
+  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry', parts: 'z dílů',
 }
 const STATUS: Record<Model3dVersion['status'], { label: string; cls: string }> = {
   queued: { label: 've frontě', cls: '' }, generating: { label: 'model se tvoří', cls: 'ai' }, model: { label: 'bez prohlížeče', cls: 'ai' },

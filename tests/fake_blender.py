@@ -39,6 +39,26 @@ def view(path):
     im.save(path, "PNG")
 
 
+if script == "lod_parts.py":
+    out, spec = Path(args[0]), json.loads(Path(args[1]).read_text(encoding="utf-8"))
+    out.write_bytes(b"glTF\x02\x00\x00\x00" + b"\x00" * 64)
+    names = [p["nazev"] for p in spec["dily"] if p["typ"] not in ("arkady", "vyrez")]
+    Path(f"{out}.dily.json").write_text(json.dumps({"dily": {n: {"material": "kamen", "bbox": [[0, 0, 0], [1, 1, 1]]} for n in names},
+                                                    "bez_kontaktu": []}), encoding="utf-8")
+    sys.exit(0)
+if script == "render_parts.py":
+    spec, out, req = json.loads(Path(args[0]).read_text(encoding="utf-8")), Path(args[1]), json.loads(args[2])
+    names = [p["nazev"] for p in spec["dily"] if p["typ"] not in ("arkady", "vyrez")]
+    view(out / "obraz.png")
+    layers = {}
+    if req.get("vrstvy"):
+        layers = req.get("skupiny") or {n: [n] for n in names}
+        for name in layers:
+            view(out / f"vrstva-{name}.png")
+    (out / "body.json").write_text(json.dumps({"pohled": req["pohled"], "res": req["res"], "points": {n: [10, 10] for n in names},
+                                               "viditelne": names, "vrstvy": layers, "zarizeni": "CPU"}), encoding="utf-8")
+    print("STATS " + json.dumps({"parts": len(names), "device": "CPU"}))
+    sys.exit(0)
 if script == "render_views.py" and "--scene" in args:
     spec = json.loads(Path(args[args.index("--scene") + 1]).read_text(encoding="utf-8"))
     for o in spec["objects"]:
