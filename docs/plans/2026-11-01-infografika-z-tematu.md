@@ -123,6 +123,14 @@ Operátor 1. 11.: „Máme tam možnos hotovou infografiku automaticky předěla
 - Po přeskládání běží stejné kontroly jako u dokumentu a výsledek má vrstvy Grafika a Texty pro VectorCraft.
 - **Hotovo, 0 USD:** Pantheon z 2:3 na 16:9 a 4:5. Stejný počet panelů a textů jako originál, žádný objekt oříznutý okrajem rámu, medián vodítek do 6 %, 0 křížení, originál bajtově beze změny. Ověřeno v opravdovém Studiu a ve VectorCraftu bez okna. Vzhled posoudí operátor, číselné kontroly jen upozorní.
 
+### Krok 3e: varianta infografiky (po 3c, vlastní PR, UI s náčrtem)
+
+Operátor 1. 11. po stisku „Další varianta“ u plakátu: „udělalo jen jiný obrázek základní budovy - To je pochopitelné u jednotlivého obrázku ne u infografiky.“ Od GRAFIK#113 hotový obrázek bez generátoru tlačítko nemá; skutečná varianta vznikne až nad dokumentem s panely.
+
+- Tlačítko „Další varianta“ na infografice dá novou skladbu ze stejného dossieru a modelu: jiné rozmístění panelů, jiný hlavní pohled nebo jiný výběr panelů. Stejný mechanismus jako návrhy skladby ve fázi 2.
+- Fakta a popisky se znovu nevymýšlejí, berou se z dossieru a dokumentu. Výsledek je nový dokument, původní se nemění. Cena v tlačítku, bez návrhu od Claude 0 USD.
+- **Hotovo:** z Pantheonu 3 varianty, které se liší skladbou, se stejnými fakty a stejnými kontrolami jako originál. Ověřeno kliknutím v opravdovém Studiu. Placený návrh jen se souhlasem operátora.
+
 ### Pravidla pro všechny fáze
 
 - Placené operace jen s výslovným souhlasem operátora a cenou předem. Testy nic neplatí (`GRAFIK_LIVE_TESTS`).

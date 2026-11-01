@@ -80,6 +80,7 @@ export interface Provenance {
   reviewed_by: string | null
   reviewed_at?: string
   vectorcraft_svg?: string
+  source?: string   // stored from a file, not made by a generator
 }
 
 export class PaymentRequired extends Error {

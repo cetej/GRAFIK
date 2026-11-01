@@ -54,6 +54,8 @@ def test_library_upload_shows_in_the_job_list_with_its_origin(api):
     assert prov["backend"] == "Blender" and prov["cost_usd"] == 0 and prov["params"]["size"] == "64x96"
     assert prov["refs"] == [] and prov["timing_s"]["generate"] is None and prov["prompt_sent"] == "Pantheon"
     assert api.get("/api/v2/infographics").json() == []   # a picture for the library is not a document to edit
+    # its caption is not a prompt: "Další varianta" on the poster drew a new building (operator 1 Nov)
+    assert api.post(f"/api/v2/jobs/{r.json()['job_id']}/repeat", json={"n": 0}).status_code == 400
     assert api.post("/api/v2/library/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
 
 
@@ -142,6 +144,7 @@ def test_export_goes_to_the_library_once_with_its_origin(api, settings, monkeypa
     ref = first.json()["ref"]
     prov = api.get("/api/v2/jobs/" + ref.replace("/", "/images/") + "/provenance").json()
     assert prov["ai_generated"] is True and prov["infographic"] == doc["id"] and prov["params"]["size"] == "64x48"
+    assert api.post(f"/api/v2/jobs/{ref.split('/')[0]}/repeat", json={"n": 0}).status_code == 400   # AI base, still no prompt
     assert any(j["job_id"] == ref.split("/")[0] for j in api.get("/api/v2/jobs").json())
     assert api.get(f"/api/v2/infographics/{doc['id']}").json()["in_library"] == {name: ref}
 
