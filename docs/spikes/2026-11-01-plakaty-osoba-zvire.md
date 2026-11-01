@@ -17,9 +17,15 @@ Všechno ostatní stálo 0 USD.
 
 **Stroje (Tesla):** modely v Blenderu `scripts/3d/tesla_stroje.py`, render Cycles přes OptiX, `scripts/3d/tesla_render.py` pod zámkem těžké práce.
 
+Potom přes FLUX s renderem jako `geometry` do jedné rytiny (`rytiny/<shot>.png`, stejný záběr, takže kotvy z `body.json` platí). `ink()` v `tesla_kopie.py` z obrázku nechá jen inkoust, prosvítá papír plakátu. FLUX v řezu elektrárny vymyslel trubku a ústí tunelu; zakryté zeminou ze stejné řady.
+
 **Postava a zvíře:** geometrie Hunyuan, nad ní render, a teprve ten jde do FLUX jako `geometry`. Přímá projekce barev na model (`scripts/3d/glb_projekce.py`) na obličeji a rukou nechala fleky a na axolotlovi záplaty.
 
-**Stránka:** Tesla je vektorová sazba změřená na vzoru. Axolotl má „desku“: FLUX překreslí stránku vzoru bez zvířete, vymyšlená slova zmizí přes `cv2.inpaint`, navrch jde vektorový text a zvíře.
+**Axolotl, tři kroky:** bledý render z blízké kamery (42 mm, az −38, el 15), FLUX s renderem jako `geometry` a výřezem vzoru jako `subject` (4 varianty), vybrané zvíře vložené do stránky a nakonec jeden průchod FLUX přes celou scénu, aby zvíře sedělo v akvarelu. Kůži a žábry zesvětluje `page()`.
+
+**Stránka:** Tesla je vektorová sazba změřená na vzoru. Axolotl má „desku“: FLUX překreslí stránku vzoru bez zvířete, vymyšlená slova zmizí přes `cv2.inpaint`, navrch jde vektorový text.
+
+Hotové plakáty a podklady k novému složení: `library/plakaty/tesla/`, `library/plakaty/axolotl/` (hlavní checkout, mimo git). Do záložky Knihovna jdou s `--knihovna`, až je operátor přijme.
 
 ## Co bylo na vzorech špatně a co je teď
 
@@ -54,6 +60,20 @@ Rozpory, které zůstaly otevřené: patent na turbínu má datum udělení 6. 5
 - **„Ilustraci vodní elektrárny nechápu“:** vodopád a rozmazaná fotka haly nad sebou nic nevysvětlovaly. Teď jeden řez s popisky a šipkami toku vody, stejným postupem jako věž.
 - **„A ta podoba Axolotla se moc nepovedla“:** render s červenými vlákny a leskem vrátil FLUX jako červené ostny a gumu, malá hlava vzešla z dlouhého ohniska. FLUX si z předlohy `geometry` bere i barvy, proto musí mít render paletu cíle. Kamera se bere ze vzoru (krátké ohnisko, hlava vpředu).
 
+- **„Texty nemusejí být uňahňané, světlo a prostor má také někdy význam“:** panely se zvětšily stroji, text se nepřidával.
+
+## Návrh vylepšení (zatím nepostaveno)
+
+**Tesla**
+- Skutečný portrét Sarony místo postavy z modelu, volné dílo (`File:Tesla Sarony.jpg`).
+- Patenty po letech jako sloupce: 111 amerických, rozdělení v příloze rešerše.
+- Dosah v jednom měřítku: 42 km do Buffala proti 0,8 km od stanice Pearl Street.
+- Doloženo proti legendě: slavná fotka z Colorada je dvojitá expozice, soud v roce 1943 Teslu vynálezcem rádia neprohlásil.
+
+**Axolotl**
+- Rozpracovaná verze ve stylu NG `scripts/plakaty/axolotl_ng.py`: čistý papír, písma Geograph a Bumstead, krátké popisky, tři datové panely (dorůstání po dnech, hustota 6 000 / 1 000 / 100 / asi 35 na km², divoká a chovná forma). Operátor ji pozastavil, výstup nikdo neviděl.
+- Mapa Mexického údolí 1519 s pěti jezery proti dnešním třem lokalitám (`File:Basin of Mexico 1519 map-en.svg`, CC BY-SA 4.0), překreslit česky.
+
 ## Zůstává
 
-Plakát neví o své postavě: kolize textu s figurou hledá zatím jen oko. Návrh vylepšení a rozhodnutí operátora jsou v [DECISIONS](../DECISIONS.md).
+Plakát neví o své postavě: kolize textu s figurou hledá zatím jen oko. Rešerše k osobě a zvířeti je slabá (tabulka nahoře). Rozhodnutí operátora jsou v [DECISIONS](../DECISIONS.md).

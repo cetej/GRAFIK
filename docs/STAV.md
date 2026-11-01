@@ -4,6 +4,8 @@ Aktualizováno 2026-11-01.
 
 ## Teď
 
+**Plakáty Tesla a axolotl podle cizího vzoru (2026-11-01)** (DECISIONS 2026-11-01, [postup a návrh vylepšení](spikes/2026-11-01-plakaty-osoba-zvire.md)): česky, přes 3D modely a se správnými detaily, skripty `scripts/plakaty/tesla_kopie.py`, `axolotl_kopie.py`, modely strojů `scripts/3d/tesla_stroje.py`. Placené 0,75 USD (2 × Hunyuan 3.1 Pro, schváleno), zbytek lokálně 0 USD. Soubory a podklady `library/plakaty/tesla/`, `library/plakaty/axolotl/`; v záložce Knihovna nejsou, čekají na verdikt operátora. Otevřené: operátor řekl „s tím axolotlem počkej“ u verze ve stylu NG (`scripts/plakaty/axolotl_ng.py`, nedokončená, výstup nikdo neviděl). Rešerše k osobě a zvířeti zůstává slabá (Tesla 9 faktů, axolotl 4, stavby 44 až 84). Zbylo asi 40 pokusných obrázků axolotla a postavy v záložce Knihovna.
+
 **Sdílený slovník výslovnosti (2026-11-01)** (DECISIONS 2026-11-01): `ngm_shared.vyslovnost` a `vyslovnost_cz.json` nahradily dva slovníky v NG-ROBOT a jeden v POHYB. Sloučeno 71 položek, rozpor žádný (společné bylo jen Yellowstone se stejným přepisem). Položka může platit podle kmene pro všechny pády; zatím tak platí jen mitochondrie. Výslovnost nakonec posoudí operátor poslechem.
 
 **Infografika z tématu (2026-11-01)** ([plán](plans/2026-11-01-infografika-z-tematu.md), DECISIONS 2026-11-01): Studio → Průvodce → téma. Hotové fáze 0 (GRAFIK#107), 1 (GRAFIK#111, #112) a 2 (GRAFIK#114, #116). Nasazeno 1. 11.: Engine :8300 restartovaný jen podle PID při prázdné frontě (15316 → 4656), v opravdovém Studiu tlačítko „Podklady a návrhy · 0,11 USD“ a řetězec Koloseum se třemi návrhy a výsledkem kontroly.
