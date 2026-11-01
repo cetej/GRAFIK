@@ -340,8 +340,9 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         raw = store.raw_request(job_id)
         if raw is None:
             raise HTTPException(404, "úloha neexistuje")
-        # a finished picture has only a caption: FLUX would draw that sentence (Pantheon poster, operator 2026-11-01)
-        if (_prov(f"{job_id}/{body.n}") or {}).get("ai_generated") is False:
+        # a picture stored from a file ("source") has only a caption, FLUX would draw that sentence (Pantheon poster,
+        # operator 2026-11-01); ai_generated does not tell, an infographic over an AI image keeps it true
+        if (_prov(f"{job_id}/{body.n}") or {}).get("source"):
             raise HTTPException(400, "Tenhle obrázek nevznikl v generátoru, variantu z něj udělat nejde.")
         raw.update(seed=None, n=1, confirm_cost=body.confirm_cost)
         if raw.get("edit"):  # prepare() prepends the parent again

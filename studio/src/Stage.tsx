@@ -29,7 +29,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   const [mode, setMode] = useState<Mode>('view')
   // a finished picture with its own layers opens whole in VectorCraft, without a 16:9 document around it
   const [layered, setLayered] = useState(false)
-  // not from a generator: its caption is no prompt, so no variant and no generator edit
+  // stored from a file: its caption is no prompt, so no variant and no generator edit
   const [finished, setFinished] = useState(false)
   const [vcAsk, setVcAsk] = useState<string | null>(null)
   const [vcOpened, setVcOpened] = useState<string | null>(null)
@@ -38,7 +38,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
     setFinished(false)
     setVcAsk(null)
     setVcOpened(null)
-    if (selected) api.provenance(selected).then((p) => { setLayered(!!p.vectorcraft_svg); setFinished(p.ai_generated === false) }).catch(() => setLayered(false))
+    if (selected) api.provenance(selected).then((p) => { setLayered(!!p.vectorcraft_svg); setFinished(!!p.source) }).catch(() => setLayered(false))
   }, [selected])
   const parent = job?.request.parent ?? null
   // "before" = the parent version, else the first image reference (image-to-image)

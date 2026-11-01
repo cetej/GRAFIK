@@ -144,6 +144,7 @@ def test_export_goes_to_the_library_once_with_its_origin(api, settings, monkeypa
     ref = first.json()["ref"]
     prov = api.get("/api/v2/jobs/" + ref.replace("/", "/images/") + "/provenance").json()
     assert prov["ai_generated"] is True and prov["infographic"] == doc["id"] and prov["params"]["size"] == "64x48"
+    assert api.post(f"/api/v2/jobs/{ref.split('/')[0]}/repeat", json={"n": 0}).status_code == 400   # AI base, still no prompt
     assert any(j["job_id"] == ref.split("/")[0] for j in api.get("/api/v2/jobs").json())
     assert api.get(f"/api/v2/infographics/{doc['id']}").json()["in_library"] == {name: ref}
 
