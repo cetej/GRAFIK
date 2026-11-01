@@ -96,10 +96,27 @@ def ai_note(prov: dict | None) -> str:
     return f"Ilustrace: {model} (AI){' podle předlohy' if by_ref else ''}, schéma a popisky redakčně."
 
 
-def new_doc(base: str, title: str, prov: dict | None) -> dict:
+def canvas_size(size: str | None) -> tuple[int, int] | None:
+    """A preset or a picture's own format, "WxH"."""
+    m = re.fullmatch(r"([1-9]\d{2,3})x([1-9]\d{2,3})", size or "")
+    return (int(m[1]), int(m[2])) if m else None
+
+
+def fitting_size(iw: int, ih: int) -> str:
+    """A canvas that keeps the whole picture: the renderer fills the canvas and crops what does not fit (a 2:3
+    poster in 16:9, operator 2026-11-01). A preset within 3 % of the shape, else the picture's own, 1080 to 1920 wide."""
+    for name, (w, h) in SIZES.items():
+        if abs(iw / ih - w / h) <= 0.03 * w / h:
+            return name
+    w = max(1080, min(iw, 1920))
+    size = f"{w}x{round(w * ih / iw)}"
+    return size if canvas_size(size) else "1920x1080"
+
+
+def new_doc(base: str, title: str, prov: dict | None, size: str = "1920x1080") -> dict:
     return {
         "id": datetime.now().strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2),
-        "base": base, "title": title, "subtitle": "", "template": "dark", "layout": "pruh", "size": "1920x1080",
+        "base": base, "title": title, "subtitle": "", "template": "dark", "layout": "pruh", "size": size,
         "accent": "#dcb062",
         "labels": [], "facts": [], "schema": None, "sources": "", "ai_note": ai_note(prov),
         "reviewed_by": None, "reviewed_at": None,
@@ -142,10 +159,46 @@ def rasterize(svg: str, width: int, height: int, fmt: str) -> bytes:
             page.set_content(html, wait_until="load")
             if fmt == "png":
                 return page.screenshot(clip={"x": 0, "y": 0, "width": width, "height": height})
-            return page.pdf(width=f"{width}px", height=f"{height}px", print_background=True,
+            # page_ranges: an inline svg overflows the page by its baseline gap, Chromium then adds a blank second page
+            return page.pdf(width=f"{width}px", height=f"{height}px", print_background=True, page_ranges="1",
                             margin={"top": "0", "right": "0", "bottom": "0", "left": "0"})
         finally:
             browser.close()
+
+
+def vc_state(d: Path) -> tuple[list[dict], list[Path]]:
+    """Copies Engine wrote into folder d ({file, sha256}), and files that are not what Engine wrote: saved over in
+    VectorCraft or saved next to them (Save As). Those are manual edits, newest first."""
+    state = d / "copies.json"
+    copies = json.loads(state.read_text(encoding="utf-8")) if state.exists() else []
+    known = {c["file"]: c["sha256"] for c in copies}
+    files = [f for f in d.iterdir() if f.is_file() and f != state] if d.exists() else []
+    edited = [f for f in files if known.get(f.name) != _sha256(f)]
+    return copies, sorted(edited, key=lambda f: f.stat().st_mtime, reverse=True)
+
+
+def vc_copy(d: Path, make, mode: str | None = None) -> dict:
+    """The file to open in the window app. Nothing here ever overwrites a file: a manual edit stays as it is, new
+    content gets a new copy, unchanged content reopens its untouched copy. make() gives the bytes of the copy."""
+    if mode not in (None, "edited", "new"):
+        raise InfoError(f"neznámý způsob otevření {mode!r}")
+    copies, edited = vc_state(d)
+    if mode == "edited":
+        if not edited:
+            raise InfoError("ruční úprava neexistuje")
+        return {"path": edited[0], "file": edited[0].name, "created": False}
+    if edited and mode is None:
+        raise VectorCraftEdited(edited[0].name)
+    data = make()
+    sha = hashlib.sha256(data).hexdigest()
+    for c in reversed(copies):
+        if c["sha256"] == sha and (d / c["file"]).exists() and d / c["file"] not in edited:
+            return {"path": d / c["file"], "file": c["file"], "created": False}
+    d.mkdir(parents=True, exist_ok=True)
+    name = f"{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(2)}.svg"
+    (d / name).write_bytes(data)
+    (d / "copies.json").write_text(json.dumps([*copies, {"file": name, "sha256": sha}], indent=2), encoding="utf-8")
+    return {"path": d / name, "file": name, "created": True}
 
 
 def _clean_with_note(svg: str, doc: dict) -> str:
@@ -206,8 +259,8 @@ class InfographicStore:
         docs = [self.get(p.parent.name) for p in self.root.glob("*/info.json")]
         return sorted((d for d in docs if d), key=lambda d: d["updated"], reverse=True)
 
-    def create(self, base: str, title: str, prov: dict | None) -> dict:
-        doc = new_doc(base, title, prov)
+    def create(self, base: str, title: str, prov: dict | None, size: str = "1920x1080") -> dict:
+        doc = new_doc(base, title, prov, size)
         return self.save(doc["id"], doc, new=True)
 
     def save(self, info_id: str, data: dict, new: bool = False) -> dict:
@@ -219,7 +272,7 @@ class InfographicStore:
         doc["id"] = info_id
         doc["ai_note"] = (old or data)["ai_note"]  # from the base image's provenance, never edited away
         doc["created"] = (old or data)["created"]
-        if doc.get("size") not in SIZES:
+        if canvas_size(doc.get("size")) is None:
             raise InfoError(f"neznámý formát {doc.get('size')!r}")
         doc.setdefault("layout", "klasika")   # documents from before the bar layout keep their look
         if doc["layout"] not in LAYOUTS:
@@ -249,7 +302,7 @@ class InfographicStore:
             raise InfoError("infografika neexistuje")
         if fmt not in FORMATS:
             raise InfoError(f"formát {fmt!r}: jen {', '.join(FORMATS)}")
-        w, h = SIZES[doc["size"]]
+        w, h = canvas_size(doc["size"])
         svg = _clean_with_note(svg, doc)
         data = svg.encode("utf-8") if fmt == "svg" else rasterize(svg, w, h, fmt)
         ex = self._dir(info_id) / "exports"
@@ -270,15 +323,8 @@ class InfographicStore:
 
     # -- copies for the VectorCraft window ----------------------------------
     def _vc_state(self, info_id: str) -> tuple[Path, list[dict], list[Path]]:
-        """Folder, copies Engine wrote ({file, sha256}), and files that are not what Engine wrote: saved over
-        in VectorCraft or saved next to them (Save As). Those are manual edits, newest first."""
         d = self._dir(info_id) / "vectorcraft"
-        state = d / "copies.json"
-        copies = json.loads(state.read_text(encoding="utf-8")) if state.exists() else []
-        known = {c["file"]: c["sha256"] for c in copies}
-        files = [f for f in d.iterdir() if f.is_file() and f != state] if d.exists() else []
-        edited = [f for f in files if known.get(f.name) != _sha256(f)]
-        return d, copies, sorted(edited, key=lambda f: f.stat().st_mtime, reverse=True)
+        return (d, *vc_state(d))
 
     def vectorcraft_edits(self, info_id: str) -> list[dict]:
         taken = {}
@@ -347,31 +393,12 @@ class InfographicStore:
         return {"source": src.name, "files": files, "warnings": opened.get("warnings", [])}
 
     def vectorcraft_file(self, info_id: str, svg: str, mode: str | None = None) -> dict:
-        """The file to open in the window app. Nothing here ever overwrites a file: a manual edit stays as
-        it is, a new state of the document gets a new copy, an unchanged one reopens its untouched copy."""
         doc = self.get(info_id)
         if doc is None:
             raise InfoError("infografika neexistuje")
-        if mode not in (None, "edited", "new"):
-            raise InfoError(f"neznámý způsob otevření {mode!r}")
         with self._lock:
-            d, copies, edited = self._vc_state(info_id)
-            if mode == "edited":
-                if not edited:
-                    raise InfoError("ruční úprava neexistuje")
-                return {"path": edited[0], "file": edited[0].name, "created": False}
-            if edited and mode is None:
-                raise VectorCraftEdited(edited[0].name)
-            data = for_vectorcraft(_clean_with_note(svg, doc)).encode("utf-8")
-            sha = hashlib.sha256(data).hexdigest()
-            for c in reversed(copies):
-                if c["sha256"] == sha and (d / c["file"]).exists() and d / c["file"] not in edited:
-                    return {"path": d / c["file"], "file": c["file"], "created": False}
-            d.mkdir(parents=True, exist_ok=True)
-            name = f"{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(2)}.svg"
-            (d / name).write_bytes(data)
-            (d / "copies.json").write_text(json.dumps([*copies, {"file": name, "sha256": sha}], indent=2), encoding="utf-8")
-            return {"path": d / name, "file": name, "created": True}
+            return vc_copy(self._dir(info_id) / "vectorcraft",
+                           lambda: for_vectorcraft(_clean_with_note(svg, doc)).encode("utf-8"), mode)
 
     # -- schema templates -------------------------------------------------
     def schemas(self) -> list[dict]:

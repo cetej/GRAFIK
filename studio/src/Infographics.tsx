@@ -8,8 +8,9 @@ import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, ty
 // Zásady vzhledu: docs/infografiky-zasady.md (jedna písmová rodina ve dvou řezech, popisky u věci s krátkými
 // lomenými vodítky, rozvržení „pruh“: obraz přes celé plátno, nadpis a fakta v liště přes jeho spodek).
 
-const SIZES: Record<Infographic['size'], [number, number]> = { '1280x990': [1280, 990], '1920x1080': [1920, 1080], '1080x1350': [1080, 1350] }
-const SIZE_LABEL: Record<Infographic['size'], string> = { '1280x990': '1280×990', '1920x1080': '16:9', '1080x1350': '4:5' }
+const SIZE_LABEL: Record<string, string> = { '1280x990': '1280×990', '1920x1080': '16:9', '1080x1350': '4:5' }
+// same rule as fitting_size in engine/infographics.py: the whole picture, 1080 to 1920 wide
+const ownSize = ([iw, ih]: [number, number]) => { const w = Math.max(1080, Math.min(iw, 1920)); return `${w}x${Math.round((w * ih) / iw)}` }
 const THEMES = {
   dark: { bg: '#1d2532', ink: '#f1ede4', muted: '#a7b1bf', rule: 'rgba(255,255,255,.14)', foot: '#7b8594', shadow: '#000', lead: 'rgba(255,255,255,.75)', dot: '#fff' },
   light: { bg: '#f2f3f5', ink: '#1d1f23', muted: '#5d636b', rule: 'rgba(0,0,0,.14)', foot: '#6b7079', shadow: '#fff', lead: 'rgba(0,0,0,.6)', dot: '#1d1f23' },
@@ -38,7 +39,7 @@ function wrap(text: string, maxChars: number): string[] {
 /** Geometry shared by the renderer and the editor. "klasika": image on top, facts and schema below it;
  *  "pruh": image over the whole canvas, title and facts in a bar across its bottom, schema inset top right. */
 export function layout(doc: Infographic, iw: number, ih: number) {
-  const [W, H] = SIZES[doc.size]
+  const [W, H] = doc.size.split('x').map(Number)
   const k = W / 1280
   const pad = 40 * k
   const pruh = doc.layout === 'pruh'
@@ -619,7 +620,8 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
         <div className="hint">Šablona</div>
         <div className="seg">{(['dark', 'light'] as const).map((t) => <button key={t} className={doc.template === t ? 'on' : ''} onClick={() => set({ template: t })}>{t === 'dark' ? 'Tmavá muzejní' : 'Světlá'}</button>)}</div>
         <div className="hint" style={{ marginTop: 8 }}>Formát</div>
-        <div className="seg">{(Object.keys(SIZES) as Infographic['size'][]).map((s) => <button key={s} className={doc.size === s ? 'on' : ''} onClick={() => set({ size: s })}>{SIZE_LABEL[s]}</button>)}</div>
+        <div className="seg">{Object.keys(SIZE_LABEL).map((s) => <button key={s} className={doc.size === s ? 'on' : ''} onClick={() => set({ size: s })}>{SIZE_LABEL[s]}</button>)}
+          <button className={doc.size in SIZE_LABEL ? '' : 'on'} title="Celý obrázek bez ořezu" onClick={() => set({ size: ownSize(dims) })}>Podle obrázku</button></div>
         <div className="hint" style={{ marginTop: 8 }}>Akcent</div>
         <div className="row"><input type="color" className="accent" value={doc.accent} onChange={(e) => set({ accent: e.target.value })} aria-label="Barva akcentu" /><span className="hint">{doc.accent}</span></div>
 
