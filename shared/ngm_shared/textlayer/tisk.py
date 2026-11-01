@@ -13,7 +13,8 @@ import numpy as np
 from ngm_shared.textlayer import pcraft
 
 DARK = 75                       # jas, pod kterým je pixel písmo (hranice a horstva na mapě irbisů jsou světlejší)
-OUTSIDE_MAX = 0.2               # víc černé mimo popisky než tenhle podíl: černé není jen písmo
+INK_MAX = 90                    # popisek s kanálem aspoň takhle světlým není černá tiskařská barva
+OUTSIDE_MAX = 0.2              # víc černé mimo popisky než tenhle podíl: černé není jen písmo
 GRAIN_SIGMA = 3.0               # co je jemnější než tohle, je tiskový rastr
 
 
@@ -37,7 +38,10 @@ def _corridor(shape: tuple, elements: list[dict]) -> np.ndarray:
 
 
 def only_ink(img: np.ndarray, elements: list[dict]) -> bool:
-    """Je černá jen písmo? Mimo popisky smí zbýt jen drobnost (značky, měřítko); reliéf a fotka tudy nejdou."""
+    """Je černá jen písmo? Všechny popisky černé a mimo ně jen drobnost (značky, měřítko). Reliéf a fotka tudy
+    nejdou: Everest má barevné i bílé popisky a poměr tmavých pixelů stejný jako sken."""
+    if any(max(pcraft.st.hex_to_rgb(el["color"])) >= INK_MAX for el in elements):
+        return False
     dark = _gray(img) < DARK
     inside = _corridor(dark.shape, elements)
     return bool(int((dark & inside).sum()) and (dark & ~inside).sum() < OUTSIDE_MAX * (dark & inside).sum())

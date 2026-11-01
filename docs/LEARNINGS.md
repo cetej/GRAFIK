@@ -525,3 +525,7 @@ Detail: `docs/spikes/2026-08-14-inpaint-4k.md`.
 - VectorCraft nezná `dominant-baseline` a řez čte ze jména rodiny. `font-weight` ani `font-style` nestačí: titulek se ukázal jako Geograph místo Bumsteadu a popisky seděly o třetinu písma výš, až „Kilometry“ najely na měřítko.
 - Text za koncem `textPath` VectorCraft zahodí bez varování (Alta, Pam, Hindúk). Křivka v SVG proto začíná u prvního písmene a má rezervu.
 - PNG a SVG vznikají ve dvou větvích kódu. Kontrola PNG o SVG nic neříká: po změně sazby porovnej export z VectorCraftu.
+
+## 2026-11-01 — Proč se „vyřešené“ počeštění znovu pokazilo
+
+Oprava z 30. 10. prošla na jedné mapě a STAV ji popsal obecně. Prahy byly z mapy Everestu (šířka 769 px), rastr skenu oklamal test ploché mapy (`textured`), takže sken šel na štětec PhotoCraftu, a `residue` bylo natvrdo 0. Dokud nepřišel jiný druh mapy, nic z toho nebylo vidět. Ověření patří zapsat i s tím, na čem proběhlo, a skutečný případ držet jako test.
