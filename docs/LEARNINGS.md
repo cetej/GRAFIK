@@ -519,3 +519,9 @@ Detail: `docs/spikes/2026-08-14-inpaint-4k.md`.
 - Křivý popisek nejde popsat rámečkem a úhlem. Potřebuje účaří `path` a chráněné značky `markers`.
 - Doplňování z obrazu s tiskovým rastrem dělá barevnou mozaiku: doplňuj z obrazu po mediánu a rastr vrať zvlášť. Medián počítej až po prvním vymazání písma, jinak se černá vrací jako skvrny.
 - Před odevzdáním výřezy ve 100 %. Celkový náhled po jedné z oprav vypadal dobře, a přitom v něm chyběla hranice Nepálu.
+
+## 2026-11-01 — SVG počeštění ve VectorCraftu
+
+- VectorCraft nezná `dominant-baseline` a řez čte ze jména rodiny. `font-weight` ani `font-style` nestačí: titulek se ukázal jako Geograph místo Bumsteadu a popisky seděly o třetinu písma výš, až „Kilometry“ najely na měřítko.
+- Text za koncem `textPath` VectorCraft zahodí bez varování (Alta, Pam, Hindúk). Křivka v SVG proto začíná u prvního písmene a má rezervu.
+- PNG a SVG vznikají ve dvou větvích kódu. Kontrola PNG o SVG nic neříká: po změně sazby porovnej export z VectorCraftu.

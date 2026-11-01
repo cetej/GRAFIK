@@ -21,6 +21,7 @@ Přečtené texty (`<stem>.texty.json`, rámečky v pixelech originálu) jde opr
 """
 from __future__ import annotations
 
+import base64
 import html
 import json
 import math
@@ -350,7 +351,8 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
     W, H = base.size
     out = base.convert("RGBA")
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
-           f'<image href="{html.escape(base_href)}" x="0" y="0" width="{W}" height="{H}"/>']
+           f'<g id="Podklad"><image href="{html.escape(base_href)}" x="0" y="0" width="{W}" height="{H}"/></g>',
+           '<g id="Texty">']
     report = []
     for el, m in zip(elements, measured):
         box = m["box"]
@@ -390,18 +392,18 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
             out = Image.alpha_composite(out, sheet)
         anchor = "middle" if rotated else {"left": "start", "center": "middle", "right": "end"}[align]
         ax = cx if rotated else {"left": x0, "center": cx, "right": x1}[align]
-        y_first = cy - lh * (len(lines) - 1) / 2
+        y_first = cy - lh * (len(lines) - 1) / 2 + pcraft.SVG_BASELINE * px
         spans = "".join(f'<tspan x="{ax:.0f}" y="{y_first + i * lh:.0f}">{html.escape(line)}</tspan>'
                         for i, line in enumerate(lines))
         style = (' font-style="italic"' if el["italic"] else "") +             (' style="mix-blend-mode:multiply"' if m["blend"] == "multiply" else "")
         svg.append(f'<text font-family="{CSS_FONT[el["font"]]}" font-size="{px:.1f}" '
                    f'font-weight="{"bold" if el["bold"] else "normal"}"{style} fill="{m["color"]}" '
-                   f'text-anchor="{anchor}" dominant-baseline="middle" '
+                   f'text-anchor="{anchor}" '
                    f'transform="rotate({-ang:.1f} {cx:.0f} {cy:.0f})">{spans}</text>')
         report.append({"id": el["id"], "size_px": round(px, 1), "color": m["color"], "blend": m["blend"],
                        "color_measured": m["color_measured"], "box": [round(v) for v in box],
                        "too_long": too_long, "residue": m["residue"]})
-    svg.append("</svg>")
+    svg += ["</g>", "</svg>"]
     return out.convert("RGB"), "\n".join(svg), report
 
 
@@ -418,6 +420,13 @@ def warnings_for(texts: dict, report: list[dict], fallback: str | None = None) -
         out.append({"severity": "nízká", "what": "Obrázek je mapa.",
                     "fix": "Popisky leží tam, kde byly anglické, a před zveřejněním je zkontroluje člověk. "
                            "Mapu nově z dat staví KARTOGRAF."})
+        if not texts.get("markers"):
+            out.append({"severity": "střední", "what": "Na mapě nejsou chráněné značky (hvězdy a tečky měst, kóty).",
+                        "fix": "Zkontrolujte, že žádná nezmizela, a doplňte `markers` v texty.json (zdarma)."})
+        bent = [el["cs"].replace("\n", " ") for el in texts["elements"] if el["angle"] and not el.get("path")]
+        if bent:
+            out.append({"severity": "střední", "what": f"Otočené popisky bez křivky: {', '.join(bent)[:120]}.",
+                        "fix": "Doplňte jim `path` v texty.json a vysázejte znovu (zdarma)."})
     by_id = {el["id"]: el for el in texts["elements"]}
     for r in report:
         el = by_id[r["id"]]
@@ -431,6 +440,12 @@ def warnings_for(texts: dict, report: list[dict], fallback: str | None = None) -
                                                      f"písmo je zmenšené na {round(100 * MIN_SHRINK)} %.",
                         "fix": "Zkraťte překlad a vysázejte znovu (zdarma)."})
     return out
+
+
+def for_window(svg: str, base: Path) -> str:
+    """Kopie SVG pro okno VectorCraftu: podklad přímo v souboru, odkaz na sousední PNG by se v kopii přetrhl."""
+    data = base64.b64encode(base.read_bytes()).decode("ascii")
+    return svg.replace(f'href="{html.escape(base.name)}"', f'href="data:image/png;base64,{data}"')
 
 
 def localize(image: Path, out_dir: Path, *, stem: str = "image-0", texts: dict | None = None,
