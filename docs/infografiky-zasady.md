@@ -35,6 +35,28 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 - Na barevné stránce popisky bez černého obrysu, jen měkký stín (`template: "ruda"`).
 - Vodítko nesmí přeškrtnout text: bod vpravo od textu chce text zarovnaný doprava. Hlídá to `GET …/kontrola`.
 
+## Plakát podle cizího vzoru (Tesla, axolotl, 1. 11., výtky operátora)
+
+Postup a zdroje: [spike](spikes/2026-11-01-plakaty-osoba-zvire.md), skripty `scripts/plakaty/`.
+
+**Postup**
+- Nejdřív kopie, česky a s opravenými věcnými chybami vzoru. Vylepšení jen jako návrh, vlastní skladbu bez výběru operátor odmítl.
+- Kopie jde přes 3D: zvíře a postava z modelu Hunyuan 3.1 Pro (placené, cena předem), stroje z Blenderu. FLUX s renderem jako `geometry` dá vzhled a drží tvar.
+- FLUX si z `geometry` bere i barvy a povrch. Render má mít paletu a matnost cíle: červená vlákna vrátil jako ostny, lesk jako gumu. Kameru změř na vzoru, dlouhé ohnisko hlavu zmenšilo.
+- Výřez vzoru jako `subject` přenese vzhled zvířete, ne u věcí, které má vzor špatně (tři věže).
+- Výřez na stránce vypadá nalepeně. Vlož ho do stránky a projeď jedním průchodem FLUX přes celou scénu, zvíře pak sedí v akvarelu a rostlinách. Text zůstává vektorový.
+- FLUX přidává díly (trubka, ústí tunelu). Každý výsledek prohlédni v plném rozlišení.
+
+**Vzhled**
+- Jednotný styl neznamená jeden tón. „Mít všechno zatažené do jednoho tónu“ plakát zploští: světlý papír, tmavé stíny, barevné akcenty, klidně jeden tmavý panel, kde něco svítí. Sépii vzoru nepřebírej mechanicky.
+- Hustotu vzoru taky ne. Text nemusí být natěsnaný, světlo a prostor mají význam, cílem je vyvážení příjemné na pohled.
+- Ilustrace vysvětluje, jak věc funguje („Ilustraci vodní elektrárny nechápu“): řez, popisky, šipky toku. Pěkný vodopád s fotkou haly nevysvětlí nic.
+- Stejný obsah dvakrát nepatří na stránku (fotka věže vedle modelu věže).
+
+**Před odesláním**
+- Plný náhled vedle vzoru, a pak výřezy v plné velikosti. Postava se kreslí přes panely a kolizi s textem žádná kontrola nehledá („Proč jde text přes Teslův obličej“).
+- Do Knihovny až po přijetí. Další verze je nová položka s vlastním názvem, soubory se nepřepisují.
+
 ## Měřitelné kontroly (editor, sekce Kontrola)
 
 | Kontrola | Práh | Vzor | Kvinquerema před úpravou | Kvinquerema po úpravě |
