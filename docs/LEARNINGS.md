@@ -510,3 +510,12 @@ Detail: `docs/spikes/2026-08-14-inpaint-4k.md`.
 **Kontext:** Smoke test `fal-ai/qwen-image-edit/inpaint` (task 1.3): raw výstup endpointu má globální drift i mimo masku (mean diff ~20/255, 48 % pixelů), tj. endpoint překóduje celý obraz.
 
 **Poučení:** Výsledek inpaintu nikdy nebrat celý — vždy kompozitovat zpět jen vnitřek masky (feather ~2 px, dilate ~4 px) nad originál. Pak je diff mimo masku ~0 a hranice bez švů (gradient ratio 1.035 @ 544×736). Před M2 přeměřit na 4K.
+
+## 2026-11-01 — Počeštění mapy irbisů: „hotovo“ bez kontroly a konstanty z malé mapy
+
+- `LINE_MIN_PX = 38` platilo pro malou mapu. Na skenu šířky 3072 px měla velká písmena s barevným lemem tvar „čáry“ a ochrana vrátila z originálu 16 % tmavých pixelů v rámečcích popisků. Prahy v pixelech vztahuj k šířce obrázku.
+- Štětec maže celý pás kolem popisku. To sedí na reliéfu, ne na mapě s barevným areálem: vymazal plochu i hranice. Když je černá jen písmo, maž jen pixely písma (`textlayer/tisk.py`, `only_ink` to pozná z poměru tmavých pixelů v popiscích a mimo ně).
+- `residue` byla v PhotoCraft cestě natvrdo 0.0, takže zničená mapa prošla jen s upozorněním „nízká“. Kontrola, která nic neměří, je horší než žádná. Teď ji měří `_dark_left`.
+- Křivý popisek nejde popsat rámečkem a úhlem. Potřebuje účaří `path` a chráněné značky `markers`.
+- Doplňování z obrazu s tiskovým rastrem dělá barevnou mozaiku: doplňuj z obrazu po mediánu a rastr vrať zvlášť. Medián počítej až po prvním vymazání písma, jinak se černá vrací jako skvrny.
+- Před odevzdáním výřezy ve 100 %. Celkový náhled po jedné z oprav vypadal dobře, a přitom v něm chyběla hranice Nepálu.
