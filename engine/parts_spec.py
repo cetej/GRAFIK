@@ -345,11 +345,11 @@ def validate(spec: dict) -> dict:
             if material not in MATERIALS:
                 raise SpecError(f"{name}: material {material!r} není v {', '.join(MATERIALS)}")
             part["material"] = material
+        if raw.get("okoli") and kind in SOLID + LOOSE:      # terén, terasa a sloupky kolem stavby, rozměry stavby se bez nich počítají
+            part["okoli"] = True
         if kind in SOLID:
             solids.add(name)
-            if raw.get("okoli"):    # terén a terasa kolem stavby, rozměry stavby se bez nich počítají
-                part["okoli"] = True
-            if raw.get("rez") is not None:      # vlastní plocha řezu dílu, kamen nebo cerna
+            if raw.get("rez") is not None:      # vlastní plocha řezu dílu
                 if raw["rez"] not in CUT_FACES:
                     raise SpecError(f"{name}: rez je {', '.join(CUT_FACES)}")
                 part["rez"] = raw["rez"]
