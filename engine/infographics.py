@@ -251,6 +251,7 @@ class InfographicStore:
         doc = json.loads(p.read_text(encoding="utf-8"))
         ex = self._dir(info_id) / "exports"
         doc["exports"] = sorted((f.name for f in ex.iterdir() if f.suffix[1:] in FORMATS), reverse=True) if ex.exists() else []
+        doc["in_library"] = {f.stem: f.read_text(encoding="utf-8") for f in ex.glob("*.library")} if ex.exists() else {}
         return doc
 
     def list(self) -> list[dict]:
@@ -268,7 +269,7 @@ class InfographicStore:
         old = self.get(info_id)
         if old is None and not new:
             raise InfoError("infografika neexistuje")
-        doc = {**(old or {}), **{k: v for k, v in data.items() if k not in ("id", "exports", "created", "ai_note")}}
+        doc = {**(old or {}), **{k: v for k, v in data.items() if k not in ("id", "exports", "in_library", "created", "ai_note")}}
         doc["id"] = info_id
         doc["ai_note"] = (old or data)["ai_note"]  # from the base image's provenance, never edited away
         doc["created"] = (old or data)["created"]
@@ -282,6 +283,7 @@ class InfographicStore:
             doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"], allow_data_images=True)}
         doc["updated"] = datetime.now().isoformat(timespec="seconds")
         doc.pop("exports", None)
+        doc.pop("in_library", None)
         with self._lock:
             d.mkdir(parents=True, exist_ok=True)
             (d / "info.json").write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -320,6 +322,10 @@ class InfographicStore:
     def export_path(self, info_id: str, name: str) -> Path | None:
         p = self._dir(info_id) / "exports" / name
         return p if re.fullmatch(r"[\w\-]+\.(png|svg|pdf)", name) and p.exists() else None
+
+    def library_note(self, info_id: str, name: str, ref: str) -> None:
+        """The export went to the Knihovna tab as `ref`: <export>.library next to it, so it goes there only once."""
+        (self._dir(info_id) / "exports" / f"{name}.library").write_text(ref, encoding="utf-8")
 
     # -- copies for the VectorCraft window ----------------------------------
     def _vc_state(self, info_id: str) -> tuple[Path, list[dict], list[Path]]:

@@ -28,6 +28,7 @@ source; STOPA scripts/manual/variants_page.py re-exports it) or in GRAFIK/client
 CLI: python grafik_client.py generate "prompt" [--size 1024x1024] [--ref path[:role]] [--out DIR]
      python grafik_client.py variants "prompt" [--count 8] [--style SLUG ...] [--out DIR] [--no-open]
      python grafik_client.py ref-add <image or pin URL> [--page URL] [--title T]
+     python grafik_client.py library-upload <image file> [--title T] [--blender]
      python grafik_client.py model3d --glb model.glb [--title T]          (0 USD)
      python grafik_client.py model3d --ref front.png:front [--ref back.png:back] [--confirm-cost]
      python grafik_client.py views <model_id> [--version v1] [--elevation 20] [--out DIR]
@@ -176,6 +177,17 @@ def add_ref(url: str, page_url: str | None = None, title: str | None = None, aut
     if status != 201:
         raise GrafikError(f"předlohu se nepodařilo přidat ({status}): {data.get('detail')}")
     return data
+
+
+def library_upload(path: str | Path, title: str = "", blender_render: bool = False) -> dict:
+    """A finished picture to the Knihovna tab, with its origin. blender_render: our own render, not labelled as AI."""
+    p = Path(path)
+    status, body = _request("POST", "/api/v2/library/upload", {
+        "b64": base64.b64encode(p.read_bytes()).decode(), "name": p.name, "title": title, "blender_render": blender_render},
+        timeout=120)
+    if status != 201:
+        raise GrafikError(f"Do Knihovny se {p.name} nedostal: {body}")
+    return body
 
 
 def _ref_payload(ref) -> dict:
@@ -386,6 +398,10 @@ def _cli(argv: list[str]) -> int:
     ra.add_argument("url")
     ra.add_argument("--page", help="adresa stránky, odkud obrázek je (pin)")
     ra.add_argument("--title")
+    lu = sub.add_parser("library-upload", help="hotový obrázek do záložky Knihovna")
+    lu.add_argument("path")
+    lu.add_argument("--title", default="")
+    lu.add_argument("--blender", action="store_true", help="vlastní render z Blenderu, bez štítku AI")
     g = sub.add_parser("generate")
     g.add_argument("prompt")
     g.add_argument("--size", default="1024x1024")
@@ -461,6 +477,13 @@ def _cli(argv: list[str]) -> int:
             print(f"CHYBA: {e}", file=sys.stderr)
             return 1
         print(f"předloha {meta['id']} ({meta['origin']}, {meta['width']}x{meta['height']}) je ve schránce")
+        return 0
+    if a.cmd == "library-upload":
+        try:
+            print(library_upload(a.path, title=a.title, blender_render=a.blender)["ref"])
+        except (GrafikError, OSError) as e:
+            print(f"CHYBA: {e}", file=sys.stderr)
+            return 1
         return 0
     if a.cmd == "variants":
         try:

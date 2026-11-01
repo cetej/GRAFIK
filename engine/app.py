@@ -742,7 +742,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         with Image.open(store.image_path(ref)) as im:
             return fitting_size(im.width, im.height)
 
-    def _store_upload(body: InfoUpload, kind: str, request: dict) -> str:
+    def _store_upload(body: InfoUpload, kind: str, request: dict, origin: dict | None = None) -> str:
         try:
             with Image.open(BytesIO(base64.b64decode(body.b64.split(",", 1)[-1]))) as im:
                 im.load()
@@ -766,7 +766,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             "params": {"size": f"{rgb.width}x{rgb.height}"}, "prompt_original": request["prompt"], "prompt_sent": request["prompt"],
             "translations": [], "refs": [], "parent": None, "edit": None, "ai_generated": False, "reviewed_by": None,
             "cost_usd": 0.0, "timing_s": {"queue": 0.0, "generate": None},
-            **({"backend": "Blender", "render": "Blender"} if body.blender_render else {}),
+            **({"backend": "Blender", "render": "Blender"} if body.blender_render else {}), **(origin or {}),
             **({"vectorcraft_svg": path.with_suffix(".svg").name} if layers else {}),
             "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
         store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
@@ -819,6 +819,27 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             raise HTTPException(404, "export neexistuje")
         media = {"png": "image/png", "svg": "image/svg+xml", "pdf": "application/pdf"}[path.suffix[1:]]
         return FileResponse(path, media_type=media, filename=f"infografika-{info_id}{path.suffix}")
+
+    @app.post("/api/v2/infographics/{info_id}/exports/{name}/library", status_code=201)
+    def info_export_to_library(info_id: str, name: str):
+        """A PNG export in the Knihovna tab, with its own origin: an AI base stays labelled as AI. Once per export."""
+        doc = _info_or_404(info_id)
+        path = infos.export_path(info_id, name)
+        if path is None or path.suffix != ".png":
+            raise HTTPException(404, "export PNG neexistuje")
+        if name in doc["in_library"]:
+            return {"ref": doc["in_library"][name], "created": False}
+        prov = json.loads(path.with_name(f"{name}.json").read_text(encoding="utf-8"))
+        base = prov.get("base_provenance") or {}
+        title = prov.get("title") or doc["title"] or path.stem
+        job_id = _store_upload(
+            InfoUpload(b64=base64.b64encode(path.read_bytes()).decode(), name=name, title=title), "image",
+            {"prompt": title, "refs": [], "source": f"infografika {info_id}, export {name}"},
+            {"backend": base.get("backend"), **({"render": base["render"]} if base.get("render") else {}),
+             "ai_generated": prov.get("ai_generated", True), "reviewed_by": prov.get("reviewed_by"),
+             "infographic": info_id})
+        infos.library_note(info_id, name, f"{job_id}/0")
+        return {"ref": f"{job_id}/0", "created": True}
 
     @app.get("/api/v2/infographics/{info_id}/vectorcraft")
     def info_vectorcraft_state(info_id: str):

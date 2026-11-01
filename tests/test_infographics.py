@@ -120,6 +120,47 @@ def test_blender_render_is_not_labelled_as_ai(api, settings):
     assert prov["ai_generated"] is False and prov["base_provenance"]["render"] == "Blender"
 
 
+def test_export_goes_to_the_library_once_with_its_origin(api, settings, monkeypatch):
+    from base64 import b64encode
+
+    from engine import infographics as ig
+
+    buf = BytesIO()
+    Image.new("RGB", (64, 48), (20, 50, 110)).save(buf, "PNG")
+    monkeypatch.setattr(ig, "rasterize", lambda svg, w, h, fmt: buf.getvalue())
+
+    def export(doc):
+        r = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"svg": SVG.format(note=doc["ai_note"]), "format": "png"})
+        assert r.status_code == 201, r.text
+        return r.json()["file"]
+
+    # a picture from outside: the footer says AI, so the copy in the Knihovna tab says it too
+    doc = api.post("/api/v2/infographics/upload", json={"b64": b64encode(buf.getvalue()).decode(), "name": "mapa.png"}).json()
+    name = export(doc)
+    first = api.post(f"/api/v2/infographics/{doc['id']}/exports/{name}/library", json={})
+    assert first.status_code == 201 and first.json()["created"] is True, first.text
+    ref = first.json()["ref"]
+    prov = api.get("/api/v2/jobs/" + ref.replace("/", "/images/") + "/provenance").json()
+    assert prov["ai_generated"] is True and prov["infographic"] == doc["id"] and prov["params"]["size"] == "64x48"
+    assert any(j["job_id"] == ref.split("/")[0] for j in api.get("/api/v2/jobs").json())
+    assert api.get(f"/api/v2/infographics/{doc['id']}").json()["in_library"] == {name: ref}
+
+    again = api.post(f"/api/v2/infographics/{doc['id']}/exports/{name}/library", json={})
+    assert again.json() == {"ref": ref, "created": False}
+    # saving the document from the Studio sends in_library back; it stays derived from the files
+    saved = api.put(f"/api/v2/infographics/{doc['id']}", json={**api.get(f"/api/v2/infographics/{doc['id']}").json(), "in_library": {}})
+    assert saved.json()["in_library"] == {name: ref}
+
+    # a Blender render stays without the AI label
+    doc2 = api.post("/api/v2/infographics/upload", json={"b64": b64encode(buf.getvalue()).decode(), "name": "rez.png",
+                                                         "blender_render": True}).json()
+    ref2 = api.post(f"/api/v2/infographics/{doc2['id']}/exports/{export(doc2)}/library", json={}).json()["ref"]
+    prov2 = api.get("/api/v2/jobs/" + ref2.replace("/", "/images/") + "/provenance").json()
+    assert prov2["ai_generated"] is False and prov2["render"] == "Blender" and prov2["backend"] == "Blender"
+
+    assert api.post(f"/api/v2/infographics/{doc['id']}/exports/neni.png/library", json={}).status_code == 404
+
+
 def test_clean_svg_drops_scripts_handlers_and_external_links():
     dirty = ('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script>'
              '<a href="https://evil.example"><rect onclick="x()" width="1" height="1"/></a>'
