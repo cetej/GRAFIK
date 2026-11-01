@@ -7,9 +7,11 @@ library/research/<slug>-v<n>/request.json   zadání a úloha
 library/research/<slug>-v<n>/dossier.json   výsledek; nepřepisuje se, nový běh je nová verze
 library/research/<slug>-v<n>/pages/*.txt    stažené texty stránek pro kontrolu faktů proti zdroji
 library/research/<slug>-v<n>/podklady.html  přehled obrázků (ngm_shared.variants_page) s kopiemi obrázků vedle sebe
+library/research/<slug>-v<n>/inspirace.json piny z Pinterestu; přibývají k hotovému dossieru, ten se nemění
 
-Obrázky jdou přes `engine.commons` do knihovny předloh s autorem a licencí. V Schránce se nehlásí jako nové:
-operátor je vidí v dossieru. Neúspěšné stažení jednoho obrázku běh nezastaví, u obrázku zůstane `chyba`.
+Obrázky jdou do knihovny předloh s autorem a licencí, z Commons přes `engine.commons`, náhledy modelů ze Sketchfabu přímo. V Schránce se
+nehlásí jako nové: operátor je vidí v dossieru. Neúspěšné stažení jednoho obrázku běh nezastaví, u obrázku zůstane `chyba`.
+Piny z Pinterestu mají neznámou licenci: slouží jako předloha a inspirace, do hotového obrázku nikdy (DECISIONS, Pinterest).
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ import re
 import threading
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -25,12 +28,23 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from engine import commons
-from engine.reflib import RefLibError
+from engine.reflib import PINTEREST_LICENSE, RefLibError
 from ngm_shared import claude, research as rs, variants_page
 
 KIND = "research"
 PAGE = "podklady.html"
 COPY_EDGE = 1600
+
+
+class PinIn(BaseModel):
+    pin: str
+    obrazek: str
+    nazev: str = ""
+    dotaz: str = ""
+
+
+class InspiraceIn(BaseModel):
+    piny: list[PinIn] = Field(min_length=1, max_length=60)
 
 
 class ResearchIn(BaseModel):
@@ -87,6 +101,16 @@ class ResearchStore:
         tmp.write_text(json.dumps(dossier, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(d / "dossier.json")
 
+    def inspiration(self, research_id: str) -> list[dict]:
+        p = self._dir(research_id) / "inspirace.json"
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+    def save_inspiration(self, research_id: str, rows: list[dict]) -> None:
+        d = self._dir(research_id)
+        tmp = d / "inspirace.json.tmp"
+        tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(d / "inspirace.json")
+
     def ids(self) -> list[str]:
         if not self.root.exists():
             return []
@@ -94,12 +118,13 @@ class ResearchStore:
 
 
 class Researcher:
-    def __init__(self, settings, store, reflib, log_cost, get=rs.get_json, web_turn=None, fetch_image=None):
+    def __init__(self, settings, store, reflib, log_cost, get=rs.get_json, web_turn=None, fetch_image=None, fetch_url=None):
         self.s, self.store, self.reflib, self.log_cost = settings, store, reflib, log_cost
         self.lib = ResearchStore(settings.library_dir / "research")
         self.get = get
         self.web_turn = web_turn or claude.web_turn
         self.fetch_image = fetch_image or (lambda file: commons.import_file(reflib, file))
+        self.fetch_url = fetch_url or reflib.add_url
 
     def handlers(self) -> dict:
         return {KIND: self.run}
@@ -130,11 +155,41 @@ class Researcher:
     def _import_images(self, dossier: dict) -> None:
         for image in dossier["images"]:
             try:
-                meta = self.fetch_image(image["file"])
+                if image.get("puvod") == "sketchfab":
+                    meta = self.fetch_url(image["url"], origin="web", title=image["nazev"], page_url=image.get("stranka"), author=image.get("autor"),
+                                          license=image.get("licence"), license_url=image.get("licence_url"))
+                else:
+                    meta = self.fetch_image(image["file"])
                 self.reflib.mark_seen(meta["id"])
                 image["ref_id"] = meta["id"]
             except RefLibError as e:
                 image["chyba"] = str(e)
+
+    def add_pins(self, research_id: str, pins: list[PinIn]) -> dict:
+        """Piny k dossieru: obrázek do knihovny předloh s adresou pinu. Stahuje se jen z i.pinimg.com, adresa přišla zvenčí."""
+        rows = self.lib.inspiration(research_id)
+        known = {r["pin"] for r in rows}
+        added, errors = 0, []
+        for pin in pins:
+            if pin.pin in known:
+                continue
+            parts = urlparse(pin.obrazek)
+            if parts.scheme != "https" or parts.hostname != "i.pinimg.com" or "pinterest." not in (urlparse(pin.pin).hostname or ""):
+                errors.append({"pin": pin.pin, "chyba": "obrázek musí být z i.pinimg.com a pin z Pinterestu"})
+                continue
+            try:
+                meta = self.fetch_url(pin.obrazek, origin="pinterest", title=pin.nazev or pin.dotaz, page_url=pin.pin)
+                self.reflib.mark_seen(meta["id"])
+            except RefLibError as e:
+                errors.append({"pin": pin.pin, "chyba": str(e)})
+                continue
+            rows.append({"pin": pin.pin, "ref_id": meta["id"], "nazev": pin.nazev, "dotaz": pin.dotaz, "licence": PINTEREST_LICENSE,
+                         "sirka": meta["width"], "vyska": meta["height"]})
+            known.add(pin.pin)
+            added += 1
+        if added:
+            self.lib.save_inspiration(research_id, rows)
+        return {"pridano": added, "chyby": errors, "celkem": len(rows)}
 
     def _build_page(self, d: Path, dossier: dict) -> None:
         """Přehled obrázků: menší kopie vedle stránky, aby její relativní adresy fungovaly přes /api/v2/research/<id>/."""
@@ -153,7 +208,7 @@ class Researcher:
             entries.append({"id": f"v{i:02d}", "src": name, "label": f"{rs.ROLE_LABEL[image['role']]}: {image['nazev']}",
                             "prompt": image.get("popis") or "", "params": {k: v for k, v in params.items() if v}})
         if entries:
-            manifest = {"title": f"Podklady: {dossier['entita']['label']}", "note": f"{len(entries)} obrázků z Wikimedia Commons po rolích", "variants": entries}
+            manifest = {"title": f"Podklady: {dossier['entita']['label']}", "note": f"{len(entries)} obrázků z Wikimedia Commons a Sketchfabu po rolích", "variants": entries}
             (d / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
             variants_page.write_page(variants_page.load_manifest(d / "manifest.json"), d / PAGE)
 
@@ -202,10 +257,11 @@ def register(app: FastAPI, researcher: Researcher, store) -> None:
         dossier = lib.dossier(research_id)
         return {"id": research_id, "tema": req["tema"], "verze": req.get("verze"), "created": req.get("created"), "job_id": req.get("job_id"),
                 "extends": req.get("extends"), "status": "done" if dossier else job.get("status", "failed"), "error": job.get("error"), "dossier": dossier,
+                "inspirace": lib.inspiration(research_id),
                 "page": f"/api/v2/research/{research_id}/{PAGE}" if dossier and (lib._dir(research_id) / PAGE).exists() else None}
 
     def estimate(paid: bool) -> dict:
-        items = [{"what": "volné zdroje: Wikidata, Wikipedia, Commons", "usd": 0.0}]
+        items = [{"what": "volné zdroje: Wikidata, Wikipedia, Commons, Sketchfab", "usd": 0.0}]
         if paid:
             items.append({"what": f"hledání na webu, nejvýš {rs.MAX_SEARCHES} hledání ({rs.WEB_MODEL})", "usd": rs.WEB_USD})
         return {"total_usd": round(sum(i["usd"] for i in items), 4), "items": items}
@@ -247,6 +303,7 @@ def register(app: FastAPI, researcher: Researcher, store) -> None:
         for research_id in lib.ids():
             st = state(research_id)
             d = st.pop("dossier") or {}
+            st.pop("inspirace")
             facts = d.get("facts", [])
             rows.append({**st, "entita": (d.get("entita") or {}).get("label"), "facts": len(facts), "rozpory": sum(f["stav"] == "rozpor" for f in facts),
                          "images": len(d.get("images", [])), "cost_usd": d.get("cost_usd")})
@@ -255,6 +312,12 @@ def register(app: FastAPI, researcher: Researcher, store) -> None:
     @app.get("/api/v2/research/{research_id}")
     def research_get(research_id: str):
         return state(research_id)
+
+    @app.post("/api/v2/research/{research_id}/inspirace")
+    def research_inspiration(research_id: str, body: InspiraceIn):
+        if lib.dossier(research_id) is None:
+            raise HTTPException(404, f"dossier {research_id} neexistuje")
+        return researcher.add_pins(research_id, body.piny)
 
     @app.get("/api/v2/research/{research_id}/{name}")
     def research_file(research_id: str, name: str):

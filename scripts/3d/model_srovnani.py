@@ -226,13 +226,17 @@ class Run:
         round_dir = self.out / f"kolo-{n}"
         source = round_dir / "lod_model.py"
         bad = guard(source.read_text(encoding="utf-8"))
-        if bad:
+        record = next(r for r in self.state["kola"] if r["kolo"] == n)
+        if bad:     # odmítnutí je výsledek kola: další kolo ho dostane jako problém
+            problems = [f"zakázaný prvek ve skriptu, stavba se nespustila: {b}" for b in bad]
+            (round_dir / "vysledek-kola.json").write_text(json.dumps({"problemy": problems}, ensure_ascii=False, indent=1), encoding="utf-8")
+            record.update(problemy=problems)
+            self.save()
             print("Skript se nespustí, kontrola našla:", bad)
             raise SystemExit(3)
         t0 = time.time()
         result = self.check(round_dir, source, "--lod")
         (round_dir / "vysledek-kola.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
-        record = next(r for r in self.state["kola"] if r["kolo"] == n)
         record.update(stavba_s=round(time.time() - t0), problemy=result.get("problemy"), bbox_m=result.get("bbox_m"), cil_m=result.get("cil_m"))
         self.save()
         print(record, flush=True)

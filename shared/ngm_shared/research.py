@@ -36,8 +36,8 @@ WEB_USD = 0.45
 WEB_MODEL = "claude-sonnet-5-5"
 USD_PER_SEARCH = 0.01
 MAX_SEARCHES = 8
-ROLES = ("pudorys", "rez", "pruceli", "interier", "detail", "material")
-ROLE_LABEL = {"pudorys": "půdorys", "rez": "řez", "pruceli": "průčelí", "interier": "interiér", "detail": "detail",
+ROLES = ("rekonstrukce", "pudorys", "rez", "pruceli", "interier", "detail", "material")
+ROLE_LABEL = {"rekonstrukce": "rekonstrukce a modely", "pudorys": "půdorys", "rez": "řez", "pruceli": "průčelí", "interier": "interiér", "detail": "detail",
               "material": "materiál", "nezarazeno": "nezařazeno"}
 
 
@@ -46,11 +46,13 @@ class ResearchError(RuntimeError):
 
 
 Get = Callable[[str, dict], dict]
+SKETCHFAB = "api.sketchfab.com"
 
 
 def get_json(host: str, params: dict, retries: int = 3) -> dict:
-    """Jedno volání MediaWiki API. 429 a 503 zopakuje s pauzou, kterou server žádá."""
-    url = f"https://{host}/w/api.php?" + urllib.parse.urlencode({"format": "json", "formatversion": 2, **params})
+    """Jedno volání MediaWiki API nebo hledání Sketchfabu. 429 a 503 zopakuje s pauzou, kterou server žádá."""
+    query = params if host == SKETCHFAB else {"format": "json", "formatversion": 2, **params}
+    url = f"https://{host}{'/v3/search' if host == SKETCHFAB else '/w/api.php'}?" + urllib.parse.urlencode(query)
     req = urllib.request.Request(url, headers=UA)
     for attempt in range(retries):
         try:
@@ -657,6 +659,7 @@ def open_questions(facts: list[dict]) -> list[str]:
 # -- Commons ----------------------------------------------------------------------------------------------------------
 COMMONS = "commons.wikimedia.org"
 _ROLE_WORDS = {
+    "rekonstrukce": r"reconstruct|ricostruz|rekonstru|maquette|\bmodels?\b|modell|miniatur|plastico|cutaway|\b3d\b|\bcork\b",
     "pudorys": r"floor.?plan|ground.?plan|\bplan\b|\bplans\b|grundriss|pianta|\bplanta\b|půdorys|layout",
     "rez": r"cross.?section|\bsections?\b|sezione|schnitt|\břez\b|coupe|longitudinal",
     "interier": r"interior|inside|intérieur|innen|interno|interiér|\bfrom below\b",
@@ -664,9 +667,10 @@ _ROLE_WORDS = {
     "detail": r"detail|close.?up|capital|capitel|inscription|coffer|\bcolumn|\bdoor|\bfloor|\bsculpture|particolare|\bfrieze",
     "pruceli": r"fa[cç]ade|\bfront\b|elevation|exterior|outside|esterno|průčelí|\bview\b|portico|panorama",
 }
-_ROLE_SEARCH = {"pudorys": "floor plan", "rez": "section drawing", "pruceli": "facade exterior", "interier": "interior", "detail": "detail", "material": "brick wall masonry"}
+_ROLE_SEARCH = {"rekonstrukce": "reconstruction", "pudorys": "floor plan", "rez": "section drawing", "pruceli": "facade exterior", "interier": "interior", "detail": "detail", "material": "brick wall masonry"}
 _NOT_PICTURE = re.compile(r"\b(?:map|coin|stamp|logo|flag|poster|portrait|seal)\b", re.I)
 _MIN_EDGE = 800
+_ORIGIN_RANK = {"clanek": 0, "sketchfab": 1, "kategorie": 2, "hledání": 3}
 
 
 def _clean(value: str | None) -> str | None:
@@ -681,16 +685,19 @@ def _image_item(page: dict) -> dict | None:
         return None
     meta = info.get("extmetadata", {})
     val = lambda k: (meta.get(k) or {}).get("value")  # noqa: E731
-    return {"file": page["title"], "nazev": page["title"].removeprefix("File:"), "url": info.get("url"), "thumb": info.get("thumburl"),
+    name = page["title"].split(":", 1)[-1]     # Soubor:, Datei:, File: podle jazyka
+    return {"file": f"File:{name}", "nazev": name, "url": info.get("url"), "thumb": info.get("thumburl"),
             "stranka": info.get("descriptionurl"), "autor": _clean(val("Artist")) or _clean(val("Credit")), "licence": _clean(val("LicenseShortName")),
             "licence_url": val("LicenseUrl"), "popis": (_clean(val("ImageDescription")) or "")[:300], "kategorie": _clean(val("Categories")) or "",
             "sirka": info.get("width"), "vyska": info.get("height")}
 
 
-def _image_query(generator: dict, get: Get) -> list[dict]:
-    data = get(COMMONS, {"action": "query", **generator, "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": 480,
+def _image_query(generator: dict, get: Get, host: str = COMMONS) -> list[dict]:
+    data = get(host, {"action": "query", **generator, "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": 480,
                          "iiextmetadatafilter": "LicenseShortName|LicenseUrl|Artist|Credit|ImageDescription|Categories"})
     pages = sorted((data.get("query") or {}).get("pages", []), key=lambda p: p.get("index", 0))
+    if host != COMMONS:     # místní soubory Wikipedie bývají fair use, bereme jen ty z Commons
+        pages = [p for p in pages if p.get("imagerepository") == "shared"]
     return [i for i in map(_image_item, pages) if i]
 
 
@@ -703,8 +710,62 @@ def image_role(item: dict) -> str:
     return "nezarazeno"
 
 
+def _series(name: str) -> str:
+    """Název bez čísel: `01 Colosseum Exterior` a `02 Colosseum Exterior`, strany jednoho alba jsou jedna série."""
+    return re.sub(r"[\W\d_]+", " ", name.rsplit(".", 1)[0]).strip().lower()
+
+
+def _article_images(entity: dict, get: Get) -> list[dict]:
+    """Obrázky z hesel Wikipedie: ty vybrali redaktoři. `jazyku` = v kolika jazycích je heslo použilo."""
+    seen: dict[str, dict] = {}
+    for lang, title in entity["sitelinks"].items():
+        try:
+            found = _image_query({"generator": "images", "titles": title, "gimlimit": 80}, get, f"{lang}.wikipedia.org")
+        except ResearchError:
+            continue
+        for item in found:
+            seen.setdefault(item["file"], {**item, "jazyku": 0})["jazyku"] += 1
+    return sorted(seen.values(), key=lambda i: -i["jazyku"])
+
+
+def find_models(entity: dict, limit: int = 4, get: Get = get_json) -> list[dict]:
+    """3D modely ze Sketchfabu pod licencí, která dovoluje použití i úpravy (ne NC, ne ND); obrázek je jejich náhled.
+    Hledání nevyžaduje účet. Výpadek Sketchfabu dossier nezastaví, role pak zůstane bez modelů."""
+    names = {re.split(r"[,(]", n)[0].strip().lower() for n in (*entity["sitelinks"].values(), entity["label"])}
+    name = re.split(r"[,(]", entity["sitelinks"].get("en", entity["label"]))[0].strip()
+    found: dict[str, dict] = {}
+    for query in (name, f"{name} reconstruction"):
+        try:
+            rows = get(SKETCHFAB, {"type": "models", "q": query, "downloadable": "true", "count": 24}).get("results", [])
+        except ResearchError:
+            continue
+        for row in rows:
+            label = (row.get("license") or {}).get("label") or ""
+            if not label.startswith(("CC Attribution", "CC0")) or re.search("NonCommercial|NoDeriv", label):
+                continue
+            if not any(n in re.sub(r"\(.*?\)", "", row.get("name") or "").lower() for n in names):     # „Gerudo Desert (Colosseum)“
+                continue
+            images = sorted((row.get("thumbnails") or {}).get("images", []), key=lambda i: i.get("width", 0))
+            if not images or images[-1].get("width", 0) < _MIN_EDGE:
+                continue
+            small = next((i for i in images if i.get("width", 0) >= 400), images[-1])
+            found[row["uid"]] = {"file": f"sketchfab:{row['uid']}", "nazev": row["name"], "url": images[-1]["url"], "thumb": small["url"], "stranka": row.get("viewerUrl"),
+                                 "autor": (row.get("user") or {}).get("displayName"), "licence": label, "popis": "",
+                                 "sirka": images[-1].get("width"), "vyska": images[-1].get("height"), "role": "rekonstrukce", "puvod": "sketchfab",
+                                 "steny": row.get("faceCount"), "lajky": row.get("likeCount") or 0}
+    return sorted(found.values(), key=lambda m: -m["lajky"])[:limit]
+
+
+def pinterest_queries(entity: dict) -> list[dict]:
+    """Dotazy na Pinterest. Engine tam sám nemůže (bez přihlášení jen zeď), jdou přes operátorův Chrome (docs/pinterest.md)."""
+    name = re.split(r"[,(]", entity["sitelinks"].get("en", entity["label"]))[0].strip()
+    queries = [f"{name} {suffix}" for suffix in ("3D reconstruction", "construction model", "infographic", "cross section")]
+    return [{"dotaz": q, "url": "https://www.pinterest.com/search/pins/?" + urllib.parse.urlencode({"q": q})} for q in queries]
+
+
 def find_images(entity: dict, per_role: int = 4, get: Get = get_json) -> list[dict]:
-    """Kandidáti z kategorie entity a jejích podkategorií podle rolí a z hledání po rolích. Jen rastry a dost velké.
+    """Kandidáti z hesel Wikipedie, ze Sketchfabu, z kategorie entity a jejích podkategorií podle rolí a z hledání po rolích. Jen rastry a dost velké.
+    Soubor z kategorie bez jasné role se nebere: název o něm nic neřekne a kategorie je podle abecedy (Koloseum: 907 souborů, kamera, hřebík).
     Hledání bez uvozovek: název v uvozovkách vrátil u „Pantheon“ jen jeden nesouvisející soubor (měření 2026-11-01)."""
     category = entity.get("commons_category")
     pool: dict[str, dict] = {}
@@ -716,8 +777,10 @@ def find_images(entity: dict, per_role: int = 4, get: Get = get_json) -> list[di
                     and not _NOT_PICTURE.search(item["nazev"]):
                 pool[item["file"]] = {**item, "role": role or image_role(item), "puvod": origin}
 
+    add(_article_images(entity, get), "clanek")
     if category:
-        add(_image_query({"generator": "categorymembers", "gcmtitle": f"Category:{category}", "gcmtype": "file", "gcmlimit": 50}, get), "kategorie")
+        add([i for i in _image_query({"generator": "categorymembers", "gcmtitle": f"Category:{category}", "gcmtype": "file", "gcmlimit": 50}, get)
+             if image_role(i) != "nezarazeno"], "kategorie")
         subs = get(COMMONS, {"action": "query", "list": "categorymembers", "cmtitle": f"Category:{category}", "cmtype": "subcat", "cmlimit": 200})
         for sub in (subs.get("query") or {}).get("categorymembers", []):
             for role, pattern in _ROLE_WORDS.items():
@@ -736,11 +799,23 @@ def find_images(entity: dict, per_role: int = 4, get: Get = get_json) -> list[di
         query = " ".join(w for w in (name, place, _ROLE_SEARCH[role], "filetype:bitmap") if w)
         found = _image_query({"generator": "search", "gsrsearch": query, "gsrnamespace": 6, "gsrlimit": 15}, get)
         add([i for i in found if about_it(i) and image_role(i) == role], "hledání", role)
+    for model in find_models(entity, per_role, get):
+        pool[model["file"]] = model
     out: list[dict] = []
     for role in (*ROLES, "nezarazeno"):
-        ranked = sorted((i for i in pool.values() if i["role"] == role), key=lambda i: (i["puvod"] != "kategorie", -(i["sirka"] or 0)))
-        out += ranked[:per_role]
-    return [{k: v for k, v in i.items() if k != "kategorie"} for i in out]
+        ranked = sorted((i for i in pool.values() if i["role"] == role),
+                        key=lambda i: (-i.get("jazyku", 0), _ORIGIN_RANK[i["puvod"]], -min(i["sirka"] or 0, 2000)))
+        series: set[str] = set()
+        picked = []
+        for item in ranked:
+            if _series(item["nazev"]) not in series:
+                series.add(_series(item["nazev"]))
+                picked.append(item)
+        if role == "rekonstrukce":      # modely a kresby z Commons by 3D modely jinak vytlačily
+            out += [i for i in picked if i["puvod"] == "sketchfab"][:per_role] + [i for i in picked if i["puvod"] != "sketchfab"][:per_role]
+        else:
+            out += picked[:per_role]
+    return [{k: v for k, v in i.items() if k not in ("kategorie", "lajky")} for i in out]
 
 
 # -- dossier ----------------------------------------------------------------------------------------------------------
@@ -769,6 +844,7 @@ def free_dossier(topic: str, *, qid: str | None = None, langs=LANGS, per_role: i
         "entita": {k: entity[k] for k in ("qid", "label", "popis", "url", "commons_category", "sitelinks")},
         "facts": facts,
         "images": found,
+        "pinterest": pinterest_queries(entity),
         "otazky_bez_odpovedi": _questions(facts, found, images),
         "zdroje": _sources_of(pages, entity),
         "cost_usd": 0.0,

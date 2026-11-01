@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   chainApi, fileToB64, infoApi, PaymentRequired, refsApi, researchApi,
-  type Chain, type Dossier, type DossierImage, type Fact, type FactSource, type RefMeta, type ResearchRow, type ResearchState, type Workflow,
+  type Chain, type Dossier, type DossierImage, type Fact, type FactSource, type Pin, type RefMeta, type ResearchRow, type ResearchState, type Workflow,
 } from './api.ts'
 import { fmtUsd, type Confirm } from './App.tsx'
 
 // Infografika z tématu, krok Podklady (engine/research.py). Rozpory nahoře, nic se nerozhoduje potichu; placené hledání je jen tlačítko s cenou.
 const THEMES = { rozmery: 'Rozměry', vznik: 'Vznik', stavba: 'Stavba a materiál', rekord: 'Rekordy', ostatni: 'Ostatní' } as const
-const ROLES = { pudorys: 'Půdorys', rez: 'Řez', pruceli: 'Průčelí', interier: 'Interiér', detail: 'Detail', material: 'Materiál', nezarazeno: 'Nezařazeno' } as const
+const ROLES = { rekonstrukce: 'Rekonstrukce a modely', pudorys: 'Půdorys', rez: 'Řez', pruceli: 'Průčelí', interier: 'Interiér', detail: 'Detail', material: 'Materiál', nezarazeno: 'Nezařazeno' } as const
 const STATE_LABEL = { shoda: 'shoda', rozpor: 'rozpor', jediny_zdroj: 'jeden zdroj' } as const
 
 const num = (v: number) => v.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })
@@ -157,6 +157,21 @@ function ImageCard({ img, title, onOpen, onUseRef, onInfographicDoc, onError }: 
   )
 }
 
+function PinCard({ pin, onOpen, onUseRef }: { pin: Pin; onOpen: (src: string) => void; onUseRef: (m: RefMeta) => void }) {
+  const src = `/api/v2/refs/${pin.ref_id}/image`
+  const meta: RefMeta = {
+    id: pin.ref_id, origin: 'pinterest', title: pin.nazev || pin.dotaz, source_url: null, page_url: pin.pin, author: null, license: pin.licence,
+    width: pin.sirka, height: pin.vyska, added: '', seen: true, image: src,
+  }
+  return (
+    <figure className="doc-img">
+      <button className="zoomable" onClick={() => onOpen(src)} title={`Zvětšit: ${pin.nazev}`}><img src={`${src}?w=384`} alt={pin.nazev} loading="lazy" /></button>
+      <figcaption><a href={pin.pin} target="_blank" rel="noreferrer" title={pin.nazev}>pin na Pinterestu</a> · jen předloha</figcaption>
+      <div className="row tight"><button className="btn small" onClick={() => onUseRef(meta)} title="Do předloh ve Studiu">→ Předloha</button></div>
+    </figure>
+  )
+}
+
 function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onError, onUseRef, onInfographicDoc, onChain }: ResearchProps & { state: ResearchState; dossier: Dossier; onChain?: (id: string) => void }) {
   const facts = dossier.facts
   const conflicts = facts.filter((f) => f.stav === 'rozpor')
@@ -261,6 +276,21 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
         })}
         <p className="hint">Obrázky jsou ve Schránce předloh s autorem a licencí. Role určil kód podle názvu souboru a kategorie, je to jen třídění.</p>
       </section>
+
+      {state.inspirace.length > 0 && (
+        <section className="card">
+          <h3>Inspirace z Pinterestu ({state.inspirace.length})</h3>
+          <p className="hint">Licence neznámá: slouží jako předloha a inspirace pro skladbu, do hotového obrázku nesmí. Mnoho z nich je generovaných, fakta z nich neber.</p>
+          {[...new Set(state.inspirace.map((p) => p.dotaz))].map((dotaz) => (
+            <div className="role-row" key={dotaz}>
+              <b>{dotaz || 'Bez dotazu'}</b>
+              <div className="role-imgs">
+                {state.inspirace.filter((p) => p.dotaz === dotaz).map((pin) => <PinCard key={pin.pin} pin={pin} onOpen={onOpen} onUseRef={onUseRef} />)}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {dossier.otazky_bez_odpovedi.length > 0 && (
         <section className="card">

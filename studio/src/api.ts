@@ -359,7 +359,7 @@ export interface DossierImage {
   popis: string
   sirka: number | null
   vyska: number | null
-  role: 'pudorys' | 'rez' | 'pruceli' | 'interier' | 'detail' | 'material' | 'nezarazeno'
+  role: 'rekonstrukce' | 'pudorys' | 'rez' | 'pruceli' | 'interier' | 'detail' | 'material' | 'nezarazeno'
   ref_id?: string
   chyba?: string
 }
@@ -380,9 +380,11 @@ export interface ResearchState {
   status: Job['status']
   error: string | null
   dossier: Dossier | null
+  inspirace: Pin[]
   page: string | null
 }
-export interface ResearchRow extends Omit<ResearchState, 'dossier'> { entita: string | null; facts: number; rozpory: number; images: number; cost_usd: number | null }
+export interface Pin { pin: string; ref_id: string; nazev: string; dotaz: string; licence: string; sirka: number; vyska: number }
+export interface ResearchRow extends Omit<ResearchState, 'dossier' | 'inspirace'> { entita: string | null; facts: number; rozpory: number; images: number; cost_usd: number | null }
 export const researchApi = {
   list: () => call<ResearchRow[]>('/api/v2/research'),
   get: (id: string) => call<ResearchState>(`/api/v2/research/${id}`),
