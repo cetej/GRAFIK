@@ -1,5 +1,10 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Slovník výslovnosti: co Whisper mění, i když to zní stejně
+
+- **Zpětný přepis se liší i u správně namluvené věty.** Deset vět buňky (OmniVoice, Whisper small na CPU): bunka, Rybozome, výdou, Sou, douznovu, Vjádře, toho to, na jednou. Porovnání proto stírá diakritiku, i/y a j před s, d, spojuje slovo rozdělené nebo slepené přepisem a nebere rozdíl jen v koncovce. Těchto deset vět pak nedá žádného kandidáta a mitokondrie, orkerst a inustracie zůstanou nálezem.
+- **Dosavadní kontrola v NG-ROBOT mitokondrii neviděla.** `unheard_words` bere od podobnosti 0,8 slovo jako slyšené a mitochondrie/mitokondrie má 0,87. Proto `kandidati` hlásí podobná slova a `unheard_words` jiná; překrývají se jen v pásmu 0,6–0,8.
+
 ## 2026-11-01 — Obrázky k tématu: špatný zdroj a výběr podle názvu souboru
 
 Operátor u Kolosea: „takové sračky“, přitom krásných 3D rekonstrukcí je plno. Hledání šlo anglicky (`Colosseum`), jazyk nebyl příčina; český dotaz by dopadl hůř.
