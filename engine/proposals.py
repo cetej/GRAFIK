@@ -14,8 +14,8 @@ from ngm_shared import claude, gpt
 DEFAULT_MODEL = "claude-sonnet-5-5"
 EFFORT = "medium"
 MAX_TOKENS = 12000
-# odhad předem z typického dossieru (84 faktů); skutečnou cenu dává usage
-EST_IN_TOKENS, EST_OUT_TOKENS = 10_000, 8_000
+# odhad předem: Koloseum (44 faktů) 3 502 tokenů vstupu, výstup 1 800 až 5 400 podle modelu (spike 2026-11-01-retezec); skutečnou cenu dává usage
+EST_IN_TOKENS, EST_OUT_TOKENS = 5_000, 3_000
 FORMATS = {"2:3": (1200, 1800), "4:5": (1200, 1500), "1:1": (1200, 1200), "16:9": (1600, 900)}
 DEFAULT_FORMAT = "2:3"
 MIN_PANEL = 4.0     # procenta strany; menší obdélník by se v náčrtu ani na stránce nedal číst
