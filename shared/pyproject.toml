@@ -13,6 +13,8 @@ dependencies = [
 dev = ["pytest>=8.0"]
 # vrstva textu a počeštění (ngm_shared.textlayer, ngm_shared.claude)
 text = ["numpy>=1.26", "Pillow>=10.0", "opencv-python>=4.8", "anthropic>=1.0"]
+# textová volání OpenAI (ngm_shared.gpt)
+gpt = ["openai>=2.0"]
 
 [build-system]
 requires = ["setuptools>=68.0"]

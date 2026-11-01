@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-01 — Řetězec kroků nad jednou frontou
+
+- **Úloha se nesmí rozběhnout dřív, než je zapsaná.** `add_task` a uložení `step_job` jsou dva kroky a worker může úlohu vzít mezi nimi. Pak si přečte starý stav a API ho potom přepíše. Oba kroky proto drží jeden zámek a worker si stav čte přes tentýž zámek.
+- **Selhání a přerušení jsou dvě věci.** Selhání stihne zapsat `stop`, přerušení nic nezapíše: krok stojí v aktivní fázi a jeho úloha je `failed`. Podle toho `resume` pozná, co dělat, a placený krok znovu nespustí.
+- **Dlouhý heredoc s Pythonem v Bash nástroji padá** na `unexpected EOF`, když obsahuje apostrofy a backticky. Skript s úpravami psát přes Write do scratchpadu.
+
 ## 2026-11-01 — Dossier z volných zdrojů
 
 - **Výsledky hledání MediaWiki mění pořadí mezi voláními.** „Pantheon, Řím“ jednou vyšel na Paříž. První výsledek se proto nebere: entita se boduje podle hlavního slova v názvu a upřesnění v popisu a dossier ji ukazuje, aby šla opravit přes `qid`.

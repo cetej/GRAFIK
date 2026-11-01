@@ -159,6 +159,7 @@ export interface CommonsItem {
 
 export interface Workflow {
   id: string
+  kind: 'historical' | 'infografika'
   object: string
   refs: { ref_id: string; role: Role }[]
   side_job: string | null
@@ -194,6 +195,37 @@ export const wfApi = {
     post<Estimate & { job_id?: string }>(`/api/v2/workflows/${id}/side`, { n, ...opts }),
   rotate: (id: string, body: { view: string; background: string; n: number }, opts: { estimate_only?: boolean; confirm_cost?: boolean } = {}) =>
     post<Estimate & { job_id?: string }>(`/api/v2/workflows/${id}/rotate`, { ...body, ...opts }),
+}
+
+// -- řetězec infografika z tématu (engine/chain.py) --------------------------------------------------------
+export interface ProposalPanel { titulek: string; co: string; druh: string; x: number; y: number; w: number; h: number; poradi: number; fakta: string[]; predloha: string | null }
+export interface Proposal { id: number; nazev: string; veta: string; format: string; panely: ProposalPanel[]; vzhled: string; fakta: number; neznama_fakta: number; rozpory: string[] }
+export interface ChainWarning { severity: string; what: string; why: string; fix: string }
+export interface Chain {
+  id: string
+  kind: 'infografika'
+  object: string
+  vzor: string | null
+  model: string
+  stage: 'podklady' | 'navrhy' | 'vyber' | 'kontrola' | 'hotovo' | 'stop'
+  research_id: string | null
+  budget_usd: number
+  spent_usd: number
+  navrhy: Proposal[]
+  rozbor: { drzet?: string[]; zmenit?: string[] } | null
+  vyber: number | null
+  kontrola: { summary?: string; purpose?: string; warnings?: ChainWarning[]; chyba?: string } | null
+  stop_reason: string | null
+  resume_stage: string | null
+  resume_usd: number
+  updated: string
+}
+export const chainApi = {
+  estimate: (research?: string) => call<{ total_usd: number; items: CostItem[] }>(`/api/v2/workflows/infografika/estimate${research ? `?research=${encodeURIComponent(research)}` : ''}`),
+  start: (body: { topic?: string; research?: string; vzor?: string | null; confirm_cost: boolean }) => post<Chain>('/api/v2/workflows/infografika', body),
+  get: (id: string) => call<Chain>(`/api/v2/workflows/${id}`),
+  pick: (id: string, navrh: number) => post<Chain>(`/api/v2/workflows/${id}/pick`, { navrh }),
+  resume: (id: string, confirm: boolean) => post<Chain>(`/api/v2/workflows/${id}/continue`, { confirm_cost: confirm }),
 }
 
 export const imageUrl = (ref: string, w?: number) =>
