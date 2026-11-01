@@ -59,7 +59,7 @@ def label(text: str, small, kotva, x: float, y: float, align: str = "left", **ex
 
 
 def gladiator(key: str, name: str, x: float, poradi: int) -> dict:
-    return {"id": f"gl_{key}", "typ": "obraz", "poradi": poradi, "nazev": name, "rect": [x, FIGURE_Y, 250, 295], "zdroj": {"obraz": OBRAZY[key], "vyriznout": True, "stin": True}}
+    return {"id": f"gl_{key}", "typ": "obraz", "poradi": poradi, "nazev": name, "rect": [x, FIGURE_Y, 240, 295], "zdroj": {"obraz": OBRAZY[key], "vyriznout": True, "stin": True}}
 
 
 def gesture(key: str, name: str, y: float, poradi: int) -> dict:
@@ -94,10 +94,10 @@ def page(sources: dict[str, dict]) -> dict:
                 {"value": "187–189 m", "text": "délka"}, {"value": "155–156 m", "text": "šířka"}, {"value": "48 m", "text": "výška"}, {"value": "24 000 m²", "text": "plocha"}, {"value": "50–80 tisíc", "text": "míst podle zdroje"}]},
             {"id": "scena", "typ": "obraz", "poradi": 3, "nazev": "Pollice Verso", "titulek": {"text": "Milost, nebo smrt?", "x": 50, "y": 1132}, "rect": [50, 1146, 900, 605], "zdroj": {"ref_id": POLLICE_VERSO}, "labels": [
                 label("Poražený zvedá prsty", "žádá o milost, ad digitum", [1010, 975, 0], 610, 1590),
-                label("Vítěz čeká na verdikt", "sám nerozhoduje", [640, 640, 0], 70, 1520),
-                label("Císař v lóži", "rozhodoval, řídil se davem", [545, 440, 0], 70, 1440),
-                label("Vestálky a palec dolů", "tenhle obraz ho rozšířil", [1660, 245, 0], 700, 1450),
-            ], "pod": {"text": "J.-L. Gérôme: Pollice Verso, 1872. U opravdového boje stál i rozhodčí, na obraze chybí."}},
+                label("Vítěz čeká na verdikt", "sám nerozhoduje", [640, 640, 0], 300, 1520, "right"),
+                label("Císař v lóži", "rozhodoval, řídil se davem", [545, 440, 0], 281, 1440, "right"),
+                label("Vestálky a palec dolů", "tenhle obraz ho rozšířil", [1470, 345, 0], 706, 1450),
+            ], "pod": {"small": "J.-L. Gérôme: Pollice Verso, 1872. U opravdového boje stál i rozhodčí, na obraze chybí."}},
             {"id": "palec", "typ": "text", "poradi": 4, "nazev": "Palec", "titulek": {"text": "Palec nahoru, nebo dolů?", "x": 985, "y": 1132}, "rect": [985, 1142, 575, 85], "size": 24, "small_size": 20, "krok": 85, "items": [
                 {"value": "Pollice verso", "text": "znamená jen „s otočeným palcem“. Kam se otáčel, žádný římský text přesně neříká."}]},
             gesture("nahoru", "Palec nahoru", 1222, 6),

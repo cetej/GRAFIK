@@ -32,7 +32,10 @@ SCHEMA = 2
 KINDS = ("obraz", "fakta", "text", "osa", "kresba")
 THEMES = {"dark": {"bg": "#1d2532", "ink": "#f1ede4", "muted": "#a7b1bf", "foot": "#8b95a4", "lead": "#ffffff", "halo": "#000000"},
           "light": {"bg": "#f2f3f5", "ink": "#1d1f23", "muted": "#5d636b", "foot": "#6b7079", "lead": "#1d1f23", "halo": "#ffffff"},
-          "ruda": {"bg": "#3a0c10", "ink": "#f6ebdf", "muted": "#d9b8a8", "foot": "#bd9a8e", "lead": "#ffffff", "halo": "#000000"}}
+          "ruda": {"bg": "#3a0c10", "ink": "#f6ebdf", "muted": "#d9b8a8", "foot": "#bd9a8e", "lead": "#ffffff", "halo": None, "stin": True}}
+TEXT_SHADOW = ('<defs><filter id="stin-textu" x="-20%" y="-40%" width="140%" height="180%">'
+               '<feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#000000" flood-opacity="0.75"/>'
+               '<feDropShadow dx="1" dy="1.4" stdDeviation="1.2" flood-color="#000000" flood-opacity="0.85"/></filter></defs>')
 FONT = "Bahnschrift, 'Roboto Condensed', 'Arial Narrow', sans-serif"
 LINE_WIDTH = 0.47           # průměrná šířka znaku Bahnschrift semi-condensed v em, změřeno na patičce plakátu
 # kopie prahů z studio/src/Infographics.tsx a docs/infografiky-zasady.md
@@ -342,7 +345,8 @@ class Renderer:
             line = _text(px, py + size * 0.9, label["text"], size, self.accent, 700, anchor, self.t["halo"])
             for i, small in enumerate(label["small"]):
                 line += _text(px, py + size * (1.95 + 1.1 * i), small, size * 0.86, self.t["ink"], 400, anchor, self.t["halo"])
-            words.append(f'<g id="{self.gid(label["text"])}">{line}</g>')
+            shadow = ' filter="url(#stin-textu)"' if self.t.get("stin") else ""
+            words.append(f'<g id="{self.gid(label["text"])}"{shadow}>{line}</g>')
         lead_group = f'<g id="{self.gid(f"Vodítka {panel["nazev"]}")}">{"".join(leads)}</g>' if leads else ""
         word_group = f'<g id="{self.gid(f"Popisky {panel["nazev"]}")}">{"".join(words)}</g>' if words else ""
         return lead_group, word_group
@@ -362,9 +366,10 @@ class Renderer:
         below = ""
         if panel.get("pod"):
             x, y, _w, h = panel["rect"]
-            below = _text(x, y + h + 30 * self.k, panel["pod"]["text"], 22 * self.k, self.accent, 700)  # pod obrazem, jako vzorky betonu u Pantheonu
+            if panel["pod"]["text"]:
+                below = _text(x, y + h + 30 * self.k, panel["pod"]["text"], 22 * self.k, self.accent, 700)  # pod obrazem, jako vzorky betonu u Pantheonu
             if panel["pod"]["small"]:
-                below += _text(x, y + h + 56 * self.k, panel["pod"]["small"], 20 * self.k, self.t["ink"])
+                below += _text(x, y + h + (56 if below else 30) * self.k, panel["pod"]["small"], 20 * self.k, self.t["ink"])
             below = f'<g id="{self.gid(f"Popisek {panel["nazev"]}")}">{below}</g>'
         return f'<g id="{self.gid(panel["nazev"])}">{pictures}</g>{self._overlays(panel, place)}{lead}{dots}', self._heading(panel) + words + digits + below
 
@@ -447,7 +452,7 @@ class Renderer:
         lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 100 * k) / (foot * LINE_WIDTH)))
         top = doc.get("paticka_y") or H - 30 * k - (len(lines) - 1) * 22 * k
         txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(50 * k, top + i * 22 * k, line, foot, self.t["foot"]) for i, line in enumerate(lines))}</g>')
-        return (f'<svg xmlns="{SVG_NS}" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">'
+        return (f'<svg xmlns="{SVG_NS}" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">{TEXT_SHADOW if self.t.get("stin") else ""}'
                 f'<g id="Grafika">{"".join(gfx)}</g><g id="Texty">{"".join(txt)}</g></svg>')
 
 
@@ -574,8 +579,9 @@ def _background(mask: Image.Image, keep_below: int = 400) -> Image.Image:
     return mask.point(lambda v: 0 if v == 128 else 255)
 
 
-def cut_green(rgba: Image.Image) -> Image.Image:
-    """Postava na zeleném plátně: měkká hrana, bez zeleného lemu. Leštěný kov plátno odráží, je ale méně sytý: práh je nad ním a malé díry v něm se zaplní."""
+def cut_green(rgba: Image.Image, shadow: bool = False) -> Image.Image:
+    """Postava na zeleném plátně: měkká hrana, bez zeleného lemu. Leštěný kov plátno odráží, je ale méně sytý: práh je nad ním a malé díry v něm se zaplní.
+    `shadow` nechá stín ze samotného obrázku, který sedí na světlo postavy a přirůstá k chodidlům: tmavší místa plátna proti jasu podlahy v tom řádku."""
     px = np.asarray(rgba.convert("RGB"), dtype=np.float32)
     r, g, b = px[..., 0], px[..., 1], px[..., 2]
     other = np.maximum(r, b)
@@ -585,41 +591,26 @@ def cut_green(rgba: Image.Image) -> Image.Image:
     body = np.maximum(body * (solid > 0), solid * (body > 0.02))
     color = px.copy()
     color[..., 1] = np.minimum(g, other)            # zelený odlesk na hraně a v kovu pryč
-    return Image.fromarray(np.dstack((np.clip(color, 0, 255), body * 255)).astype(np.uint8), "RGBA")
+    alpha = body
+    if shadow:
+        h, w = body.shape
+        rows = np.nonzero((body > 0.5).any(axis=1))[0]
+        feet, tall = int(rows[-1]), int(rows[-1] - rows[0])
+        centre = np.nonzero((body[int(feet - tall * 0.08):feet + 1] > 0.5).any(axis=0))[0].mean()
+        luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        floor = np.array([np.percentile(luma[y][body[y] < 0.05], 85) if (body[y] < 0.05).sum() > 20 else 0.0 for y in range(h)], dtype=np.float32)
+        floor = np.convolve(np.pad(floor, 20, mode="edge"), np.ones(41) / 41, mode="valid")[:, None]
+        yy, xx = np.mgrid[0:h, 0:w]
+        near = np.clip(1.2 - np.hypot((xx - centre) / (0.6 * tall), (yy - feet) / (0.2 * tall)), 0, 1)      # dál od chodidel je to nerovnoměrné plátno, ne stín
+        edge = np.clip(np.minimum(np.minimum(xx, w - 1 - xx), h - 1 - yy) / 70, 0, 1)      # u kraje obrázku vybledne, ať nekončí rovnou hranou
+        shade = np.clip((1 - luma / np.maximum(floor, 1)) * 1.8, 0, 1) * near * edge * (body < 0.5)
+        shade = np.asarray(Image.fromarray((shade * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2.0)), dtype=np.float32) / 255
+        alpha = body + (1 - body) * shade
+        color = color * (body / np.maximum(alpha, 1e-3))[..., None]
+    return Image.fromarray(np.dstack((np.clip(color, 0, 255), alpha * 255)).astype(np.uint8), "RGBA")
 
 
-def cast_shadow(cut: Image.Image, widen: int = 208) -> Image.Image:
-    """Vržený stín: začíná přesně u chodidel a padá šikmo do strany po zemi, pod nohama nic není. Zem je přímka mezi chodidly, každá noha stojí na své výšce."""
-    a = np.asarray(cut.getchannel("A"), dtype=np.float32) / 255
-    h, w = a.shape
-    rows = np.nonzero((a > 0.5).any(axis=1))[0]
-    feet, tall = int(rows[-1]), int(rows[-1] - rows[0])
-    band = a[feet - int(tall * 0.1):feet + 1] > 0.5
-    cols = np.nonzero(band.any(axis=0))[0]
-    runs = sorted(np.split(cols, np.nonzero(np.diff(cols) > 6)[0] + 1), key=lambda run: band[:, run].sum(), reverse=True)[:2]
-    soles = sorted((float(run.mean()), float(np.nonzero((a[:, run] > 0.5).any(axis=1))[0][-1])) for run in runs)
-    (x1, y1), (x2, y2) = soles[0], soles[-1]
-    slope = (y2 - y1) / (x2 - x1) if x2 > x1 else 0.0
-    ys, xs = np.nonzero(a > 0.5)
-    ground = y1 + slope * (np.clip(xs, x1, x2) - x1)
-    height = ground - ys
-    keep = height > 0
-    xs, ground, height = xs[keep], ground[keep], height[keep]
-    tx, ty = np.clip((xs + 0.3 * height).astype(int), 0, w + widen - 1), np.clip((ground - 0.1 * height).astype(int), 0, h - 1)
-    layers = []
-    for part, blur in ((height < tall * 0.25, 2.5), (height >= tall * 0.25, 7.0)):      # u chodidel ostrý, dál rozmazaný a slabší
-        layer = np.zeros((h, w + widen), dtype=np.float32)
-        np.maximum.at(layer, (ty[part], tx[part]), 1 - 0.7 * height[part] / tall)
-        layers.append(np.asarray(Image.fromarray((layer * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(blur)), dtype=np.float32))
-    out = Image.new("RGBA", (w + widen, h), (0, 0, 0, 0))
-    out.putalpha(Image.fromarray((np.maximum(*layers) * 0.85).astype(np.uint8)))
-    figure = Image.new("RGBA", out.size, (0, 0, 0, 0))
-    figure.paste(cut, (0, 0))
-    out.alpha_composite(figure)
-    return out
-
-
-def cut_out(rgba: Image.Image, tolerance: int = 9) -> Image.Image:
+def cut_out(rgba: Image.Image, shadow: bool = False, tolerance: int = 9) -> Image.Image:
     """Studiové pozadí pryč: postava zůstane bez rámečku a bez rozmazaných okrajů (docs/infografiky-zasady.md). Pozadí je barva rohů obrázku,
     do jednoho rohu smí zasahovat předloktí nebo zbraň. Na tmavém pozadí se tmavý kov ztrácí, postavy s kovem proto chtějí zelené plátno."""
     source = rgba.convert("RGB")
@@ -627,7 +618,7 @@ def cut_out(rgba: Image.Image, tolerance: int = 9) -> Image.Image:
     corners = [source.getpixel(p) for p in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1))]
     backdrop = tuple(sorted(c[i] for c in corners)[1] for i in range(3))
     if backdrop[1] > 1.3 * max(backdrop[0], backdrop[2]):
-        return cut_green(rgba)
+        return cut_green(rgba, shadow)
     luma, cb, cr = ImageChops.difference(source.convert("YCbCr"), Image.new("RGB", (w, h), backdrop).convert("YCbCr")).split()
     # podle barvy, ne jasu: stín na kůži je tmavý jako pozadí, ale jinak barevný; osvětlené pozadí barvu drží
     mask = ImageChops.lighter(ImageChops.lighter(cb, cr).point(lambda v: 0 if v <= tolerance else 255), luma.point(lambda v: 0 if v <= 95 else 255))
@@ -638,7 +629,7 @@ def cut_out(rgba: Image.Image, tolerance: int = 9) -> Image.Image:
 
 
 def copy_image(source: Path, root: Path, panel_id: str, crop: list | None = None, cut: bool = False, shadow: bool = False) -> Path:
-    """Hotový obrázek jako panel, volitelně jen výřez [x, y, w, h] v pixelech, volitelně bez studiového pozadí a s vrženým stínem. Nemá model: kotva popisku [x, y, 0] jsou pixely obrázku."""
+    """Hotový obrázek jako panel, volitelně jen výřez [x, y, w, h] v pixelech, volitelně bez studiového pozadí a se stínem z obrázku. Nemá model: kotva popisku [x, y, 0] jsou pixely obrázku."""
     target = panel_dir(root, panel_id)
     target.mkdir(parents=True, exist_ok=True)
     with Image.open(source) as im:
@@ -647,9 +638,7 @@ def copy_image(source: Path, root: Path, panel_id: str, crop: list | None = None
         x, y, w, h = crop
         rgba = rgba.crop((int(x), int(y), int(x + w), int(y + h)))
     if cut:
-        rgba = cut_out(rgba)
-    if shadow:
-        rgba = cast_shadow(rgba)
+        rgba = cut_out(rgba, shadow)
     rgba.save(target / "obraz.png")
     (target / "body.json").write_text(json.dumps({"res": list(rgba.size), "points": {}, "viditelne": [], "origin": [0, 0], "basis": {"x": [1, 0], "y": [0, 1], "z": [0, 0]}}), encoding="utf-8")
     return target
