@@ -1,14 +1,39 @@
-import { useEffect, useState } from 'react'
+import { Component, useEffect, useState, type ReactNode } from 'react'
 import { api, imageUrl, type Job, type LineageNode, type Provenance } from './api.ts'
 import { fmtUsd } from './App.tsx'
 
 const ACTION_LABEL = { add: 'přidat', remove: 'odstranit', move: 'přesunout', recolor: 'změnit' } as const
-const BACKEND_LABEL = (b: string) => (b === 'flux-local' ? 'Lokální FLUX 3 Klein' : b === 'nb-pro' ? 'Nano Banana Pro (Gemini)' : b)
+const BACKEND_LABEL = (b?: string) => (!b ? '—' : b === 'flux-local' ? 'Lokální FLUX 3 Klein' : b === 'nb-pro' ? 'Nano Banana Pro (Gemini)' : b)
+
+// One broken panel must not blank the whole Studio (LEARNINGS 2026-11-01): the other tabs keep running.
+export class PanelBoundary extends Component<
+  { what: string; resetKey?: unknown; note?: string; panel?: boolean; children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  componentDidUpdate(prev: { resetKey?: unknown }) {
+    if (this.state.error && prev.resetKey !== this.props.resetKey) this.setState({ error: null })
+  }
+  render() {
+    const { error } = this.state
+    if (!error) return this.props.children
+    const body = (
+      <section className={`card ${this.props.panel ? 'right' : ''}`} role="alert">
+        <h3>{this.props.what}: chyba při zobrazení</h3>
+        <p>{this.props.note ?? 'Ostatní záložky běží dál, data zůstala beze změny.'}</p>
+        <p className="warn">{error.message}</p>
+        <button className="btn" onClick={() => this.setState({ error: null })}>Zkusit znovu</button>
+      </section>
+    )
+    return this.props.panel ? body : <main className="guide-start">{body}</main>
+  }
+}
 
 function nodeLabel(n: LineageNode, i: number) {
   if (n.request.edit) return `${ACTION_LABEL[n.request.edit.action]}: ${n.request.edit.instruction}`
   if (n.parent) return n.request.supersample ? 'varianta · drobné detaily' : 'varianta'
-  return i === 0 ? 'zadání' : n.request.prompt
+  return i === 0 ? 'zadání' : n.request.prompt ?? ''
 }
 
 export function HistoryPanel({ selected, jobs, onSelect }: {
@@ -53,13 +78,13 @@ export function HistoryPanel({ selected, jobs, onSelect }: {
         <>
           <dl>
             <dt>Generátor</dt><dd>{BACKEND_LABEL(prov.backend)}</dd>
-            <dt>Cena</dt><dd><span className={`tag ${prov.cost_usd ? 'paid' : 'free'}`}>{fmtUsd(prov.cost_usd)}</span></dd>
-            <dt>Rozměr</dt><dd>{prov.params.size}{prov.params.render_size && prov.params.render_size !== prov.params.size ? ` (vykresleno ${prov.params.render_size})` : ''}</dd>
+            <dt>Cena</dt><dd>{prov.cost_usd == null ? '—' : <span className={`tag ${prov.cost_usd ? 'paid' : 'free'}`}>{fmtUsd(prov.cost_usd)}</span>}</dd>
+            <dt>Rozměr</dt><dd>{prov.params?.size ?? '—'}{prov.params?.render_size && prov.params.render_size !== prov.params.size ? ` (vykresleno ${prov.params.render_size})` : ''}</dd>
             <dt>Seed</dt><dd>{prov.seed ?? '—'}</dd>
             {prov.style_id && <><dt>Styl</dt><dd>{prov.style_id}</dd></>}
             <dt>Předlohy</dt>
-            <dd>{prov.refs.length ? prov.refs.map((r, i) => <div key={i}>{r.source ?? 'obrázek'} ({r.role}{r.license ? `, ${r.license}` : ''})</div>) : '—'}</dd>
-            {prov.timing_s.generate !== null && <><dt>Čas</dt><dd>{Math.round(prov.timing_s.generate)} s{prov.timing_s.queue > 2 ? ` + ${Math.round(prov.timing_s.queue)} s ve frontě` : ''}</dd></>}
+            <dd>{prov.refs?.length ? prov.refs.map((r, i) => <div key={i}>{r.source ?? 'obrázek'} ({r.role}{r.license ? `, ${r.license}` : ''})</div>) : '—'}</dd>
+            {prov.timing_s?.generate != null && <><dt>Čas</dt><dd>{Math.round(prov.timing_s.generate)} s{prov.timing_s.queue > 2 ? ` + ${Math.round(prov.timing_s.queue)} s ve frontě` : ''}</dd></>}
             <dt>Stav</dt>
             <dd>{prov.reviewed_by
               ? <span className="tag ok">zkontroloval {prov.reviewed_by}</span>
@@ -72,7 +97,7 @@ export function HistoryPanel({ selected, jobs, onSelect }: {
           {showPrompt && (
             <>
               {prov.translations?.length ? <p className="hint">Původně: {prov.prompt_original}</p> : null}
-              <pre className="prompt">{prov.prompt_sent}</pre>
+              <pre className="prompt">{prov.prompt_sent ?? '—'}</pre>
             </>
           )}
         </>

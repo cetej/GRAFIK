@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   api, fileToB64, groupStyles, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
   type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type KnihovnaImage, type KnihovnaItem, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
-import { HistoryPanel, Lightbox } from './panels.tsx'
+import { HistoryPanel, Lightbox, PanelBoundary } from './panels.tsx'
 import RefPicker, { KIND_LABEL, storeDrop, type PickerTab } from './RefPicker.tsx'
 import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
@@ -35,6 +35,11 @@ export const refFromKnihovna = (it: KnihovnaItem, img: KnihovnaImage): FormRef =
   meta: `${KIND_LABEL[it.kind]} · KNIHOVNA`,
 })
 
+const TAB_LABEL = { studio: 'Studio', guide: 'Průvodce', library: 'Knihovna', styles: 'Styly', info: 'Infografiky', localize: 'Počeštění', '3d': '3D', settings: 'Nastavení' } as const
+
+// Runs the tab's JSX inside the boundary: a JSX expression written in App itself would throw in App's own render.
+const Deferred = ({ render }: { render: () => ReactNode }) => <>{render()}</>
+
 export interface Confirm { title: string; items: { what: string; usd: number }[]; total: number; onOk: () => Promise<void> }
 
 export const fmtUsd = (usd: number) => (usd === 0 ? '0 USD' : `${usd.toLocaleString('cs-CZ', { maximumFractionDigits: 3 })} USD`)
@@ -55,7 +60,7 @@ export default function App() {
   const [backends, setBackends] = useState<Backend[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
   const [spentToday, setSpentToday] = useState(0)
-  const [tab, setTab] = useState<'studio' | 'guide' | 'library' | 'styles' | 'info' | 'localize' | '3d' | 'settings'>('studio')
+  const [tab, setTab] = useState<keyof typeof TAB_LABEL>('studio')
   const [localizeRef, setLocalizeRef] = useState<string | null>(null)
   const [mode3d, setMode3d] = useState<'models' | 'scenes'>('models')
   const [picker, setPicker] = useState<PickerTab | null>(null)
@@ -299,7 +304,7 @@ export default function App() {
 
       {engineDown && <div className="banner">GRAFIK Engine na :8300 neodpovídá. Spusťte <code>start-grafik.bat</code>.</div>}
 
-      {tab === 'settings' ? (
+      <PanelBoundary what={TAB_LABEL[tab]} resetKey={tab}><Deferred render={() => (tab === 'settings' ? (
         <Settings onError={setToast} />
       ) : tab === '3d' ? (
         mode3d === 'scenes' ? (
@@ -475,9 +480,11 @@ export default function App() {
             }
           />
 
-          <HistoryPanel selected={selected} jobs={jobs} onSelect={setSelected} />
+          <PanelBoundary what="O obrázku" resetKey={selected} panel note="Vyberte jiný obrázek, zbytek Studia běží dál.">
+            <HistoryPanel selected={selected} jobs={jobs} onSelect={setSelected} />
+          </PanelBoundary>
         </main>
-      )}
+      ))} /></PanelBoundary>
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
       {picker && <RefPicker initialTab={picker} onPick={pickRef} onPickKnihovna={pickKnihovna} onError={setToast} onClose={() => { setPicker(null); countInbox() }} />}

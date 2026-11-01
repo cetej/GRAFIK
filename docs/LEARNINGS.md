@@ -5,6 +5,7 @@
 - **Každý obrázek v Knihovně má plný záznam o původu.** `POST /api/v2/library/upload` zapisoval zkrácený záznam bez `cost_usd`, `params`, `refs` a `timing_s`. Studio po načtení vybere nejnovější obrázek, `HistoryPanel` spadl na `fmtUsd(undefined)` a bez error boundary zůstala bílá stránka celé aplikace (10:03 až 10:07, oprava dat přímo v `image-0.json`).
 - **Test API nestačí, když data čte Studio.** Můj test kontroloval výpis úloh a `ai_generated`, ne to, co panel čte. Novou cestu k datům ověřovat otevřením Studia ještě před hlášením „je v Knihovně“.
 - **Nezměřené je `null`, ne nula.** Render v Blenderu nemá u uploadu změřený čas, panel řádek Čas vynechá. Stejně tak štítek „AI“ se ukazuje jen při `ai_generated`.
+- **Boundary chytí jen chybu v potomkovi.** JSX napsané přímo v `App` se vyhodnocuje v renderu `App`, takže `<PanelBoundary>` kolem něj nic nechytí. Záložky proto běží přes `Deferred` a celé `App` má druhou boundary v `main.tsx`. Ověřeno na dočasných datech: vadný záznam ukáže hlášku v panelu, požadavek bez `prompt` hlášku v Knihovně, ostatní záložky běží.
 
 ## 2026-11-01 — Render řezu v Blenderu: boolean, světlo a paprsek
 

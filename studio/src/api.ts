@@ -61,18 +61,19 @@ export interface LineageNode {
   request: Job['request']
 }
 
+// Records of kinds other than a generated image (localize, upload) can be short: what is missing stays unknown, not zero.
 export interface Provenance {
-  backend: string
-  model: string
-  seed: number | null
-  params: Record<string, unknown> & { size?: string; render_size?: string }
-  prompt_original: string
-  prompt_sent: string
-  refs: { role: Role; source: string | null; license: string | null; sent_as: string }[]
-  parent: string | null
-  edit: { action: EditAction; instruction: string } | null
-  cost_usd: number
-  timing_s: { queue: number; generate: number | null }
+  backend?: string
+  model?: string
+  seed?: number | null
+  params?: Record<string, unknown> & { size?: string; render_size?: string }
+  prompt_original?: string
+  prompt_sent?: string
+  refs?: { role: Role; source: string | null; license: string | null; sent_as: string }[]
+  parent?: string | null
+  edit?: { action: EditAction; instruction: string } | null
+  cost_usd?: number | null
+  timing_s?: { queue: number; generate: number | null }
   translations?: { field: string; cs: string; en: string; paid: boolean }[]
   style_id?: string | null
   ai_generated: boolean
@@ -323,7 +324,8 @@ export const localizeApi = {
 export const infoApi = {
   list: () => call<Infographic[]>('/api/v2/infographics'),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
-  upload: (b64: string, name: string) => post<Infographic>('/api/v2/infographics/upload', { b64, name }),
+  upload: (b64: string, name: string, blenderRender = false) => post<Infographic>('/api/v2/infographics/upload', { b64, name, blender_render: blenderRender }),
+  toLibrary: (id: string, name: string) => post<{ ref: string; created: boolean }>(`/api/v2/infographics/${id}/exports/${name}/library`, {}),
   get: (id: string) => call<Infographic>(`/api/v2/infographics/${id}`),
   save: (doc: Infographic) => send<Infographic>('PUT', `/api/v2/infographics/${doc.id}`, doc),
   remove: (id: string) => send<{ moved_to: string }>('DELETE', `/api/v2/infographics/${id}`),
