@@ -311,6 +311,12 @@ def test_cast_shadow_starts_at_the_feet_and_falls_to_the_side():
     assert shaded.getpixel((70, 262))[3] < 20 and shaded.getpixel((130, 282))[3] < 20    # pod nohama nic
 
 
+def test_dark_red_theme_colours_the_page(tmp_path):
+    svg = panels.render_svg({"size": "1600x1000", "title": "Věž", "template": "ruda", "ai_note": "x", "panels": [
+        {"id": "cisla", "typ": "fakta", "rect": [0, 0, 800, 100], "nazev": "Čísla", "smer": "radek", "items": [{"value": "1", "text": "a"}]}]}, tmp_path)
+    assert f'fill="{panels.THEMES["ruda"]["bg"]}"' in svg
+
+
 def test_thresholds_match_the_editor():
     source = (REPO / "studio" / "src" / "Infographics.tsx").read_text(encoding="utf-8")
     assert f"const MAX_LABELS = {panels.MAX_LABELS}" in source and f"const MAX_LABEL_CHARS = {panels.MAX_LABEL_CHARS}" in source

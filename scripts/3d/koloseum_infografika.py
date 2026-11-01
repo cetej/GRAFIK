@@ -1,5 +1,5 @@
 # Infographic of the Colosseum as a panel document, through the Engine API, free:
-#   python scripts/3d/koloseum_infografika.py [--engine http://127.0.0.1:8300] [--model koloseum --version v1] [--knihovna]
+#   python scripts/3d/koloseum_infografika.py [--engine http://127.0.0.1:8300] [--model koloseum --version v1] [--tema ruda] [--knihovna]
 # Builds the model from scripts/3d/dily/koloseum.json when it is not in the library, renders the views (new renders/r-<n>, nothing is
 # overwritten), creates a new document and exports it. Every sentence on the page has its source in docs/spikes/2026-11-01-koloseum.md.
 import json
@@ -168,7 +168,7 @@ def main() -> int:
         job = api.wait(started["job_id"])
         sources[panel] = {"model_id": model, "version": version, "render": job["result"]["id"]}
         print(panel, job["result"]["id"], job["result"].get("seconds"), "s", flush=True)
-    doc = api.call("POST", "/api/v2/infographics/panels", page(sources))
+    doc = api.call("POST", "/api/v2/infographics/panels", {**page(sources), "template": opt("--tema", "dark")})
     print("dokument", doc["id"], doc["ai_note"])
     for check in api.call("GET", f"/api/v2/infographics/{doc['id']}/kontrola"):
         print("ok" if check["ok"] else " !", check["text"])
