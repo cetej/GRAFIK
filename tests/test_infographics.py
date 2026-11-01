@@ -38,6 +38,22 @@ def test_upload_from_computer_starts_an_infographic_without_touching_the_job_lis
     assert d["ai_note"].startswith("Ilustrace: AI")   # a picture from outside may be generated, the footer stays careful
 
 
+def test_library_upload_shows_in_the_job_list_with_its_origin(api):
+    from base64 import b64encode
+
+    buf = BytesIO()
+    Image.new("RGB", (64, 96), (20, 50, 110)).save(buf, "PNG")
+    r = api.post("/api/v2/library/upload", json={"b64": b64encode(buf.getvalue()).decode(), "name": "plakat.png",
+                                                 "title": "Pantheon", "blender_render": True})
+    assert r.status_code == 201, r.text
+    job = next(j for j in api.get("/api/v2/jobs").json() if j["job_id"] == r.json()["job_id"])
+    assert job["status"] == "done" and len(job["images"]) == 1 and job["request"]["prompt"] == "Pantheon"
+    prov = api.get("/api/v2/jobs/" + r.json()["ref"].replace("/", "/images/") + "/provenance").json()
+    assert prov["ai_generated"] is False and prov["render"] == "Blender"
+    assert api.get("/api/v2/infographics").json() == []   # a picture for the library is not a document to edit
+    assert api.post("/api/v2/library/upload", json={"b64": "bm90IGFuIGltYWdl"}).status_code == 400
+
+
 def test_blender_render_is_not_labelled_as_ai(api, settings):
     from base64 import b64encode
 

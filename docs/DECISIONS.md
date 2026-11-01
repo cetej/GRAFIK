@@ -2,14 +2,23 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
-## 2026-11-01 — Infografika z renderu bez AI, označení podle původu
+## 2026-11-01 — „Podobnou a vylepšenou“ infografiku: žánr vzoru, vlastní skladba, realistické 3D
 
-Zadání operátora 1. 11.: složit v projektu infografiku podle vloženého vzoru Pantheonu, popsat postup, zkusit vzor vylepšit. Volby níže jsou návrh session, operátor je ruší tady.
+Zadání operátora 1. 11.: složit v projektu infografiku podle vloženého vzoru Pantheonu a zkusit ji vylepšit. Operátor opravil směr třikrát:
 
-- **Render z Blenderu smí být konečný podklad.** Dosavadní postup z 23. 10. končí kresbou modelem. U stavby, kde záleží na počtech a nápisu, je render přesnější: lokální FLUX rozbil nápis a posunul díly ([měření](spikes/2026-11-01-pantheon.md)). Placená kresba zůstává volbou se souhlasem a cenou.
-- **Patička říká pravdu o původu.** Upload s `blender_render: true` dá „Model a render: Blender, bez AI“ a `ai_generated: false` v provenienci exportu. Obrázek z počítače bez té volby zůstává označený jako AI, protože o něm nevíme, jak vznikl. Studio tu volbu nenabízí, posílá ji jen skript, který render vyrobil.
-- **Popisky sedí na bodech modelu**, ne na pixelech: kamera je pravoúhlá, poloha se počítá z rozměrů v metrech.
-- **Vzor se nekopíruje** (zásady z 23. 10.): místo 8 stejných panelů jeden řez a půdorys, který ukáže, co řez neukáže. Fakta vzoru jsem ověřil a chyby neopakoval.
+- Na jediný řez 16:9: „pod instrukcí udělat podobnou a spíše vylepšenou infografiku by se měl skrývat jiný výsledek.“
+- Na kvaš přes Nano Banana Pro: „Mělo by to být realistické 3D, ne ilustrace do staré dětské knížky.“
+- Na plán s panely jedna ku jedné podle vzoru: „Chtěl jsem vylepšenou infografiku, ne kopii.“
+
+Z toho plyne: u zadání „podobnou, vylepšenou“ drží výsledek žánr a bohatost vzoru a má vlastní skladbu. Výchozí vzhled staveb a objektů je realistické 3D. Zásady z 23. 10. o nekopírování platí dál.
+
+Volby níže jsou návrh session, operátor je ruší tady:
+
+- **Skladba:** velký řez s koulí, pod ním jen pohledy s novou informací: rozložení na díly, pohled k okulu, vrstvy betonu, proč stavba stojí, čísla, půdorys. Bez rámečků a panelů, jedna písmová rodina ve dvou řezech.
+- **Render z Blenderu smí být konečný podklad**, u stavby se přesnými počty a nápisem. Patička říká pravdu o původu: upload s `blender_render: true` dá „Model a render: Blender, bez AI“ a `ai_generated: false`. Obrázek z počítače bez té volby zůstává označený jako AI, protože o něm nevíme, jak vznikl.
+- **Hotový výsledek patří i do Knihovny** (`POST /api/v2/library/upload`). Operátor se 1. 11. ptal, proč tam první infografika není: Knihovna ukazuje jen úlohy druhu `image`, upload pro infografiku je `upload`.
+- **Velká infografika zatím mimo editor Studia:** skládá ji skript a Chromium. Rozvržení do editoru přijde, až operátor vzhled schválí, a s náčrtem.
+- **Popisky a objekty ve vrstvách pro VectorCraft** (operátor se ptal 1. 11.): Grafika s každým objektem zvlášť, Texty s každým popiskem zvlášť. Kopie pro okno se nepřepisuje.
 
 ## 2026-10-31 — Styly v šesti kategoriích, katalog v gitu
 

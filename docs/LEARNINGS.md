@@ -8,6 +8,11 @@
 - **Hustota vzduchu v paprsku zhasne skvrnu na podlaze.** Při 0,06 zbylo ze slunce u podlahy asi 6 %. Viditelný paprsek dělá slabá emise objemu, rozptyl je jen 0,012.
 - **Druhé slunce se stejným směrem a `receiver_collection` jen pro paprsek zhaslo to první** (fasáda zmodrala, skvrna zmizela). Příčinu jsem nehledal, emise objemu to řeší jednodušeji.
 - **FLUX s předlohou `geometry` nedrží nápis ani proluky.** Tvar stavby zůstal, písmena se rozpadla a díly se posunuly o desítky pixelů. Kde záleží na nápisu nebo na popiscích přesně na bodech modelu, je render lepší podklad.
+- **Sesazení dvou obrazů s jiným jasem přes ECC na obraze selže potichu.** Render a malba: ECC 0,77 a posun až 37 px, přitom bez posunu seděly (IoU silueta 0,973). ECC na rozmazaných siluetách: 0,9997, IoU 0,995, posuny do 6 px. Výsledek sesazení kontrolovat překryvem hran.
+- **Kolečka v Voronoi nevypadají jako beton.** Plné buňky dají mozaiku, kruhy kolem středů pepperoni. Lepší je vzdálenost od hrany buňky s mezerou, část buněk prázdná a pod tím drť v menším měřítku.
+- **Realismus dělá hlavně tmavnutí v koutech a kvádry.** Uzel Ambient Occlusion v barvě a spáry v `Brick Texture` zvedly dojem víc než šum v materiálu; Brick bere jen x a y, proto mapování (x + y, z) a na válci (úhel × poloměr, z).
+- **Objekty do vrstev: holdout, ne schovat.** S `o.is_holdout` ostatní objekty dál zakrývají a vrhají stín a vrstvy se složí zpět na celek (odchylka 0,18 z 255). Schované objekty by změnily světlo. Kde se dva objekty dotýkají, jsou oba poloprůhledné a prosvítá stránka: pomáhá zvednout alfu `1 - (1 - a)²`.
+- **SVG pro VectorCraft: horní `<g id>` je vrstva, `<g id>` uvnitř pojmenovaná skupina.** Obraz oříznout na objekt, jinak se v okně vybere plátno přes celou stránku. Kopii pro okno nepřepisovat, může v ní být ruční úprava.
 - **Editor kontroluje délku popisku včetně vysvětlení** (název + vysvětlení do 40 znaků). Delší první verze prošla API bez chyby, hlášení je až ve Studiu, tak po každé změně otevřít sekci Kontrola.
 
 ## 2026-10-31 — Výpis úloh četl celou databázi, Studio tím hladovělo

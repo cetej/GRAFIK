@@ -110,6 +110,7 @@ class InfoUpload(BaseModel):
     b64: str                        # image from the operator's computer
     name: str = ""
     blender_render: bool = False    # our own render of a 3D model: no generator made it, the footer says so
+    title: str = ""                 # caption in the Knihovna tab (/library/upload)
 
 
 class InfoExport(BaseModel):
@@ -731,15 +732,14 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             raise HTTPException(404, f"obrázek {body.base} neexistuje")
         return infos.create(body.base, body.title.strip(), _prov(body.base))
 
-    @app.post("/api/v2/infographics/upload", status_code=201)
-    def info_upload(body: InfoUpload):
+    def _store_upload(body: InfoUpload, kind: str, request: dict) -> str:
         try:
             with Image.open(BytesIO(base64.b64decode(body.b64.split(",", 1)[-1]))) as im:
                 im.load()
                 rgb = im.convert("RGB")
         except (ValueError, OSError) as e:
             raise HTTPException(400, f"obrázek nejde přečíst ({e})") from e
-        job_id = store.add_done("upload", "studio", {"prompt": "", "refs": [], "source": body.name}, {"files": []})
+        job_id = store.add_done(kind, "studio", request, {"files": []})
         job_dir = s.library_dir / datetime.now().strftime("%Y-%m") / job_id
         job_dir.mkdir(parents=True, exist_ok=True)
         path = job_dir / "image-0.png"
@@ -749,7 +749,18 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             **({"render": "Blender"} if body.blender_render else {}),
             "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
         store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
+        return job_id
+
+    @app.post("/api/v2/infographics/upload", status_code=201)
+    def info_upload(body: InfoUpload):
+        job_id = _store_upload(body, "upload", {"prompt": "", "refs": [], "source": body.name})
         return infos.create(f"{job_id}/0", Path(body.name).stem, _prov(f"{job_id}/0"))
+
+    @app.post("/api/v2/library/upload", status_code=201)
+    def library_upload(body: InfoUpload):
+        """A finished picture that should show in the Knihovna tab, which lists kind "image" only."""
+        job_id = _store_upload(body, "image", {"prompt": body.title or Path(body.name).stem, "refs": [], "source": body.name})
+        return {"job_id": job_id, "ref": f"{job_id}/0"}
 
     @app.get("/api/v2/infographics/{info_id}")
     def info_get(info_id: str):

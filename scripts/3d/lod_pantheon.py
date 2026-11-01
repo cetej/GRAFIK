@@ -3,6 +3,9 @@
 #   blender -b -P scripts/3d/lod_pantheon.py -- out.glb --render DIR [--samples 96] [--res 1920 1080] [--az -122] [--el 10]
 # --render: axial section through the rotunda (near half removed), portico whole, real materials, sun through the oculus.
 # Writes DIR/rez.png (RGBA) and DIR/body.json: canvas positions of named 3D points, so labels and the sphere are exact.
+# --shot picks the view (SHOTS below): rez is the section for pantheon_infografika.py, the others are panels for pantheon_plakat.py.
+# --vrstvy: also DIR/vrstva-<name>.png, every object alone on transparent, the others cut it out and keep their shadows,
+# so the picture can be edited object by object in VectorCraft.
 # Every size is in DIM (metres) with its source; "odhad" = our estimate, no published figure found.
 # Axes: x from the portico to the apse, y across, z up, rotunda floor z = 0.
 import json
@@ -68,11 +71,18 @@ def opt(name, default, n=1):
 RENDER = opt("--render", None)
 SAMPLES = int(opt("--samples", 96))
 RES = [int(v) for v in opt("--res", (1920, 1080), 2)]
-CAM_AZ = float(opt("--az", -122))
-CAM_EL = float(opt("--el", 10))
-CAM_SCALE = float(opt("--scale", 120))
-CAM_DX = float(opt("--dx", 12.75))
-CAM_DZ = float(opt("--dz", 15.46))
+# cut: None, "half" (near half behind the portico) or "wedge". az, el: camera. scale: orthographic width (height when
+# portrait) in metres, dx, dz: its centre. lens, cam, look: perspective camera instead. sun: towards the sun.
+SHOTS = {
+    "rez": {"cut": "half", "az": -122, "el": 10, "scale": 120, "dx": 12.75, "dz": 15.46, "sun": (-0.38, -0.22, 1.0), "shaft": True, "people": True},
+    "rozklad": {"cut": "wedge", "az": -146, "el": 24, "scale": 118, "dx": 0.0, "dz": 22.0, "sun": (-0.5, -0.35, 1.0), "explode": True, "no_portico": True},
+    "interier": {"cut": None, "lens": 14, "cam": (-14.0, -13.0, 1.7), "look": (4.0, 7.0, 24.0), "sun": (-0.38, 0.1, 1.0), "shaft": True, "people": True, "sky": True},
+    "beton_horni": {"cut": "half", "az": -90, "el": 0, "scale": 2.4, "dx": 19.4, "dz": 35.5, "sun": (-0.5, -0.8, 0.7), "no_portico": True},
+    "beton_stred": {"cut": "half", "az": -90, "el": 0, "scale": 2.4, "dx": 25.5, "dz": 27.0, "sun": (-0.5, -0.8, 0.7), "no_portico": True},
+    "beton_dolni": {"cut": "half", "az": -90, "el": 0, "scale": 2.4, "dx": 24.8, "dz": -2.4, "sun": (-0.5, -0.8, 0.7), "no_portico": True},
+}
+SHOT = SHOTS[opt("--shot", "rez")]
+EXPLODE = {"lip": 33.0, "dome_low": 19.0, "dome_top": 19.0, "floor": -13.0, "found": -24.0}   # metres up or down, rozklad only
 
 R_I = DIM["inner_d"] / 2
 R_O = R_I + DIM["wall"]
@@ -93,6 +103,7 @@ R_FOUND_I = R_I - 0.4
 R_FOUND_O = R_FOUND_I + DIM["found_w"]
 Z_EARTH = -8.0
 INSCRIPTION = "M\u00b7AGRIPPA\u00b7L\u00b7F\u00b7COS\u00b7TERTIVM\u00b7FECIT"
+WEDGE = (-11 * SECTOR, -2 * SECTOR)            # through the middle of a coffer on both sides
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
@@ -350,7 +361,7 @@ def portico(g):
     th = 0.85
     g.prism_x("marble", [(-h - 0.55, Z_ROOF), (-h - 0.55, Z_ROOF + th), (0, Z_APEX + th), (0, Z_APEX - 0.25)], x_front - 0.1, X_WALL)
     g.prism_x("marble", [(h + 0.55, Z_ROOF), (0, Z_APEX - 0.25), (0, Z_APEX + th), (h + 0.55, Z_ROOF + th)], x_front - 0.1, X_WALL)
-    g.prism_x("lead", [(-h - 0.9, Z_ROOF + th - 0.05), (h + 0.9, Z_ROOF + th - 0.05), (0, Z_APEX + th + 0.2)], x_front + 0.15, X_WALL + 0.3)
+    g.prism_x("roof", [(-h - 0.9, Z_ROOF + th - 0.05), (h + 0.9, Z_ROOF + th - 0.05), (0, Z_APEX + th + 0.2)], x_front + 0.15, X_WALL + 0.3)
     # block wall behind the columns stays on both sides; second, blind pediment above the roof (odhad)
     z = Z_APEX + th + 0.2
     g.prism_x("marble", [(-h, DIM["wall_h"] - 5.0), (h, DIM["wall_h"] - 5.0), (0, DIM["wall_h"] - 0.2)], X_WALL - 0.25, X_WALL + 0.1)
@@ -358,64 +369,92 @@ def portico(g):
     return z
 
 
-def rotunda_details(g, cut):
-    """Inner order, attic and outer bands. With the near half cut away only the far half is built."""
-    a0, a1 = (0.0, math.pi) if cut else (-math.pi, math.pi)
+def kept_arcs(cut):
+    """Azimuth intervals of the rotunda that stay after the cut."""
+    if cut == "half":
+        return [(0.0, math.pi)]
+    if cut == "wedge":
+        return [(WEDGE[1], WEDGE[0] + 2 * math.pi)]
+    return [(-math.pi, math.pi)]
+
+
+def rotunda_details(g, lip_g, top_g, cut):
+    """Inner order, attic, outer bands and relief arches: only what stays after the cut is built."""
+    arcs = kept_arcs(cut)
+
+    def kept(a):
+        return any(a0 <= a + 2 * math.pi * k <= a1 for a0, a1 in arcs for k in (-1, 0, 1))
+
+    def sectors(geo, mat, r0, r1, z0, z1, a0, a1):
+        for b0, b1 in arcs:
+            for k in (-1, 0, 1):
+                lo, hi = max(a0 + 2 * math.pi * k, b0), min(a1 + 2 * math.pi * k, b1)
+                if hi - lo > 1e-4:
+                    geo.sector(mat, r0, r1, z0, z1, lo, hi)
+
     half = math.asin(DIM["exedra_w"] / 2 / R_I)
     h, e = DIM["order_h"], DIM["entab_h"]
-    azs = [0, 45, 90, 135, 180] + ([] if cut else [-45, -90, -135])
-    for deg in azs:   # piers between the openings, with an aedicula each
-        if cut and deg == 180:
-            continue
+    for deg in range(-180, 180, 45):   # piers between the openings, with an aedicula each
         pa, pb = math.radians(deg) + half, math.radians(deg + 45) - half
-        g.sector("giallo", R_I - 0.12, R_I, 0.0, h, pa, pb)
-        g.sector("pavon", R_I - 0.2, R_I - 0.1, 0.0, 0.9, pa, pb)
+        sectors(g, "giallo", R_I - 0.12, R_I, 0.0, h, pa, pb)
+        sectors(g, "pavon", R_I - 0.2, R_I - 0.1, 0.0, 0.9, pa, pb)
         for edge in (pa, pb - 1.2 / R_I):   # pilasters at the opening
-            g.sector("pavon", R_I - 0.28, R_I, 0.9, h, edge, edge + 1.2 / R_I)
+            sectors(g, "pavon", R_I - 0.28, R_I, 0.9, h, edge, edge + 1.2 / R_I)
         mid = math.radians(deg + 22.5)
-        g.rbox("pavon", mid, R_I - 1.05, R_I, -2.7, 2.7, 0.0, 2.1)
-        for t in (-1.95, 1.95):
-            c, s = math.cos(mid), math.sin(mid)
-            x, y = (R_I - 0.75) * c - t * s, (R_I - 0.75) * s + t * c
-            column(g, "porphyry", x, y, 2.1, 3.1, 0.55)
-        g.rbox("marble", mid, R_I - 1.15, R_I, -2.65, 2.65, 5.8, 6.3)
-        g.rprism("marble", mid, R_I - 1.15, R_I, [(-2.7, 6.3), (2.7, 6.3), (0, 7.5)])
+        if kept(mid):
+            g.rbox("pavon", mid, R_I - 1.05, R_I, -2.7, 2.7, 0.0, 2.1)
+            for t in (-1.95, 1.95):
+                c, s = math.cos(mid), math.sin(mid)
+                x, y = (R_I - 0.75) * c - t * s, (R_I - 0.75) * s + t * c
+                column(g, "porphyry", x, y, 2.1, 3.1, 0.55)
+            g.rbox("marble", mid, R_I - 1.15, R_I, -2.65, 2.65, 5.8, 6.3)
+            g.rprism("marble", mid, R_I - 1.15, R_I, [(-2.7, 6.3), (2.7, 6.3), (0, 7.5)])
     for deg, kind in EXEDRAE:   # two columns in the mouth of each opening
-        if cut and not 0 < deg < 180:
-            continue
         az = math.radians(deg)
         for t in (-1.9, 1.9):
             c, s = math.cos(az), math.sin(az)
             x, y = (R_I + 0.1) * c - t * s, (R_I + 0.1) * s + t * c
-            column(g, "pavon", x, y, 0.0, h - 0.6 - DIM["col_cap"] * 0.6, 0.9)
+            if kept(math.atan2(y, x)) and not (cut == "half" and deg == 0):
+                column(g, "pavon", x, y, 0.0, h - 0.6 - DIM["col_cap"] * 0.6, 0.9)
     z = h
-    g.sector("marble", R_I - 0.3, R_I, z, z + 0.9, a0, a1)
-    g.sector("porphyry", R_I - 0.2, R_I, z + 0.9, z + 1.8, a0, a1)
-    g.sector("marble", R_I - 0.75, R_I, z + 1.8, z + e, a0, a1)
+    sectors(g, "marble", R_I - 0.3, R_I, z, z + 0.9, -math.pi, math.pi)
+    sectors(g, "porphyry", R_I - 0.2, R_I, z + 0.9, z + 1.8, -math.pi, math.pi)
+    sectors(g, "marble", R_I - 0.75, R_I, z + 1.8, z + e, -math.pi, math.pi)
     z += e
     top = Z_S - 0.4
-    g.sector("attic", R_I - 0.06, R_I, z, top, a0, a1)
-    for i in range(16 if not cut else 8):   # attic: blind windows with panels between
-        a = (i + 0.5) * math.pi / 8 if cut else (i + 0.5) * math.pi / 8 - math.pi
+    sectors(g, "attic", R_I - 0.06, R_I, z, top, -math.pi, math.pi)
+    for i in range(16):   # attic: blind windows with panels between
+        a = (i + 0.5) * math.pi / 8 - math.pi
         d = 1.2 / R_I
-        g.sector("marble", R_I - 0.16, R_I - 0.05, z + 1.5, z + 6.2, a - d, a + d)
-        g.sector("window", R_I - 0.19, R_I - 0.13, z + 1.9, z + 5.8, a - d * 0.72, a + d * 0.72)
-        g.rprism("marble", a, R_I - 0.34, R_I - 0.05, [(-1.5, z + 6.2), (1.5, z + 6.2), (0, z + 7.0)])
+        if kept(a - d) and kept(a + d):
+            g.sector("marble", R_I - 0.16, R_I - 0.05, z + 1.5, z + 6.2, a - d, a + d)
+            g.sector("window", R_I - 0.19, R_I - 0.13, z + 1.9, z + 5.8, a - d * 0.72, a + d * 0.72)
+            g.rprism("marble", a, R_I - 0.34, R_I - 0.05, [(-1.5, z + 6.2), (1.5, z + 6.2), (0, z + 7.0)])
         m = a + math.pi / 16
-        if m < a1:
+        if kept(m - 0.8 / R_I) and kept(m + 0.8 / R_I):
             g.sector("porphyry", R_I - 0.1, R_I - 0.05, z + 2.2, z + 5.6, m - 0.8 / R_I, m + 0.8 / R_I)
-    g.sector("marble", R_I - 0.55, R_I, top, Z_S, a0, a1)
+    sectors(g, "marble", R_I - 0.55, R_I, top, Z_S, -math.pi, math.pi)
     lip = extrados(PHI_MAX)[1]
-    g.sector("bronze", R_OC - 0.06, R_OC + 0.36, lip - 0.08, lip + 0.1, a0, a1)
-    g.sector("bronze", R_OC - 0.06, R_OC + 0.02, lip - 1.2, lip, a0, a1)
+    sectors(lip_g, "bronze", R_OC - 0.06, R_OC + 0.36, lip - 0.08, lip + 0.1, -math.pi, math.pi)
+    sectors(lip_g, "bronze", R_OC - 0.06, R_OC + 0.02, lip - 1.2, lip, -math.pi, math.pi)
     for z in (DIM["cornice_1"], DIM["cornice_2"], DIM["wall_h"] - 0.5):   # outer bands
-        g.sector("marble", R_O - 0.02, R_O + 0.4, z, z + 0.6, a0, a1)
+        sectors(g if z < Z_S else top_g, "marble", R_O - 0.02, R_O + 0.4, z, z + 0.6, -math.pi, math.pi)
+    # brick relief arches in the outer face over the openings (Moore 2002: "the hint of brick arches"; sizes odhad)
+    for deg in range(-180, 180, 45):
+        for spring, span, rise in ((DIM["cornice_1"] - 6.2, 5.2, 4.6), (DIM["cornice_2"] - 7.2, 5.6, 5.4)):
+            steps = 16
+            for k in range(steps):
+                u0, u1 = -1 + 2 * k / steps, -1 + 2 * (k + 1) / steps
+                um = (u0 + u1) / 2
+                zk = spring + rise * math.sqrt(max(0.0, 1 - um ** 2))
+                a0, a1 = math.radians(deg) + u0 * span / R_O, math.radians(deg) + u1 * span / R_O
+                sectors(g if zk + 0.42 < Z_S else top_g, "brick_arch", R_O - 0.02, R_O + 0.1, zk - 0.42, zk + 0.42, a0, a1)
 
 
 def build(cut):
-    g = Geo()
-    portico(g)
-    rotunda_details(g, cut)
+    g, lip_g, port_g, top_g = Geo(), Geo(), Geo(), Geo()
+    portico(port_g)
+    rotunda_details(g, lip_g, top_g, cut)
     solids = {}
     for name, lo, hi in ZONES:
         solids[name] = ring_solid(name, clip(SECTION, lo, hi))
@@ -436,18 +475,27 @@ def build(cut):
     boolean(solids["block"], door)
     cutters = [coffers, niches, door, drum]
     if cut:
-        solids["under"] = disc_solid("under", R_FOUND_I, Z_EARTH, -0.6)
-        solids["under2"] = ring_solid("under2", [(R_FOUND_I, Z_EARTH), (R_FOUND_O, Z_EARTH), (R_FOUND_O, -DIM["found_h"]), (R_FOUND_I, -DIM["found_h"])])
-        solids["ground"] = box_object("ground", (-59, -27, Z_EARTH), (37, 34, 0))
-        hole = disc_solid("hole", R_FOUND_O, Z_EARTH - 1, 1)
-        boolean(solids["ground"], hole)
-        near = box_object("near_cut", (X_CUT, -200, -50), (200, 0, 150))
+        explode = SHOT.get("explode")
+        if not explode:
+            solids["under"] = disc_solid("under", R_FOUND_I, Z_EARTH, -0.6)
+            solids["under2"] = ring_solid("under2", [(R_FOUND_I, Z_EARTH), (R_FOUND_O, Z_EARTH), (R_FOUND_O, -DIM["found_h"]), (R_FOUND_I, -DIM["found_h"])])
+            solids["ground"] = box_object("ground", (-59, -27, Z_EARTH), (37, 34, 0))
+            hole = disc_solid("hole", R_FOUND_O, Z_EARTH - 1, 1)
+            boolean(solids["ground"], hole)
+            cutters.append(hole)
+        if cut == "half":
+            near = box_object("near_cut", (X_CUT, -200, -50), (200, 0, 150))
+        else:
+            r = 400.0
+            ring = [(0.0, 0.0), (r * math.cos(WEDGE[0]), r * math.sin(WEDGE[0])), (r * math.cos(WEDGE[1]), r * math.sin(WEDGE[1]))]
+            v = [(x, y, z) for z in (-50.0, 150.0) for x, y in ring]
+            near = mesh_object("near_cut", v, [(2, 1, 0), (3, 4, 5), (0, 1, 4, 3), (1, 2, 5, 4), (2, 0, 3, 5)])
         for o in solids.values():
             boolean(o, near)
-        cutters += [hole, near]
+        cutters.append(near)
     for o in cutters:
         bpy.data.objects.remove(o)
-    return g, solids
+    return g, lip_g, port_g, top_g, solids
 
 
 def inscription():
@@ -472,9 +520,9 @@ def inscription():
 
 # -- plain model for the library ------------------------------------------------------------------------------------------
 def export_glb():
-    g, _ = build(cut=False)
-    for mat, (v, f) in g.parts.items():
-        mesh_object(mat, v, f)
+    for geo in build(cut=None)[:4]:
+        for mat, (v, f) in geo.parts.items():
+            mesh_object(mat, v, f)
     inscription()
     bpy.ops.object.select_all(action="DESELECT")
     bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", export_apply=True)
@@ -502,64 +550,212 @@ def coords(tree):
     return n.outputs["Object"]
 
 
-def noisy(name, a, b, scale=1.2, rough=0.7, metal=0.0, detail=6.0, lo=0.35, hi=0.65):
+def aged(t, bsdf, color, ao=0.8, dist=1.4, bevel=0.0):
+    """What makes it read as a real thing: dirt in the corners, light caught on slightly rounded edges."""
+    occ = t.nodes.new("ShaderNodeAmbientOcclusion")
+    occ.samples = 6
+    occ.inputs["Distance"].default_value = dist
+    mix = t.nodes.new("ShaderNodeMix")
+    mix.data_type, mix.blend_type = "RGBA", "MULTIPLY"
+    mix.inputs["Factor"].default_value = ao
+    t.links.new(color, mix.inputs["A"])
+    t.links.new(occ.outputs["AO"], mix.inputs["B"])
+    t.links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
+    if bevel:
+        bev = t.nodes.new("ShaderNodeBevel")
+        bev.samples = 4
+        bev.inputs["Radius"].default_value = bevel
+        t.links.new(bev.outputs[0], bsdf.inputs["Normal"])
+
+
+def ramp_of(t, fac, a, b, lo=0.35, hi=0.65):
+    r = t.nodes.new("ShaderNodeValToRGB")
+    r.color_ramp.elements[0].position, r.color_ramp.elements[1].position = lo, hi
+    r.color_ramp.elements[0].color, r.color_ramp.elements[1].color = srgb(a), srgb(b)
+    t.links.new(fac, r.inputs[0])
+    return r.outputs[0]
+
+
+def noise_of(t, co, scale, detail=6.0):
+    n = t.nodes.new("ShaderNodeTexNoise")
+    n.inputs["Scale"].default_value, n.inputs["Detail"].default_value = scale, detail
+    t.links.new(co, n.inputs["Vector"])
+    return n.outputs[0]
+
+
+def noisy(name, a, b, scale=1.2, rough=0.7, metal=0.0, detail=6.0, lo=0.35, hi=0.65, ao=0.8, bevel=0.0):
     m, t, bsdf = new_mat(name, rough, metal)
-    tex = t.nodes.new("ShaderNodeTexNoise")
-    tex.inputs["Scale"].default_value, tex.inputs["Detail"].default_value = scale, detail
-    t.links.new(coords(t), tex.inputs["Vector"])
-    ramp = t.nodes.new("ShaderNodeValToRGB")
-    ramp.color_ramp.elements[0].position, ramp.color_ramp.elements[1].position = lo, hi
-    ramp.color_ramp.elements[0].color, ramp.color_ramp.elements[1].color = srgb(a), srgb(b)
-    t.links.new(tex.outputs[0], ramp.inputs[0])
-    t.links.new(ramp.outputs[0], bsdf.inputs["Base Color"])
+    aged(t, bsdf, ramp_of(t, noise_of(t, coords(t), scale, detail), a, b, lo, hi), ao, bevel=bevel)
     return m
 
 
-def aggregate(name, mortar, rocks, scale, rough=0.92):
-    """Section through concrete: broken rock in mortar. The grain is drawn larger than life so it reads at this scale."""
+def veined(name, base_a, base_b, vein, scale=0.5, rough=0.35, amount=0.55, bevel=0.03):
+    """Polished stone: soft clouds with thin winding veins."""
+    m, t, bsdf = new_mat(name, rough)
+    co = coords(t)
+    cloud = ramp_of(t, noise_of(t, co, 0.9, 5.0), base_a, base_b)
+    wave = t.nodes.new("ShaderNodeTexWave")
+    wave.wave_type, wave.bands_direction = "BANDS", "DIAGONAL"
+    wave.inputs["Scale"].default_value, wave.inputs["Distortion"].default_value = scale, 11.0
+    wave.inputs["Detail"].default_value, wave.inputs["Detail Scale"].default_value = 5.0, 1.4
+    t.links.new(co, wave.inputs["Vector"])
+    line = t.nodes.new("ShaderNodeValToRGB")
+    line.color_ramp.elements[0].position, line.color_ramp.elements[1].position = 0.0, 0.16
+    line.color_ramp.elements[0].color, line.color_ramp.elements[1].color = (1, 1, 1, 1), (0, 0, 0, 1)
+    t.links.new(wave.outputs["Fac"], line.inputs[0])
+    gain = t.nodes.new("ShaderNodeMath")
+    gain.operation = "MULTIPLY"
+    gain.inputs[1].default_value = amount
+    t.links.new(line.outputs[0], gain.inputs[0])
+    mix = t.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    t.links.new(gain.outputs[0], mix.inputs["Factor"])
+    t.links.new(cloud, mix.inputs["A"])
+    mix.inputs["B"].default_value = srgb(vein)
+    aged(t, bsdf, mix.outputs["Result"], 0.75, bevel=bevel)
+    return m
+
+
+def wall_uv(t, curved):
+    """(along the wall, height): around the drum for a curved wall, x + y for the flat ones."""
+    geo = t.nodes.new("ShaderNodeTexCoord").outputs["Object"]
+    sep = t.nodes.new("ShaderNodeSeparateXYZ")
+    t.links.new(geo, sep.inputs[0])
+    along = t.nodes.new("ShaderNodeMath")
+    if curved:
+        along.operation = "ARCTAN2"
+        t.links.new(sep.outputs["Y"], along.inputs[0])
+        t.links.new(sep.outputs["X"], along.inputs[1])
+        out = t.nodes.new("ShaderNodeMath")
+        out.operation = "MULTIPLY"
+        out.inputs[1].default_value = R_O
+        t.links.new(along.outputs[0], out.inputs[0])
+        along = out
+    else:
+        along.operation = "ADD"
+        t.links.new(sep.outputs["X"], along.inputs[0])
+        t.links.new(sep.outputs["Y"], along.inputs[1])
+    comb = t.nodes.new("ShaderNodeCombineXYZ")
+    t.links.new(along.outputs[0], comb.inputs["X"])
+    t.links.new(sep.outputs["Z"], comb.inputs["Y"])
+    return comb.outputs[0]
+
+
+def masonry(name, a, b, joint, width, height, curved=False, rough=0.8, seam=0.02):
+    """Courses of block or brick with weathering over them; the joints also dent the surface."""
+    m, t, bsdf = new_mat(name, rough)
+    br = t.nodes.new("ShaderNodeTexBrick")
+    br.inputs["Color1"].default_value, br.inputs["Color2"].default_value = srgb(a), srgb(b)
+    br.inputs["Mortar"].default_value = srgb(joint)
+    br.inputs["Scale"].default_value = 1.0
+    br.inputs["Mortar Size"].default_value = seam
+    br.inputs["Mortar Smooth"].default_value = 0.2
+    br.inputs["Brick Width"].default_value, br.inputs["Row Height"].default_value = width, height
+    t.links.new(wall_uv(t, curved), br.inputs["Vector"])
+    co = coords(t)
+    stain = t.nodes.new("ShaderNodeMix")
+    stain.data_type, stain.blend_type = "RGBA", "MULTIPLY"
+    stain.inputs["Factor"].default_value = 1.0
+    t.links.new(br.outputs["Color"], stain.inputs["A"])
+    t.links.new(ramp_of(t, noise_of(t, co, 0.7, 7.0), "#a79c8c", "#ffffff", 0.3, 0.7), stain.inputs["B"])
+    bump = t.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value, bump.inputs["Distance"].default_value = 0.6, 0.03
+    t.links.new(br.outputs["Fac"], bump.inputs["Height"])
+    bump.invert = True
+    t.links.new(bump.outputs[0], bsdf.inputs["Normal"])
+    aged(t, bsdf, stain.outputs["Result"], 0.85)
+    t.links.new(bump.outputs[0], bsdf.inputs["Normal"])
+    return m
+
+
+def roof(name, a, b, every=0.62):
+    """Ribbed sheets running down the slope of the portico roof."""
+    m, t, bsdf = new_mat(name, 0.55, 0.25)
+    co = coords(t)
+    sep = t.nodes.new("ShaderNodeSeparateXYZ")
+    t.links.new(co, sep.inputs[0])
+    comb = t.nodes.new("ShaderNodeCombineXYZ")
+    t.links.new(sep.outputs["Y"], comb.inputs["X"])
+    wave = t.nodes.new("ShaderNodeTexWave")
+    wave.wave_type, wave.bands_direction = "BANDS", "X"
+    wave.inputs["Scale"].default_value, wave.inputs["Distortion"].default_value = 1 / every, 0.0
+    t.links.new(comb.outputs[0], wave.inputs["Vector"])
+    bump = t.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value, bump.inputs["Distance"].default_value = 1.0, 0.16
+    t.links.new(wave.outputs["Fac"], bump.inputs["Height"])
+    t.links.new(bump.outputs[0], bsdf.inputs["Normal"])
+    aged(t, bsdf, ramp_of(t, noise_of(t, co, 0.5, 6.0), a, b), 0.8)
+    t.links.new(bump.outputs[0], bsdf.inputs["Normal"])
+    return m
+
+
+def aggregate(name, mortar_a, mortar_b, rocks, scale, rough=0.95):
+    """Section through Roman concrete: broken angular stones in cement, some cells empty, grit between them."""
     m, t, bsdf = new_mat(name, rough)
     co = coords(t)
     warp = t.nodes.new("ShaderNodeTexNoise")
-    warp.inputs["Scale"].default_value, warp.inputs["Detail"].default_value = 2.2, 3.0
+    warp.inputs["Scale"].default_value, warp.inputs["Detail"].default_value = 3.0, 4.0
     t.links.new(co, warp.inputs["Vector"])
-    mix = t.nodes.new("ShaderNodeVectorMath")
-    mix.operation = "ADD"
-    t.links.new(co, mix.inputs[0])
-    scale_w = t.nodes.new("ShaderNodeVectorMath")
-    scale_w.operation = "SCALE"
-    scale_w.inputs[3].default_value = 0.12
-    t.links.new(warp.outputs["Color"], scale_w.inputs[0])
-    t.links.new(scale_w.outputs[0], mix.inputs[1])
-    vor = t.nodes.new("ShaderNodeTexVoronoi")
-    vor.inputs["Scale"].default_value = scale
-    t.links.new(mix.outputs[0], vor.inputs["Vector"])
-    ramp = t.nodes.new("ShaderNodeValToRGB")
-    cr = ramp.color_ramp
-    cr.interpolation = "CONSTANT"
-    while len(cr.elements) < len(rocks):
-        cr.elements.new(0.5)
-    for i, c in enumerate(rocks):
-        cr.elements[i].position, cr.elements[i].color = i / len(rocks), srgb(c)
-    sep = t.nodes.new("ShaderNodeSeparateColor")
-    t.links.new(vor.outputs["Color"], sep.inputs[0])
-    t.links.new(sep.outputs[0], ramp.inputs[0])
-    # distance to the cell edge: mortar between the stones
-    edge = t.nodes.new("ShaderNodeTexVoronoi")
-    edge.feature = "DISTANCE_TO_EDGE"
-    edge.inputs["Scale"].default_value = scale
-    t.links.new(mix.outputs[0], edge.inputs["Vector"])
-    mask = t.nodes.new("ShaderNodeValToRGB")
-    mask.color_ramp.elements[0].position, mask.color_ramp.elements[1].position = 0.05, 0.085
-    t.links.new(edge.outputs["Distance"], mask.inputs[0])
-    mixc = t.nodes.new("ShaderNodeMix")
-    mixc.data_type = "RGBA"
-    mixc.inputs["A"].default_value = srgb(mortar)
-    t.links.new(mask.outputs[0], mixc.inputs["Factor"])
-    t.links.new(ramp.outputs[0], mixc.inputs["B"])
-    t.links.new(mixc.outputs["Result"], bsdf.inputs["Base Color"])
+    sc = t.nodes.new("ShaderNodeVectorMath")
+    sc.operation = "SCALE"
+    sc.inputs[3].default_value = 0.1
+    t.links.new(warp.outputs["Color"], sc.inputs[0])
+    add = t.nodes.new("ShaderNodeVectorMath")
+    add.operation = "ADD"
+    t.links.new(co, add.inputs[0])
+    t.links.new(sc.outputs[0], add.inputs[1])
+    col = ramp_of(t, noise_of(t, co, 26.0, 8.0), mortar_a, mortar_b, 0.3, 0.7)
+    height = None
+    for sc_k, gap, empty in ((scale * 3.1, 0.2, 0.45), (scale, 0.085, 0.16)):   # grit first, big stones over it
+        cell = t.nodes.new("ShaderNodeTexVoronoi")
+        cell.inputs["Scale"].default_value = sc_k
+        t.links.new(add.outputs[0], cell.inputs["Vector"])
+        edge = t.nodes.new("ShaderNodeTexVoronoi")
+        edge.feature = "DISTANCE_TO_EDGE"
+        edge.inputs["Scale"].default_value = sc_k
+        t.links.new(add.outputs[0], edge.inputs["Vector"])
+        sep = t.nodes.new("ShaderNodeSeparateColor")
+        t.links.new(cell.outputs["Color"], sep.inputs[0])
+        # stone where the point is far enough from the cell edge and the cell is not one of the empty ones
+        solid = t.nodes.new("ShaderNodeMapRange")
+        solid.inputs["From Min"].default_value, solid.inputs["From Max"].default_value = gap, gap + 0.02
+        t.links.new(edge.outputs["Distance"], solid.inputs["Value"])
+        keep = t.nodes.new("ShaderNodeMath")
+        keep.operation = "GREATER_THAN"
+        keep.inputs[1].default_value = empty
+        t.links.new(sep.outputs[1], keep.inputs[0])
+        mask = t.nodes.new("ShaderNodeMath")
+        mask.operation = "MULTIPLY"
+        t.links.new(solid.outputs[0], mask.inputs[0])
+        t.links.new(keep.outputs[0], mask.inputs[1])
+        tint = t.nodes.new("ShaderNodeValToRGB")
+        cr = tint.color_ramp
+        cr.interpolation = "CONSTANT"
+        while len(cr.elements) < len(rocks):
+            cr.elements.new(0.5)
+        for k, c in enumerate(rocks):
+            cr.elements[k].position, cr.elements[k].color = k / len(rocks), srgb(c)
+        t.links.new(sep.outputs[0], tint.inputs[0])
+        speck = t.nodes.new("ShaderNodeMix")
+        speck.data_type, speck.blend_type = "RGBA", "MULTIPLY"
+        speck.inputs["Factor"].default_value = 1.0
+        t.links.new(tint.outputs[0], speck.inputs["A"])
+        t.links.new(ramp_of(t, noise_of(t, co, 16.0, 7.0), "#a39a8e", "#ffffff", 0.3, 0.72), speck.inputs["B"])
+        mix = t.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        t.links.new(mask.outputs[0], mix.inputs["Factor"])
+        t.links.new(col, mix.inputs["A"])
+        t.links.new(speck.outputs["Result"], mix.inputs["B"])
+        col = mix.outputs["Result"]
+        height = mask.outputs[0]
+    bump = t.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value, bump.inputs["Distance"].default_value = 0.8, 0.03
+    t.links.new(height, bump.inputs["Height"])
+    t.links.new(bump.outputs[0], bsdf.inputs["Normal"])
+    t.links.new(col, bsdf.inputs["Base Color"])
     # the section is what the picture explains: it stays readable while the room around it goes dim
-    t.links.new(mixc.outputs["Result"], bsdf.inputs["Emission Color"])
-    bsdf.inputs["Emission Strength"].default_value = 0.26
+    t.links.new(col, bsdf.inputs["Emission Color"])
+    bsdf.inputs["Emission Strength"].default_value = 0.2
     return m
 
 
@@ -585,14 +781,14 @@ def soil():
     t.links.new(add.outputs[0], ramp.inputs["Value"])
     cr = t.nodes.new("ShaderNodeValToRGB").color_ramp
     node = t.nodes[-1]
-    cr.elements[0].position, cr.elements[0].color = 0.3, srgb("#39454f")
-    cr.elements[1].position, cr.elements[1].color = 0.42, srgb("#44382d")
+    cr.elements[0].position, cr.elements[0].color = 0.3, srgb("#3a4044")
+    cr.elements[1].position, cr.elements[1].color = 0.42, srgb("#3f352b")
     e = cr.elements.new(0.92)
-    e.color = srgb("#54463a")
+    e.color = srgb("#4c4135")
     t.links.new(ramp.outputs[0], node.inputs[0])
     t.links.new(node.outputs[0], bsdf.inputs["Base Color"])
     t.links.new(node.outputs[0], bsdf.inputs["Emission Color"])
-    bsdf.inputs["Emission Strength"].default_value = 0.3
+    bsdf.inputs["Emission Strength"].default_value = 0.16
     return m
 
 
@@ -629,7 +825,7 @@ def floor_mat():
     im = bpy.data.images.new("floor", size, size, alpha=False)
     im.pixels.foreach_set(px.ravel())
     im.pack()
-    m, t, bsdf = new_mat("floor_tex", 0.3)
+    m, t, bsdf = new_mat("floor_tex", 0.22)
     tex = t.nodes.new("ShaderNodeTexImage")
     tex.image = im
     mp = t.nodes.new("ShaderNodeMapping")
@@ -643,29 +839,31 @@ def floor_mat():
 
 def material_library():
     mats = {
-        "marble": noisy("marble", "#d8d3c8", "#efece4", 0.9, 0.6),
-        "travertine": noisy("travertine", "#b9ad97", "#d4cab6", 2.0, 0.8),
-        "attic": noisy("attic", "#cbbfa8", "#ddd3bf", 1.0, 0.5),
-        "giallo": noisy("giallo", "#b2925f", "#c9ab7a", 1.6, 0.35),
-        "pavon": noisy("pavon", "#b9aeb0", "#e6e1da", 2.4, 0.3),
-        "porphyry": noisy("porphyry", "#54201f", "#7c3331", 7.0, 0.3),
-        "window": noisy("window", "#191a1f", "#25262c", 3.0, 0.8),
-        "granite_grey": noisy("granite_grey", "#5f6264", "#898b8b", 14.0, 0.4),
-        "granite_pink": noisy("granite_pink", "#8d6a60", "#b08b7f", 14.0, 0.4),
-        "dome": noisy("dome", "#b5ad9d", "#c3bbab", 0.35, 0.85),
-        "lead": noisy("lead", "#6b7175", "#777d81", 0.8, 0.5, 0.3),
-        "stepring": noisy("stepring", "#a9a59b", "#c0bcb2", 1.5, 0.9),
-        "brick": noisy("brick", "#8d5238", "#a86a4a", 3.5, 0.9),
-        "bronze": noisy("bronze", "#6b5230", "#9c7a44", 5.0, 0.35, 0.9),
-        "chamber": noisy("chamber", "#2a2622", "#35302a", 3.0, 0.95),
-        "paving": noisy("paving", "#5a5852", "#6c6962", 9.0, 0.85),
-        "sec_found": aggregate("sec_found", "#b5ab9a", ("#d8cfb9", "#c9bda2", "#e2dac6", "#bfb39a"), 2.6),
-        "sec_wall": aggregate("sec_wall", "#a89a88", ("#d0c5ae", "#8e7c68", "#a4563c", "#b9ac94", "#7f6d5b"), 2.6),
-        "sec_dome_low": aggregate("sec_dome_low", "#b0a18f", ("#a2523a", "#b6654a", "#8d4630", "#c07658"), 2.6),
-        "sec_dome_top": aggregate("sec_dome_top", "#c4bbab", ("#ded8cb", "#8f8778", "#cfc8b9", "#a89f8f", "#ebe6da"), 3.2),
+        "marble": veined("marble", "#cfc9bc", "#dfdbd1", "#9a958b", 1.3, 0.5, 0.16),
+        "travertine": masonry("travertine", "#b9ae98", "#c7bda8", "#857b6b", 2.4, 0.62),
+        "attic": noisy("attic", "#c2b59d", "#cdc1aa", 0.6, 0.55),
+        "giallo": veined("giallo", "#a98750", "#bb9a64", "#7a5c36", 1.5, 0.26, 0.28, 0.0),
+        "pavon": veined("pavon", "#c8c1bb", "#dcd7d0", "#73626d", 1.7, 0.24, 0.32),
+        "porphyry": noisy("porphyry", "#4f1e1d", "#73302e", 14.0, 0.25, bevel=0.02),
+        "window": noisy("window", "#14151a", "#1e1f25", 3.0, 0.7),
+        "granite_grey": noisy("granite_grey", "#5a5d60", "#8d8f8e", 22.0, 0.32, lo=0.42, hi=0.58, bevel=0.02),
+        "granite_pink": noisy("granite_pink", "#83625a", "#b0897c", 22.0, 0.32, lo=0.42, hi=0.58, bevel=0.02),
+        "dome": noisy("dome", "#a69d8c", "#bcb3a2", 0.4, 0.85, ao=1.0),
+        "lead": noisy("lead", "#6d7377", "#767c80", 0.7, 0.45, 0.35),
+        "roof": roof("roof", "#73787b", "#7d8285"),
+        "stepring": masonry("stepring", "#a5a196", "#b5b1a6", "#6f6c63", 3.0, 0.3, curved=True),
+        "brick": masonry("brick", "#84492f", "#9c5f42", "#b7aa95", 0.52, 0.17, curved=True, seam=0.012),
+        "brick_arch": masonry("brick_arch", "#6a3825", "#7d452e", "#a89a84", 0.5, 0.42, curved=True, seam=0.02),
+        "bronze": noisy("bronze", "#5f4a2b", "#8f7040", 6.0, 0.35, 0.9),
+        "chamber": noisy("chamber", "#26221e", "#312c26", 3.0, 0.95),
+        "paving": noisy("paving", "#45443f", "#5a5852", 16.0, 0.8, lo=0.42, hi=0.58),
+        "sec_found": aggregate("sec_found", "#a9a194", "#bbb3a5", ("#d8cfb9", "#c6ba9f", "#e2dac6", "#b8ab90"), 2.3),
+        "sec_wall": aggregate("sec_wall", "#a2988a", "#b1a798", ("#cfc5ae", "#85735f", "#9d5238", "#b5a88f", "#786656"), 2.3),
+        "sec_dome_low": aggregate("sec_dome_low", "#a89c8c", "#b8ac9c", ("#9c4f37", "#ae6045", "#88442e", "#b86f52"), 2.3),
+        "sec_dome_top": aggregate("sec_dome_top", "#b4ac9d", "#c2baab", ("#d6d0c3", "#857d6f", "#c6bfb0", "#9d9485", "#e4dfd2"), 2.6),
         "soil": soil(),
         "floor": floor_mat(),
-        "figure": noisy("figure", "#2c3038", "#3b3f48", 5.0, 0.9),
+        "figure": noisy("figure", "#24272e", "#32363e", 5.0, 0.9),
     }
     return mats
 
@@ -681,8 +879,19 @@ def paint(o, rule, mats):
         p.material_index = idx[name]
 
 
+def cap_normals(cut):
+    if cut == "half":
+        return [(0.0, 1.0)]
+    if cut == "wedge":
+        return [(-math.sin(a), math.cos(a)) for a in WEDGE]
+    return []
+
+
+CAPS = cap_normals(SHOT["cut"])
+
+
 def is_cap(c, n):
-    return abs(n.y) > 0.99 and abs(c.y) < 0.02
+    return any(abs(n.x * a + n.y * b) > 0.99 and abs(c.x * a + c.y * b) < 0.02 for a, b in CAPS)
 
 
 def smooth(o, deg=28):
@@ -720,19 +929,25 @@ def figures():
 
 
 def sun_vector():
-    return Vector((-0.38, -0.22, 1.0)).normalized()
+    return Vector(SHOT["sun"]).normalized()
 
 
 def render():
-    g, solids = build(cut=True)
+    cut = SHOT["cut"]
+    g, lip_g, port_g, top_g, solids = build(cut)
     mats = material_library()
     keep_details = {}
-    for name, (v, f) in g.parts.items():
-        o = mesh_object(name, v, f)
-        o.data.materials.append(mats[name])
-        keep_details[name] = o
+    lips, port, tops = [], [], []
+    for geo, bucket, tag in ((g, None, ""), (lip_g, lips, "_lip"), (port_g, port, "_port"), (top_g, tops, "_top")):
+        for name, (v, f) in geo.parts.items():
+            o = mesh_object(name + tag, v, f)
+            o.data.materials.append(mats[name])
+            keep_details[name + tag] = o
+            if bucket is not None:
+                bucket.append(o)
     ins = inscription()
     ins.data.materials.append(mats["bronze"])
+    port.append(ins)
 
     def rule_wall(c, n):
         r = math.hypot(c.x, c.y)
@@ -788,34 +1003,48 @@ def render():
     paint(solids["found"], rule_found, mats)
     paint(solids["floor"], rule_floor, mats)
     for name in ("under", "under2"):
-        paint(solids[name], lambda c, n: "soil", mats)
-    paint(solids["ground"], rule_ground, mats)
+        if name in solids:
+            paint(solids[name], lambda c, n: "soil", mats)
+    if "ground" in solids:
+        paint(solids["ground"], rule_ground, mats)
     for o in list(solids.values()):
         smooth(o)
-    for name in ("granite_grey", "granite_pink", "marble", "giallo", "pavon", "porphyry"):
+    for name in ("granite_grey_port", "granite_pink_port", "marble_port", "marble", "giallo", "pavon", "porphyry"):
         if name in keep_details:
             smooth(keep_details[name], 40)
+    if SHOT.get("no_portico"):   # looking along the section: the portico would stand in front of nothing useful
+        for o in port + [solids["block"]]:
+            bpy.data.objects.remove(o)
+        del solids["block"]
+    if SHOT.get("explode"):
+        for key, dz in EXPLODE.items():
+            for o in lips if key == "lip" else [solids[key]] + (tops if key == "dome_low" else []):
+                o.location.z += dz
 
-    people = figures()
+    people = figures() if SHOT.get("people") else []
     for o in people:
         o.data.materials.clear()
         o.data.materials.append(mats["figure"])
 
-    # the removed half only stops the sun, so that it comes in through the oculus alone
-    m = len(SECTION)
-    n = N // 2
-    v = []
-    for i in range(n + 1):
-        a = -math.pi * i / n
-        v += [(r * math.cos(a), r * math.sin(a), z) for r, z in SECTION]
-    f = [(i * m + j, i * m + (j + 1) % m, (i + 1) * m + (j + 1) % m, (i + 1) * m + j) for i in range(n) for j in range(m)]
-    caster = mesh_object("caster", v, f)
-    caster.location.y = -0.05
-    caster.visible_camera = False
-    caster.visible_diffuse = False
-    caster.visible_glossy = False
-    caster.visible_transmission = False
-    caster.visible_volume_scatter = False
+    # the removed part only stops the sun, so that it comes in through the oculus alone
+    caster = None
+    if cut and SHOT.get("shaft"):
+        m = len(SECTION)
+        n = N // 2
+        (a0, a1) = (0.0, -math.pi) if cut == "half" else WEDGE
+        v = []
+        for i in range(n + 1):
+            a = a0 + (a1 - a0) * i / n
+            v += [(r * math.cos(a), r * math.sin(a), z) for r, z in SECTION]
+        f = [(i * m + j, i * m + (j + 1) % m, (i + 1) * m + (j + 1) % m, (i + 1) * m + j) for i in range(n) for j in range(m)]
+        caster = mesh_object("caster", v, f)
+        if cut == "half":
+            caster.location.y = -0.05
+        caster.visible_camera = False
+        caster.visible_diffuse = False
+        caster.visible_glossy = False
+        caster.visible_transmission = False
+        caster.visible_volume_scatter = False
 
     real = bpy.data.collections.new("real")
     scene.collection.children.link(real)
@@ -837,6 +1066,8 @@ def render():
             v.append(tuple(pt))
     f = [list(range(k - 1, -1, -1)), list(range(k, 2 * k))] + [(i, (i + 1) % k, k + (i + 1) % k, k + i) for i in range(k)]
     shaft = mesh_object("shaft", v, f)
+    if not SHOT.get("shaft"):
+        shaft.scale = (0.001, 0.001, 0.001)
     sm = bpy.data.materials.new("shaft")
     sm.use_nodes = True
     t = sm.node_tree
@@ -849,7 +1080,7 @@ def render():
     # mostly a soft glow: thick enough air to show the shaft by scattering alone would dim the patch on the floor
     glow_v = t.nodes.new("ShaderNodeEmission")
     glow_v.inputs["Color"].default_value = (1.0, 0.9, 0.72, 1)
-    glow_v.inputs["Strength"].default_value = 0.034
+    glow_v.inputs["Strength"].default_value = 0.026
     both = t.nodes.new("ShaderNodeAddShader")
     t.links.new(vol.outputs[0], both.inputs[0])
     t.links.new(glow_v.outputs[0], both.inputs[1])
@@ -858,16 +1089,16 @@ def render():
 
     sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
     scene.collection.objects.link(sun)
-    sun.data.energy, sun.data.angle = 8.5, math.radians(0.6)
+    sun.data.energy, sun.data.angle = 7.5, math.radians(0.6)
     sun.data.color = (1.0, 0.93, 0.82)
     sun.rotation_mode = "QUATERNION"
     sun.rotation_quaternion = sv.to_track_quat("Z", "Y")
 
     fill = bpy.data.objects.new("fill", bpy.data.lights.new("fill", "SUN"))
     scene.collection.objects.link(fill)
-    fill.data.energy, fill.data.angle = 0.3, math.radians(30)
+    fill.data.energy, fill.data.angle = 0.42, math.radians(30)
     fill.data.color = (0.92, 0.96, 1.0)
-    a, e = math.radians(CAM_AZ - 18), math.radians(32)
+    a, e = math.radians(SHOT.get("az", -122) - 18), math.radians(32)
     fill.rotation_mode = "QUATERNION"
     fill.rotation_quaternion = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))).to_track_quat("Z", "Y")
     fill.light_linking.blocker_collection = real
@@ -877,7 +1108,7 @@ def render():
     glow = bpy.data.objects.new("glow", bpy.data.lights.new("glow", "POINT"))
     scene.collection.objects.link(glow)
     glow.location = (2.0, 4.0, 15.0)
-    glow.data.energy, glow.data.shadow_soft_size = 2300.0, 7.0
+    glow.data.energy, glow.data.shadow_soft_size = (5200.0 if SHOT.get("sky") else 1900.0), 7.0
     glow.data.color = (1.0, 0.8, 0.58)
     glow.light_linking.receiver_collection = real
     glow.light_linking.blocker_collection = real
@@ -885,33 +1116,47 @@ def render():
     world = bpy.data.worlds.new("w")
     scene.world = world
     world.use_nodes = True
-    bg = world.node_tree.nodes["Background"]
-    bg.inputs[0].default_value = (0.62, 0.7, 0.85, 1)
-    bg.inputs[1].default_value = 0.55
+    wt = world.node_tree
+    bg = wt.nodes["Background"]
+    sky_co = wt.nodes.new("ShaderNodeTexCoord")
+    sep = wt.nodes.new("ShaderNodeSeparateXYZ")
+    wt.links.new(sky_co.outputs["Generated"], sep.inputs[0])
+    sky = wt.nodes.new("ShaderNodeValToRGB")
+    sky.color_ramp.elements[0].position, sky.color_ramp.elements[0].color = 0.0, (0.95, 0.78, 0.6, 1)
+    sky.color_ramp.elements[1].position, sky.color_ramp.elements[1].color = 0.55, (0.34, 0.5, 0.86, 1)
+    wt.links.new(sep.outputs["Z"], sky.inputs[0])
+    wt.links.new(sky.outputs[0], bg.inputs[0])
+    bg.inputs[1].default_value = 2.2 if SHOT.get("sky") else 0.8
 
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
     scene.collection.objects.link(cam)
     scene.camera = cam
-    cam.data.type = "ORTHO"
-    cam.data.ortho_scale = CAM_SCALE
     cam.data.clip_end = 2000
-    a, e = math.radians(CAM_AZ), math.radians(CAM_EL)
-    d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
-    target = Vector((0, 0, CAM_DZ)) + Vector((d.y, -d.x, 0)).normalized() * CAM_DX
-    cam.location = target + d * 400
     cam.rotation_mode = "QUATERNION"
-    cam.rotation_quaternion = (-d).to_track_quat("-Z", "Y")
+    if "lens" in SHOT:
+        cam.data.lens = SHOT["lens"]
+        cam.location = SHOT["cam"]
+        cam.rotation_quaternion = (Vector(SHOT["look"]) - Vector(SHOT["cam"])).to_track_quat("-Z", "Y")
+    else:
+        cam.data.type = "ORTHO"
+        cam.data.ortho_scale = SHOT["scale"]
+        a, e = math.radians(SHOT["az"]), math.radians(SHOT["el"])
+        d = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e)))
+        target = Vector((0, 0, SHOT["dz"])) + Vector((d.y, -d.x, 0)).normalized() * SHOT["dx"]
+        cam.location = target + d * 400
+        cam.rotation_quaternion = (-d).to_track_quat("-Z", "Y")
 
     r = scene.render
     r.engine = "CYCLES"
     r.resolution_x, r.resolution_y = RES
-    r.film_transparent = True
+    r.film_transparent = not SHOT.get("sky")
     r.image_settings.file_format = "PNG"
     r.image_settings.color_mode = "RGBA"
     c = scene.cycles
     c.samples, c.use_denoising = SAMPLES, True
     c.denoiser = "OPENIMAGEDENOISE"
-    c.max_bounces = 6
+    c.max_bounces = 8
+    c.diffuse_bounces = 5
     c.volume_bounces = 0
     c.volume_step_rate = 2.0
     if os.environ.get("GRAFIK_RENDER_CPU") != "1":
@@ -937,20 +1182,24 @@ def render():
         q = world_to_camera_view(scene, cam, Vector(p))
         return [round(q.x * RES[0], 1), round((1 - q.y) * RES[1], 1)]
 
-    at = lambda phi, rho: (rho * math.cos(math.radians(phi)), 0, Z_S + rho * math.sin(math.radians(phi)))
+    # points on the section plane that faces the camera
+    cap_az = WEDGE[1] if cut == "wedge" else 0.0
+    cc, cs = math.cos(cap_az), math.sin(cap_az)
+    on = lambda r, z: (r * cc, r * cs, z)
+    at = lambda phi, rho: on(rho * math.cos(math.radians(phi)), Z_S + rho * math.sin(math.radians(phi)))
     mid = lambda deg: R_I + (DIM["dome_t_base"] + (DIM["dome_t_top"] - DIM["dome_t_base"]) * math.radians(deg) / PHI_MAX) / 2 + 0.3
     points = {
-        "okulus": (R_OC, 0, extrados(PHI_MAX)[1]),
+        "okulus": on(R_OC, extrados(PHI_MAX)[1]),
         "vrchol_koule": (0, 0, 2 * Z_S),
         "kazeta_vlevo": tuple(Vector((0, 0, Z_S)) + R_I * Vector((math.cos(math.radians(39)) * math.cos(math.radians(141.4)), math.cos(math.radians(39)) * math.sin(math.radians(141.4)), math.sin(math.radians(39))))),
         "vrchol_rez": at(62, mid(62)),
         "stred_rez": at(22, mid(22)),
-        "stupne": (R_O - 3.0, 0, DIM["wall_h"] + 1.5),
-        "stena_rez": (R_I + 3.1, 0, 19.0),
-        "komora": (R_I + 3.1, 0, 15.6),
-        "exedra": (R_I + 1.0, 0, 5.0),
-        "zaklad": (R_FOUND_I + 3.6, 0, -2.4),
-        "jil": (R_FOUND_I + 3.6, 0, -6.8),
+        "stupne": on(R_O - 3.0, DIM["wall_h"] + 1.5),
+        "stena_rez": on(R_I + 3.1, 19.0),
+        "komora": on(R_I + 3.1, 15.6),
+        "exedra": on(R_I + 1.0, 5.0),
+        "zaklad": on(R_FOUND_I + 3.6, -2.4),
+        "jil": on(R_FOUND_I + 3.6, -6.8),
         "podlaha": (6.0, 8.0, 0),
         "svetlo": (16.3 * 0.55, 9.5 * 0.55, 44 * 0.45),
         "sloup": (X_COL, -DIM["portico_w"] / 2 + 2 * DIM["portico_w"] / 7, Z_P + 6.0),
@@ -963,11 +1212,34 @@ def render():
         "pata_p": (R_I, 0, Z_S),
     }
     circle = [uv((R_I * math.cos(i * math.pi / 180), 0, Z_S + R_I * math.sin(i * math.pi / 180))) for i in range(360)]
+    origin = uv((0, 0, 0))
+    basis = {axis: [round(b - a, 4) for a, b in zip(origin, uv(q))] for axis, q in (("x", (1, 0, 0)), ("y", (0, 1, 0)), ("z", (0, 0, 1)))}
     (base / "body.json").write_text(json.dumps({
         "res": RES, "sun": list(sv), "points": {k_: uv(p) for k_, p in points.items()}, "kruh": circle,
-        "m_px": round(RES[0] / CAM_SCALE, 3), "dim": {k_: v_ for k_, v_ in DIM.items()}}, ensure_ascii=False, indent=1), encoding="utf-8")
+        "origin": origin, "basis": basis, "explode": EXPLODE if SHOT.get("explode") else {},
+        "m_px": round(RES[0] / SHOT["scale"], 3) if "scale" in SHOT else None, "dim": {k_: v_ for k_, v_ in DIM.items()}}, ensure_ascii=False, indent=1), encoding="utf-8")
     bpy.ops.render.render(write_still=True)
     print("rendered", r.filepath)
+    if "--vrstvy" not in args:
+        return
+    interior = [o for n, o in keep_details.items() if not n.endswith(("_lip", "_port", "_top"))]
+    dome = [solids["dome_low"], solids["dome_top"]] + tops
+    if SHOT.get("explode"):
+        layers = {"prstenec": lips, "kupole": dome, "stena": [solids["wall"]] + interior, "podlaha": [solids["floor"]], "zaklad": [solids["found"]]}
+    else:
+        layers = {"zem": [solids[k] for k in ("ground", "under", "under2", "found") if k in solids], "podlaha": [solids["floor"]],
+                  "rotunda": [solids["wall"]] + dome + interior + lips + [shaft], "portik": port + ([solids["block"]] if "block" in solids else []),
+                  "postavy": people}
+    scene_objects = [o for o in scene.collection.objects if o.type in ("MESH", "FONT") and o is not caster]
+    for name, group in layers.items():
+        for o in scene_objects:
+            o.is_holdout = o not in group and o is not shaft
+        shaft.visible_camera = shaft in group
+        r.filepath = str(base / f"vrstva-{name}.png")
+        bpy.ops.render.render(write_still=True)
+    info = json.loads((base / "body.json").read_text(encoding="utf-8"))
+    info["vrstvy"] = list(layers)
+    (base / "body.json").write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 if RENDER:
