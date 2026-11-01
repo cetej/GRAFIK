@@ -91,6 +91,38 @@ def web_reply(text, urls):
               usage=NS(input_tokens=20000, output_tokens=2000, server_tool_use=NS(web_search_requests=3)))
 
 
+def test_pins_join_a_finished_dossier_as_reference_only_and_do_not_change_it(lab, settings):
+    wait_done(lab, lab.post("/api/v2/research", json={"topic": "Pantheon, Řím"}).json()["id"])
+    dossier = settings.library_dir / "research" / "pantheon-rim-v1" / "dossier.json"
+    before = dossier.read_bytes()
+    buf = BytesIO()
+    Image.new("RGB", (736, 900), (90, 70, 61)).save(buf, "JPEG")
+    urls = []
+
+    def fetch_url(url, **meta):
+        urls.append(url)
+        buf2 = BytesIO()
+        Image.new("RGB", (736, 900), (len(urls) * 20, 70, 61)).save(buf2, "JPEG")
+        return lab.researcher.reflib.add(buf2.getvalue(), source_url=url, **meta)
+
+    lab.researcher.fetch_url = fetch_url
+    pin = {"pin": "https://cz.pinterest.com/pin/1/", "obrazek": "https://i.pinimg.com/736x/aa/bb/cc/a.jpg", "nazev": "řez", "dotaz": "Pantheon infographic"}
+    r = lab.post("/api/v2/research/pantheon-rim-v1/inspirace", json={"piny": [pin, {**pin, "pin": "https://cz.pinterest.com/pin/2/", "obrazek": "https://example.com/a.jpg"}]})
+    assert r.status_code == 200 and r.json()["pridano"] == 1 and "i.pinimg.com" in r.json()["chyby"][0]["chyba"]
+    assert urls == ["https://i.pinimg.com/736x/aa/bb/cc/a.jpg"]     # adresa mimo Pinterest se nestáhne
+    # podruhé stejný pin nepřibude, dossier se nezměnil
+    assert lab.post("/api/v2/research/pantheon-rim-v1/inspirace", json={"piny": [pin]}).json() == {"pridano": 0, "chyby": [], "celkem": 1}
+    assert dossier.read_bytes() == before
+    state = lab.get("/api/v2/research/pantheon-rim-v1").json()
+    row = state["inspirace"][0]
+    assert row["dotaz"] == "Pantheon infographic" and row["licence"].endswith("jen předloha")
+    meta = lab.get("/api/v2/refs").json()
+    assert next(m for m in meta if m["id"] == row["ref_id"])["origin"] == "pinterest"
+    assert [q["dotaz"] for q in state["dossier"]["pinterest"]][0] == "Pantheon 3D reconstruction"
+    assert lab.post("/api/v2/research/neni-v1/inspirace", json={"piny": [pin]}).status_code == 404
+    assert lab.post("/api/v2/research/pantheon-rim-v1/inspirace", json={"piny": []}).status_code == 422
+
+
 def test_free_dossier_runs_as_a_queued_job_and_never_overwrites(lab, settings):
     assert lab.get("/api/v2/research/estimate").json()["total_usd"] == 0
     r = lab.post("/api/v2/research", json={"topic": "Pantheon, Řím"})

@@ -5,6 +5,15 @@
 - **Zpětný přepis se liší i u správně namluvené věty.** Deset vět buňky (OmniVoice, Whisper small na CPU): bunka, Rybozome, výdou, Sou, douznovu, Vjádře, toho to, na jednou. Porovnání proto stírá diakritiku, i/y a j před s, d, spojuje slovo rozdělené nebo slepené přepisem a nebere rozdíl jen v koncovce. Těchto deset vět pak nedá žádného kandidáta a mitokondrie, orkerst a inustracie zůstanou nálezem.
 - **Dosavadní kontrola v NG-ROBOT mitokondrii neviděla.** `unheard_words` bere od podobnosti 0,8 slovo jako slyšené a mitochondrie/mitokondrie má 0,87. Proto `kandidati` hlásí podobná slova a `unheard_words` jiná; překrývají se jen v pásmu 0,6–0,8.
 
+## 2026-11-01 — Obrázky k tématu: špatný zdroj a výběr podle názvu souboru
+
+Operátor u Kolosea: „takové sračky“, přitom krásných 3D rekonstrukcí je plno. Hledání šlo anglicky (`Colosseum`), jazyk nebyl příčina; český dotaz by dopadl hůř.
+- **Měřil jsem počet, ne vzhled.** Spike hlásil „obrázky po rolích“ a nikdo se na ně nepodíval. Výsledek obrazového kroku se kontroluje očima na archu náhledů, stejně jako bílý model.
+- **Výběr podle názvu a pixelů vybírá náhodu.** Kategorie Commons má 907 souborů, API vrátilo prvních 50 podle abecedy, role šla z názvu a řazení podle šířky. Tak se do podkladů dostala bezpečnostní kamera a hřebík. Lepší signál je, že obrázek vybrali redaktoři hesla, ideálně ve víc jazycích.
+- **Podkategorie nečtené:** `Models of the Colosseum` neměla roli, tak se přeskočila.
+- **Commons moderní 3D rekonstrukce nemá:** „Colosseum 3D reconstruction“ 0 výsledků. Volné modely jsou na Sketchfabu (hledání bez účtu, licence v odpovědi), nejvíc materiálu je na Pinterestu (3 dotazy = 384 pinů), ale jen přes přihlášený Chrome a s neznámou licencí. Mnoho pinů je generovaných, takže skladba a vzhled ano, fakta ne.
+- **Soubor z hesla Wikipedie může být místní a fair use.** Brát jen `imagerepository == "shared"`. Název souboru se liší podle jazyka (`Soubor:`, `Datei:`).
+
 ## 2026-11-01 — Barevný render dílů (krok 3b)
 
 - **`bpy_prop_collection` neumí krok v řezu.** `o.data.vertices[::5]` padne s `slice steps not supported`, indexovat přes `range`.

@@ -199,6 +199,66 @@ def test_image_role_from_the_name(name, role):
     assert rs.image_role({"nazev": name, "popis": "", "kategorie": ""}) == role
 
 
+FILE = lambda name, w=2000, **page: {"title": name, "imageinfo": [{"url": f"https://u/{name}", "thumburl": "https://u/t", "width": w, "height": 1500, "extmetadata": {}}], **page}  # noqa: E731
+COLOSSEUM = {"qid": "Q10285", "label": "Koloseum", "commons_category": "Colosseum", "sitelinks": {"cs": "Koloseum", "en": "Colosseum"}}
+MODEL = {"uid": "m1", "name": "Colosseum, Rome", "viewerUrl": "https://sketchfab.com/m1", "likeCount": 9, "faceCount": 5000, "user": {"displayName": "Autor"},
+         "license": {"label": "CC Attribution", "url": "https://cc/by"}, "thumbnails": {"images": [{"url": "https://s/200", "width": 200}, {"url": "https://s/1920", "width": 1920, "height": 1080}]}}
+
+
+def colosseum_get(host, params):
+    """Hesla ve dvou jazycích, kategorie s kamerou a sérií, podkategorie modelů, Sketchfab."""
+    if host == rs.SKETCHFAB:
+        return {"results": [MODEL, {**MODEL, "uid": "m2", "license": {"label": "CC Attribution-NonCommercial"}}, {**MODEL, "uid": "m3", "license": {"label": "Standard"}},
+                            {**MODEL, "uid": "m4", "name": "Gerudo Desert (Colosseum)"}, {**MODEL, "uid": "m5", "thumbnails": {"images": [{"url": "https://s/200", "width": 200}]}}]}
+    if params.get("generator") == "images":
+        prefix = {"cs.wikipedia.org": "Soubor", "en.wikipedia.org": "File"}[host]
+        return {"query": {"pages": [FILE(f"{prefix}:Colosseo 2020.jpg", imagerepository="shared"), FILE(f"{prefix}:Local fair use.jpg", imagerepository="local"),
+                                    FILE(f"{prefix}:Colosseum {host[:2]}.jpg", imagerepository="shared")]}}
+    if params.get("list") == "categorymembers":
+        return {"query": {"categorymembers": [{"title": "Category:Models of the Colosseum"}, {"title": "Category:Sack of Rome"}]}}
+    if params.get("gcmtitle") == "Category:Models of the Colosseum":
+        return {"query": {"pages": [FILE("File:Maquette du Colisée.jpg")]}}
+    if params.get("gcmtitle") == "Category:Colosseum":
+        return {"query": {"pages": [FILE("File:Camera in the Colosseum of Rome.jpg"), FILE("File:01 Colosseum Exterior.jpg"), FILE("File:02 Colosseum Exterior.jpg")]}}
+    return {"query": {"pages": []}}
+
+
+def test_images_come_from_articles_models_and_sketchfab_not_from_the_alphabet():
+    images = rs.find_images(COLOSSEUM, 4, colosseum_get)
+    by_name = {i["nazev"]: i for i in images}
+    assert "Camera in the Colosseum of Rome.jpg" not in by_name                 # kategorie bez jasné role se nebere
+    assert "Local fair use.jpg" not in by_name                                  # místní soubor Wikipedie
+    assert by_name["Colosseo 2020.jpg"]["jazyku"] == 2 and by_name["Colosseo 2020.jpg"]["file"] == "File:Colosseo 2020.jpg"     # „Soubor:“ z cs
+    assert images[0]["role"] == "rekonstrukce"
+    assert by_name["Maquette du Colisée.jpg"]["role"] == "rekonstrukce"         # podkategorie modelů
+    assert sum("Exterior" in n for n in by_name) == 1                           # 01 a 02 jsou jedna série
+    # nezařazené zůstává jen z hesla, to vybrali redaktoři; první je obrázek použitý ve víc jazycích
+    assert [i["nazev"] for i in images if i["role"] == "nezarazeno"][0] == "Colosseo 2020.jpg"
+
+
+def test_sketchfab_only_licences_that_allow_use_and_only_about_the_topic():
+    models = rs.find_models(COLOSSEUM, 4, colosseum_get)
+    assert [m["file"] for m in models] == ["sketchfab:m1"]
+    m = models[0]
+    assert m["url"] == "https://s/1920" and m["autor"] == "Autor" and m["licence"] == "CC Attribution" and m["role"] == "rekonstrukce" and m["stranka"] == "https://sketchfab.com/m1"
+
+
+def test_sketchfab_or_one_wikipedia_outage_does_not_stop_the_images():
+    def broken(host, params):
+        if host == rs.SKETCHFAB or host == "cs.wikipedia.org":
+            raise rs.ResearchError("neodpovídá")
+        return colosseum_get(host, params)
+
+    images = rs.find_images(COLOSSEUM, 4, broken)
+    assert images and not any(i["puvod"] == "sketchfab" for i in images) and any(i["nazev"] == "Colosseum en.jpg" for i in images)
+
+
+def test_pinterest_queries_use_the_english_name():
+    queries = rs.pinterest_queries(COLOSSEUM)
+    assert [q["dotaz"] for q in queries] == ["Colosseum 3D reconstruction", "Colosseum construction model", "Colosseum infographic", "Colosseum cross section"]
+    assert queries[0]["url"] == "https://www.pinterest.com/search/pins/?q=Colosseum+3D+reconstruction"
+
+
 def web_reply(text, urls=(), stop="end_turn", searches=2):
     results = NS(type="web_search_tool_result", content=[NS(type="web_search_result", url=u, title=u) for u in urls])
     return NS(content=[results, NS(type="text", text=text, citations=None)], stop_reason=stop, model="claude-sonnet-5-5",
