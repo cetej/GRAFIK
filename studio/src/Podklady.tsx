@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  infoApi, PaymentRequired, researchApi,
-  type Dossier, type DossierImage, type Fact, type FactSource, type RefMeta, type ResearchRow, type ResearchState,
+  chainApi, fileToB64, infoApi, PaymentRequired, refsApi, researchApi,
+  type Chain, type Dossier, type DossierImage, type Fact, type FactSource, type RefMeta, type ResearchRow, type ResearchState, type Workflow,
 } from './api.ts'
 import { fmtUsd, type Confirm } from './App.tsx'
 
@@ -16,11 +16,30 @@ const fmtValue = (v: FactSource['hodnota'], unit: string | null) => {
   return `${Array.isArray(v) ? `${num(v[0])}–${num(v[1])}` : num(v)}${unit ? ` ${unit}` : ''}`
 }
 
-export function TopicStart({ onOpen, onError }: { onOpen: (id: string) => void; onError: (msg: string) => void }) {
+const STAGE_LABEL: Record<Chain['stage'], string> = { podklady: 'dohledává podklady', navrhy: 'skládá návrhy', vyber: 'čeká na výběr návrhu', kontrola: 'kontroluje návrh', hotovo: 'návrh vybrán', stop: 'stojí, čeká na vás' }
+
+export function TopicStart({ chains, onOpen, onChain, setConfirm, onError }: {
+  chains: (Workflow | Chain)[]; onOpen: (id: string) => void; onChain: (id: string) => void; setConfirm: (c: Confirm) => void; onError: (msg: string) => void
+}) {
   const [topic, setTopic] = useState('')
   const [busy, setBusy] = useState(false)
   const [list, setList] = useState<ResearchRow[]>([])
+  const [price, setPrice] = useState<number | null>(null)
+  const [vzor, setVzor] = useState<RefMeta | null>(null)
   useEffect(() => { researchApi.list().then(setList).catch((e) => onError(e.message)) }, [onError])
+  useEffect(() => { chainApi.estimate().then((e) => setPrice(e.total_usd)).catch(() => setPrice(null)) }, [])
+  const running = chains.filter((w): w is Chain => w.kind === 'infografika')
+  const startChain = async (confirm = false) => {
+    try {
+      onChain((await chainApi.start({ topic: topic.trim(), vzor: vzor?.id ?? null, confirm_cost: confirm })).id)
+    } catch (e) {
+      if (e instanceof PaymentRequired) setConfirm({ title: `Podklady a návrhy: ${topic.trim()}`, items: e.items, total: e.estimate, onOk: () => startChain(true) })
+      else onError((e as Error).message)
+    }
+  }
+  const addVzor = async (file: File) => {
+    try { setVzor(await refsApi.addB64(await fileToB64(file), file.name)) } catch (e) { onError((e as Error).message) }
+  }
   const start = async () => {
     setBusy(true)
     try { onOpen((await researchApi.start(topic.trim())).id) } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
@@ -32,7 +51,32 @@ export function TopicStart({ onOpen, onError }: { onOpen: (id: string) => void; 
       <div className="row">
         <input className="search" value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Téma"
           placeholder="Např. Pantheon, Řím" onKeyDown={(e) => { if (e.key === 'Enter' && topic.trim()) start() }} />
-        <button className="btn go" disabled={!topic.trim() || busy} onClick={start}>{busy ? 'Spouštím…' : 'Dohledat podklady · 0 USD'}</button>
+        <button className="btn pay" disabled={!topic.trim() || price === null} onClick={() => startChain(false)} title="Podklady, tři návrhy skladby a kontrola vybraného návrhu. Cena se schvaluje jednou, zastaví se až u výběru.">
+          Podklady a návrhy{price !== null ? ` · ${fmtUsd(price)}` : ''}
+        </button>
+        <button className="btn" disabled={!topic.trim() || busy} onClick={start}>{busy ? 'Spouštím…' : 'Jen podklady · 0 USD'}</button>
+      </div>
+      <div className="row">
+        {vzor ? (
+          <>
+            <img className="vzor-thumb" src={`/api/v2/refs/${vzor.id}/image?w=128`} alt={vzor.title} />
+            <span className="hint">Vzor: {vzor.title}. GRAFIK drží jeho žánr a bohatost, skladbu navrhne vlastní.</span>
+            <button className="btn small" onClick={() => setVzor(null)}>Odebrat vzor</button>
+          </>
+        ) : (
+          <>
+            <label className="btn small">Vložit vzor…<input type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) addVzor(f); e.target.value = '' }} /></label>
+            <span className="hint">Nepovinné, téma napište i ke vzoru. Vzor jde jen do návrhů, do podkladů ne.</span>
+          </>
+        )}
+      </div>
+      {running.length > 0 && <h3>Řetězce</h3>}
+      <div className="wf-list">
+        {running.map((w) => (
+          <button key={w.id} className="wf-item" onClick={() => onChain(w.id)}>
+            <span><b>{w.object}</b> · {STAGE_LABEL[w.stage]}<small>utraceno {fmtUsd(w.spent_usd)} z {fmtUsd(w.budget_usd)} · {w.updated.replace('T', ' ')}</small></span>
+          </button>
+        ))}
       </div>
       {list.length > 0 && <h3>Hotové podklady</h3>}
       <div className="wf-list">
@@ -73,7 +117,7 @@ function SourceLinks({ fact }: { fact: Fact }) {
   )
 }
 
-function FactRow({ fact }: { fact: Fact }) {
+export function FactRow({ fact }: { fact: Fact }) {
   const hasCitation = fact.hodnota !== null
   return (
     <div className="fact">
@@ -113,7 +157,7 @@ function ImageCard({ img, title, onOpen, onUseRef, onInfographicDoc, onError }: 
   )
 }
 
-function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onError, onUseRef, onInfographicDoc }: Props & { state: ResearchState; dossier: Dossier }) {
+function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onError, onUseRef, onInfographicDoc, onChain }: ResearchProps & { state: ResearchState; dossier: Dossier; onChain?: (id: string) => void }) {
   const facts = dossier.facts
   const conflicts = facts.filter((f) => f.stav === 'rozpor')
   const others = facts.filter((f) => f.stav !== 'rozpor')
@@ -122,7 +166,18 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
   const [askQid, setAskQid] = useState(false)
   const [qid, setQid] = useState(dossier.entita.qid)
   const [webUsd, setWebUsd] = useState<number | null>(null)
+  const [nextUsd, setNextUsd] = useState<number | null>(null)
   useEffect(() => { researchApi.estimate(true).then((e) => setWebUsd(e.total_usd)).catch(() => setWebUsd(null)) }, [])
+  useEffect(() => { chainApi.estimate(state.id).then((e) => setNextUsd(e.total_usd)).catch(() => setNextUsd(null)) }, [state.id])
+  const toProposals = async (confirm = false) => {
+    if (!onChain) return
+    try {
+      onChain((await chainApi.start({ research: state.id, confirm_cost: confirm })).id)
+    } catch (e) {
+      if (e instanceof PaymentRequired) setConfirm({ title: `Návrhy skladby: ${dossier.entita.label}`, items: e.items, total: e.estimate, onOk: () => toProposals(true) })
+      else onError((e as Error).message)
+    }
+  }
 
   const askWeb = async () => {
     try {
@@ -213,11 +268,16 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
           <ul className="citations">{dossier.otazky_bez_odpovedi.map((q) => <li key={q}>{q}</li>)}</ul>
         </section>
       )}
+      {onChain && (
+        <div className="row end">
+          <button className="btn pay" disabled={nextUsd === null} onClick={() => toProposals(false)}>Pokračovat k návrhům{nextUsd !== null ? ` · ${fmtUsd(nextUsd)}` : ''} →</button>
+        </div>
+      )}
     </>
   )
 }
 
-interface Props {
+export interface ResearchProps {
   onOpenVersion: (id: string) => void
   onOpen: (src: string) => void
   setConfirm: (c: Confirm) => void
@@ -226,7 +286,8 @@ interface Props {
   onInfographicDoc: (id: string) => void
 }
 
-export default function Podklady({ id, onBack, ...props }: Props & { id: string; onBack: () => void }) {
+/** Průběh a výsledek jedné rešerše; krok Podklady samostatně i v řetězci. */
+export function ResearchBody({ id, onBack, onChain, ...props }: ResearchProps & { id: string; onBack?: () => void; onChain?: (id: string) => void }) {
   const [state, setState] = useState<ResearchState | null>(null)
   const load = useCallback(() => researchApi.get(id).then(setState).catch((e) => props.onError(e.message)), [id]) // eslint-disable-line react-hooks/exhaustive-deps
   const waiting = !state || state.status === 'queued' || state.status === 'running'
@@ -240,15 +301,7 @@ export default function Podklady({ id, onBack, ...props }: Props & { id: string;
   }, [waiting, load])
 
   return (
-    <main className="guide-start podklady">
-      <div className="row">
-        <button className="btn small" onClick={onBack}>← Průvodce</button>
-        <b className="guide-title">Infografika z tématu{state ? `: ${state.tema}` : ''}</b>
-      </div>
-      <div className="steps">
-        <button className="step done" onClick={onBack}><span className="n">✓</span>Zadání</button>
-        <button className="step cur"><span className="n">2</span>Podklady</button>
-      </div>
+    <>
       {waiting && (
         <section className="card">
           <p><b>Dohledávám podklady…</b></p>
@@ -258,10 +311,28 @@ export default function Podklady({ id, onBack, ...props }: Props & { id: string;
       {state?.status === 'failed' && !state.dossier && (
         <section className="card">
           <p className="warn">Rešerše selhala: {state.error ?? 'důvod Engine neuvedl'}</p>
-          <button className="btn" onClick={onBack}>Zpět na zadání</button>
+          {onBack && <button className="btn" onClick={onBack}>Zpět na zadání</button>}
         </section>
       )}
-      {state?.dossier && <DossierView key={state.id} state={state} dossier={state.dossier} {...props} />}
+      {state?.dossier && <DossierView key={state.id} state={state} dossier={state.dossier} onChain={onChain} {...props} />}
+    </>
+  )
+}
+
+export default function Podklady({ id, onBack, onChain, ...props }: ResearchProps & { id: string; onBack: () => void; onChain: (id: string) => void }) {
+  return (
+    <main className="guide-start podklady">
+      <div className="row">
+        <button className="btn small" onClick={onBack}>← Průvodce</button>
+        <b className="guide-title">Infografika z tématu</b>
+      </div>
+      <div className="steps">
+        <button className="step done" onClick={onBack}><span className="n">✓</span>Zadání</button>
+        <button className="step cur"><span className="n">2</span>Podklady</button>
+        <button className="step" disabled><span className="n">3</span>Návrhy skladby</button>
+        <button className="step" disabled><span className="n">4</span>Výběr</button>
+      </div>
+      <ResearchBody id={id} onBack={onBack} onChain={onChain} {...props} />
     </main>
   )
 }

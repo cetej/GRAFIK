@@ -3,6 +3,7 @@ import {
   api, imageUrl, onlyTranslation, PaymentRequired, refsApi, wfApi,
   type Estimate, type ImageRequest, type Job, type LineageNode, type RefMeta, type Role, type Workflow,
 } from './api.ts'
+import ChainView from './Navrhy.tsx'
 import Podklady, { TopicStart } from './Podklady.tsx'
 import { fmtTime, priceLabel, refFromMeta, ROLE_LABEL, type Confirm, type FormRef } from './App.tsx'
 import RefPicker, { type PickerTab } from './RefPicker.tsx'
@@ -29,24 +30,26 @@ export default function Wizard(props: Props) {
   const [list, setList] = useState<Workflow[]>([])
   const [wf, setWf] = useState<Workflow | null>(null)
   const [research, setResearch] = useState<string | null>(null)
-  useEffect(() => { wfApi.list().then(setList).catch((e) => props.onError(e.message)) }, [wf?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [chain, setChain] = useState<string | null>(null)
+  useEffect(() => { wfApi.list().then(setList).catch((e) => props.onError(e.message)) }, [wf?.id, chain, research]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (research) {
-    return <Podklady id={research} onBack={() => setResearch(null)} onOpenVersion={setResearch} onOpen={props.onOpen} setConfirm={props.setConfirm}
-      onError={props.onError} onUseRef={props.onUseRef} onInfographicDoc={props.onInfographicDoc} />
-  }
+  const researchProps = { onOpen: props.onOpen, setConfirm: props.setConfirm, onError: props.onError, onUseRef: props.onUseRef, onInfographicDoc: props.onInfographicDoc }
+  const openChain = (id: string) => { setResearch(null); setChain(id) }
+  const openResearch = (id: string) => { setChain(null); setResearch(id) }
+  if (chain) return <ChainView id={chain} onBack={() => setChain(null)} onOpenVersion={openResearch} {...researchProps} />
+  if (research) return <Podklady id={research} onBack={() => setResearch(null)} onOpenVersion={setResearch} onChain={openChain} {...researchProps} />
   if (!wf) {
     return (
       <main className="guide-start">
-        <TopicStart onOpen={setResearch} onError={props.onError} />
+        <TopicStart chains={list} onOpen={setResearch} onChain={openChain} setConfirm={props.setConfirm} onError={props.onError} />
         <section className="card">
           <h2>Průvodce historickým objektem</h2>
           <p>Postup ověřený 22. 10.: předloha → čistý bokorys → oprava v rámečku → natočený pohled 3/4 shora → popisky.
             Každý krok vytvoří normální verze, takže se k nim dá vrátit i ve studiu.</p>
           <button className="btn go" onClick={() => wfApi.create('', []).then(setWf).catch((e) => props.onError(e.message))}>+ Nový objekt</button>
-          {list.length > 0 && <h3>Rozpracované</h3>}
+          {list.some((w) => w.kind !== 'infografika') && <h3>Rozpracované</h3>}
           <div className="wf-list">
-            {list.map((w) => (
+            {list.filter((w) => w.kind !== 'infografika').map((w) => (
               <button key={w.id} className="wf-item" onClick={() => setWf(w)}>
                 {w.pick || w.fixed || w.side_pick ? <img src={imageUrl((w.pick || w.fixed || w.side_pick)!, 256)} alt="" /> : <span className="ph">bez obrázku</span>}
                 <span>{w.object || 'bez popisu'}<small>{w.updated.replace('T', ' ')}</small></span>

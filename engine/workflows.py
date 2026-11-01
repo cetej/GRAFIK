@@ -13,6 +13,7 @@ import json
 import re
 import secrets
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -74,6 +75,23 @@ class Workflow(BaseModel):
     background: str = "studio"
     created: str = ""
     updated: str = ""
+    # kind="infografika", řetězec z tématu (engine/chain.py); téma je v `object`
+    qid: str | None = None
+    vzor: str | None = None              # ref_id vloženého vzoru
+    model: str = ""
+    caller: str = "studio"
+    stage: str = ""                      # podklady | navrhy | vyber | kontrola | hotovo | stop
+    research_id: str | None = None
+    step_job: str | None = None
+    budget_usd: float = 0.0              # schválená cena celého řetězce
+    spent_usd: float = 0.0
+    navrhy: list[dict] = []
+    rozbor: dict | None = None           # co ze vzoru držet a co změnit
+    vyber: int | None = None             # id vybraného návrhu
+    kontrola: dict | None = None         # poradní kontrola logiky, nic neblokuje
+    stop_reason: str | None = None
+    resume_stage: str | None = None
+    resume_usd: float = 0.0              # cena zbytku řetězce, když stojí
 
     @property
     def base(self) -> str | None:
@@ -133,9 +151,19 @@ class WorkflowStore:
 
     def save(self, wf: Workflow) -> Workflow:
         wf.updated = datetime.now().isoformat(timespec="seconds")
+        path = self._path(wf.id)
         with self._lock:
             self.root.mkdir(parents=True, exist_ok=True)
-            self._path(wf.id).write_text(wf.model_dump_json(indent=2), encoding="utf-8")
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(wf.model_dump_json(indent=2), encoding="utf-8")
+            for attempt in range(5):        # atomic: a crash mid-write must not break resume; Windows refuses while a reader has the file open
+                try:
+                    tmp.replace(path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.1)
         return wf
 
     def create(self, **fields) -> Workflow:
@@ -147,5 +175,10 @@ class WorkflowStore:
     def list(self) -> list[Workflow]:
         if not self.root.exists():
             return []
-        items = [Workflow.model_validate(json.loads(p.read_text(encoding="utf-8"))) for p in self.root.glob("*.json")]
+        items = []
+        for p in self.root.glob("*.json"):
+            try:
+                items.append(Workflow.model_validate(json.loads(p.read_text(encoding="utf-8"))))
+            except (ValueError, OSError) as e:      # one broken file must not stop the Engine start (chain.resume) or the whole list
+                print(f"průvodce: {p.name} nejde přečíst: {e}", flush=True)
         return sorted(items, key=lambda w: w.updated, reverse=True)

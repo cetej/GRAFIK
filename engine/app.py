@@ -24,7 +24,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, checks, localize, models3d as m3d, research, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -182,10 +182,13 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     worker.handlers.update(localizer.handlers())
     researcher = research.Researcher(s, store, reflib, worker._log_cost)
     worker.handlers.update(researcher.handlers())
+    infochain = chain.Chain(s, store, workflows, researcher, reflib, worker._log_cost, ask=None if ask is claude.ask else ask, check_ask=ask)
+    worker.handlers.update(infochain.handlers())
 
     @asynccontextmanager
     async def lifespan(_app):
         store.recover_interrupted()
+        infochain.resume()
         models3d.lib.mark_interrupted()
         models3d.lib.migrate_legacy()
         if start_worker:
@@ -201,10 +204,12 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                        allow_methods=["*"], allow_headers=["*"])
     app.state.settings, app.state.store, app.state.worker, app.state.sd = s, store, worker, sd
     app.state.models3d = models3d
+    app.state.chain = infochain
     api3d.register(app, models3d, store, reflib)
     api_scenes3d.register(app, scenes, models3d, store)
     localize.register(app, localizer, store, reflib)
     research.register(app, researcher, store)
+    chain.register(app, infochain, workflows)
     checks.register(app, store, reflib, worker._log_cost, ask)
     archive.register(app, s)
     api_knihovna.register(app, s)

@@ -446,3 +446,19 @@ h3.inline { margin: 0; }
 .doc-img .ph { height: 130px; display: flex; align-items: center; justify-content: center; border: 1px dashed #b9bcc3; border-radius: 6px; color: var(--muted); font-size: 12px; }
 .doc-img figcaption { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 ul.exports li { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
+
+/* Infografika z tématu, kroky Návrhy skladby a Výběr */
+.tag.bad { background: #fdf0ef; color: var(--bad); }
+.vzor-thumb { width: 64px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+.proposals { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.proposal { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.proposal h3, .proposal p { margin: 0; }
+.proposal .zoomable, .picked .zoomable { padding: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #e9e7e1; cursor: zoom-in; display: block; }
+.proposal .zoomable { height: 340px; }
+.proposal .zoomable img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.picked { display: grid; grid-template-columns: minmax(240px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.picked .zoomable img { width: 100%; display: block; }
+.picked h4 { margin: 14px 0 4px; }
+.panel-facts { margin-bottom: 8px; font-size: 13px; }
+.rozbor { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+@media (max-width: 720px) { .picked { grid-template-columns: minmax(0, 1fr); } }

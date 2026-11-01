@@ -2,6 +2,20 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-01 — Infografika z tématu: náčrt schválen, modely i od OpenAI
+
+K náčrtu kroků Podklady a Návrhy skladby, tlačítka Do Knihovny a volby renderu z Blenderu operátor: „Schvaluji, stavět“. Souhlas s placením to není.
+
+Během stavby operátor: „Nezapomínej, že máme možnost využít i jiné modely ChatGPT, pokud jsou na něco lepší a levnější.“ U placených kroků se tedy srovnávají i modely OpenAI. Krok návrhů jde přepnout (`ngm_shared.gpt`), [ceny a postup](spikes/2026-11-01-retezec.md).
+
+Volby níže jsou návrh session, operátor je ruší tady:
+
+- **Výchozí model návrhů Claude Sonnet 5.5**, dokud operátor nerozhodne podle srovnání. Podle ceny je GPT-6.1 Terra na polovině, kvalita se ještě neměřila.
+- **Němčina a italština v dossieru.** Bez nich se rozpor u okulu neukáže, čeština a angličtina se v mezích zaokrouhlení shodnou.
+- **Přerušený placený krok se po restartu sám nespustí.** Odhad se počítá do útraty a řetězec se zeptá.
+- **Kontrola logiky je součást ceny řetězce a běží po výběru návrhu,** nad náčrtem a slovním popisem. Nic neblokuje.
+- **Ke vzoru je potřeba napsat i téma.** Rozpoznání tématu z obrázku by byl další placený krok.
+
 ## 2026-11-01 — Cíl: projekt si sám dohledá data a obrazové podklady
 
 Operátor 1. 11.: „aby projekt si byl schopen dohledat potřebná data i obrazové podklady, tak aby projekt fungoval co nejvíce automaticky“. Analýza a zadání pro samostatnou session: [plán](plans/2026-11-01-infografika-z-tematu.md).
