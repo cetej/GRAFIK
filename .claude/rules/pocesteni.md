@@ -4,6 +4,7 @@ paths:
   - engine/localize.py
   - studio/src/Localize.tsx
   - shared/tests/test_tisk.py
+  - tests/test_pocesteni_realne.py
 ---
 
 # Počeštění cizí mapy nebo infografiky
@@ -11,6 +12,21 @@ paths:
 Zdroj: operátor 2026-11-01 po mapě irbisů (`docs/LEARNINGS.md` téhož dne). Kód: `textlayer/localize.py` (čtení, výběr cesty, kontroly), `tisk.py` (tištěná mapa), `pcraft.py` (reliéf, fotka), `engine/localize.py`.
 
 **Výsledek musí vypadat jako originál, jen česky.** Hotovo znamená, že operátor výsledek může rovnou použít. Zbytek anglického písmene, díra v ploše nebo přerušená hranice je chyba, ne upozornění.
+
+## Vyřešeno platí jen pro ověřený druh obrázku
+
+Oprava z 30. 10. se ověřila na jediné mapě (Everest, reliéf, šířka 769 px, barevné popisky) a zapsala se jako vyřešená. Mapa irbisů (sken, šířka 3072 px, černé písmo přes barevný areál) pak šla stejnou cestou a dopadla špatně: pixelové prahy byly vyladěné na Everest a kontrola zbytků vracela natvrdo 0, takže chybu nikdo nehlásil.
+
+| Druh obrázku | Cesta | Ověřeno na |
+|---|---|---|
+| stínovaný reliéf, barevné popisky | `pcraft` (PhotoCraft) | Everest, 2026-10-30 |
+| tištěný sken, černé písmo | `tisk` | irbis, 2026-11-01 |
+| plochá infografika | `cv2.inpaint` | T2, 2026-10-29 |
+
+- Druh mimo tabulku je neověřený: ber výsledek jako pokus a řekni to operátorovi, i když kód doběhne bez varování.
+- Po ověření nového druhu přidej řádek sem a případ do `tests/test_pocesteni_realne.py`. Stávající případy musí dál procházet.
+- Tichá kontrola je chyba: hodnota, která se neměří, se nesmí vracet jako výsledek měření. Nulové varování nedokazuje, že je obrázek v pořádku.
+- V hlášení operátorovi jmenuj, na čem to bylo ověřené, ne „počeštění funguje“.
 
 ## Co se nesmí stát
 

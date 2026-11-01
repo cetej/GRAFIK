@@ -26,6 +26,7 @@ def test_only_ink_map_yes_relief_no():
     relief = _map()
     relief[:, :120] = 30                                                # tmavý reliéf mimo popisky
     assert not tisk.only_ink(relief, [_el()])
+    assert not tisk.only_ink(_map(), [_el(), _el(id=2, color="#3d2a7a")])            # barevný popisek = jiný druh mapy
 
 
 def test_erase_keeps_area_and_marker():
