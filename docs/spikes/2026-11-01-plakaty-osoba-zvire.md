@@ -25,7 +25,7 @@ Potom přes FLUX s renderem jako `geometry` do jedné rytiny (`rytiny/<shot>.png
 
 **Stránka:** Tesla je vektorová sazba změřená na vzoru. Axolotl má „desku“: FLUX překreslí stránku vzoru bez zvířete, vymyšlená slova zmizí přes `cv2.inpaint`, navrch jde vektorový text.
 
-Hotové plakáty a podklady k novému složení: `library/plakaty/tesla/`, `library/plakaty/axolotl/` (hlavní checkout, mimo git). Do záložky Knihovna jdou s `--knihovna`, až je operátor přijme.
+Hotové plakáty a podklady k novému složení: `library/plakaty/tesla/`, `library/plakaty/axolotl/` (hlavní checkout, mimo git). Do záložky Knihovna je nahrál `--knihovna` po souhlasu operátora („Ano, oba“).
 
 ## Co bylo na vzorech špatně a co je teď
 
