@@ -23,6 +23,7 @@ from engine.translate import TRANSLATE_USD, Translator
 from engine.refs import RefError, load_ref_png, sha256
 from engine.sdserver import SdServerError
 from ngm_shared.heavy_lock import HeavyBusy, HeavyLock
+from ngm_shared.research import ResearchError
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -233,7 +234,7 @@ class Worker:
                 else:
                     result = self.handlers[kind](row["id"], json.loads(row["request"]))
                 self.store.finish(row["id"], result=result)
-            except (BackendError, SdServerError, HeavyBusy, RefError, Model3dError) as e:
+            except (BackendError, SdServerError, HeavyBusy, RefError, Model3dError, ResearchError) as e:
                 self.store.finish(row["id"], error=str(e))
             except Exception as e:  # keep the worker alive; surface the reason to the caller
                 self.store.finish(row["id"], error=f"{type(e).__name__}: {e}")

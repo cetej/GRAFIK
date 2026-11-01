@@ -97,6 +97,38 @@ def ask(content: list, system: str, *, what: str, model: str = MODEL, effort: st
     return answer
 
 
+def web_turn(ask_text: str, system: str, *, what: str, model: str, effort: str = "medium", max_uses: int = 8, max_tokens: int = 16000,
+             continuations: int = 3, on_reply=None) -> list:
+    """Jeden tah s hledáním na webu na serveru (web_search). Tah se může zastavit (`pause_turn`) a pokračuje odesláním zpět,
+    mez chrání před zaseknutím. `on_reply` dostane každou odpověď, jakmile přijde, aby cena šla do ledgeru i při pádu další.
+    Neúspěšné hledání nehází výjimku: jeho výsledek je jeden objekt s chybou místo seznamu."""
+    _guard(what)
+    import anthropic
+    client = _client()
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": max_uses}]
+    said: list = []
+    replies: list = []
+    try:
+        for _ in range(continuations + 1):
+            messages = [{"role": "user", "content": ask_text}] + ([{"role": "assistant", "content": said}] if said else [])
+            with client.beta.messages.stream(model=model, max_tokens=max_tokens, system=system, output_config={"effort": effort}, messages=messages,
+                                             tools=tools, betas=[FALLBACK_BETA], fallbacks="default") as stream:
+                msg = stream.get_final_message()
+            if on_reply:
+                on_reply(msg)
+            replies.append(msg)
+            if msg.stop_reason != "pause_turn":
+                break
+            said += list(msg.content)
+    except anthropic.APIError as e:
+        raise ClaudeError(f"{what}: {e}") from e
+    if replies[-1].stop_reason == "refusal":
+        raise ClaudeError(f"{what}: Claude odmítl ({getattr(replies[-1].stop_details, 'category', None)})")
+    if replies[-1].stop_reason in ("max_tokens", "pause_turn"):
+        raise ClaudeError(f"{what}: odpověď nedokončena (stop={replies[-1].stop_reason})")
+    return replies
+
+
 def image_block(image, max_side: int = 1568) -> tuple[dict, tuple[int, int], float]:
     """Obrázek (cesta, bajty nebo PIL) → (blok pro Claude, rozměr poslané kopie, měřítko poslané / původní)."""
     from PIL import Image
