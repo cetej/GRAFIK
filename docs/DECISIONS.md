@@ -14,6 +14,8 @@ Operátor: „Možná by se hodilo do projektů při konverzi formátů založit
 
 Krok 3g. Operátor k ukázkám série o Teslovi, po čtyřech kolech výtek: „Ano, to je výrazně lepší.“ Zásady a měření: `docs/infografiky-zasady.md`, oddíl Logika stránky.
 
+- **Karty jednoho cyklu mají stejné velikosti písma** („jde o karty v rámci jednoho cyklu, tak by tam neměly být různé velikosti písem v titulcích a popiscích“). Titulek určí nejdelší v sérii.
+- **Série je taková, jakou operátor schválil** („A co ty další dvě karty. Ty jsi je zahodil?“). Série o člověku má životopis a stěžejní díla, až 4 stránky, a co z vlastních obrazů stránku nemá, Studio řekne u návrhu. Dražší návrhy jsou cena za to: odhad řetězce 0,24 USD místo 0,13 USD.
 - **Text na stránce píše model, vázaný na fakta** (operátor „Model zkrátí fakt“). Upřesňuje „text v infografice nikdy z modelu“ z 23. 10.: položka nese id faktu a číslo, které ve faktu není, ji vyřadí a řekne to hlášení. Text v obrazu dál generátor nekreslí.
 - **Je to popularizace vědy pro laika** („Nebuď idiot - jde o popularizaci vědy“). Model fakt nepřepisuje, ale vysvětluje, co znamená. Tvrzení a čísla jen z faktu, vysvětlit pojem běžnými slovy smí.
 - **Vlastní 3D před dobovou fotkou** („proč tam dáváš staré fotky, když máme 3D figuru a modely“). Vlastní obrazy tématu popisuje `library/tema/<qid>/obrazy.json`.
