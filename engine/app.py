@@ -24,7 +24,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, research, rozdeleni, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -128,10 +128,6 @@ class InfoExport(BaseModel):
 class InfoVectorCraft(BaseModel):
     svg: str = ""
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
-
-
-class InfoSplit(BaseModel):
-    stranky: list[list[str]] | None = None  # ids of pieces per page, None = the proposed split
 
 
 class InfoReformat(BaseModel):
@@ -832,25 +828,6 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         _info_or_404(info_id)
         try:
             return infos.reformat_panels(info_id, body.size)
-        except InfoError as e:
-            raise HTTPException(400, str(e)) from e
-
-    @app.post("/api/v2/infographics/{info_id}/rozdeleni")
-    def info_split_plan(info_id: str, body: InfoSplit):
-        """What the series would look like, nothing is written."""
-        doc = _info_or_404(info_id)
-        if not panels.is_panel_doc(doc):
-            raise HTTPException(400, "rozdělit jde jen dokument s panely")
-        try:
-            return rozdeleni.plan(doc, infos._dir(info_id), body.stranky)
-        except InfoError as e:
-            raise HTTPException(400, str(e)) from e
-
-    @app.post("/api/v2/infographics/{info_id}/rozdelit", status_code=201)
-    def info_split(info_id: str, body: InfoSplit):
-        _info_or_404(info_id)
-        try:
-            return infos.split_panels(info_id, body.stranky)
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
 

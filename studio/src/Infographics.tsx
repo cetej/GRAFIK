@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from 'react'
-import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, type Infographic, type SplitPage, type InfoLabel, type ManualEditFile, type TermResult } from './api.ts'
+import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, type Infographic, type InfoLabel, type ManualEditFile, type TermResult } from './api.ts'
 
 // G5 — editor infografiky podle náčrtu schváleného 2026-10-23 (docs/spikes/img/g5-nacrt-*.png) a vzoru
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
@@ -354,7 +354,7 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
         {list.map((d) => (
           <button key={d.id} className="wf-item" onClick={() => setOpenId(d.id)}>
             <img src={imageUrl(d.base, 256)} alt="" />
-            <span><b>{d.title || 'bez nadpisu'}</b><small>{d.panels ? `${d.serie ? `strana ${d.serie.stranka} z ${d.serie.celkem} · ` : ''}${d.panels.length} panelů · ${d.size.replace('x', '×')}` : `${d.labels.length} popisků`} · {d.exports.length} exportů · {d.updated.slice(0, 16).replace('T', ' ')}</small></span>
+            <span><b>{d.title || 'bez nadpisu'}</b><small>{d.panels ? `${d.panels.length} panelů · ${d.size.replace('x', '×')}` : `${d.labels.length} popisků`} · {d.exports.length} exportů · {d.updated.slice(0, 16).replace('T', ' ')}</small></span>
           </button>
         ))}
         {!list.length && <p className="hint">Zatím žádná infografika.</p>}
@@ -373,7 +373,6 @@ function OpenDoc({ id, setOpenId, recentImages, onError }: { id: string; setOpen
 }
 
 const REFORMATS = ['16:9', '4:5', '1:1', '2:3']
-const pagesWord = (n: number) => `${n} ${n === 1 ? 'stránka' : n < 5 ? 'stránky' : 'stránek'}`
 
 function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (id: string | null) => void; onError: (msg: string) => void }) {
   const [svg, setSvg] = useState('')
@@ -384,7 +383,6 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
   const [busy, setBusy] = useState<string | null>(null)
   const [png, setPng] = useState<string | null>(null)
   const [urceni, setUrceni] = useState(doc.urceni ?? 'web')
-  const [split, setSplit] = useState<SplitPage[] | null>(null)
   const svgUrl = `/api/v2/infographics/${doc.id}/svg`
   useEffect(() => {
     fetch(svgUrl).then((r) => r.text()).then(setSvg).catch((e) => onError(e.message))
@@ -402,18 +400,6 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
     setUrceni(value)
     setChecks(await infoApi.checks(doc.id))
   })
-  const planSplit = (stranky: string[][] | null) => run('split', async () => setSplit((await infoApi.splitPlan(doc.id, stranky)).stranky))
-  const movePiece = (piece: string, to: number) => {
-    if (!split) return
-    const pages = split.map((p) => p.kusy.map((k) => k.id).filter((id) => id !== piece))
-    while (pages.length <= to) pages.push([])
-    pages[to].push(piece)
-    planSplit(pages.filter((p) => p.length))
-  }
-  const createSeries = () => run('split', async () => {
-    const docs = await infoApi.split(doc.id, split!.map((p) => p.kusy.map((k) => k.id)))
-    setOpenId(docs[0].id)
-  })
   const phone = checks.find((c) => !c.ok && c.text.includes('mobilu'))
   const exportPng = () => run('png', async () => setPng((await infoApi.export(doc.id, '', 'png')).url))
   return (
@@ -423,8 +409,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
         <div className="row">
           <a className="btn" href={svgUrl} target="_blank" rel="noreferrer">Otevřít ve velkém</a>
           <button className="btn" disabled={!!busy} onClick={exportPng}>{busy === 'png' ? 'Exportuji…' : 'Export PNG'}</button>
-          <button className="btn" onClick={() => setChoosing(!choosing)}>Předělat na formát · 0 USD</button>
-          {urceni === 'web' && !doc.serie && <button className="btn go" disabled={!!busy} onClick={() => (split ? setSplit(null) : planSplit(null))}>{busy === 'split' ? 'Počítám…' : 'Rozdělit pro mobil · 0 USD'}</button>}
+          <button className="btn go" onClick={() => setChoosing(!choosing)}>Předělat na formát · 0 USD</button>
         </div>
       </div>
       <h2>{doc.title || 'bez nadpisu'}</h2>
@@ -437,26 +422,6 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
         </div>
       </div>
       {phone && urceni === 'web' && <p className="panel-warning">{phone.text}</p>}
-      {split && (
-        <div className="panel-format">
-          <div className="hint">Návrh: {pagesWord(split.length)}, šířka 1080 px. Všechen text zůstává, popisky s vodítkem jsou u obrazu, po pěti na stránku. Originál se nemění.</div>
-          {split.map((page, n) => (
-            <div key={n} className="split-page">
-              <b>Strana {n + 1}</b> <span className="hint">{page.size.replace('x', ' × ')} · {page.slov} slov</span>
-              {page.kusy.map((k) => (
-                <label key={k.id} className="row between split-piece">
-                  <span>{k.nazev} <span className="hint">({k.slov} slov)</span></span>
-                  <select aria-label={`Stránka pro ${k.nazev}`} value={n} disabled={!!busy} onChange={(e) => movePiece(k.id, Number(e.target.value))}>
-                    {[...split.map((_, i) => i), split.length].map((i) => <option key={i} value={i}>{i < split.length ? `Strana ${i + 1}` : 'Nová stránka'}</option>)}
-                  </select>
-                </label>
-              ))}
-              {page.hlaseni.map((h, i) => <p key={i} className="panel-warning">{h}</p>)}
-            </div>
-          ))}
-          <button className="btn go" disabled={!!busy} onClick={createSeries}>{busy === 'split' ? 'Pracuji…' : `Vytvořit ${pagesWord(split.length)}`}</button>
-        </div>
-      )}
       {png && <p className="hint">Hotovo: <a href={png} target="_blank" rel="noreferrer">otevřít PNG</a></p>}
       {choosing && (
         <div className="panel-format">
@@ -475,7 +440,6 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <button className="btn go" disabled={!!busy} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
         </div>
       )}
-      {doc.serie && doc.sources && <p className="hint">Zdroje pod článek: {doc.sources}</p>}
       <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />
       <ul className="panel-checks">
         {checks.map((c, i) => <li key={i} className={c.ok ? 'ok' : 'warn'}>{c.ok ? '✓' : '!'} {c.text}</li>)}
