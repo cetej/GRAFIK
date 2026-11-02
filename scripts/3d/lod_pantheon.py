@@ -75,6 +75,7 @@ RES = [int(v) for v in opt("--res", (1920, 1080), 2)]
 # portrait) in metres, dx, dz: its centre. lens, cam, look: perspective camera instead. sun: towards the sun.
 SHOTS = {
     "rez": {"cut": "half", "az": -122, "el": 10, "scale": 120, "dx": 12.75, "dz": 15.46, "sun": (-0.38, -0.22, 1.0), "shaft": True, "people": True},
+    "rez_web": {"cut": "half", "az": -122, "el": 10, "scale": 92, "dx": 12.75, "dz": 20.0, "sun": (-0.38, -0.22, 1.0), "shaft": True, "people": True},   # scripts/3d/pantheon_web_sirka.py
     "rozklad": {"cut": "wedge", "az": -146, "el": 24, "scale": 118, "dx": 0.0, "dz": 22.0, "sun": (-0.5, -0.35, 1.0), "explode": True, "no_portico": True},
     "interier": {"cut": None, "lens": 14, "cam": (-14.0, -13.0, 1.7), "look": (4.0, 7.0, 24.0), "sun": (-0.38, 0.1, 1.0), "shaft": True, "people": True, "sky": True},
     "beton_horni": {"cut": "half", "az": -90, "el": 0, "scale": 2.4, "dx": 19.4, "dz": 35.5, "sun": (-0.5, -0.8, 0.7), "no_portico": True},
