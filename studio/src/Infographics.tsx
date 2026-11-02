@@ -424,7 +424,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <a className="btn" href={svgUrl} target="_blank" rel="noreferrer">Otevřít ve velkém</a>
           <button className="btn" disabled={!!busy} onClick={exportPng}>{busy === 'png' ? 'Exportuji…' : 'Export PNG'}</button>
           <button className="btn" onClick={() => setChoosing(!choosing)}>Předělat na formát · 0 USD</button>
-          {urceni === 'web' && <button className="btn go" disabled={!!busy} onClick={() => (split ? setSplit(null) : planSplit(null))}>{busy === 'split' ? 'Počítám…' : 'Rozdělit pro mobil · 0 USD'}</button>}
+          {urceni === 'web' && !doc.serie && <button className="btn go" disabled={!!busy} onClick={() => (split ? setSplit(null) : planSplit(null))}>{busy === 'split' ? 'Počítám…' : 'Rozdělit pro mobil · 0 USD'}</button>}
         </div>
       </div>
       <h2>{doc.title || 'bez nadpisu'}</h2>
