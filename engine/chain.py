@@ -219,7 +219,7 @@ class Chain:
                 continue
             try:
                 fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of)
-                doc = self.make_doc({**fields, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}})
+                doc = self.make_doc({**fields, "urceni": wf.urceni, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}})
                 done.append({"stranka": n, "nazev": text["titulek"], "doc": doc["id"], "hlaseni": [*said, *more]})
             except InfoError as e:
                 done.append({"stranka": n, "nazev": text["titulek"], "doc": None, "hlaseni": [*said, str(e)]})
@@ -280,7 +280,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
         est = chain.estimate(draft, STEPS[1:] if body.research else STEPS)
         if not body.confirm_cost:
             return payment(est, "Řetězec")
-        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"])
+        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"], stranky_usd=chain.step_usd(draft, "stranky"))
         chain.enqueue(wf, "navrhy" if body.research else "podklady")
         return wf
 

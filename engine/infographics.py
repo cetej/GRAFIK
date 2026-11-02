@@ -269,7 +269,7 @@ class InfographicStore:
         return sorted((d for d in docs if d), key=lambda d: d["updated"], reverse=True)
 
     def create(self, base: str, title: str, prov: dict | None, size: str = "1920x1080") -> dict:
-        doc = new_doc(base, title, prov, size)
+        doc = {**new_doc(base, title, prov, size), "pismo": "mobil"}     # jen nový dokument, starý bez pole se kreslí jako dřív
         return self.save(doc["id"], doc, new=True)
 
     def create_panels(self, fields: dict, source_of, make_base, note_of) -> dict:

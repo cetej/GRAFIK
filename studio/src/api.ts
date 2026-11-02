@@ -200,7 +200,9 @@ export const wfApi = {
 
 // -- řetězec infografika z tématu (engine/chain.py) --------------------------------------------------------
 export interface ProposalPanel { titulek: string; co: string; druh: string; x: number; y: number; w: number; h: number; poradi: number; fakta: string[]; predloha: string | null }
-export interface Proposal { id: number; nazev: string; veta: string; format: string; panely: ProposalPanel[]; vzhled: string; fakta: number; neznama_fakta: number; neznama_predloha?: number; rozpory: string[] }
+export interface ProposalPage { nazev: string; veta: string; format: string; panely: ProposalPanel[] }
+export interface Proposal extends ProposalPage { id: number; vzhled: string; fakta: number; neznama_fakta: number; neznama_predloha?: number; rozpory: string[]; dalsi_stranky?: ProposalPage[]; opakovana_fakta?: number }
+export interface SeriesPage { stranka: number; nazev: string; doc: string | null; hlaseni: string[] }
 export interface ChainWarning { severity: string; what: string; why: string; fix: string }
 export interface Chain {
   id: string
@@ -208,11 +210,14 @@ export interface Chain {
   object: string
   vzor: string | null
   model: string
-  stage: 'podklady' | 'navrhy' | 'vyber' | 'kontrola' | 'hotovo' | 'stop'
+  stage: 'podklady' | 'navrhy' | 'vyber' | 'kontrola' | 'stranky' | 'hotovo' | 'stop'
   research_id: string | null
   budget_usd: number
   spent_usd: number
   navrhy: Proposal[]
+  stranky: number[]
+  stranky_usd: number
+  serie: SeriesPage[]
   rozbor: { drzet?: string[]; zmenit?: string[] } | null
   vyber: number | null
   kontrola: { summary?: string; purpose?: string; warnings?: ChainWarning[]; chyba?: string } | null
@@ -225,7 +230,8 @@ export const chainApi = {
   estimate: (research?: string) => call<{ total_usd: number; items: CostItem[] }>(`/api/v2/workflows/infografika/estimate${research ? `?research=${encodeURIComponent(research)}` : ''}`),
   start: (body: { topic?: string; research?: string; vzor?: string | null; urceni?: 'web' | 'tisk'; confirm_cost: boolean }) => post<Chain>('/api/v2/workflows/infografika', body),
   get: (id: string) => call<Chain>(`/api/v2/workflows/${id}`),
-  pick: (id: string, navrh: number) => post<Chain>(`/api/v2/workflows/${id}/pick`, { navrh }),
+  pick: (id: string, navrh: number, stranky: number[]) => post<Chain>(`/api/v2/workflows/${id}/pick`, { navrh, stranky }),
+  pages: (id: string) => post<Chain>(`/api/v2/workflows/${id}/stranky`, {}),
   resume: (id: string, confirm: boolean) => post<Chain>(`/api/v2/workflows/${id}/continue`, { confirm_cost: confirm }),
 }
 
@@ -320,6 +326,7 @@ export interface Infographic {
   id: string
   schema_version?: number
   panels?: { id: string }[]
+  pismo?: 'mobil' | 'plakat' | Record<string, unknown>
   predelano_z?: { id: string; size: string }
   urceni?: Urceni
   base: string
