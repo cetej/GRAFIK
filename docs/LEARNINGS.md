@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — ADW: co u nového zdroje zkontrolovat dřív, než se začne počítat přínos
+
+- **Licenci číst první.** Zdroj s čistou strukturou a dobrým pokrytím neprošel kvůli NC. Věta v podmínkách ADW má nevyplněnou šablonu, rozhoduje cíl odkazu (`by-nc-sa/3.0`).
+- **Kód 200 není stránka.** `accounts/Panthera_uncia/` vrací 200 s nadpisem „Page not found“, předchozí spike to zapsal jako 404. U cizího webu poznat chybějící stránku podle obsahu.
+- **Mez není hodnota.** `3000 (high) kg` proti typickým 1 089 kg vypadá jako rozpor. Čtením mezi jako hodnoty vzniklo 5 falešných rozporů z 11, s mezí jako zvláštním údajem 1 ze 7.
+- **Chybějící veličina v dossieru neznamená, že chybí na Wikipedii.** „Nová“ březost a počet mláďat jsou často jen věci, které kód z vět nečte.
+- **Měřítko s vzorem na slovo neuzná stejný údaj pod jiným názvem:** pole `number of offspring 100 to 300` nepočítá, protože nejmenuje vejce. Vzor jsem po měření neměnil, rozdíl stojí v zápisu.
+
 ## 2026-11-02 — Šest scén a pevnost z plánu: karta sdílená s jinými, reálie z nálezu
 
 - **Sdílená karta:** VoiceStudio a VectorCraft držely VRAM, FLUX téměř dvě hodiny hlásil `generation_failed`, mezitím běžel Blender z POHYBu a jednou se restartoval Engine. Cizí procesy jsem nezavíral. Dávka přežila všechno díky `1024 × 672` (na stránce je scéna 560 px široká) a smyčce, která po `EngineUnavailable` čeká 3 minuty (`velsen_scenare.py`). Po uvolnění karty jde jeden obraz asi za minutu.
