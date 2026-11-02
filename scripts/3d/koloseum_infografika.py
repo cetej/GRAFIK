@@ -69,6 +69,7 @@ def gesture(key: str, name: str, y: float, poradi: int) -> dict:
 def page(sources: dict[str, dict]) -> dict:
     """Dokument, `sources` dodá `zdroj` renderů. Každý panel odpovídá na otázku, kterou hlavní model nezodpoví. Věty a čísla mají zdroj v docs/spikes/2026-11-01-koloseum.md."""
     return {
+        "pismo": "plakat",
         "title": "Koloseum",
         "subtitle": "Flaviovský amfiteátr, Řím, 70–80 n. l.\nStavba a hra o život",
         "size": "1600x2400",

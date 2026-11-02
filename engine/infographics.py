@@ -271,7 +271,7 @@ class InfographicStore:
         folder of a render or the file of a finished picture, make_base(png bytes) the upload the document list shows, note_of(panels, prov)
         the footer line and whether a picture is AI."""
         from engine import panels
-        draft = {**fields, "schema_version": panels.SCHEMA}
+        draft = {**fields, "schema_version": panels.SCHEMA, "pismo": panels.MOBIL if fields.get("pismo", "mobil") == "mobil" else fields["pismo"]}
         validated = panels.validate(draft)
         doc = new_doc("", fields.get("title") or "", None, fields["size"])
         root = self._dir(doc["id"])

@@ -369,7 +369,7 @@ def test_checks_measure_the_text_on_a_phone(tmp_path):
     source = tmp_path / "a.png"
     Image.new("RGB", (100, 100), "red").save(source)
     panels.copy_image(source, tmp_path, "hlavni")
-    doc = {"size": "1800x2400", "title": "Studna", "ai_note": "x", "sources": "zdroj", "panels": [
+    doc = {"size": "1800x2400", "title": "Studna", "ai_note": "x", "sources": "zdroj", "pismo": panels.MOBIL, "panels": [
         {"id": "hlavni", "typ": "obraz", "poradi": 1, "rect": [0, 0, 1800, 1400], "nazev": "Hlavní", "labels": [label("Muž", [50, 50, 0], pos=[100, 100], size=72)]},     # popis je 0,86 názvu
         {"id": "text", "typ": "text", "poradi": 2, "rect": [0, 1400, 1800, 1000], "nazev": "Text", "items": [{"value": "Nebyl sám", "text": "Kosti 20 lidí"}], "small_size": 60}]}
     doc["panels"] = panels.validate(doc)
@@ -377,6 +377,82 @@ def test_checks_measure_the_text_on_a_phone(tmp_path):
     doc["panels"][1]["small_size"] = 26
     found = [c for c in panels.checks(doc, tmp_path) if not c["ok"] and "na mobilu" in c["text"]]
     assert found and "5.2 px" in found[0]["text"]
+
+
+def test_new_document_has_phone_sizes_and_old_stays_as_it_was(api, settings, tmp_path):
+    shot(settings.library_dir / "strely" / "hlavni", ["zed"])
+    shot(settings.library_dir / "strely" / "detail")
+    new = api.post("/api/v2/infographics/panels", json=fields(size="1080x1620", panels=[{**fields()["panels"][2], "rect": [50, 300, 900, 100]}, {"id": "obr", "typ": "obraz", "rect": [0, 500, 1080, 500], "zdroj": {"slozka": "strely/detail"}, "labels": [label("Věž", [10, 10, 0], pos=[50, 520])]}])).json()
+    assert new["pismo"]["jednotek"] == panels.MOBIL["jednotek"]
+    W = 1080
+    svg = api.get(f"/api/v2/infographics/{new['id']}/svg").text
+    sizes = {float(v) for v in re.findall(r'font-size="([\d.]+)"', svg)}
+    assert round(W / 15, 1) in sizes and min(sizes) * panels.PHONE_W / W >= panels.PHONE_SOURCE_PX
+    assert 22 * W / 546 * 0.86 * panels.PHONE_W / W >= panels.PHONE_MIN_PX        # popis pod popiskem je nejmenší text
+    assert "Blender" in new["ai_note"]
+    poster = api.post("/api/v2/infographics/panels", json=fields(pismo="plakat")).json()
+    assert poster["pismo"] == "plakat"
+    assert "88.0" in re.findall(r'font-size="([\d.]+)"', api.get(f"/api/v2/infographics/{poster['id']}/svg").text)
+    old = {"size": "1600x1000", "title": "Dlouhý titulek starého plakátu, který se nikdy nezalomí", "ai_note": "x", "panels": [
+        {"id": "text", "typ": "text", "rect": [0, 300, 800, 100], "titulek": "Nadpis panelu", "items": [{"value": "V", "text": "věta"}]},
+        {"id": "osa", "typ": "osa", "rect": [800, 300, 800, 100], "items": [{"value": "1891", "text": "věta"}]}]}
+    old["panels"] = panels.validate(old)
+    drawn = panels.render_svg(old, tmp_path)
+    assert 'font-size="88.0"' in drawn and 'font-size="25.0"' in drawn and 'font-size="17.0"' in drawn and 'font-size="21.0"' in drawn
+    assert "DLOUHÝ TITULEK STARÉHO PLAKÁTU, KTERÝ SE NIKDY NEZALOMÍ<" in drawn
+    assert panels.render_svg({**old, "pismo": "plakat"}, tmp_path) == drawn
+    assert 'x="942.0"' in drawn      # osa: sloupec letopočtů 118 k
+
+
+def test_long_title_and_heading_wrap_on_a_new_page(tmp_path):
+    doc = {"size": "1080x1350", "title": "Jak se z malého chlapce ze Smiljanu stal vynálezce", "ai_note": "x", "pismo": panels.MOBIL, "panels": [
+        {"id": "text", "typ": "text", "rect": [40, 400, 500, 100], "titulek": "Nadpis panelu který se nevejde na řádek", "items": [{"value": "V", "text": "věta"}]}]}
+    doc["panels"] = panels.validate(doc)
+    drawn = panels.render_svg(doc, tmp_path)
+    title = re.search(r'<g id="Nadpis">(.*?)</g>', drawn).group(1)
+    assert title.count("<text") >= 2 and "JAK SE" in title
+    heading = re.search(r'<g id="Nadpis Nadpis panelu[^"]*">(.*?)</g>', drawn).group(1)
+    assert heading.count("<text") >= 2
+    last = float(re.findall(r'y="([\d.]+)"', heading)[-1])
+    assert last == pytest.approx(400 - 12 * 1080 / 546, abs=0.1)     # poslední řádek zůstává těsně nad textem
+
+
+def test_checks_count_words_and_collisions_and_every_kind_of_text(tmp_path):
+    many = " ".join(["slovo"] * 40)
+    doc = {"size": "1080x1350", "title": "Titulek", "ai_note": "x", "sources": "z", "pismo": panels.MOBIL, "panels": [
+        {"id": "a", "typ": "text", "nazev": "První", "rect": [40, 200, 1000, 100], "items": [{"value": "V", "text": many} for _ in range(3)]},
+        {"id": "b", "typ": "text", "nazev": "Druhý", "rect": [40, 240, 1000, 100], "items": [{"value": "V", "text": "krátce"}]}]}
+    doc["panels"] = panels.validate(doc)
+    found = {c["text"]: c["ok"] for c in panels.checks(doc, tmp_path)}
+    assert any(t.startswith("na mobilu se na stránku vejde kolem 80 slov") and ok is False for t, ok in found.items())
+    assert found["text panelu zasahuje jinam: První × Druhý"] is False
+    doc["panels"] = panels.validate({**doc, "panels": [{"id": "a", "typ": "text", "nazev": "První", "rect": [40, 1200, 1000, 100], "items": [{"value": "V", "text": many}]}]})
+    found = {c["text"]: c["ok"] for c in panels.checks(doc, tmp_path)}
+    assert found["text panelu zasahuje jinam: První × patička"] is False and found["text panelu přetéká stránku: První"] is False
+    small = {"size": "1080x1350", "title": "Titulek", "ai_note": "x", "sources": "z", "pismo": panels.MOBIL, "panels": [
+        {"id": "k", "typ": "kresba", "nazev": "Plán", "rect": [0, 200, 1080, 500], "viewbox": [0, 0, 1080, 500], "kresba": "<rect width='9' height='9'/>", "texty": '<text font-size="20">řez</text>'}]}
+    small["panels"] = panels.validate(small)
+    assert any("nejmenší text 6.7 px" in c["text"] and not c["ok"] for c in panels.checks(small, tmp_path))
+    plakat = {**small, "pismo": None, "panels": small["panels"]}
+    low = next(c["text"] for c in panels.checks(plakat, tmp_path) if "na mobilu (" in c["text"])
+    assert "titulek" in low and "zdroj" in low
+    with pytest.raises(InfoError, match="pismo"):
+        panels.validate({**small, "pismo": {"neznama": 1}})
+    with pytest.raises(InfoError, match="pismo"):
+        panels.validate({**small, "pismo": "maly"})
+
+
+@pytest.mark.parametrize("kind", ["fakta", "text", "osa"])
+def test_text_height_reaches_the_last_line(kind, tmp_path):
+    doc = {"size": "1080x1350", "title": "T", "ai_note": "x", "pismo": panels.MOBIL, "panels": [
+        {"id": "a", "typ": kind, "nazev": "A", "rect": [40, 200, 700, 100], "items": [{"value": "1891", "text": "Věta o tom, co se tehdy stalo a proč je to důležité pro čtenáře."} for _ in range(3)]}]}
+    doc["panels"] = panels.validate(doc)
+    k = 1080 / panels.MOBIL["jednotek"]
+    drawn = ET.fromstring(panels.render_svg(doc, tmp_path))
+    group = next(g for g in drawn.iter(f"{SVG}g") if g.get("id") == "A")
+    last = max(float(t.get("y")) for t in group.iter(f"{SVG}text"))
+    height = panels.text_height(doc["panels"][0], panels.MOBIL, k)
+    assert 200 + height == pytest.approx(last + panels.MOBIL["veta"] * k * 0.3, abs=1.0)
 
 
 def test_thresholds_match_the_editor():

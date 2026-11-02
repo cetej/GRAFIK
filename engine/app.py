@@ -139,6 +139,7 @@ class InfoPanels(BaseModel):
     sources: str = ""
     nadpis: dict | None = None
     paticka_y: float | None = None
+    pismo: str | dict = "mobil"     # nový dokument podle tabulky pro telefon; "plakat" = velké plátno se starými velikostmi
     panels: list[dict]              # engine/panels.py; `zdroj` of a picture: {model_id, version, render}, {slozka} under the library, {obraz: "<job>/<n>"} or {ref_id}, the last two with {vyrez}
 
 
@@ -772,8 +773,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         """Panel documents only on request: the Studio editor does not draw them yet."""
         return [d for d in infos.list() if panely or not panels.is_panel_doc(d)]
 
-    @app.post("/api/v2/infographics/panels", status_code=201)
-    def info_panels(body: InfoPanels):
+    def make_panel_doc(fields: dict) -> dict:
         def source_of(panel: dict) -> Path:
             source = panel.get("zdroj") or {}
             if source.get("obraz") or source.get("ref_id"):
@@ -795,7 +795,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                 raise InfoError(f"panel {panel['id']}: {e}") from e
 
         def make_base(png: bytes) -> tuple[str, dict | None]:
-            job_id = _store_upload(InfoUpload(b64=base64.b64encode(png).decode(), name=f"{body.title}.png", blender_render=True), "upload", {"prompt": "", "refs": [], "source": body.title})
+            job_id = _store_upload(InfoUpload(b64=base64.b64encode(png).decode(), name=f"{fields['title']}.png", blender_render=True), "upload", {"prompt": "", "refs": [], "source": fields["title"]})
             return f"{job_id}/0", _prov(f"{job_id}/0")
 
         def note_of(validated: list[dict], prov: dict | None) -> tuple[str, bool]:
@@ -804,17 +804,26 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             credits = []
             for panel in validated:
                 source = panel.get("zdroj") or {}
-                if source.get("obraz"):
+                if source.get("ai"):
+                    illustrated.setdefault(source["ai"], []).append(panel["nazev"])
+                elif source.get("obraz"):
                     origin = _prov(source["obraz"]) or {}
                     if origin.get("ai_generated", True) and not origin.get("render"):
                         illustrated.setdefault(BACKEND_NAMES.get(origin.get("backend"), origin.get("model") or origin.get("backend") or "AI"), []).append(panel["nazev"])
                 elif source.get("ref_id"):
                     meta = reflib.get(source["ref_id"]) or {}
-                    credits.append(f"{panel['nazev']}: {meta.get('author') or 'autor neuveden'}, {meta.get('license') or 'licence neuvedena'}")
-            return panels.compose_note(bool((prov or {}).get("render")), illustrated, credits), bool(illustrated)
+                    credits.append(panels.credit(panel["nazev"], meta.get("author"), meta.get("license")))
+            rendered = any(not any((p.get("zdroj") or {}).get(key) for key in ("obraz", "ref_id", "ai")) for p in validated if p["typ"] == "obraz")
+            return panels.compose_note(rendered and bool((prov or {}).get("render")), illustrated, credits), bool(illustrated)
 
+        return infos.create_panels(fields, source_of, make_base, note_of)
+
+    infochain.make_doc = make_panel_doc
+
+    @app.post("/api/v2/infographics/panels", status_code=201)
+    def info_panels(body: InfoPanels):
         try:
-            return infos.create_panels(body.model_dump(), source_of, make_base, note_of)
+            return make_panel_doc(body.model_dump())
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
 

@@ -44,6 +44,14 @@ MAX_LABEL_CHARS = 40
 LEADER_MEDIAN_MAX = 0.06
 LEADER_MAX = 0.12
 PHONE_W, PHONE_MIN_PX = 360, 12        # stránka na telefonu, docs/infografiky-zasady.md, oddíl Web a mobil
+PHONE_TITLE_PX, PHONE_HEADING_PX, PHONE_SOURCE_PX = 24, 18, 9
+# písmo a mezery podle role, v jednotkách k = šířka / `jednotek`; dokument bez `pismo` je starý a kreslí se jako dřív
+PLAKAT = {"jednotek": 1600, "titulek": 88, "titulek_x": 50, "titulek_y": 118, "podtitulek": 31, "podtitulek_od": 44, "podtitulek_krok": 38, "nadpis": 25, "cislo": 36, "vedouci": 26,
+          "veta": 21, "popisek": 23, "pod": 22, "pod_maly": 20, "znacka": 18, "zdroj": 17, "zdroj_krok": 22, "zdroj_dole": 30, "okraj": 50, "osa_sloupec": 118, "zalomit": False}
+# nový dokument: podíly šířky z tabulky v docs/infografiky-zasady.md. Při 546 jednotkách je 21 = 1/26 šířky, takže řádkování psané v k drží poměr k písmu
+MOBIL = {**PLAKAT, "jednotek": 546, "titulek": 36.4, "titulek_x": 20, "titulek_y": 50, "podtitulek": 21, "podtitulek_od": 28, "podtitulek_krok": 26, "nadpis": 27.3, "cislo": 27.3, "vedouci": 21,
+         "popisek": 22, "pod": 21, "pod_maly": 19, "znacka": 19, "zdroj": 13.65, "zdroj_krok": 17, "zdroj_dole": 14, "okraj": 20, "osa_sloupec": None, "zalomit": True}
+TITLE_WIDTH = 0.52          # šířka velkého tučného znaku v em i s prostrkáním, změřeno na ukázce Tesly
 PANEL_ID = re.compile(r"[a-z0-9_]{1,40}")
 FILE_NAME = re.compile(r"[\w\-]+\.(png|jpg|json)")
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -51,6 +59,25 @@ SVG_NS = "http://www.w3.org/2000/svg"
 
 def is_panel_doc(doc: dict | None) -> bool:
     return bool(doc) and doc.get("schema_version") == SCHEMA
+
+
+def fonts(doc: dict) -> dict:
+    """Dokument si velikosti nese s sebou: změna tabulky hotovou stránku nezmění."""
+    return {**PLAKAT, **(doc["pismo"] if isinstance(doc.get("pismo"), dict) else {})}
+
+
+def heading_lines(text_: str, width: float, f: dict, k: float) -> list[str]:
+    """Nadpis panelu: nová stránka ho zalomí do šířky panelu, stará ho kreslí na jeden řádek."""
+    title = text_.upper()
+    return wrap(title, int(width / (f["nadpis"] * k * TITLE_WIDTH))) or [title] if f["zalomit"] else [title]
+
+
+def title_lines(doc: dict, f: dict, k: float, W: int) -> list[str]:
+    title = doc["title"].upper()
+    if not f["zalomit"]:
+        return [title]
+    size = (doc.get("nadpis") or {}).get("size", f["titulek"] * k)
+    return wrap(title, int((W - 2 * f["okraj"] * k) / (size * TITLE_WIDTH))) or [title]
 
 
 def _number(where: str, value) -> float:
@@ -125,6 +152,8 @@ def validate(doc: dict) -> list[dict]:
     if size is None:
         raise InfoError(f"neznámý formát {doc.get('size')!r}")
     W, H = size
+    if doc.get("pismo") not in (None, "plakat") and (not isinstance(doc["pismo"], dict) or set(doc["pismo"]) - set(PLAKAT)):
+        raise InfoError("pismo je „plakat“, nebo velikosti podle role jako panels.MOBIL")
     raw_panels = doc.get("panels")
     if not isinstance(raw_panels, list) or not raw_panels:
         raise InfoError("dokument nemá žádné panely")
@@ -195,6 +224,17 @@ def _text(x, y, s, size, fill, weight=400, anchor="start", halo=None, spacing=0.
     return f'<text x="{x:.1f}" y="{y:.1f}" font-size="{size:.1f}" fill="{fill}" font-weight="{weight}" text-anchor="{anchor}"{ls}{extra}>{html.escape(s, quote=False)}</text>'
 
 
+def footer(doc: dict, f: dict, k: float, W: int, H: int) -> tuple[list[str], float]:
+    """Řádky patičky a účaří prvního z nich."""
+    lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 2 * f["okraj"] * k) / (f["zdroj"] * k * LINE_WIDTH)))
+    return lines, doc.get("paticka_y") or H - f["zdroj_dole"] * k - (len(lines) - 1) * f["zdroj_krok"] * k
+
+
+def axis_gap(panel: dict, f: dict, k: float, size: float) -> float:
+    """Sloupec letopočtů na ose: starý dokument má pevný, nový podle nejdelší hodnoty."""
+    return panel.get("sirka", f["osa_sloupec"] * k if f["osa_sloupec"] else max(len(i["value"]) for i in panel["items"]) * size * LINE_WIDTH * 1.1)
+
+
 def panel_dir(root: Path, panel_id: str) -> Path:
     return root / "panely" / panel_id
 
@@ -240,7 +280,8 @@ class Renderer:
     def __init__(self, doc: dict, root: Path, href=None):
         self.doc, self.root, self.href = doc, root, href
         self.W, self.H = canvas_size(doc["size"])
-        self.k = self.W / 1600
+        self.f = fonts(doc)
+        self.k = self.W / self.f["jednotek"]
         self.t = THEMES.get(doc.get("template"), THEMES["dark"])
         self.accent = doc.get("accent") or "#dcb062"
         self.ids: set[str] = set()
@@ -323,7 +364,7 @@ class Renderer:
         """Číslo přímo v obraze tam, kde by se popisky s vodítky nevešly. Co číslo znamená, říká jiný panel."""
         if not panel["znacky"]:
             return "", ""
-        r, size = 13 * self.k, 18 * self.k
+        r, size = 13 * self.k, self.f["znacka"] * self.k
         dots, digits = "", ""
         for mark in panel["znacky"]:
             x, y = to_page(place, mark["kotva"], panel["id"])
@@ -334,17 +375,22 @@ class Renderer:
     def _labels(self, panel: dict, place: dict) -> tuple[str, str]:
         leads, words = [], []
         for label in panel["labels"]:
-            size = label.get("size", 23 * self.k)
+            size = label.get("size", self.f["popisek"] * self.k)
             pts = leader_points(label, place, size, panel["id"])
             ax, ay = pts[0]
             poly = " ".join(f"{a:.1f},{b:.1f}" for a, b in pts)
-            leads.append(f'<g id="{self.gid(f"Vodítko {label["text"]}")}"><polyline points="{poly}" fill="none" stroke="{self.t["lead"]}" stroke-opacity=".8" stroke-width="{1.3 * self.k:.2f}"/>'
-                         f'<circle cx="{ax:.1f}" cy="{ay:.1f}" r="{3.6 * self.k:.1f}" fill="{self.t["lead"]}"/></g>')
+            if self.f["zalomit"]:       # nová stránka: vodítko vede přes světlý i tmavý model a popisek leží vedle něj, lem nepotřebuje
+                leads.append(f'<g id="{self.gid(f"Vodítko {label["text"]}")}"><polyline points="{poly}" fill="none" stroke="{self.t["bg"]}" stroke-opacity=".85" stroke-width="{3 * self.k:.2f}"/><polyline points="{poly}" fill="none" stroke="{self.t["lead"]}" stroke-width="{1.2 * self.k:.2f}"/>'
+                             f'<circle cx="{ax:.1f}" cy="{ay:.1f}" r="{3.8 * self.k:.1f}" fill="{self.accent}" stroke="{self.t["bg"]}" stroke-width="{1.2 * self.k:.2f}"/></g>')
+            else:
+                leads.append(f'<g id="{self.gid(f"Vodítko {label["text"]}")}"><polyline points="{poly}" fill="none" stroke="{self.t["lead"]}" stroke-opacity=".8" stroke-width="{1.3 * self.k:.2f}"/>'
+                             f'<circle cx="{ax:.1f}" cy="{ay:.1f}" r="{3.6 * self.k:.1f}" fill="{self.t["lead"]}"/></g>')
             px, py = label["pos"]
             anchor = "start" if label["align"] == "left" else "end"
-            line = _text(px, py + size * 0.9, label["text"], size, self.accent, 700, anchor, self.t["halo"])
+            halo = None if self.f["zalomit"] else self.t["halo"]
+            line = _text(px, py + size * 0.9, label["text"], size, self.accent, 700, anchor, halo)
             for i, small in enumerate(label["small"]):
-                line += _text(px, py + size * (1.95 + 1.1 * i), small, size * 0.86, self.t["ink"], 400, anchor, self.t["halo"])
+                line += _text(px, py + size * (1.95 + 1.1 * i), small, size * 0.86, self.t["ink"], 400, anchor, halo)
             shadow = ' filter="url(#stin-textu)"' if self.t.get("stin") else ""
             words.append(f'<g id="{self.gid(label["text"])}"{shadow}>{line}</g>')
         lead_group = f'<g id="{self.gid(f"Vodítka {panel["nazev"]}")}">{"".join(leads)}</g>' if leads else ""
@@ -356,7 +402,10 @@ class Renderer:
         if not title or not title["text"]:
             return ""
         x, y = title.get("x", panel["rect"][0]), title.get("y", panel["rect"][1] - 12 * self.k)
-        return f'<g id="{self.gid(f"Nadpis {title["text"]}")}">{_text(x, y, title["text"].upper(), 25 * self.k, self.accent, 700, spacing=1.2)}</g>'
+        size = self.f["nadpis"] * self.k
+        rows = heading_lines(title["text"], panel["rect"][2], self.f, self.k)
+        words = "".join(_text(x, y - (len(rows) - 1 - i) * size * 1.08, row, size, self.accent, 700, spacing=1.2) for i, row in enumerate(rows))
+        return f'<g id="{self.gid(f"Nadpis {title["text"]}")}">{words}</g>'
 
     def _picture(self, panel: dict) -> tuple[str, str]:
         place = placement(panel, body_of(self.root, panel))
@@ -367,15 +416,15 @@ class Renderer:
         if panel.get("pod"):
             x, y, _w, h = panel["rect"]
             if panel["pod"]["text"]:
-                below = _text(x, y + h + 30 * self.k, panel["pod"]["text"], 22 * self.k, self.accent, 700)  # pod obrazem, jako vzorky betonu u Pantheonu
+                below = _text(x, y + h + 30 * self.k, panel["pod"]["text"], self.f["pod"] * self.k, self.accent, 700)  # pod obrazem, jako vzorky betonu u Pantheonu
             if panel["pod"]["small"]:
-                below += _text(x, y + h + (56 if below else 30) * self.k, panel["pod"]["small"], 20 * self.k, self.t["ink"])
+                below += _text(x, y + h + (56 if below else 30) * self.k, panel["pod"]["small"], self.f["pod_maly"] * self.k, self.t["ink"])
             below = f'<g id="{self.gid(f"Popisek {panel["nazev"]}")}">{below}</g>'
         return f'<g id="{self.gid(panel["nazev"])}">{pictures}</g>{self._overlays(panel, place)}{lead}{dots}', self._heading(panel) + words + digits + below
 
     def _facts(self, panel: dict) -> tuple[str, str]:
         x0, y0, w, _h = panel["rect"]
-        size, small = panel.get("size", 36 * self.k), panel.get("small_size", 21 * self.k)
+        size, small = panel.get("size", self.f["cislo"] * self.k), panel.get("small_size", self.f["veta"] * self.k)
         items = panel["items"]
         words = []
         if panel["smer"] == "radek":
@@ -395,7 +444,7 @@ class Renderer:
 
     def _prose(self, panel: dict) -> tuple[str, str]:
         x0, y0, w, _h = panel["rect"]
-        size, small = panel.get("size", 26 * self.k), panel.get("small_size", 21 * self.k)
+        size, small = panel.get("size", self.f["vedouci"] * self.k), panel.get("small_size", self.f["veta"] * self.k)
         chars = int(panel.get("sirka", w / (small * LINE_WIDTH)))
         y, words = y0 + size, []
         for item in panel["items"]:
@@ -408,8 +457,8 @@ class Renderer:
     def _timeline(self, panel: dict) -> tuple[str, str]:
         """Svislá osa: tečka, letopočet tučně, vedle něj věta."""
         x0, y0, w, _h = panel["rect"]
-        size, small = panel.get("size", 26 * self.k), panel.get("small_size", 21 * self.k)
-        gap = panel.get("sirka", 118 * self.k)
+        size, small = panel.get("size", self.f["vedouci"] * self.k), panel.get("small_size", self.f["veta"] * self.k)
+        gap = axis_gap(panel, self.f, self.k, size)
         chars = int((w - gap - 24 * self.k) / (small * LINE_WIDTH))
         y, dots, words = y0 + size, [], []
         for item in panel["items"]:
@@ -436,22 +485,23 @@ class Renderer:
         gfx = [f'<g id="Pozadí"><rect width="{W}" height="{H}" fill="{self.t["bg"]}"/></g>']
         txt = []
         head = doc.get("nadpis") or {}
-        size = head.get("size", 88 * k)
-        x, y = head.get("x", 50 * k), head.get("y", 118 * k)
-        title = _text(x, y, doc["title"].upper(), size, self.accent, 700, spacing=2)
+        f = self.f
+        size = head.get("size", f["titulek"] * k)
+        x, y = head.get("x", f["titulek_x"] * k), head.get("y", f["titulek_y"] * k)
+        rows = title_lines(doc, f, k, W)
+        title = "".join(_text(x, y + i * size * 1.08, line, size, self.accent, 700, spacing=2) for i, line in enumerate(rows))
+        below = y + (len(rows) - 1) * size * 1.08
         for i, line in enumerate((doc.get("subtitle") or "").split("\n")):
             if line:
-                title += _text(x, y + (44 + 38 * i) * k, line, 31 * k, self.t["muted"])
+                title += _text(x, below + (f["podtitulek_od"] + f["podtitulek_krok"] * i) * k, line, f["podtitulek"] * k, self.t["muted"])
         txt.append(f'<g id="{self.gid("Nadpis")}">{title}</g>')
         draw = {"obraz": self._picture, "fakta": self._facts, "text": self._prose, "osa": self._timeline, "kresba": self._drawing}
         for panel in doc["panels"]:
             graphics, words = draw[panel["typ"]](panel)
             gfx.append(graphics)
             txt.append(words)
-        foot = 17 * k
-        lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 100 * k) / (foot * LINE_WIDTH)))
-        top = doc.get("paticka_y") or H - 30 * k - (len(lines) - 1) * 22 * k
-        txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(50 * k, top + i * 22 * k, line, foot, self.t["foot"]) for i, line in enumerate(lines))}</g>')
+        lines, top = footer(doc, f, k, W, H)
+        txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(f["okraj"] * k, top + i * f["zdroj_krok"] * k, line, f["zdroj"] * k, self.t["foot"]) for i, line in enumerate(lines))}</g>')
         return (f'<svg xmlns="{SVG_NS}" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">{TEXT_SHADOW if self.t.get("stin") else ""}'
                 f'<g id="Grafika">{"".join(gfx)}</g><g id="Texty">{"".join(txt)}</g></svg>')
 
@@ -486,11 +536,13 @@ def _text_box(label: dict, size: float) -> tuple[float, float, float, float]:
 def checks(doc: dict, root: Path) -> list[dict]:
     """Stejné prahy jako editor, přes všechny panely. Upozorní, nic nezastaví: úsudek zůstává na člověku (docs/infografiky-zasady.md)."""
     W, H = canvas_size(doc["size"])
-    k = W / 1600
+    f = fonts(doc)
+    k = W / f["jednotek"]
     out, lengths = [], []
     long_lines, crossings, outside, missing, unseen = 0, 0, [], [], []
     labels = 0
-    sizes = [p.get("small_size", 21 * k) for p in doc["panels"] if p["typ"] != "obraz" and p.get("items")]
+    sizes = [p.get("small_size", f["veta"] * k) for p in doc["panels"] if p["typ"] != "obraz" and p.get("items")]
+    sizes += [s for p in doc["panels"] for s in _picture_sizes(p, f, k) + _drawing_sizes(p)]
     boxes = []
     struck = []
     pictures = [p for p in doc["panels"] if p["typ"] == "obraz"]
@@ -506,7 +558,7 @@ def checks(doc: dict, root: Path) -> list[dict]:
         polys = []
         for label in panel["labels"]:
             labels += 1
-            size = label.get("size", 23 * k)
+            size = label.get("size", f["popisek"] * k)
             if isinstance(label["kotva"], str):
                 if label["kotva"] not in info["points"]:
                     missing.append(f"{panel['id']}: {label['text']}")
@@ -523,7 +575,7 @@ def checks(doc: dict, root: Path) -> list[dict]:
                 outside.append(label["text"])
             boxes.append((label["text"], x, y, w, h))
             sizes.append(size * 0.86 if label["small"] else size)
-        own_boxes = [_text_box(label, label.get("size", 23 * k)) for label in panel["labels"]]
+        own_boxes = [_text_box(label, label.get("size", f["popisek"] * k)) for label in panel["labels"]]
         struck += [panel["labels"][i]["text"] for i, poly in enumerate(polys) for box in own_boxes if _strikes(poly, box)] if len(polys) == len(panel["labels"]) else []
         for i in range(len(polys)):
             for j in range(i + 1, len(polys)):
@@ -539,9 +591,8 @@ def checks(doc: dict, root: Path) -> list[dict]:
     if repeats:
         out.append({"ok": False, "text": f"opakují hlavní model a neříkají proč: {', '.join(repeats)}. Co ukážou víc než hlavní obraz?"})
     out.append({"ok": not long_lines, "text": f"{long_lines} popisků delších než {MAX_LABEL_CHARS} znaků" if long_lines else "popisky krátké"})
-    phone_px = min(sizes, default=PHONE_MIN_PX * W / PHONE_W) * PHONE_W / W
-    too_small = round(phone_px, 1) < PHONE_MIN_PX
-    out.append({"ok": not too_small, "text": f"na mobilu (šířka {PHONE_W} px) má nejmenší text {phone_px:.1f} px, chce aspoň {PHONE_MIN_PX}: větší písmo, méně textu, nebo víc menších stránek" if too_small else "písmo čitelné i na mobilu"})
+    out += _phone_checks(doc, f, k, W, H, sizes)
+    out += _collisions(doc, f, k, W, H)
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
     out.append({"ok": not overlaps, "text": f"překrývají se popisky: {', '.join(overlaps)}" if overlaps else "popisky se nepřekrývají"})
     if outside:
@@ -554,6 +605,84 @@ def checks(doc: dict, root: Path) -> list[dict]:
     out.append({"ok": True, "text": "text jen z dokumentu, ne z modelu"})
     out.append({"ok": bool(doc.get("reviewed_by")), "text": f"zkontroloval(a) {doc['reviewed_by']}" if doc.get("reviewed_by") else "před zveřejněním zkontroluje člověk"})
     return out
+
+
+def _picture_sizes(panel: dict, f: dict, k: float) -> list[float]:
+    """Text u obrazu kromě popisků, ty měří `checks` samy."""
+    sizes = [f["znacka"] * k] if panel.get("znacky") else []
+    pod = panel.get("pod") or {}
+    return sizes + ([f["pod"] * k] if pod.get("text") else []) + ([f["pod_maly"] * k] if pod.get("small") else [])
+
+
+def _drawing_sizes(panel: dict) -> list[float]:
+    """Písmo v kresbě zmenšené na rámeček panelu. Kresba bez font-size se změřit nedá."""
+    if panel["typ"] != "kresba":
+        return []
+    scale = panel["rect"][2] / panel["viewbox"][2]
+    return [float(v) * scale for v in re.findall(r'font-size="([\d.]+)', panel["texty"] + panel["kresba"])]
+
+
+def words_of(doc: dict) -> int:
+    """Slova, která čtenář čte. Patička se nepočítá, je to povinný údaj."""
+    parts = [doc.get("title"), doc.get("subtitle")]
+    for panel in doc["panels"]:
+        parts += [(panel.get("titulek") or {}).get("text"), (panel.get("pod") or {}).get("text"), (panel.get("pod") or {}).get("small")]
+        parts += [w for label in panel.get("labels", []) for w in [label["text"], *label["small"]]]
+        parts += [w for item in panel.get("items", []) for w in (item["value"], item["text"])]
+        parts += re.findall(r">([^<]+)<", panel.get("texty", ""))
+    return sum(len(str(p).split()) for p in parts if p)
+
+
+def word_budget(W: int, H: int) -> int:
+    """docs/infografiky-zasady.md: na 4:5 kolem 80 slov, na 2:3 kolem 120, širší formát jen několik popisků."""
+    return max(30, round(80 + (H / W - 1.25) * 160))
+
+
+def _phone_checks(doc: dict, f: dict, k: float, W: int, H: int, sizes: list[float]) -> list[dict]:
+    head = doc.get("nadpis") or {}
+    headings = [f["nadpis"] * k for p in doc["panels"] if (p.get("titulek") or {}).get("text")]
+    rows = [("titulek", head.get("size", f["titulek"] * k), PHONE_TITLE_PX), ("nejmenší text", min(sizes, default=W), PHONE_MIN_PX),
+            ("nadpis panelu", min(headings, default=W), PHONE_HEADING_PX), ("zdroj", f["zdroj"] * k, PHONE_SOURCE_PX)]
+    low = [f"{name} {size * PHONE_W / W:.1f} px, chce aspoň {need}" for name, size, need in rows if round(size * PHONE_W / W, 1) < need]
+    words, budget = words_of(doc), word_budget(W, H)
+    full = words > budget * 1.25     # „kolem“: tabulka je odhad
+    return [{"ok": not low, "text": f"na mobilu (šířka {PHONE_W} px): {', '.join(low)}. Větší písmo, méně textu, nebo víc menších stránek" if low else "písmo čitelné i na mobilu"},
+            {"ok": not full, "text": f"na mobilu se na stránku vejde kolem {budget} slov, tady je {words}: rozdělte ji na víc menších" if full else f"text se na mobil vejde, {words} slov z asi {budget}"}]
+
+
+def text_height(panel: dict, f: dict, k: float) -> float:
+    """Kolik textový panel na stránce opravdu zabere: stejné vzorce jako Renderer, `rect` je jen rám."""
+    _x, _y, w, _h = panel["rect"]
+    small = panel.get("small_size", f["veta"] * k)
+    below = small * 0.3     # dotažnice pod posledním řádkem
+    items = panel["items"]
+    if panel["typ"] == "fakta":
+        size = panel.get("size", f["cislo"] * k)
+        if panel.get("smer", "radek") == "radek":
+            chars = int(panel.get("sirka", max(10, (w / len(items)) / (small * LINE_WIDTH))))
+            return size * 0.9 + 32 * k + (max(len(wrap(i["text"], chars)) for i in items) - 1) * 25 * k + below
+        return size + (len(items) - 1) * panel.get("krok", size * 1.5) + below
+    size = panel.get("size", f["vedouci"] * k)
+    if panel["typ"] == "text":
+        chars = int(panel.get("sirka", w / (small * LINE_WIDTH)))
+        counts = [len(wrap(i["text"], chars)) for i in items]
+        steps = [panel.get("krok", (46 + 25 * n) * k) for n in counts]
+        return size + sum(steps[:-1]) + (28 + (counts[-1] - 1) * 25) * k + below
+    chars = int((w - axis_gap(panel, f, k, size) - 24 * k) / (small * LINE_WIDTH))
+    counts = [max(1, len(wrap(i["text"], chars))) for i in items]
+    steps = [panel.get("krok", (22 + 25 * n) * k) for n in counts]
+    return size + sum(steps[:-1]) + (counts[-1] - 1) * 25 * k + below
+
+
+def _collisions(doc: dict, f: dict, k: float, W: int, H: int) -> list[dict]:
+    """Text panelu přes jiný panel, přes patičku nebo mimo stránku. Text přes obraz bývá záměr u popisků, ty tu nejsou."""
+    texts = [(p["nazev"], p["rect"][0], p["rect"][1], p["rect"][2], text_height(p, f, k)) for p in doc["panels"] if p["typ"] in ("fakta", "text", "osa")]
+    others = [(p["nazev"], *p["rect"]) for p in doc["panels"] if p["typ"] in ("obraz", "kresba")]
+    _lines, top = footer(doc, f, k, W, H)
+    others.append(("patička", 0, top - f["zdroj"] * k, W, H))
+    hit = [f"{a[0]} × {b[0]}" for i, a in enumerate(texts) for b in texts[i + 1:] + others if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
+    outside = [t[0] for t in texts if t[2] + t[4] > H or t[1] + t[3] > W + 0.5]
+    return ([{"ok": False, "text": f"text panelu zasahuje jinam: {', '.join(hit)}"}] if hit else []) + ([{"ok": False, "text": f"text panelu přetéká stránku: {', '.join(outside)}"}] if outside else [])
 
 
 def texts_of(doc: dict) -> list[dict]:
@@ -660,6 +789,12 @@ def copy_image(source: Path, root: Path, panel_id: str, crop: list | None = None
     return target
 
 
+def credit(name: str, author: str | None, license_: str | None) -> str:
+    """Věta do patičky. Commons má u autora někdy celý vzkaz, patří tam jen první věta."""
+    who = (author or "autor neuveden").split(". ")[0]
+    return f"{name}: {who}, {license_ or 'licence neuvedena'}"
+
+
 def compose_note(render: bool, illustrated: dict[str, list[str]], credits: list[str]) -> str:
     """Patička dokumentu, kde jsou vedle sebe render z modelu, AI ilustrace a cizí obrazy. Licence FLUX § 2e: AI obraz musí být označený."""
     parts = (["Model a render: Blender, bez AI"] if render else []) + [f"{', '.join(names)}: {model} (AI)" for model, names in illustrated.items()] + credits
@@ -667,12 +802,14 @@ def compose_note(render: bool, illustrated: dict[str, list[str]], credits: list[
 
 
 def flat_hero(root: Path, doc: dict) -> bytes:
-    """Náhled dokumentu v seznamu: hlavní obraz (nejnižší `poradi`) sloučený na barvu stránky."""
+    """Náhled dokumentu v seznamu: hlavní obraz (nejnižší `poradi`) sloučený na barvu stránky. Stránka jen s textem má prázdnou plochu."""
     pictures = [p for p in doc["panels"] if p["typ"] == "obraz"]
-    if not pictures:
-        raise InfoError("dokument nemá žádný obraz")
-    hero = min(pictures, key=lambda p: p["poradi"])
     bg = THEMES.get(doc.get("template"), THEMES["dark"])["bg"]
+    if not pictures:
+        buf = BytesIO()
+        Image.new("RGB", (256, 256), tuple(int(bg[i:i + 2], 16) for i in (1, 3, 5))).save(buf, "PNG")
+        return buf.getvalue()
+    hero = min(pictures, key=lambda p: p["poradi"])
     with Image.open(panel_dir(root, hero["id"]) / "obraz.png") as im:
         rgba = im.convert("RGBA")
     back = Image.new("RGBA", rgba.size, tuple(int(bg[i:i + 2], 16) for i in (1, 3, 5)) + (255,))
