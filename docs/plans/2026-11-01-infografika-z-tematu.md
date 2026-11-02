@@ -75,7 +75,9 @@ Složeno z naměřených kroků. Návrhy a kontrola změřené živým během 1.
 
 Rešerše míří na stavby: Tesla 9 faktů a 21 obrázků, axolotl 4 fakty a 11 obrázků, stavby 44 až 84 faktů (dossiery `nikola-tesla-v1`, `axolotl-v1`). Příčiny v `shared/ngm_shared/research.py`: `ROLES`, `PARTS` a `WD_*` jsou slovníky staveb, `_NOT_PICTURE` vyřazuje portrét a mapu, Sketchfab vrací kreslené modely. Kontrolní data s ověřenými údaji: [Tesla](../spikes/2026-11-01-plakaty-fakta-tesla.md), [axolotl](../spikes/2026-11-01-plakaty-fakta-axolotl.md). Ručně se tam dohledalo víc a čísla z Wikipedie byla místy chybná (datum patentu na turbínu), takže rozpor mezi zdroji musí zůstat vidět.
 
-**Hotovo 2. 11.** ([měření](../spikes/2026-11-02-resers-osoba-zvire.md)): druh tématu určí Wikidata, osoba a zvíře mají slovníky v `shared/ngm_shared/research_druhy.py`. Tesla 28 z 35 údajů ruční rešerše (dřív 3), axolotl 34 ze 44 (dřív 4), stavby nad stejnými daty beze změny. Zbývá: druh tématu v kroku Návrhy (pole `predloha` v promptu vyjmenovává role staveb) a primární zdroje mimo Wikipedii (Google Patents, IUCN).
+**Hotovo 2. 11.** ([měření](../spikes/2026-11-02-resers-osoba-zvire.md)): druh tématu určí Wikidata, osoba a zvíře mají slovníky v `shared/ngm_shared/research_druhy.py`. Tesla 28 z 35 údajů ruční rešerše (dřív 3), axolotl 34 ze 44 (dřív 4), stavby nad stejnými daty beze změny.
+
+**Hotovo 2. 11.** ([měření](../spikes/2026-11-02-navrhy-druhy.md)): krok Návrhy se řídí druhem tématu, `predloha` smí být jen role, kterou dossier má. Tesla a axolotl používají své role (portrét, mapa), stavba prošla stejným měřítkem. Odhad kroku je 0,057 USD místo 0,04 USD, takže řetězec z tématu stojí 0,127 USD. Zbývá: primární zdroje mimo Wikipedii (Google Patents, IUCN).
 
 ## 5. Zadání pro samostatnou session
 
