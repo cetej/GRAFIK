@@ -14,9 +14,9 @@ from ngm_shared import claude, gpt
 
 DEFAULT_MODEL = "claude-sonnet-5-5"
 EFFORT = "medium"
-MAX_TOKENS = 12000
+MAX_TOKENS = 20000
 # odhad předem podle největšího dossieru: Tesla (120 faktů) 10 550 tokenů vstupu, 3 398 výstupu, axolotl 9 109 a 3 452, Koloseum 3 992 a 2 946 (spike 2026-11-02-navrhy-druhy); skutečnou cenu dává usage
-EST_IN_TOKENS, EST_OUT_TOKENS = 11_000, 3_500
+EST_IN_TOKENS, EST_OUT_TOKENS = 11_000, 9_000
 FORMATS = {"2:3": (1200, 1800), "4:5": (1200, 1500), "1:1": (1200, 1200), "16:9": (1600, 900)}
 DEFAULT_FORMAT = "2:3"
 MAX_PAGES = 3
@@ -24,11 +24,16 @@ MIN_PANEL = 4.0     # procenta strany; menší obdélník by se v náčrtu ani n
 MAX_FACT_TEXT = 220
 PICTURE_SOURCES = ("model", "obraz", "ilustrace", "kresba", "nic")
 
+FOR_READER = {
+    "web": 'Stránku čtenář uvidí v článku, velmi často na mobilu: zmenší se na šířku 360 px a většina lidí ji nezvětšuje. Nejmenší text má 1/30 šířky stránky a titulek 1/15, takže se vejde jeden hlavní obraz, nejvýš 3 další panely a 80 až 120 slov. Celé téma na jednu stránku nepatří: každá stránka odpovídá na jednu otázku a obstojí sama, zbytek patří na další stránku série do „dalsi_stranky“. Fakt je jen na jedné stránce, neopakuj ho. Další stránku navrhni jen tehdy, když má vlastní otázku a dost faktů. Formát 4:5 nebo 2:3, formát 16:9 jen pro jeden obraz s několika popisky.',
+    "tisk": "Stránka je tisková příloha: čtenář ji má na papíře v ruce a čte z blízka, písmo může být menší. Bohatá skladba z víc panelů je v pořádku a stránka smí nést celé téma, „dalsi_stranky“ nech prázdné. Formát 2:3 nebo 4:5.",
+}
+
 PRINCIPLES = """\
 Jsi art director infografik National Geographic. Z dossieru faktů navrhni TŘI odlišné série infografik. Série je 1 až 3 stránky, každá stránka je samostatná infografika.
 
 Zásady:
-- Stránku čtenář uvidí v článku, velmi často na mobilu: zmenší se na šířku 360 px a většina lidí ji nezvětšuje. Nejmenší text má 1/30 šířky stránky a titulek 1/15, takže se vejde jeden hlavní obraz, nejvýš 3 další panely a 80 až 120 slov. Celé téma na jednu stránku nepatří: každá stránka odpovídá na jednu otázku a obstojí sama, zbytek patří na další stránku série do „dalsi_stranky“. Fakt je jen na jedné stránce, neopakuj ho. Další stránku navrhni jen tehdy, když má vlastní otázku a dost faktů. Formát 4:5 nebo 2:3, formát 16:9 jen pro jeden obraz s několika popisky.
+- PRO_KOHO
 - Čistý styl a rovnováha: jedna věc, na kterou čtenář kouká první, kolem ní jen to, co k ní patří. Žádné prázdné pásy, nic stísněného, panely se nepřekrývají.
 - Informační hodnota: každý panel odpovídá na otázku, kterou si čtenář položí, a ukazuje něco, co jiný panel neukáže. Nic jen pro výplň.
 - Co nemá doklad, do obrazu nepatří: každý panel s informací uvede id faktů z dossieru, o které se opírá. Nic si nedomýšlej.
@@ -86,8 +91,8 @@ def estimate_usd(model: str) -> float:
     return price(model, EST_IN_TOKENS, EST_OUT_TOKENS)
 
 
-def system_prompt(kind: str) -> str:
-    return f"{PRINCIPLES}\n{KIND_RULES[kind]}\n\n{ANSWER.replace('PANEL_KINDS', PANEL_KINDS[kind])}"
+def system_prompt(kind: str, urceni: str = "web") -> str:
+    return f"{PRINCIPLES.replace('PRO_KOHO', FOR_READER[urceni])}\n{KIND_RULES[kind]}\n\n{ANSWER.replace('PANEL_KINDS', PANEL_KINDS[kind])}"
 
 
 def picture_roles(dossier: dict) -> set[str]:
@@ -171,10 +176,10 @@ def clean(data: dict, dossier: dict, own: list[dict] | tuple = ()) -> list[dict]
     return out
 
 
-def propose(dossier: dict, *, vzor=None, model: str = DEFAULT_MODEL, ask=None, own: list[dict] | tuple = ()) -> dict:
+def propose(dossier: dict, *, vzor=None, model: str = DEFAULT_MODEL, ask=None, urceni: str = "web", own: list[dict] | tuple = ()) -> dict:
     """{navrhy, rozbor, cost}. Chyba po zaplacené odpovědi nese její cenu, aby šla do ledgeru."""
     content = [{"type": "text", "text": dossier_text(dossier, own)}]
-    system = system_prompt(dossier["entita"].get("druh", "vec"))
+    system = system_prompt(dossier["entita"].get("druh", "vec"), urceni)
     if vzor is not None:
         content.insert(0, claude.image_block(vzor, max_side=1280)[0])
         system = f"{system}\n\n{VZOR}"

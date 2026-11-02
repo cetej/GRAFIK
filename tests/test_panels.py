@@ -36,7 +36,7 @@ def label(text="Věž", kotva="vez", **over) -> dict:
 
 
 def fields(**over) -> dict:
-    return {"title": "Věž", "subtitle": "první řádek\ndruhý", "size": "1600x2400", "sources": "Wikipedie", "panels": [
+    return {"title": "Věž", "subtitle": "první řádek\ndruhý", "size": "1600x2400", "sources": "Wikipedie", "pismo": "plakat", "panels": [
         {"id": "hlavni", "typ": "obraz", "poradi": 1, "nazev": "Hlavní", "rect": [0, 100, 800, 400], "zdroj": {"slozka": "strely/hlavni"}, "vrstvy": {"zed": "Zeď"}, "labels": [label()],
          "prekryvy": [{"typ": "krivka", "body": "kruh"}, {"typ": "usecka", "od": "vez", "do": [1, 1, 1]}]},
         {"id": "detail", "typ": "obraz", "poradi": 3, "rect": [0, 600, 400, 200], "zdroj": {"slozka": "strely/detail"}, "titulek": "Detail", "pod": {"text": "Popis", "small": "drobně"}},
@@ -240,7 +240,7 @@ def test_ai_picture_and_foreign_painting_are_named_in_the_footer(api, settings):
     Image.new("RGB", (100, 80), "red").save(buf, "PNG")
     ref = api.post("/api/v2/refs", json={"b64": base64.b64encode(buf.getvalue()).decode(), "title": "Obraz", "author": "Gérôme", "license": "Public domain"})
     assert ref.status_code in (200, 201), ref.text
-    body = {"title": "Věž", "size": "1600x1000", "panels": [
+    body = {"title": "Věž", "size": "1600x1000", "pismo": "plakat", "panels": [
         {"id": "hlavni", "typ": "obraz", "nazev": "Model", "rect": [0, 0, 800, 400], "zdroj": {"slozka": "strely/hlavni"}},
         {"id": "scena", "typ": "obraz", "nazev": "Scéna", "rect": [800, 0, 800, 400], "zdroj": {"obraz": f"{img}/0"}, "labels": [label("Vítěz", [10, 20, 0], pos=[900, 100])]},
         {"id": "gerome", "typ": "obraz", "nazev": "Obraz", "rect": [0, 500, 400, 400], "zdroj": {"ref_id": ref.json()["id"], "vyrez": [10, 10, 50, 40]}}]}
@@ -382,7 +382,7 @@ def test_checks_measure_the_text_on_a_phone(tmp_path):
 def test_new_document_has_phone_sizes_and_old_stays_as_it_was(api, settings, tmp_path):
     shot(settings.library_dir / "strely" / "hlavni", ["zed"])
     shot(settings.library_dir / "strely" / "detail")
-    new = api.post("/api/v2/infographics/panels", json=fields(size="1080x1620", panels=[{**fields()["panels"][2], "rect": [50, 300, 900, 100]}, {"id": "obr", "typ": "obraz", "rect": [0, 500, 1080, 500], "zdroj": {"slozka": "strely/detail"}, "labels": [label("Věž", [10, 10, 0], pos=[50, 520])]}])).json()
+    new = api.post("/api/v2/infographics/panels", json=fields(size="1080x1620", pismo="mobil", panels=[{**fields()["panels"][2], "rect": [50, 300, 900, 100]}, {"id": "obr", "typ": "obraz", "rect": [0, 500, 1080, 500], "zdroj": {"slozka": "strely/detail"}, "labels": [label("Věž", [10, 10, 0], pos=[50, 520])]}])).json()
     assert new["pismo"]["jednotek"] == panels.MOBIL["jednotek"]
     W = 1080
     svg = api.get(f"/api/v2/infographics/{new['id']}/svg").text
@@ -404,6 +404,51 @@ def test_new_document_has_phone_sizes_and_old_stays_as_it_was(api, settings, tmp
     assert 'x="942.0"' in drawn      # osa: sloupec letopočtů 118 k
 
 
+def test_new_page_has_no_source_line_only_the_ai_mark(api, settings):
+    folder = settings.library_dir / "strely" / "hlavni"
+    shot(folder)
+    img = api.post("/api/v2/images", json={"prompt": "a scene", "size": "256x256", "seed": 1}).json()["job_id"]
+    assert wait(api, img)["status"] == "done"
+    picture = {"id": "obr", "typ": "obraz", "nazev": "Model", "rect": [0, 300, 1080, 600], "zdroj": {"slozka": "strely/hlavni"}}
+    plain = api.post("/api/v2/infographics/panels", json={"title": "Věž", "size": "1080x1350", "sources": "Wikipedie", "panels": [picture]}).json()
+    svg = api.get(f"/api/v2/infographics/{plain['id']}/svg").text
+    assert plain["na_strance"] == "" and "Wikipedie" not in svg and "Zdroj" not in svg and "Blender" not in svg and "Blender" in plain["ai_note"]
+    assert api.post(f"/api/v2/infographics/{plain['id']}/export", json={"format": "svg"}).status_code == 201
+    ai = api.post("/api/v2/infographics/panels", json={"title": "Věž", "size": "1080x1350", "panels": [picture, {**picture, "id": "fig", "nazev": "Figura", "rect": [0, 900, 400, 300], "zdroj": {"obraz": f"{img}/0"}}]}).json()
+    assert ai["na_strance"] == "Figura: AI" and ai["ai_generated"] is True and "Figura: AI" in api.get(f"/api/v2/infographics/{ai['id']}/svg").text
+    assert api.post(f"/api/v2/infographics/{ai['id']}/export", json={"format": "svg"}).status_code == 201
+    made = api.post("/api/v2/infographics/panels", json={"title": "Věž", "size": "1080x1350", "panels": [{**picture, "zdroj": {"slozka": "strely/hlavni", "ai": "FLUX 3 Klein"}, "nazev": "Figura"}]}).json()
+    assert made["na_strance"] == "Figura: AI" and "FLUX 3 Klein" in made["ai_note"] and "Blender" not in made["ai_note"]
+
+
+def test_see_through_picture_keeps_its_transparency_and_a_glow_behind_it(tmp_path):
+    source = tmp_path / "a.png"
+    Image.new("RGBA", (100, 80), (200, 0, 0, 128)).save(source)
+    panels.copy_image(source, tmp_path, "obr")
+    doc = {"size": "1080x1350", "title": "Věž", "ai_note": "x", "pismo": panels.MOBIL, "panels": [{"id": "obr", "typ": "obraz", "rect": [0, 300, 1000, 800], "nazev": "Obraz", "pruhledny": True, "zar": {"x": 500, "y": 700, "r": 400}}]}
+    doc["panels"] = panels.validate(doc)
+    svg = panels.render_svg(doc, tmp_path)
+    assert (tmp_path / "panely" / "obr" / "orez" / "pruhledny.png").is_file() and "image/png" in svg and "radialGradient" in svg
+    assert "radialGradient" in panels.clean_svg(svg, allow_data_images=True)
+    doc["panels"][0].pop("zar")
+    assert "radialGradient" not in panels.render_svg(doc, tmp_path)
+
+
+def test_collision_with_a_picture_is_measured_on_the_object_not_its_frame(tmp_path):
+    source = tmp_path / "a.png"
+    pic = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+    pic.paste((90, 90, 90, 255), (40, 40, 60, 60))
+    pic.save(source)
+    panels.copy_image(source, tmp_path, "obr")
+    doc = {"size": "1080x1350", "title": "Věž", "ai_note": "x", "pismo": panels.MOBIL, "panels": [
+        {"id": "obr", "typ": "obraz", "rect": [0, 200, 1000, 1000], "nazev": "Obraz"},
+        {"id": "a", "typ": "text", "nazev": "Vedle", "rect": [20, 220, 300, 100], "items": [{"value": "V", "text": "x"}]}]}
+    doc["panels"] = panels.validate(doc)
+    assert not any("zasahuje" in c["text"] for c in panels.checks(doc, tmp_path))
+    doc["panels"][1]["rect"] = [420, 620, 300, 100]
+    assert any(c["text"] == "text panelu zasahuje jinam: Vedle × Obraz" for c in panels.checks(doc, tmp_path))
+
+
 def test_long_title_and_heading_wrap_on_a_new_page(tmp_path):
     doc = {"size": "1080x1350", "title": "Jak se z malého chlapce ze Smiljanu stal vynálezce", "ai_note": "x", "pismo": panels.MOBIL, "panels": [
         {"id": "text", "typ": "text", "rect": [40, 400, 500, 100], "titulek": "Nadpis panelu který se nevejde na řádek", "items": [{"value": "V", "text": "věta"}]}]}
@@ -419,7 +464,7 @@ def test_long_title_and_heading_wrap_on_a_new_page(tmp_path):
 
 def test_checks_count_words_and_collisions_and_every_kind_of_text(tmp_path):
     many = " ".join(["slovo"] * 40)
-    doc = {"size": "1080x1350", "title": "Titulek", "ai_note": "x", "sources": "z", "pismo": panels.MOBIL, "panels": [
+    doc = {"size": "1080x1350", "title": "Titulek", "ai_note": "x", "na_strance": "Figura: AI", "sources": "z", "pismo": panels.MOBIL, "panels": [
         {"id": "a", "typ": "text", "nazev": "První", "rect": [40, 200, 1000, 100], "items": [{"value": "V", "text": many} for _ in range(3)]},
         {"id": "b", "typ": "text", "nazev": "Druhý", "rect": [40, 240, 1000, 100], "items": [{"value": "V", "text": "krátce"}]}]}
     doc["panels"] = panels.validate(doc)
@@ -481,3 +526,71 @@ def test_examples_build_valid_documents():
     points = {a["nazev"] for a in clean["kotvy"]}
     assert all(label_["kotva"] in points for p in checked if p["typ"] == "obraz" for label_ in p["labels"] if isinstance(label_["kotva"], str))
     assert sorted(p["poradi"] for p in checked) == list(range(1, len(checked) + 1))
+
+
+def test_reformat_makes_a_new_document_and_leaves_the_source(api, settings, doc):
+    source = settings.library_dir / "infographics" / doc["id"] / "info.json"
+    before = source.read_bytes()
+    r = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "16:9"})
+    assert r.status_code == 201, r.text
+    new = r.json()
+    assert new["id"] != doc["id"] and new["predelano_z"] == {"id": doc["id"], "size": "1600x2400"}
+    W, H = map(int, new["size"].split("x"))
+    assert abs(W / H - 16 / 9) < 0.01 and abs(W * H - 1600 * 2400) < 0.01 * 1600 * 2400
+    assert source.read_bytes() == before
+    assert (settings.library_dir / "infographics" / new["id"] / "panely" / "hlavni" / "obraz.png").is_file()
+    # stejné panely a texty, jen jinde
+    assert [p["id"] for p in new["panels"]] == [p["id"] for p in doc["panels"]]
+    assert api.get(f"/api/v2/infographics/{new['id']}/svg").text.count('<g id="Texty">') == 1
+    assert [i["value"] for p in new["panels"] if "items" in p for i in p["items"]] == [i["value"] for p in doc["panels"] if "items" in p for i in p["items"]]
+    for p in new["panels"]:
+        x, y, w, h = p["rect"]
+        assert x >= 0 and y >= 0 and x + w <= W + 0.5 and y + h <= H + 0.5
+    assert api.get(f"/api/v2/infographics/{new['id']}/svg").status_code == 200
+    assert api.get(f"/api/v2/infographics/{new['id']}/kontrola").status_code == 200
+
+
+def test_reformat_keeps_labels_on_the_same_point_of_the_picture(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1080x1350"}).json()
+    old_p, new_p = doc["panels"][0], new["panels"][0]
+    s = new_p["rect"][2] / old_p["rect"][2]
+    assert new_p["k"] == pytest.approx(s * 1.0)
+    dx = new_p["labels"][0]["pos"][0] - new_p["rect"][0]
+    assert dx == pytest.approx((old_p["labels"][0]["pos"][0] - old_p["rect"][0]) * s)
+
+
+def test_reformat_again_scales_from_the_new_format(api, doc):
+    one = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1:1"}).json()
+    two = api.post(f"/api/v2/infographics/{one['id']}/reformat", json={"size": "2:3"})
+    assert two.status_code == 201, two.text
+    assert two.json()["predelano_z"]["id"] == one["id"]
+
+
+@pytest.mark.parametrize("size", ["nesmysl", "0:5", "1x1"])
+def test_reformat_refuses_unknown_format(api, doc, size):
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": size}).status_code == 400
+
+
+def test_reformat_refuses_documents_without_panels_and_missing_ones(api):
+    buf = BytesIO()
+    Image.new("RGB", (64, 64), "white").save(buf, "PNG")
+    old = api.post("/api/v2/infographics/upload", json={"b64": base64.b64encode(buf.getvalue()).decode(), "name": "a.png"}).json()
+    assert api.post(f"/api/v2/infographics/{old['id']}/reformat", json={"size": "1:1"}).status_code == 400
+    assert api.post("/api/v2/infographics/20000101-000000-0000/reformat", json={"size": "1:1"}).status_code == 404
+
+
+def test_reformatted_document_reports_the_phone_size_of_its_own_scale(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "16:9"}).json()
+    phone = [c for c in api.get(f"/api/v2/infographics/{new['id']}/kontrola").json() if "mobilu" in c["text"]]
+    assert phone and not phone[0]["ok"]
+    assert phone[0]["text"] != [c for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json() if "mobilu" in c["text"]][0]["text"]
+
+
+def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, doc):
+    assert any("mobilu" in c["text"] and not c["ok"] for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json())
+    saved = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "tisk"})
+    assert saved.status_code == 200, saved.text
+    rows = api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json()
+    assert not any("mobilu" in c["text"] and not c["ok"] for c in rows) and any("tisková příloha" in c["text"] for c in rows)
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "4:5"}).json()["urceni"] == "tisk"
+    assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "plakat"}).status_code == 400

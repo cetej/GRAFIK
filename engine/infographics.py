@@ -203,11 +203,17 @@ def vc_copy(d: Path, make, mode: str | None = None) -> dict:
     return {"path": d / name, "file": name, "created": True}
 
 
+def visible_note(doc: dict) -> str:
+    """Věta, která musí zůstat na plátně. Nová stránka nese jen krátké označení AI, a jen když je na ní AI obraz; prázdná věta je v každém textu."""
+    pismo = doc.get("pismo")
+    return doc.get("na_strance", "") if isinstance(pismo, dict) and pismo.get("zalomit") else doc["ai_note"]
+
+
 def _clean_with_note(svg: str, doc: dict) -> str:
     svg = clean_svg(svg, allow_data_images=True)
     # the footer is wrapped into several <text> lines: compare the bare text without tags and spaces
     bare = re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", svg).replace("&amp;", "&"))
-    if re.sub(r"\s+", "", doc["ai_note"]) not in bare:
+    if re.sub(r"\s+", "", visible_note(doc)) not in bare:
         raise InfoError("v exportu chybí označení AI v patičce")
     return svg
 
@@ -285,8 +291,26 @@ class InfographicStore:
                     else:
                         panels.copy_render(source, root, panel["id"])
             base, prov = make_base(panels.flat_hero(root, {**draft, "panels": validated}))
-            note, is_ai = note_of(validated, prov)
-            return self.save(doc["id"], {**doc, **draft, "panels": validated, "base": base, "ai_note": note, "ai_generated": is_ai, "layout": "pruh"}, new=True)
+            note, is_ai, short = note_of(validated, prov)
+            return self.save(doc["id"], {**doc, **draft, "panels": validated, "base": base, "ai_note": note, "na_strance": short, "ai_generated": is_ai, "layout": "pruh"}, new=True)
+        except Exception:
+            shutil.rmtree(root, ignore_errors=True)     # no half document in the list
+            raise
+
+    def reformat_panels(self, info_id: str, size: str) -> dict:
+        """A new document in another format, sharing nothing with the source: its pictures are copied, its exports stay with it."""
+        from engine import panels, reformat
+        source = self.get(info_id)
+        if not panels.is_panel_doc(source):
+            raise InfoError("přeformátovat jde jen dokument s panely")
+        target = reformat.target_size(size, source["size"])
+        fields = reformat.reformat(source, target)
+        doc = new_doc("", source.get("title") or "", None, target)
+        root = self._dir(doc["id"])
+        try:
+            shutil.copytree(self._dir(info_id) / "panely", root / "panely")
+            keep = {k: v for k, v in fields.items() if k not in ("id", "created", "updated", "exports", "in_library", "reviewed_by", "reviewed_at")}
+            return self.save(doc["id"], {**doc, **keep}, new=True)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)     # no half document in the list
             raise
@@ -310,6 +334,8 @@ class InfographicStore:
             if doc["schema_version"] != panels.SCHEMA:
                 raise InfoError(f"neznámá verze dokumentu {doc['schema_version']!r}")
             doc["panels"] = panels.validate(doc)
+            if doc.get("urceni", "web") not in panels.URCENI:
+                raise InfoError(f"neznámé určení {doc['urceni']!r}")
         if doc.get("schema") and doc["schema"].get("svg"):
             # a schema may hold a raster picture too (e.g. a cross-section render next to the main image)
             doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"], allow_data_images=True)}
@@ -399,8 +425,9 @@ class InfographicStore:
                 if opened.get("missingLinks"):
                     raise InfoError(f"v úpravě chybí propojené soubory: {', '.join(map(str, opened['missingLinks']))}")
                 texts = _canvas_texts(vc.tool("inspect_document"))
-                if re.sub(r"\s+", "", doc["ai_note"]) not in re.sub(r"\s+", "", "".join(texts)):
-                    raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{doc['ai_note']}“. Nic se neuložilo.")
+                note = visible_note(doc)
+                if re.sub(r"\s+", "", note) not in re.sub(r"\s+", "", "".join(texts)):
+                    raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{note}“. Nic se neuložilo.")
                 vc.tool("export", path=str(out / "e.png"))
                 vc.tool("export", path=str(out / "e.pdf"))
                 vc.tool("export", path=str(out / "e.svg"), outlineText=True)   # same look without the fonts, as NG-ROBOT

@@ -79,6 +79,7 @@ class Workflow(BaseModel):
     qid: str | None = None
     vzor: str | None = None              # ref_id vloženého vzoru
     model: str = ""
+    urceni: str = "web"                 # infografika: web (výchozí), nebo tisková příloha
     caller: str = "studio"
     stage: str = ""                      # podklady | navrhy | vyber | kontrola | hotovo | stop
     research_id: str | None = None

@@ -223,7 +223,7 @@ export interface Chain {
 }
 export const chainApi = {
   estimate: (research?: string) => call<{ total_usd: number; items: CostItem[] }>(`/api/v2/workflows/infografika/estimate${research ? `?research=${encodeURIComponent(research)}` : ''}`),
-  start: (body: { topic?: string; research?: string; vzor?: string | null; confirm_cost: boolean }) => post<Chain>('/api/v2/workflows/infografika', body),
+  start: (body: { topic?: string; research?: string; vzor?: string | null; urceni?: 'web' | 'tisk'; confirm_cost: boolean }) => post<Chain>('/api/v2/workflows/infografika', body),
   get: (id: string) => call<Chain>(`/api/v2/workflows/${id}`),
   pick: (id: string, navrh: number) => post<Chain>(`/api/v2/workflows/${id}/pick`, { navrh }),
   resume: (id: string, confirm: boolean) => post<Chain>(`/api/v2/workflows/${id}/continue`, { confirm_cost: confirm }),
@@ -315,8 +315,13 @@ export interface InfoLabel { text: string; small: string; anchor: [number, numbe
 export interface InfoFact { value: string; text: string }
 export interface InfoSchema { title: string; svg: string }
 
+export type Urceni = 'web' | 'tisk'
 export interface Infographic {
   id: string
+  schema_version?: number
+  panels?: { id: string }[]
+  predelano_z?: { id: string; size: string }
+  urceni?: Urceni
   base: string
   title: string
   subtitle: string
@@ -418,7 +423,9 @@ export const localizeApi = {
 }
 
 export const infoApi = {
-  list: () => call<Infographic[]>('/api/v2/infographics'),
+  list: () => call<Infographic[]>('/api/v2/infographics?panely=true'),
+  reformat: (id: string, size: string) => post<Infographic>(`/api/v2/infographics/${id}/reformat`, { size }),
+  checks: (id: string) => call<{ ok: boolean; text: string }[]>(`/api/v2/infographics/${id}/kontrola`),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
   upload: (b64: string, name: string, blenderRender = false) => post<Infographic>('/api/v2/infographics/upload', { b64, name, blender_render: blenderRender }),
   fromRef: (refId: string, title: string) => post<Infographic>('/api/v2/infographics/from-ref', { ref_id: refId, title }),

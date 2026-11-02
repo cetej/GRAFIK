@@ -130,8 +130,13 @@ class InfoVectorCraft(BaseModel):
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
 
 
+class InfoReformat(BaseModel):
+    size: str                       # "16:9" (same area as the source) or "1920x1080"
+
+
 class InfoPanels(BaseModel):
     title: str
+    urceni: str = "web"             # "tisk": printed supplement, no phone check
     subtitle: str = ""
     size: str = "1600x2400"
     template: str = "dark"
@@ -770,7 +775,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
     @app.get("/api/v2/infographics")
     def info_list(panely: bool = False):
-        """Panel documents only on request: the Studio editor does not draw them yet."""
+        """Panel documents only on request: older callers expect the labels of the editor's documents."""
         return [d for d in infos.list() if panely or not panels.is_panel_doc(d)]
 
     def make_panel_doc(fields: dict) -> dict:
@@ -814,7 +819,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                     meta = reflib.get(source["ref_id"]) or {}
                     credits.append(panels.credit(panel["nazev"], meta.get("author"), meta.get("license")))
             rendered = any(not any((p.get("zdroj") or {}).get(key) for key in ("obraz", "ref_id", "ai")) for p in validated if p["typ"] == "obraz")
-            return panels.compose_note(rendered and bool((prov or {}).get("render")), illustrated, credits), bool(illustrated)
+            short = "; ".join(f"{', '.join(names)}: AI" for names in illustrated.values())
+            return panels.compose_note(rendered and bool((prov or {}).get("render")), illustrated, credits), bool(illustrated), short
 
         return infos.create_panels(fields, source_of, make_base, note_of)
 
@@ -824,6 +830,14 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def info_panels(body: InfoPanels):
         try:
             return make_panel_doc(body.model_dump())
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.post("/api/v2/infographics/{info_id}/reformat", status_code=201)
+    def info_reformat(info_id: str, body: InfoReformat):
+        _info_or_404(info_id)
+        try:
+            return infos.reformat_panels(info_id, body.size)
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
 

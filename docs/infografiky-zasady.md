@@ -15,6 +15,8 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu v těch poměrech velikosti nejdou nic úžasného“. Infografiku čtenář vidí v článku, velmi často na mobilu. Stránka se tam zmenší na šířku displeje a většina lidí ji nezvětšuje, takže větší plátno nepomůže: o čitelnosti rozhoduje jen poměr písma k šířce stránky.
 
+**Volba: web, nebo tisková příloha.** Operátor 2. 11.: „De facto by tam mělo být rozhodování / možnost, zda vytváříme tiskovou přílohu, nebo infografiky pro web, které budou defaultním požadavkem.“ Výchozí je web a platí vše v tomto oddílu. Tisková příloha (`urceni: "tisk"`, přepínač „Kam to půjde“) se čte z papíru, smí být bohatá a kontrola mobilu pro ni neplatí.
+
 **Navrhuj pro telefon široký 360 px, a to před skladbou.** Hotovou stránku už to nezachrání.
 
 | Text | Na telefonu | Podíl šířky stránky | Stránka 1080 px | Stránka 1800 px |
@@ -25,7 +27,7 @@ Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu 
 | popisek u věci, nejmenší text | ≥ 12 px | 1/30 | 36 px | 60 px |
 | zdroj, označení AI | ≥ 9 px | 1/40 | 27 px | 45 px |
 
-Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com/docs/lighthouse/seo/font-size) (v Lighthouse 13 audit zmizel, hranice zůstává rozumná). Ostatní řádky jsou odstupňované od ní a posoudí je operátor na první sérii.
+Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com/docs/lighthouse/seo/font-size) (v Lighthouse 13 audit zmizel, hranice zůstává rozumná). Ostatní řádky jsou odstupňované od ní. Operátor s nimi přijal první sérii (Studna, 2. 11.).
 
 **Kolik se vejde.** Při 12 px je na šířku stránky zhruba 60 znaků. Na 4:5 (na telefonu 360 × 450 px) s obrazem přes půl stránky zbývá kolem 80 slov, na 2:3 kolem 120. Popisky na obraze se počítají do toho. Dnešní plakáty, změřené 2. 11. ze SVG (`library/plakaty/`):
 
@@ -39,7 +41,8 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 
 **Velká plachta se dělí.** Kde by text vyšel pod práh, písmo se nezmenšuje a stránka se rozdělí na víc menších.
 - Dělí se podle otázek čtenáře: jedna stránka, jedna otázka, jeden hlavní obraz a nejvýš 3 další panely. Studna a scénáře jsou tak rozdělené už teď, jen každá z nich nese ještě dvakrát až třikrát víc textu, než se vejde.
-- Každá stránka obstojí sama: vlastní titulek, zdroj a věta o AI. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
+- Každá stránka obstojí sama: vlastní titulek a řádek se zdrojem. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
+- **Zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
 - Série drží stejné písmo, barvy a velikosti, stejný objekt vypadá na všech stránkách stejně.
 - Souhrnný plakát na jedné ploše vznikne navíc jen na přání operátora, pro tisk nebo stažení. Do článku jde série.
 - Věrná kopie husté předlohy pravidlo poruší. Řekni to operátorovi předem a navrhni rozdělení.
@@ -47,6 +50,8 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 **Formát.** Výchozí je 4:5 (1080 × 1350) nebo 2:3. Delší stránka než 9:16 se nevejde na jednu obrazovku telefonu. Formát 16:9 je na telefonu 360 × 202 px: jeden obraz a několik popisků, žádné panely.
 
 **Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely). Výchozí písmo Engine i editoru je pro velký formát a práh nesplní (`docs/plans/2026-11-01-infografika-z-tematu.md`, krok 3g), u nové stránky proto nastav velikosti podle tabulky. Před odesláním PNG zmenši na šířku 360 px a přečti: co nepřečteš, nepřečte ani čtenář. Na počítači se sloupec článku odhaduje kolem 700 px (web jsem neměřil), stránka podle tabulky tam vyjde ještě větší.
+
+**Vzor série.** `scripts/plakaty/velsen_studna_mobil.py`: plakát Muž na dně studny (239 slov) jako tři stránky 1080 × 1620 po 72, 42 a 45 slovech bez zdroje. Fakta zůstala všechna, zmizel jen metrový pruh, který hloubky na okraji nahrazují. Co bylo na plakátu malé, je na stránce velké a vady jsou vidět: pánev a výřez chtěly nový render ve větší velikosti, hladké kameny hrubší povrch (`velsen_studna.py --zblizka`). Výřez z renderu plakátu nestačí.
 
 ## Stránka z víc obrazů (Koloseum, 1. 11., výtky operátora)
 

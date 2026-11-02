@@ -2,6 +2,19 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Zdroj na infografice je jeden krátký řádek
+
+Operátor k sérii Studny: „Proč jsou tam drobným ty obrovské popisky o zdrojích, na základě kterých to vzniklo, co je to za debilitu?“
+
+- Na stránce zůstane autor a rok, co je AI a nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek (`zdroje.txt` vedle stránek).
+- Označení AI zůstává, chce ho licence FLUX. Přijaté verze série v Knihovně se nepřepisují.
+
+## 2026-11-02 — Série Studny pro mobil přijatá
+
+Operátor po náhledu v šířce telefonu vedle starého plakátu: „Ano, do Knihovny“. Tři stránky 1080 × 1620 jsou v Knihovně jako nové položky, přijatý plakát zůstal. Velikosti z tabulky v `docs/infografiky-zasady.md` tím prošly první zkouškou; na opravdovém telefonu je zatím nikdo neviděl.
+
+Pak doplnil: „měla by přibýt i karta s lokací a modelem pevnosti“. Karta Kde se to stalo je čtvrtá stránka série, přijatá a v Knihovně („Ano, přidej ji“). Čísla míst šesti scénářů zůstala na plakátu Kdo ho zabil?.
+
 ## 2026-11-02 — Infografika se navrhuje pro web a mobil
 
 Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“
@@ -9,6 +22,18 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Měřítko je telefon široký 360 px. Nejmenší text má 1/30 šířky stránky (12 px na telefonu), titulek 1/15. Tabulka a meze: `docs/infografiky-zasady.md`, oddíl Web a mobil. Čísla jsem navrhl já, mez 12 px je z auditu Lighthouse; operátor je zatím neviděl na hotové sérii.
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
+
+## 2026-11-02 — Infografika je pro web, nebo pro tisk; výchozí je web
+
+Operátor: „De facto by tam mělo být rozhodování / možnost, zda vytváříme tiskovou přílohu, nebo infografiky pro web, které budou defaultním požadavkem.“ Přepínač „Kam to půjde“ na začátku řetězce z tématu a u dokumentu s panely (`urceni`), prompt návrhů a kontrola mobilu se podle něj řídí. Dosavadní dokumenty bez pole se berou jako web.
+
+## 2026-11-02 — Předělat na formát: tlačítko u dokumentu s panely, rozpočet do 1 USD
+
+Operátor chce tlačítko, které hotový výstup předělá na jiný formát, a schválil náčrt („Ano, stav to“). Rozpočet: „pokud bude potřeba vše tak u jedné transformace rozměru do 1 dolaru automaticky, od dolaru výš na schválení“. Tahle verze stojí 0 USD, placený krok zatím není potřeba.
+
+- Panely se přeskládají jako celé bloky a zmenší se rovnoměrně (`engine/reformat.py`), nic se neořízne ani nepřezalomí. Popisky zůstávají vůči obrazu na stejném místě, proto se nové kolo Blenderu z plánu nestaví.
+- Úloha běží hned, ne ve frontě: nepracuje s GPU ani s modelem.
+- Staré dokumenty bez panelů a plakáty ze skriptů se nemění. Ilustrace: GRAFIK#150.
 
 ## 2026-11-02 — Druhá infografika „Kdo ho zabil?“ a mapka ze studny na ni
 

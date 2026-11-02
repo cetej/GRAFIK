@@ -219,6 +219,9 @@ MAT = {
     "surface": noise_mat("Povrch", "#5f5e48", "#7d7b60", 40, 1.0, 0.95),
     "fill": noise_mat("Výplň", "#4b4640", "#74695a", 22, 1.0, 0.95),
 }
+if "--zblizka" in ARGS:     # stones seen large: the fine grain of the big page reads as smooth plastic
+    MAT["quern"] = noise_mat("Žernov", "#4d4a44", "#a09b91", 55, 3.0, 0.95, detail=12.0)
+    MAT["cobble"] = noise_mat("Kámen", "#3d3b36", "#7f7b72", 45, 2.5, 0.92, detail=12.0)
 
 
 def wash(mat, z0, z1, colour):
@@ -608,8 +611,9 @@ def pot():
 
 
 def front_stones():
-    """A few fragments on his lap and shoulder, in front of him in the picture."""
+    """A few fragments on his lap and shoulder, in front of him in the picture. Seen large (--zblizka) the two on the hand and the foot of the picture look pasted on."""
     spots = ((-0.36, -3.86, 0.07, "quern"), (-0.38, -3.68, 0.06, "quern"), (-0.42, -3.5, 0.05, "cobble"))
+    spots = spots[2:] if "--zblizka" in ARGS else spots
     return [chunk(f"Přední {i}", (x, -0.06, z), s, MAT[m], (1, 0.7, 0.65), 6) for i, (x, z, s, m) in enumerate(spots)]
 
 

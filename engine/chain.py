@@ -18,10 +18,12 @@ import threading
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from typing import Literal
+
 from PIL import Image
 from pydantic import BaseModel
 
-from engine import infographics, panels, proposals, serie
+from engine import infographics, proposals, serie
 from engine.infographics import InfoError
 from engine.reflib import RefLibError
 from engine.workflows import Workflow
@@ -44,6 +46,7 @@ class ChainIn(BaseModel):
     vzor: str | None = None             # ref_id vzoru z knihovny předloh
     research: str | None = None         # začít od hotového dossieru
     model: str | None = None            # jinak proposals.DEFAULT_MODEL
+    urceni: Literal["web", "tisk"] = "web"
     confirm_cost: bool = False
     caller: str = "studio"
 
@@ -141,7 +144,7 @@ class Chain:
         what = f"návrhy skladby ({wf.model})"
         self.log_cost({**ledger, "usd": estimate, "status": "pending", "items": [{"what": f"{what}, odhad", "usd": estimate}]})
         try:
-            out = proposals.propose(dossier, vzor=vzor, model=wf.model, ask=self.ask, own=serie.own_pictures(self.s.library_dir, dossier))
+            out = proposals.propose(dossier, vzor=vzor, model=wf.model, ask=self.ask, urceni=wf.urceni, own=serie.own_pictures(self.s.library_dir, dossier))
         except claude.ClaudeError as e:
             cost = e.cost or {"usd": 0.0}
             self.log_cost({**ledger, "usd": cost["usd"], "status": "failed", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
@@ -192,8 +195,9 @@ class Chain:
         ledger = {"job_id": job_id, "caller": wf.caller, "backend": f"{proposals.vendor(wf.model)}:texty", "n": 1}
         what = f"texty stránek ({wf.model})"
         self.log_cost({**ledger, "usd": estimate, "status": "pending", "items": [{"what": f"{what}, odhad", "usd": estimate}]})
+        images, notes = serie.pick_images(dossier, proposal, wf.stranky, serie.own_pictures(self.s.library_dir, dossier))
         try:
-            written = serie.write_texts(dossier, proposal, wf.stranky, model=wf.model, ask=self.ask)
+            written = serie.write_texts(dossier, proposal, wf.stranky, model=wf.model, ask=self.ask, images=images)
         except claude.ClaudeError as e:
             cost = e.cost or {"usd": 0.0}
             self.log_cost({**ledger, "usd": cost["usd"], "status": "failed", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
@@ -205,7 +209,6 @@ class Chain:
         cost = written["cost"]
         self.log_cost({**ledger, "usd": cost["usd"], "status": "ok", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
         wf.spent_usd = round(wf.spent_usd + cost["usd"], 4)
-        images, notes = serie.pick_images(dossier, proposal, wf.stranky, serie.own_pictures(self.s.library_dir, dossier))
         pages = proposals.pages(proposal)
         done = []
         for n in wf.stranky:
@@ -215,7 +218,7 @@ class Chain:
                 done.append({"stranka": n, "nazev": pages[n - 1]["nazev"], "doc": None, "hlaseni": [*said, "Model k téhle stránce nevrátil text."]})
                 continue
             try:
-                fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.credit_of, self.picture_of)
+                fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of)
                 doc = self.make_doc({**fields, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}})
                 done.append({"stranka": n, "nazev": text["titulek"], "doc": doc["id"], "hlaseni": [*said, *more]})
             except InfoError as e:
@@ -223,10 +226,6 @@ class Chain:
         wf.serie, wf.stage, wf.step_job = done, "hotovo", None
         self.wfs.save(wf)
         return {"files": [], "stranky": len(done), "cost_usd": cost["usd"]}
-
-    def credit_of(self, ref_id: str, name: str) -> str:
-        meta = self.reflib.get(ref_id) or {}
-        return panels.credit(name, meta.get("author"), meta.get("license"))
 
     def picture_of(self, image: dict) -> dict:
         """Obraz pro rozvržení: zdroj dokumentu, rozměr, průhlednost a pojmenované body."""
@@ -281,7 +280,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
         est = chain.estimate(draft, STEPS[1:] if body.research else STEPS)
         if not body.confirm_cost:
             return payment(est, "Řetězec")
-        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"])
+        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"])
         chain.enqueue(wf, "navrhy" if body.research else "podklady")
         return wf
 

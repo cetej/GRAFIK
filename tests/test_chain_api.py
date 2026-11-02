@@ -349,6 +349,13 @@ def test_panel_kinds_in_the_prompt_are_roles_of_that_kind():
         assert set(panels.split("|")) <= set(research.PROFILES[kind].get("roles", research.ROLES))
 
 
+def test_web_is_the_default_and_print_changes_the_prompt():
+    from engine import proposals
+    assert proposals.system_prompt("vec") == proposals.system_prompt("vec", "web")
+    assert "360 px" in proposals.system_prompt("vec") and "PRO_KOHO" not in proposals.system_prompt("vec")
+    assert "tisková příloha" in proposals.system_prompt("vec", "tisk") and "360 px" not in proposals.system_prompt("vec", "tisk")
+
+
 FACTS = [{"id": f"f{i}", "stav": "jediny_zdroj", "tema": "dilo", "tvrzeni": f"Fakt {i}, rok 18{i:02d}.", "zdroje": [{"nazev": "Wikipedia (cs): Nikola Tesla", "citace": f"citace {i}", "url": "u"}]} for i in range(1, 13)]
 SERIES_DOSSIER = {"facts": FACTS, "images": [{"role": "portret", "ref_id": "r1"}, {"role": "dilo", "ref_id": "r2"}, {"role": "nezarazeno", "ref_id": "r3"}], "entita": {"label": "Tesla", "druh": "osoba"}, "tema": "Tesla"}
 
@@ -401,53 +408,57 @@ def test_pick_chooses_pages_and_every_page_has_a_sketch(settings, sd):
 
 
 def test_pages_are_built_from_facts_and_each_is_checked(settings, sd):
-    reply = {"navrhy": [{"nazev": "Série", "veta": "Věta.", "format": "4:5", "panely": [{**PANEL, "predloha": "rez", "fakta": ["f1"]}],
+    reply = {"navrhy": [{"nazev": "Série", "veta": "Věta.", "format": "4:5", "panely": [{**PANEL, "predloha": None, "druh": "text", "fakta": ["f1"]}],
                          "dalsi_stranky": [{"nazev": "Druhá", "veta": "Jiná.", "panely": [{**PANEL, "predloha": None, "druh": "text", "fakta": ["f2"]}]}]}]}
-    ask = FakeAsk(reply=reply)
+    texts = {"stranky": [{"stranka": 1, "titulek": "Proč stojí", "uvod": "Stojí v Římě.", "polozky": [{"fakt": "f1", "bod": None, "value": "Stavba", "text": "stojí v Římě"}]},
+                         {"stranka": 2, "titulek": "Co je jinak", "polozky": [{"fakt": "f2", "value": "Text", "text": "jen text bez obrazu"}, {"fakt": "f1", "value": "Cizí", "text": "fakt z jiné stránky"}]}]}
+
+    class Ask(FakeAsk):
+        def __call__(self, content, system, *, what, model, effort="low", max_tokens=16000):
+            self.calls.append({"what": what, "model": model, "content": content})
+            data = LOGIC if what == "kontrola logiky" else texts if what == "texty stránek" else self.reply
+            return claude.Answer(json.dumps(data, ensure_ascii=False), model, 1000, 500, self.usd, "end_turn")
+
+    ask = Ask(reply=reply)
     with TestClient(make(settings, sd, ask)) as c:
-        wf = wait_stage(c, start(c)["id"], ("vyber",))
+        first = wait_stage(c, start(c)["id"], ("vyber",))
+        role = next(i["role"] for i in c.get(f"/api/v2/research/{first['research_id']}").json()["dossier"]["images"] if i.get("ref_id") and i["role"] != "nezarazeno")
+        reply["navrhy"][0]["panely"][0]["predloha"] = role          # první stránka má předlohu z dossieru, druhá jen text
+        wf = wait_stage(c, start(c, research=first["research_id"])["id"], ("vyber",))
         assert c.post(f"/api/v2/workflows/{wf['id']}/stranky").status_code == 409     # ještě není vybráno
         c.post(f"/api/v2/workflows/{wf['id']}/pick", json={"navrh": 1})
         wait_stage(c, wf["id"], ("hotovo",))
-        dossier = facts_of(c, wf["research_id"])
-        ask_texts = {"stranky": [{"stranka": 1, "titulek": "Proč stojí", "panely": [{"panel": 1, "nadpis": "Řez", "polozky": [{"fakt": "f1", "value": "Stavba", "text": "Stojí v Římě."}]}]},
-                                 {"stranka": 2, "titulek": "Co je jinak", "panely": [{"panel": 1, "nadpis": "Rozdíl", "polozky": [{"fakt": "f2", "value": "Text", "text": "Jen text bez obrazu."}, {"fakt": "f1", "value": "Cizí", "text": "Fakt z jiné stránky."}]}]}]}
-        import engine.chain as chain_module
-        original = chain_module.serie.write_texts
-        chain_module.serie.write_texts = lambda d, p, chosen, *, model, ask: original(d, p, chosen, model=model, ask=lambda *a, **k: claude.Answer(json.dumps(ask_texts, ensure_ascii=False), model, 1000, 500, 0.01, "end_turn"))
-        try:
-            assert c.post(f"/api/v2/workflows/{wf['id']}/stranky").status_code == 200
-            done = wait_stage(c, wf["id"], ("hotovo", "stop"), timeout=40)
-        finally:
-            chain_module.serie.write_texts = original
-        while not done["serie"] and done["stage"] != "stop":
-            done = wait_stage(c, wf["id"], ("hotovo", "stop"))
+        assert c.post(f"/api/v2/workflows/{wf['id']}/stranky").status_code == 200
+        deadline = time.time() + 40
+        done = c.get(f"/api/v2/workflows/{wf['id']}").json()
+        while not done["serie"] and done["stage"] != "stop" and time.time() < deadline:
+            time.sleep(0.05)
+            done = c.get(f"/api/v2/workflows/{wf['id']}").json()
         assert done["stage"] == "hotovo", done["stop_reason"]
         assert [(p["stranka"], p["nazev"]) for p in done["serie"]] == [(1, "Proč stojí"), (2, "Co je jinak")]
         second = done["serie"][1]
-        assert any("fakt mimo panel" in note for note in second["hlaseni"])
-        assert any("bez obrazu" in note for note in second["hlaseni"])
+        assert any("fakt mimo stránku" in note for note in second["hlaseni"]) and any("bez obrazu" in note for note in second["hlaseni"])
         for page in done["serie"]:
             doc = c.get(f"/api/v2/infographics/{page['doc']}").json()
             assert doc["size"] == "1080x1350" and doc["pismo"]["jednotek"] == pn.MOBIL["jednotek"] and doc["serie"]["celkem"] == 2
             found = [row for row in c.get(f"/api/v2/infographics/{page['doc']}/kontrola").json() if not row["ok"]]
             assert not [row for row in found if "mobil" in row["text"] or "zasahuje" in row["text"] or "přetéká" in row["text"]], found
-            assert "Blender" not in doc["ai_note"]      # obrazy z dossieru, žádný render
-        assert done["navrhy"][0]["panely"][0]["predloha"] is None or "Dehio, CC0" in c.get(f"/api/v2/infographics/{done['serie'][0]['doc']}").json()["ai_note"]
+            assert doc["sources"] and doc["na_strance"] == "" and doc["sources"] not in c.get(f"/api/v2/infographics/{page['doc']}/svg").text      # zdroj je v dokumentu, na stránce ne
+        assert "Dehio, CC0" in c.get(f"/api/v2/infographics/{done['serie'][0]['doc']}").json()["ai_note"]      # autor obrazu zůstává v provenienci
         assert c.post(f"/api/v2/workflows/{wf['id']}/stranky").status_code == 409     # složené se znovu neplatí
-        assert dossier["facts"]
 
 
 def test_a_number_the_fact_does_not_have_drops_the_item():
-    fact = {"tvrzeni": "Narození: 10. 7. 1856", "hodnota": "1856-07-10", "zdroje": [{"citace": "postavil 1 000 cívek a 2,5 km vedení"}]}
+    fact = {"tvrzeni": "Narození: 10. 7. 1856", "hodnota": "1856-07-10", "zdroje": [{"citace": "postavil 1 000 cívek a 2,5 km vedení, 150,000 USD"}]}
     assert sr.documented({"value": "1856", "text": "narodil se 10. 7."}, fact) == []
-    assert sr.documented({"value": "1 000", "text": "cívek a 2,5 km"}, fact) == []
+    assert sr.documented({"value": "1 000", "text": "cívek a 2,5 km, 150 000 USD"}, fact) == []
     assert sr.documented({"value": "1857", "text": "narodil se"}, fact) == ["1857"]
     proposal = pp.clean(SERIES, SERIES_DOSSIER)[0]
-    answer = {"stranky": [{"stranka": 1, "titulek": "T", "panely": [{"panel": 1, "nadpis": "N", "polozky": [{"fakt": "f1", "value": "1801", "text": "doloženo"}, {"fakt": "f1", "value": "1999", "text": "vymyšleno"}]}]}]}
+    answer = {"stranky": [{"stranka": 1, "titulek": "T", "uvod": "Věta.", "polozky": [{"fakt": "f1", "value": "1801", "text": "doloženo", "bod": "rotor"}, {"fakt": "f1", "value": "1999", "text": "vymyšleno"}, {"fakt": "f9", "value": "Cizí", "text": "fakt z jiné stránky"}]}]}
     out = sr.write_texts(SERIES_DOSSIER, proposal, [1], ask=lambda *a, **k: claude.Answer(json.dumps(answer), "m", 1, 1, 0.0, "end_turn"))
-    assert [i["value"] for i in out["stranky"][1]["panely"][1]["polozky"]] == ["1801"]
-    assert any("1999" in note for note in out["hlaseni"][1])
+    page = out["stranky"][1]
+    assert [i["value"] for i in page["polozky"]] == ["1801"] and page["polozky"][0]["bod"] == "rotor" and page["uvod"] == "Věta."
+    assert any("1999" in note for note in out["hlaseni"][1]) and any("mimo stránku" in note for note in out["hlaseni"][1])
     with pytest.raises(claude.ClaudeError):
         sr.write_texts(SERIES_DOSSIER, proposal, [1], ask=lambda *a, **k: claude.Answer("{}", "m", 1, 1, 0.0, "end_turn"))
 
@@ -460,73 +471,104 @@ def test_same_picture_is_not_used_twice_and_a_missing_one_is_reported():
     assert any("krok 3f" in note for note in notes[2])
 
 
-def picture(res=(1200, 800), poradi=1):
-    return {"id": "o1", "typ": "obraz", "poradi": poradi, "nazev": "Obraz", "rect": [0, 0, 1, 1], "zdroj": {"ref_id": "r"}, "_res": res}
+def picture(res=(800, 800), points=None, solid=(300, 100, 500, 700)):
+    """Obraz s průhledným okolím, objekt je obdélník uprostřed."""
+    alpha = Image.new("L", res, 0)
+    alpha.paste(255, solid)
+    return {"id": "o1", "typ": "obraz", "poradi": 1, "nazev": "Obraz", "rect": [0, 0, 1, 1], "zdroj": {"slozka": "x"}, "_res": res, "_alpha": alpha, "_points": points or {"horni": [400, 200], "dolni": [400, 600]}}
 
 
-def words(kind="text", count=2, text="Věta o tom, co se stalo a proč na tom záleží."):
-    return {"id": "t1", "typ": kind, "poradi": 2, "nazev": "Text", "titulek": {"text": "Nadpis"}, "rect": [0, 0, 1, 1], "fakta": [], "items": [{"value": "1891", "text": text} for _ in range(count)], **({"smer": "radek"} if kind == "fakta" else {})}
+ITEMS = [{"value": "Horní díl", "text": "krátké vysvětlení k věci", "bod": "horni"}, {"value": "Dolní díl", "text": "další krátké vysvětlení", "bod": "dolni"}, {"value": "1891", "text": "patent bez místa na obraze", "bod": None}]
 
 
-@pytest.mark.parametrize("res", [(1200, 800), (800, 1200), (2200, 300)])
+def boxes_of(fields):
+    k = int(fields["size"].split("x")[0]) / pn.MOBIL["jednotek"]
+    labels = [pn._text_box(label, pn.MOBIL["popisek"] * k) for p in fields["panels"] if p["typ"] == "obraz" for label in p["labels"]]
+    texts = [(*p["rect"][:3], pn.text_height(p, pn.MOBIL, k)) for p in fields["panels"] if p["typ"] == "text"]
+    return labels, texts
+
+
+@pytest.mark.parametrize("res,solid", [((800, 800), (300, 100, 500, 700)), ((800, 1400), (300, 40, 500, 1360)), ((1400, 500), (40, 100, 1360, 400))])
 @pytest.mark.parametrize("size", ["1080x1350", "1080x1620", "1080x1080"])
-def test_layout_keeps_everything_on_the_page(size, res):
-    placed, dropped = sr.arrange("Krátký titulek", "Obraz: autor, licence; schéma a popisky redakčně.", "Wikipedia (cs).", [picture(res)], [words()], size)
+def test_page_puts_the_callouts_next_to_the_object_and_keeps_all_on_the_page(size, res, solid):
+    hero = picture(res, {"horni": [res[0] // 2, res[1] // 3], "dolni": [res[0] // 2, 2 * res[1] // 3]}, solid)
+    fields, dropped = sr.compose("Krátký titulek", "Jedna věta, co čtenář z obrazu pochopí.", "", hero, ITEMS, {}, {}, size)
     assert not dropped
     W, H = (int(v) for v in size.split("x"))
-    k = W / pn.MOBIL["jednotek"]
-    for panel in placed:
-        x, y, w, h = panel["rect"]
-        assert x >= 0 and y > 0 and x + w <= W + 0.5 and y + h <= H + 0.5, panel["rect"]
-    doc = {"size": size, "title": "Krátký titulek", "sources": "Wikipedia (cs).", "ai_note": "Obraz: autor, licence; schéma a popisky redakčně.", "pismo": pn.MOBIL, "panels": placed}
-    pic = next(p for p in placed if p["typ"] == "obraz")["rect"]
-    text = next(p for p in placed if p["typ"] == "text")
-    top = pn.footer(doc, pn.MOBIL, k, W, H)[1]
-    assert text["rect"][1] + pn.text_height(text, pn.MOBIL, k) < top
-    assert pic[1] + pic[3] < top
+    main = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert all(0 <= v for v in main["rect"]) and main["rect"][0] + main["rect"][2] <= W + 0.5 and main["rect"][1] + main["rect"][3] <= H + 0.5
+    assert [label["text"] for label in main["labels"]] == ["Horní díl", "Dolní díl"] and all(label["small"] for label in main["labels"])
+    labels, texts = boxes_of(fields)
+    assert texts, "fakt bez bodu jde do volné plochy"
+    every = labels + texts
+    assert all(not (a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]) for i, a in enumerate(every) for b in every[i + 1:])
+    for box in every:
+        assert box[0] >= 0 and box[0] + box[2] <= W and box[1] + box[3] <= H and box[1] > fields["nadpis"]["y"]
+    place = panels_place(main, hero)
+    for box in labels:     # text leží vedle objektu, ne přes něj
+        x0, y0 = (box[0] - place[0]) / place[2], (box[1] - place[1]) / place[2]
+        x1, y1 = (box[0] + box[2] - place[0]) / place[2], (box[1] + box[3] - place[1]) / place[2]
+        assert x1 <= solid[0] + 2 or x0 >= solid[2] - 2 or y1 <= solid[1] + 2 or y0 >= solid[3] - 2
+
+
+def panels_place(main, hero):
+    x, y, w, h = main["rect"]
+    return x, y, w / hero["_res"][0]
+
+
+def test_picture_grows_as_far_as_the_callouts_allow():
+    small_text = sr.compose("Titulek", "", "", picture(), ITEMS[:1], {}, {}, "1080x1350")[0]
+    much_text = sr.compose("Titulek", "", "", picture(), ITEMS[:1] + [{"value": f"Popisek {i}", "text": "s vysvětlením na dva řádky pod ním", "bod": "dolni"} for i in range(4)], {}, {}, "1080x1350")[0]
+    width = lambda fields: next(p for p in fields["panels"] if p["typ"] == "obraz")["rect"][2]
+    assert width(small_text) >= width(much_text) and width(small_text) > 900
 
 
 def test_what_does_not_fit_is_reported_not_shrunk():
-    long = words(count=3, text="Dlouhá věta, která se na stránku nevejde ani omylem, " * 6)
-    placed, dropped = sr.arrange("Titulek", "Poznámka.", "Zdroj.", [picture()], [long], "1080x1080")
-    assert dropped and all(d.startswith("Text:") for d in dropped)
-    remaining = next((p for p in placed if p["typ"] == "text"), None)
-    assert remaining is None or len(remaining["items"]) < 3
+    long = [{"value": f"Položka {i}", "text": "Dlouhá věta, která se na stránku nevejde ani omylem, když je jich tolik. " * 3, "bod": None} for i in range(9)]
+    fields, dropped = sr.compose("Titulek", "", "", picture(), long, {}, {}, "1080x1080")
+    assert dropped and all(d.startswith("Položka") for d in dropped)
+    assert all(p.get("small_size", pn.MOBIL["veta"] * 1080 / 546) * 360 / 1080 >= pn.PHONE_MIN_PX for p in fields["panels"] if p["typ"] == "text")
 
 
-def test_row_of_values_turns_into_a_list_when_they_would_collide():
-    row = words("fakta", count=3)
-    for item in row["items"]:
-        item["value"] = "278 až 300 patentů"
-    placed, _dropped = sr.arrange("Titulek", "Poznámka.", "Zdroj.", [picture()], [row], "1080x1350")
-    assert next(p for p in placed if p["id"] == "t1")["typ"] == "text"
-    fields, _notes = sr.page_fields(1, {"format": "4:5", "panely": [series_panel("f1", predloha="portret", druh="hlavni", obrazek="obraz")]},
-                                    {"titulek": "T", "panely": {1: {"nadpis": "N", "polozky": [{"value": "1", "text": "a"}]}}},
-                                    {(1, 1): {"ref_id": "r1"}}, SERIES_DOSSIER, lambda ref, name: f"{name}: autor", lambda image: {"zdroj": {"ref_id": image["ref_id"]}, "_res": (800, 600), "_alpha": None, "_points": {}})
-    assert all(not key.startswith("_") for panel in fields["panels"] for key in panel)
+def test_long_title_takes_two_lines_short_one_is_big():
+    k = 1080 / pn.MOBIL["jednotek"]
+    assert sr._title_size("Motor", 1080, pn.MOBIL, k) == pytest.approx(1080 / 9, rel=0.02)
+    long = sr._title_size("Jak se z malého chlapce ze Smiljanu stal vynálezce střídavého proudu", 1080, pn.MOBIL, k)
+    assert long >= pn.MOBIL["titulek"] * k
 
 
-def test_own_3d_picture_wins_over_an_old_photo_and_carries_its_labels(settings):
-    own = [{"id": "motor", "nazev": "Motor", "slozka": "rendery/motor", "popisky": {"rotor": "Rotor", "neni": "Bod, který model nemá"}},
-           {"id": "figura", "nazev": "Tesla, 3D figura", "slozka": "rendery/figura", "ai": "FLUX 3 Klein"}]
+def test_small_pictures_go_with_their_items_in_a_column():
+    small = {key: {**picture(), "id": key} for key in ("motor", "civka")}
+    items = [{"value": "1888", "text": "motor", "bod": None, "obraz": "motor", "fakt": "f"}, {"value": "1891", "text": "cívka", "bod": None, "obraz": "civka", "fakt": "f"}]
+    fields, dropped = sr.compose("Muž za vynálezy", "Věta.", "Figura: AI", picture((400, 1400), {}, (20, 20, 380, 1380)), items, {}, small, "1080x1350")
+    assert not dropped
+    insets = [p for p in fields["panels"] if p["id"].startswith("obr")]
+    texts = [p for p in fields["panels"] if p["typ"] == "text"]
+    assert len(insets) == 2 and all(p["pruhledny"] for p in insets) and insets[0]["rect"][1] < texts[0]["rect"][1] < insets[1]["rect"][1] < texts[1]["rect"][1]     # po sobě, chronologicky
+
+
+def test_part_names_fill_in_when_there_is_room_and_never_cost_a_fact():
+    fields, dropped = sr.compose("Titulek", "", "", picture(), ITEMS[:1], {"horni": "Horní díl", "dolni": "Spodek"}, {}, "1080x1350")
+    main = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert not dropped and [label["text"] for label in main["labels"]] == ["Horní díl", "Spodek"] and main["labels"][1]["small"] == []
+
+
+def test_own_3d_picture_wins_over_an_old_photo():
+    own = [{"id": "motor", "nazev": "Motor", "slozka": "rendery/motor", "popisky": {"rotor": "Rotor"}},
+           {"id": "figura", "nazev": "Tesla, 3D figura", "kratce": "Figura", "slozka": "rendery/figura", "ai": "FLUX 3 Klein"}]
     proposal = pp.clean({"navrhy": [{"nazev": "S", "format": "4:5", "panely": [series_panel("f1", predloha="dilo", vlastni="motor", druh="hlavni", obrazek="model"), series_panel(poradi=2, vlastni="cizi")],
-                                     "dalsi_stranky": [{"nazev": "D", "panely": [series_panel("f2", vlastni="motor", predloha="portret", druh="hlavni"), series_panel(poradi=2, vlastni="figura")]}]}]}, SERIES_DOSSIER, own)[0]
+                                     "dalsi_stranky": [{"nazev": "D", "panely": [series_panel("f2", vlastni="motor", predloha="portret", druh="hlavni"), series_panel(poradi=2, vlastni="figura")]},
+                                                       {"nazev": "T", "panely": [series_panel("f3", vlastni="figura", druh="hlavni"), series_panel(poradi=2, vlastni="figura")]}]}]}, SERIES_DOSSIER, own)[0]
     assert proposal["panely"][1]["vlastni"] is None         # neznámý vlastní obraz vypadne
-    images, notes = sr.pick_images(SERIES_DOSSIER, proposal, [1, 2], own)
-    assert images[(1, 1)]["id"] == "motor" and images[(2, 1)]["role"] == "portret" and images[(2, 2)]["id"] == "figura"    # stejný model se neopakuje
+    images, notes = sr.pick_images(SERIES_DOSSIER, proposal, [1, 2, 3], own)
+    assert images[(1, 1)]["id"] == "motor" and images[(2, 1)]["role"] == "portret" and images[(2, 2)]["id"] == "figura" and images[(3, 1)]["id"] == "figura"       # hlavní obraz jednou, malý doprovod smí znovu
     assert 1 not in notes
     alpha = Image.new("L", (400, 400), 0)
     alpha.paste(255, (120, 120, 280, 280))
     def picture_of(image):
-        return {"zdroj": {"slozka": image["slozka"]}, "_res": (400, 400), "_alpha": alpha, "_points": {"rotor": [200, 200]}}
-    fields, said = sr.page_fields(1, proposal, {"titulek": "Motor", "panely": {1: {"nadpis": "Jak funguje", "polozky": [{"value": "1888", "text": "patent"}]}}}, images, SERIES_DOSSIER, lambda r, n: "", picture_of)
-    hero = next(p for p in fields["panels"] if p["typ"] == "obraz")
-    assert [label["text"] for label in hero["labels"]] == ["Rotor"] and "Popisek se nevešel: Bod, který model nemá" in said
-    x, y = hero["labels"][0]["pos"]
-    k = 1080 / pn.MOBIL["jednotek"]
-    box = pn._text_box(hero["labels"][0], pn.MOBIL["popisek"] * k)
-    assert not sr._occupied({**hero, "_res": (400, 400), "_alpha": alpha}, box)      # text leží vedle modelu, ne přes něj
-    assert fields["template"] == "light"
+        return {"zdroj": {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {})}, "_res": (400, 400), "_alpha": alpha, "_points": {"rotor": [200, 200]}}
+    fields, said = sr.page_fields(3, pp.pages(proposal)[2], {"titulek": "Muž", "uvod": "", "polozky": [{"value": "1888", "text": "patent", "bod": None, "fakt": "f3"}]}, images, SERIES_DOSSIER, picture_of)
+    assert fields["template"] == "dark" and fields["sources"] == "Wikipedia (cs)" and not said
 
 
 def test_own_pictures_file_is_read_and_a_broken_one_stops_the_chain(settings, tmp_path):

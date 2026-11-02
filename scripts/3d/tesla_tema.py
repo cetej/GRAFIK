@@ -66,7 +66,7 @@ def main() -> int:
     picture = rgba.crop(rgba.getchannel("A").getbbox())
     picture.save(folder / "obraz.png")
     (folder / "body.json").write_text(json.dumps({"res": list(picture.size), "points": {}}), encoding="utf-8")
-    obrazy.append({"id": "postava", "nazev": "Nikola Tesla, 3D figura", "slozka": folder.relative_to(library).as_posix(), "ai": FIGURE_AI})
+    obrazy.append({"id": "postava", "nazev": "Nikola Tesla, 3D figura", "kratce": "Figura", "slozka": folder.relative_to(library).as_posix(), "ai": FIGURE_AI})
     (root / "obrazy.json").write_text(json.dumps({"obrazy": obrazy}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(root, len(obrazy))
     return 0
