@@ -25,7 +25,7 @@ PAGE_SIZES = {"2:3": "1080x1620", "4:5": "1080x1350", "1:1": "1080x1080", "16:9"
 MAX_TITLE_TWO_LINES = 1 / 12    # dvouřádkový titulek v plné velikosti by sebral obrazu čtvrt stránky
 MAX_TITLE = 1 / 9           # podíl šířky; přijatá Studna má 120 px na stránce 1080
 SCALES = (1.0, 0.94, 0.88, 0.82, 0.76, 0.7)     # obraz před počtem popisků: kdyby měl být menší, raději vypadne nejméně důležitý popisek (operátor 2. 11.)
-NARROW_CHARS = (28, 22, 17)  # širší text má méně řádků; úzký sloupec dá obrazu víc místa
+NARROW_CHARS = (28, 26, 24, 22, 20, 17)  # širší text má méně řádků; úzký sloupec dá obrazu víc místa
 LABEL_GAP = 1.0             # mezera mezi popisky ve sloupci v písmech, jinak vypadají jako jeden blok
 MIN_ROW_COLUMN = 0.4        # nejužší sloupec pro řádky s malým obrazem, podíl šířky stránky
 ROW_PICTURE = 0.5           # podíl malého obrazu v řádku
@@ -385,7 +385,7 @@ def _even_column(items: list[dict], x: float, margin: float, top: float, bottom:
 
 
 def _row_above(callouts: list[dict], hero: dict, place: dict, sheet: Sheet, top: float, margin: float, size: float, W: int) -> tuple[list[dict], float] | None:
-    """Popisky v řadě nad objektem, každý nad svou věcí, čára rovně dolů. Obraz pak může přes celou šířku. None, když se řada nevejde."""
+    """Popisky v řadě nad objektem, každý nad svou věcí, čára rovně dolů; když věc leží hned vedle textu, čára k němu zahne. Obraz pak může přes celou šířku. None, když se řada nevejde."""
     if not callouts:
         return None
     ordered = sorted(callouts, key=lambda it: panels.to_page(place, it["bod"], hero["id"])[0])
@@ -406,7 +406,7 @@ def _row_above(callouts: list[dict], hero: dict, place: dict, sheet: Sheet, top:
     xs, floor = [], margin
     for (w, _h), (ax, _ay) in zip(sizes, targets):     # nejvíc vlevo, kam text smí, bez překryvu
         x = max(floor, ax - w + pad)
-        if x > ax - pad:
+        if x - gap + size * 0.15 > ax:      # čára k věci by přešla přes sousední text
             return None
         xs.append(x)
         floor = x + w + gap
@@ -416,7 +416,7 @@ def _row_above(callouts: list[dict], hero: dict, place: dict, sheet: Sheet, top:
     for i in range(len(sizes) - 1, -1, -1):     # a zpět doprava, kam volno dovolí, aby text stál nad svou věcí
         xs[i] = max(xs[i], min(targets[i][0] - sizes[i][0] / 2, ceiling - sizes[i][0]))
         ceiling = xs[i] - gap
-    placed = [{**label, "pos": [x, y], "nad": True} for label, x in zip(labels, xs)]
+    placed = [{**label, "pos": [x, y], **({"nad": True} if x + pad <= ax else {})} for label, x, (ax, _ay) in zip(labels, xs, targets)]
     if not all(sheet.free((x - air, y - air, w + 2 * air, h + 2 * air)) for x, (w, h) in zip(xs, sizes)):
         return None
     polys = [panels.leader_points(label, place, size, hero["id"]) for label in placed]
@@ -534,6 +534,10 @@ def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: l
     dropped = []
     items = [{**it, "text": _no_orphan(it["text"])} for it in items]
     items.sort(key=lambda it: not (hero and it.get("bod") in hero["_points"]))     # popisek obrazu vypadne až po volných faktech, i když je model dal níž
+    loose = [it for it in items if not (hero and it.get("bod") in hero["_points"])]
+    if len(loose) > 1 and len(loose) < len(items):      # obraz s popisky a nejvýš jeden volný fakt: čtyři bloky kolem věže nikdo nečte
+        dropped += [_said(it) for it in loose[1:]]
+        items = items[:len(items) - len(loose) + 1]
     while True:
         done = _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k)
         if done is not None:

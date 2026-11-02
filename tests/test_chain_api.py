@@ -558,6 +558,22 @@ def test_label_of_the_picture_outranks_loose_facts_and_the_big_page_wins():
     assert fields["size"] == "1080x1620" and main["rect"][2] > 900
 
 
+def test_page_with_labels_keeps_one_loose_fact():
+    hero = picture((1000, 1000), {"cast": [500, 300]}, (300, 200, 700, 950))
+    items = [{"value": "Cívky", "text": "Proud je žene dokola.", "bod": "cast"}, {"value": "1888", "text": "Licence pro firmu.", "bod": None}, {"value": "Peníze", "text": "Došly mu peníze.", "bod": None}]
+    fields, dropped = sr.compose("Titulek", "Věta.", "", hero, items, {}, "1080x1620")
+    assert dropped == ["Peníze Došly mu peníze."] and [p["items"][0]["value"] for p in fields["panels"] if p["typ"] == "text"] == ["1888"]
+
+
+def test_second_label_turns_to_its_text_when_the_thing_lies_right_beside_the_first():
+    """Motor 2. 11.: Rotor leží hned vedle cívky, řada se nevešla a stránka kvůli tomu zmenšila obraz na půl."""
+    wide = picture((1000, 1000), {"civka": [270, 400], "rotor": [410, 600]}, (20, 300, 980, 980))
+    items = [{"value": "Cívka", "text": "Střídavý proud v cívkách žene pole dokola.", "bod": "civka"}, {"value": "Rotor", "text": "Běží za polem, a tak se motor točí.", "bod": "rotor"}]
+    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, items, {}, "1080x1620")
+    main = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert not dropped and {label["text"] for label in main["labels"]} == {"Cívka", "Rotor"} and main["rect"][2] > 1000
+
+
 def test_cards_of_one_series_have_the_same_type_sizes():
     """Operátor 2. 11.: karty v rámci jednoho cyklu nemají mít různé velikosti písem v titulcích a popiscích."""
     hero = picture((1000, 1000), {"cast": [500, 300]}, (300, 200, 700, 950))
