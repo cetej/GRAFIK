@@ -57,6 +57,11 @@ Postup a zdroje: [spike](spikes/2026-11-01-plakaty-osoba-zvire.md), skripty `scr
 - Plný náhled vedle vzoru, a pak výřezy v plné velikosti. Postava se kreslí přes panely: u plakátu s postavou zavolej `sazba.text_over` a při nálezu nic neukládej („Proč jde text přes Teslův obličej“). Viz `scripts/plakaty/tesla_kopie.py`.
 - Do Knihovny až po přijetí. Další verze je nová položka s vlastním názvem, soubory se nepřepisují.
 
+## Scény k jednomu nálezu (Velsen, 2. 11.)
+
+- Stejná věc vypadá na všech grafikách k článku stejně: ústí studny ve scéně má tvar jako na přijatém řezu. Zadání generátoru piš až po pohledu na přijatou grafiku a pramen.
+- Tvar věci popiš fyzicky a řekni, co to není („úlomek s čerstvým lomem, ne celý kámen“). Postavám dej práci rukama, ne gesto.
+
 ## Řez podle přesné předlohy (Velsen, 2. 11., výtky operátora)
 
 - Předloha s měřítkem se měří v pixelech, rozměry z textu nestačí. Render polož přes ni, teprve pak stavěj stránku (`scripts/plakaty/velsen_srovnani.py`). Přečti i perspektivu: prohnuté okraje prozradí, odkud se kreslíř díval.

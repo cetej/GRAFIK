@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Šest scén a pevnost z plánu: karta sdílená s jinými, reálie z nálezu
+
+- **Sdílená karta:** VoiceStudio a VectorCraft držely VRAM, FLUX téměř dvě hodiny hlásil `generation_failed`, mezitím běžel Blender z POHYBu a jednou se restartoval Engine. Cizí procesy jsem nezavíral. Dávka přežila všechno díky `1024 × 672` (na stránce je scéna 560 px široká) a smyčce, která po `EngineUnavailable` čeká 3 minuty (`velsen_scenare.py`). Po uvolnění karty jde jeden obraz asi za minutu.
+- **Reálie:** zadání piš podle nálezu a porovnej ho s přijatou grafikou. Scénu jsem nejdřív přepsal na sud v úrovni země, jenže sousední přijatá studna má hranatou roubenou nástavbu; všiml jsem si toho až při pohledu na ni. Tělo „sunk upright“ dalo muže stojícího ve studni, „with care let down feet first, limp, head fallen to one side“ sedí na větu z knihy.
+- **FLUX a tvar věci:** „half of a broken round quern“ dalo tři celé kameny, „jagged half-moon fragment … snapped in two through its centre hole, raw broken edge, not a whole disc“ úlomek. „Millstone“ bez popisu dalo kostky. Kněz „with both arms raised“ je ochotnické divadlo, „head bowed, pours from a small jar“ ne. „No chimneys“ model ignoruje; pár malých komínů proti obloze jde bez generátoru přes `cv2.inpaint` (`RETOUCH` ve `velsen_scenare_stranka.py`), ve 100 % nejsou znát.
+- **Plán na polygony:** barvy třídit po třídách s přednostmi (voda, příkop, pevnost, země) a rám i legendu předlohy vyloučit ručně, jinak rám vyjde jako pevnina a legenda jako pozemek (`velsen_plan.py`).
+- **`kolize.py` ve scratchpadu měří jen text proti textu.** Pánev přitlačená k popisku „obruče“ a dva popisky na stejné řádce vedle sebe prošly s nulou kolizí. Přes celou stránku se podívat i po přeskupení obrazů.
+
 ## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný
 
 - **Rozhodnutí:** druh tématu (osoba, zvíře, věc) určí Wikidata a volí slovníky jen v rešerši. Věc jde původním kódem, takže stavby jsou nad stejnými daty stejné; řetězec se nemění (`predloha` v promptu Návrhů zůstává na rolích staveb). Měřítko a kritérium se zapsaly před kódem ([měření](spikes/2026-11-02-resers-osoba-zvire.md)).
