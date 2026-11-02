@@ -200,7 +200,7 @@ export const wfApi = {
 
 // -- řetězec infografika z tématu (engine/chain.py) --------------------------------------------------------
 export interface ProposalPanel { titulek: string; co: string; druh: string; x: number; y: number; w: number; h: number; poradi: number; fakta: string[]; predloha: string | null }
-export interface Proposal { id: number; nazev: string; veta: string; format: string; panely: ProposalPanel[]; vzhled: string; fakta: number; neznama_fakta: number; rozpory: string[] }
+export interface Proposal { id: number; nazev: string; veta: string; format: string; panely: ProposalPanel[]; vzhled: string; fakta: number; neznama_fakta: number; neznama_predloha?: number; rozpory: string[] }
 export interface ChainWarning { severity: string; what: string; why: string; fix: string }
 export interface Chain {
   id: string

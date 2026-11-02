@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Krok Návrhy podle druhu tématu: odhad ceny a co měřítko nevidí
+
+- **Rozhodnutí:** role obrázku bere prompt z dossieru místo výčtu, kód cizí roli zahodí a spočítá. Výčet rolí by byl další slovník na údržbu a stejně nic nezaručí: model 1. 11. uvedl `material`, ke kterému Koloseum žádné obrázky nemá ([měření](spikes/2026-11-02-navrhy-druhy.md)).
+- **Co se stalo:** odhad kroku 0,04 USD platil pro dossier se 44 fakty, rešerše z 2. 11. dala 120 faktů a Tesla stála 0,0551 USD. Řetězec by se zastavil před kontrolou, protože rozpočet je součet odhadů. Můj odhad ověření „nejvýš 0,14 USD“ počítal s 3 000 tokeny výstupu, skutečnost byla 3 400 a musel jsem se ptát znovu. **Jak příště:** když se změní velikost vstupu placeného kroku, přepočítej jeho odhad ze skutečných dat a do „nejvýš“ počítej i delší výstup.
+- **Co měřítko nevidí:** všechna čísla prošla, přesto dvě ze tří skladeb o Teslovi Teslu neukazují. Počty rolí a faktů neříkají, jestli stránka odpovídá na téma. **Jak příště:** návrhy si přečti, tabulka nestačí.
+- **Past ve worktree:** `scripts/navrhy_srovnani.py` zapisuje cenu do `library/costs.jsonl` podle `Settings`, tedy ve worktree do jeho prázdné knihovny. Placený běh z worktree pouštěj s `GRAFIK_DATA_DIR=<hlavní checkout>`, jinak útrata v ledgeru chybí.
+
 ## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný
 
 - **Rozhodnutí:** druh tématu (osoba, zvíře, věc) určí Wikidata a volí slovníky jen v rešerši. Věc jde původním kódem, takže stavby jsou nad stejnými daty stejné; řetězec se nemění (`predloha` v promptu Návrhů zůstává na rolích staveb). Měřítko a kritérium se zapsaly před kódem ([měření](spikes/2026-11-02-resers-osoba-zvire.md)).

@@ -4,7 +4,7 @@ import {
   type Chain, type Fact, type Proposal,
 } from './api.ts'
 import { fmtUsd } from './App.tsx'
-import { FactRow, ResearchBody, type ResearchProps } from './Podklady.tsx'
+import { FactRow, ResearchBody, ROLES, type ResearchProps, type RoleKey } from './Podklady.tsx'
 
 // Řetězec infografika z tématu (engine/chain.py): podklady a návrhy běží samy, operátor vybírá. Cena se schválila jednou na začátku.
 type View = 'podklady' | 'navrhy' | 'vyber'
@@ -29,12 +29,15 @@ function ProposalCard({ wf, proposal, onOpen, onPick, onLook }: {
       <p className="hint">Formát {proposal.format} · panelů: {proposal.panely.length} · faktů ze zdrojů: {proposal.fakta}</p>
       <details>
         <summary>Panely podle důležitosti</summary>
-        <ol className="citations">{proposal.panely.map((p) => <li key={`${p.poradi}-${p.titulek}`}><b>{p.titulek}</b> {p.co}</li>)}</ol>
+        <ol className="citations">{proposal.panely.map((p) => (
+          <li key={`${p.poradi}-${p.titulek}`}><b>{p.titulek}</b> {p.co}{p.predloha && <span className="hint"> Předloha: {ROLES[p.predloha as RoleKey] ?? p.predloha}</span>}</li>
+        ))}</ol>
       </details>
       {proposal.rozpory.length > 0 && (
         <p className="warn">Používá fakta, ve kterých si zdroje odporují: {proposal.rozpory.join('; ')}.</p>
       )}
       {proposal.neznama_fakta > 0 && <p className="hint">Odkazy na fakta, která v dossieru nejsou, vypadly: {proposal.neznama_fakta}.</p>}
+      {(proposal.neznama_predloha ?? 0) > 0 && <p className="hint">Předlohy, které dossier nemá, vypadly: {proposal.neznama_predloha}.</p>}
       <div className="row tight">
         <button className="btn go" onClick={onPick}>Vybrat tento</button>
         {proposal.vzhled && <button className="btn" onClick={onLook} title={proposal.vzhled}>Ukázka vzhledu · 0 USD</button>}
