@@ -683,6 +683,25 @@ def test_empty_band_and_a_lattice_lost_on_the_dark_page_are_found(tmp_path):
     assert pn.empty_share(filled, other) < pn.MAX_EMPTY and pn.faint_parts({"id": "p"}, other, pn.THEMES["dark"]["bg"]) == []
 
 
+def test_object_cut_by_the_render_edge_is_found(tmp_path):
+    """Pantheon 2. 11.: „Ořezal jsi to blbě“. Schody končí rovnou hranou, stín a vyblednutí jsou v pořádku, fotka je obdélník."""
+    cut = Image.new("RGBA", (400, 400), (0, 0, 0, 0))
+    ImageDraw.Draw(cut).rectangle((0, 200, 300, 399), fill=(200, 180, 150, 255))
+    doc = page_with_picture(tmp_path, [40, 240, 1000, 1000], cut)
+    assert pn.cut_edges({"id": "p"}, tmp_path) == ["dole", "vlevo"]
+    assert any("useknutý" in row["text"] for row in pn.checks(doc, tmp_path) if not row["ok"])
+    for name, picture in {
+        "cely": Image.new("RGBA", (400, 400), (0, 0, 0, 0)),
+        "stin": Image.new("RGBA", (400, 400), (0, 0, 0, 90)),
+        "fotka": Image.new("RGBA", (400, 400), (200, 180, 150, 255)),
+    }.items():
+        ImageDraw.Draw(picture).rectangle((100, 100, 300, 300), fill=(200, 180, 150, 255))
+        folder = tmp_path / name
+        folder.mkdir()
+        page_with_picture(folder, [40, 240, 1000, 1000], picture)
+        assert pn.cut_edges({"id": "p"}, folder) == [], name
+
+
 def test_loose_fact_never_wraps_into_a_narrow_column_or_shrinks_the_picture():
     """Stránka o motoru 2. 11.: „60 000 dolarů“ na pět úzkých řádků vedle obrazu."""
     wide = picture((1000, 1000), {"horni": [500, 300], "dolni": [500, 700]}, (60, 60, 940, 940))
