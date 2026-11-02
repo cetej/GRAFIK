@@ -373,6 +373,7 @@ function OpenDoc({ id, setOpenId, recentImages, onError }: { id: string; setOpen
 }
 
 const REFORMATS = ['16:9', '4:5', '1:1', '2:3']
+const pagesWord = (n: number) => `${n} ${n === 1 ? 'stránka' : n < 5 ? 'stránky' : 'stránek'}`
 
 function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (id: string | null) => void; onError: (msg: string) => void }) {
   const [svg, setSvg] = useState('')
@@ -423,7 +424,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <a className="btn" href={svgUrl} target="_blank" rel="noreferrer">Otevřít ve velkém</a>
           <button className="btn" disabled={!!busy} onClick={exportPng}>{busy === 'png' ? 'Exportuji…' : 'Export PNG'}</button>
           <button className="btn" onClick={() => setChoosing(!choosing)}>Předělat na formát · 0 USD</button>
-          {urceni === 'web' && <button className="btn go" disabled={!!busy} onClick={() => (split ? setSplit(null) : planSplit(null))}>{busy === 'split' ? 'Počítám…' : 'Rozdělit pro mobil · 0 USD'}</button>}
+          {urceni === 'web' && !doc.serie && <button className="btn go" disabled={!!busy} onClick={() => (split ? setSplit(null) : planSplit(null))}>{busy === 'split' ? 'Počítám…' : 'Rozdělit pro mobil · 0 USD'}</button>}
         </div>
       </div>
       <h2>{doc.title || 'bez nadpisu'}</h2>
@@ -438,7 +439,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
       {phone && urceni === 'web' && <p className="panel-warning">{phone.text}</p>}
       {split && (
         <div className="panel-format">
-          <div className="hint">Návrh: {split.length} stránek, šířka 1080 px. Všechen text zůstává, popisky s vodítkem jsou u obrazu, po pěti na stránku. Originál se nemění.</div>
+          <div className="hint">Návrh: {pagesWord(split.length)}, šířka 1080 px. Všechen text zůstává, popisky s vodítkem jsou u obrazu, po pěti na stránku. Originál se nemění.</div>
           {split.map((page, n) => (
             <div key={n} className="split-page">
               <b>Strana {n + 1}</b> <span className="hint">{page.size.replace('x', ' × ')} · {page.slov} slov</span>
@@ -453,7 +454,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
               {page.hlaseni.map((h, i) => <p key={i} className="panel-warning">{h}</p>)}
             </div>
           ))}
-          <button className="btn go" disabled={!!busy} onClick={createSeries}>{busy === 'split' ? 'Pracuji…' : `Vytvořit ${split.length} stránek`}</button>
+          <button className="btn go" disabled={!!busy} onClick={createSeries}>{busy === 'split' ? 'Pracuji…' : `Vytvořit ${pagesWord(split.length)}`}</button>
         </div>
       )}
       {png && <p className="hint">Hotovo: <a href={png} target="_blank" rel="noreferrer">otevřít PNG</a></p>}
