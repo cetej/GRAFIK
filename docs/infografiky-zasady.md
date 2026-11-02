@@ -57,6 +57,14 @@ Postup a zdroje: [spike](spikes/2026-11-01-plakaty-osoba-zvire.md), skripty `scr
 - Plný náhled vedle vzoru, a pak výřezy v plné velikosti. Postava se kreslí přes panely a kolizi s textem žádná kontrola nehledá („Proč jde text přes Teslův obličej“).
 - Do Knihovny až po přijetí. Další verze je nová položka s vlastním názvem, soubory se nepřepisují.
 
+## Řez podle přesné předlohy (Velsen, 2. 11., výtky operátora)
+
+- Předloha s měřítkem se měří v pixelech, rozměry z textu nestačí. Render polož přes ni, teprve pak stavěj stránku (`scripts/plakaty/velsen_srovnani.py`). Přečti i perspektivu: prohnuté okraje prozradí, odkud se kreslíř díval.
+- Hlavní obraz má celou výšku stránky a je na ní jednou. Zvětšenina čitelné věci nic neřekne.
+- Popisky: nadpis a nejvýš jeden řádek, zalomení ručně, nad 60 px od obrazu. Co se nevejde, patří do patičky nebo pryč.
+- Kosti a jiné přesné tvary dlouhým objektivem. Široký objektiv zblízka pánev zdeformoval tak, že vypadala jako špatný model. Podezřelý model nejdřív rovně vedle skenu.
+- Jedna věc se všemi nálezy je čitelnější než dva pohledy. Nález na odvrácené straně kresli průsvitně přes kost a v patičce to řekni.
+
 ## Měřitelné kontroly (editor, sekce Kontrola)
 
 | Kontrola | Práh | Vzor | Kvinquerema před úpravou | Kvinquerema po úpravě |

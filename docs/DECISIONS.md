@@ -2,6 +2,18 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Infografika k článku o vojákovi ve studni a hlavní obrázek
+
+Operátor po sérii výtek přijal („Ano, obojí ber“) stránku 1800 × 2400 a samostatný hlavní obrázek 3:2.
+
+- Řez studnou je věrný obr. 2.1 z knihy v rozměrech a poměrech, ne vlastní skladba („Přestože máš přesnou předlohu, tak úplně zprasíš velikosti a poměry“). Studna je na výšku vlevo přes celou stránku.
+- Žádná zvětšenina toho, co je čitelné („Proč kurva děláš maličké zvětšení…“), dýka na stránku nepatří („tu dýku z infografiky vyhoď“), zůstává jen její čepel v největší ráně.
+- Kostra pánve a nohou ve 3D je jedna a nese všechny vpichy („dvě tam jsou moc“). Vpichy zezadu se kreslí přes kost.
+- Popisky jsou krátké a volné („To natěsnání popisků je ohavné“): nadpis a nejvýš jeden řádek, ručně zalomené.
+- Hero 3:2 je hlavní obrázek článku, do infografiky nepatří. Legionáři v kápích bodají druha do spodních partií, oběť má podobu z infografiky. Malba, lokální FLUX, 0 USD.
+- Šest scén (druhá infografika) je odložených; skripty `velsen_sceny.py`, `velsen_okamziky.py` a další zůstávají. Operátor je jako celé scény odmítl („reálie v prdeli“).
+- Placené: 1,50 USD za 4 modely Hunyuan 3.1 Pro, schváleno, na stránce ani v hero žádný není.
+
 ## 2026-11-01 — Cizí vzor: nejdřív kopie přes 3D modely, česky, se správnými detaily
 
 Operátor poslal vzory plakátů Nikoly Tesly a axolotla. Vlastní skladby odmítl („To se raději snaž udělat nejprve kopie a pak navrhni jejich vylepšení“).
