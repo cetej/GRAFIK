@@ -7,6 +7,7 @@
 - **Stejné API dvakrát:** starý a nový kód porovnávej nad diskovou cache odpovědí API, ať rozdíl není v revizi Wikipedie. Porovnání položek odhalí i změnu autora obrázku.
 - **Past v `_sentences`:** `[A-ZÁ-Ž]` je rozsah Unicode a obsahuje malá česká písmena, takže „10. července“ dělí větu. U osoby a zvířete je to obešlé přes `dates=True`, stavby zůstaly beze změny, aby se neposunula jejich měření.
 - **Past v regexu:** `Xolotl` s `re.I` sedí i na „axolotl“. Téma „kultura“ dostalo 46 faktů a výpis to prozradil až podle počtu.
+- **Restart Engine ze skriptu bez konzole:** `start-grafik.bat` spuštěný přes `subprocess.Popen` s `DETACHED_PROCESS` Engine nerozběhl a nic nezalogoval, výpadek :8300 trval 6,5 minuty (08:46:42 až 08:53, žádná úloha se neztratila). Příčinu jsem nezjistil. Zabralo `Start-Process cmd -ArgumentList '/c python -m uvicorn engine.app:app --port 8300 --host 127.0.0.1 --access-log >> logs\engine.log 2>&1' -WorkingDirectory <hlavní checkout> -WindowStyle Minimized`. **Jak příště:** skript, který zabíjí Engine, spouští tenhle příkaz a čeká nejvýš 30 s; víc nečekat, Engine používají všechny projekty.
 
 ## 2026-11-02 — Řez podle přesné předlohy: měřit, položit přes ni, popisky bez tlačenice
 
