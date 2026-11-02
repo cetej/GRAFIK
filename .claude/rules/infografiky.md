@@ -17,6 +17,8 @@ paths:
 
 Před změnou vzhledu infografik přečti `docs/infografiky-zasady.md` (čistý styl, rovnováha, informační hodnota, čtenářský zážitek; měřitelné prahy). Vzor nekopíruj, ale drž jeho principy: jedna písmová rodina ve dvou řezech, popisky u věci s krátkými lomenými vodítky, nadpis tam, kde má obraz místo, krátká fakta dole vlevo pod sebou, zarovnaná na prapor, výřez bez rámečku jako vyříznutý obrázek s ostrými okraji, žádné prázdné pásy. Co nemá doklad, do obrazu nepatří.
 
+Web a mobil: oddíl tamtéž, platí pro každou infografiku a počítá se před skladbou. Čtenář je často na telefonu, stránka se zmenší na 360 px a větší plátno nepomůže. Nejmenší text aspoň 1/30 šířky stránky, titulek 1/15. Na stránku 4:5 se vejde kolem 80 slov, na 2:3 kolem 120, jeden hlavní obraz a nejvýš 3 další panely. Velkou plachtu s titěrným písmem rozděl na sérii menších stránek, každou s vlastním titulkem a zdrojem. Porušení hlásí `write_poster` (`SAZBA: na mobilu…`) a `GET …/kontrola`.
+
 Stránka z víc obrazů: oddíl „Stránka z víc obrazů“ tamtéž. Každý panel říká, co hlavní obraz neřekne; stavby z modelu, slavné dílo v originále, lidé z fotorealistického generátoru; postavy na zeleném plátně se stínem z originálu. Výřez kontroluj ve zvětšení.
 
 Plakát podle cizího vzoru: oddíl tamtéž. Nejdřív kopie přes 3D, česky a bez věcných chyb vzoru, vylepšení jen jako návrh. Render pro FLUX má paletu cíle a kameru ze vzoru. Jednotný styl není jeden tón a hustotu vzoru nepřebírej. Ilustrace vysvětluje, jak věc funguje. Před odesláním plný náhled vedle vzoru.

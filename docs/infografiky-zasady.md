@@ -11,6 +11,43 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 Úsudek o tom, co stojí za popisek a zda celek působí vyváženě, zůstává na člověku. Číselné kontroly jen upozorní na rozháranost.
 
+## Web a mobil (operátor 2. 11., platí pro každou infografiku)
+
+Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu v těch poměrech velikosti nejdou nic úžasného“. Infografiku čtenář vidí v článku, velmi často na mobilu. Stránka se tam zmenší na šířku displeje a většina lidí ji nezvětšuje, takže větší plátno nepomůže: o čitelnosti rozhoduje jen poměr písma k šířce stránky.
+
+**Navrhuj pro telefon široký 360 px, a to před skladbou.** Hotovou stránku už to nezachrání.
+
+| Text | Na telefonu | Podíl šířky stránky | Stránka 1080 px | Stránka 1800 px |
+|---|---|---|---|---|
+| titulek | ≥ 24 px | 1/15 | 72 px | 120 px |
+| nadpis panelu | ≥ 18 px | 1/20 | 54 px | 90 px |
+| věta, vysvětlení | ≥ 14 px | 1/26 | 42 px | 70 px |
+| popisek u věci, nejmenší text | ≥ 12 px | 1/30 | 36 px | 60 px |
+| zdroj, označení AI | ≥ 9 px | 1/40 | 27 px | 45 px |
+
+Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com/docs/lighthouse/seo/font-size) (v Lighthouse 13 audit zmizel, hranice zůstává rozumná). Ostatní řádky jsou odstupňované od ní a posoudí je operátor na první sérii.
+
+**Kolik se vejde.** Při 12 px je na šířku stránky zhruba 60 znaků. Na 4:5 (na telefonu 360 × 450 px) s obrazem přes půl stránky zbývá kolem 80 slov, na 2:3 kolem 120. Popisky na obraze se počítají do toho. Dnešní plakáty, změřené 2. 11. ze SVG (`library/plakaty/`):
+
+| Stránka | Rozměr | Slov | Text pod 12 px na telefonu | Nejmenší / nejčastější na telefonu |
+|---|---|---|---|---|
+| Muž na dně studny (`velsen/hotovo4`) | 1800 × 2400 | 239 | 32 z 33 | 4,0 / 5,2 px |
+| Kdo ho zabil? (`velsen/hotovo-scenare`) | 1800 × 2400 | 273 | 49 z 50 | 4,0 / 4,8 px |
+| Tesla (`tesla-kopie-v2`) | 1472 × 2616 | 352 | 90 z 91 | 3,0 / 3,8 px |
+| Axolotl (`axolotl-kopie`) | 1500 × 2000 | 140 | 39 z 39 | 4,6 / 5,3 px |
+| Pantheon (`pantheon`) | 1600 × 2400 | 262 | 68 z 69 | 3,8 / 4,7 px |
+
+**Velká plachta se dělí.** Kde by text vyšel pod práh, písmo se nezmenšuje a stránka se rozdělí na víc menších.
+- Dělí se podle otázek čtenáře: jedna stránka, jedna otázka, jeden hlavní obraz a nejvýš 3 další panely. Studna a scénáře jsou tak rozdělené už teď, jen každá z nich nese ještě dvakrát až třikrát víc textu, než se vejde.
+- Každá stránka obstojí sama: vlastní titulek, zdroj a věta o AI. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
+- Série drží stejné písmo, barvy a velikosti, stejný objekt vypadá na všech stránkách stejně.
+- Souhrnný plakát na jedné ploše vznikne navíc jen na přání operátora, pro tisk nebo stažení. Do článku jde série.
+- Věrná kopie husté předlohy pravidlo poruší. Řekni to operátorovi předem a navrhni rozdělení.
+
+**Formát.** Výchozí je 4:5 (1080 × 1350) nebo 2:3. Delší stránka než 9:16 se nevejde na jednu obrazovku telefonu. Formát 16:9 je na telefonu 360 × 202 px: jeden obraz a několik popisků, žádné panely.
+
+**Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely). Výchozí písmo Engine i editoru je pro velký formát a práh nesplní (`docs/plans/2026-11-01-infografika-z-tematu.md`, krok 3g), u nové stránky proto nastav velikosti podle tabulky. Před odesláním PNG zmenši na šířku 360 px a přečti: co nepřečteš, nepřečte ani čtenář. Na počítači se sloupec článku odhaduje kolem 700 px (web jsem neměřil), stránka podle tabulky tam vyjde ještě větší.
+
 ## Stránka z víc obrazů (Koloseum, 1. 11., výtky operátora)
 
 **Skladba**
@@ -82,6 +119,8 @@ Postup a zdroje: [spike](spikes/2026-11-01-plakaty-osoba-zvire.md), skripty `scr
 | křížení vodítek | 0 | 0 | 0 | 0 |
 | písmo popisku (název / popis) při šířce 1280 | ≥ 15 / 13 px | 16 / 14 | 13 / 11,5 | 16 / 14 |
 | prázdná plocha (dál než 12 px od čehokoli) | orientačně ≤ 30 % | 20 % | 52 % | 39 % |
+
+Řádek o písmu je z 23. 10. a platí jen pro počítač. Od 2. 11. platí práh z oddílu Web a mobil, kontrola v Engine jiný nepoužívá.
 
 Měření: `scratchpad` skript `measure.py` z 23. 10. (vodítka vzoru odečtena od oka ±10 px; naše hodnoty přesně z dokumentu infografiky). Prázdnou plochu editor neměří (potřebuje pixely obrazu); řeší ji rozvržení „Lišta přes obraz“.
 

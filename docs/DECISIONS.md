@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Infografika se navrhuje pro web a mobil
+
+Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“
+
+- Měřítko je telefon široký 360 px. Nejmenší text má 1/30 šířky stránky (12 px na telefonu), titulek 1/15. Tabulka a meze: `docs/infografiky-zasady.md`, oddíl Web a mobil. Čísla jsem navrhl já, mez 12 px je z auditu Lighthouse; operátor je zatím neviděl na hotové sérii.
+- Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
+- Hotové plakáty se nepřepisují, pravidlo platí pro nové.
+
 ## 2026-11-02 — Druhá infografika „Kdo ho zabil?“ a mapka ze studny na ni
 
 Operátor schválil náčrt („Ano, stavěj“), pevnost („Jo, to vypadá docela zajímavě“) a přijal obě hotové stránky („Ano, obě ber“).

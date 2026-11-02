@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Plakát hodnocený na plné velikosti: písmo na telefonu nikdo neměřil
+
+- **Plný náhled a výřez ve 100 % problém schovají.** Kontroloval jsem PNG 1800 px na monitoru a výřezy v plné velikosti, takže text 26 px vypadal v pořádku. Na telefonu z něj je 5,2 px. Ze všech pěti změřených plakátů má pod 12 px skoro každý text kromě titulku.
+- **Starý práh byl pro počítač.** `panels.checks` chtěl 15 px při šířce 1280, to je na telefonu 4,2 px. Kontrola hlásila „písmo popisků čitelné“ na stránce, kterou na mobilu nikdo nepřečte. Práh má říkat, na čem se stránka čte.
+- **Prahy v pixelech vztahuj k šířce stránky.** Větší plátno se na telefonu zmenší na stejnou šířku, proto `sazba.PHONE_JS` i `panels.checks` počítají podíl šířky. Výchozí písmo Engine a editoru je zatím pod prahem (plán, krok 3g).
+- **Prompt nesl pokyn „velké infografiky“.** `engine/proposals.py` v první větě žádal velké infografiky a nabízel 16:9 bez omezení. Pravidlo v dokumentech by automatickou cestu nezměnilo, musí jít i do promptu.
+
 ## 2026-11-02 — ADW: co u nového zdroje zkontrolovat dřív, než se začne počítat přínos
 
 - **Licenci číst první.** Zdroj s čistou strukturou a dobrým pokrytím neprošel kvůli NC. Věta v podmínkách ADW má nevyplněnou šablonu, rozhoduje cíl odkazu (`by-nc-sa/3.0`).

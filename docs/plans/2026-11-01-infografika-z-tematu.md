@@ -147,6 +147,15 @@ Zkušenost z Kolosea: dokument s panely umí skript, řetězec z tématu zatím 
 - Kontroly jako nyní (`GET …/kontrola`) a kontrolní list výřezů ve zvětšení, který člověk vidí před složením stránky. Lokální FLUX 0 USD, placený model jen s cenou předem.
 - **Hotovo:** z tématu vznikne stránka srovnatelná s Koloseem bez ručních skriptů, ověřeno v opravdovém Studiu a na druhém tématu mimo stavby.
 
+### Krok 3g: stránka pro mobil a série (po 3f, vlastní PR, UI s náčrtem)
+
+Operátor 2. 11.: velké plachty s titěrným písmem „spíše rozdělit na menší infografiky“ (`docs/infografiky-zasady.md`, oddíl Web a mobil). Kontrola i prompt návrhů to už znají, automatika zatím ne.
+
+- Výchozí písmo: Engine (`engine/panels.py`, popisek 23 px při šířce 1600) i editor (`studio/src/Infographics.tsx`, 16 px při šířce 1280) vycházejí na telefonu pod 5 px. Nový dokument dostane velikosti podle tabulky; staré dokumenty beze změny, svoje velikosti si nesou v dokumentu nebo ve `schema_version`.
+- Série: návrh skladby nese jednu stránku. Přidej pole, co patří na další stránky, a výběr víc stránek v kroku Návrhy. Fakta se mezi stránkami neopakují, kromě titulku a zdroje.
+- Kontrola v editoru (`leaderChecks` a seznam v `Infographics.tsx`) o mobilu neví, hlásí to jen `GET …/kontrola` u dokumentu s panely.
+- **Hotovo:** z dossieru Tesly vznikne série, každá stránka projde `GET …/kontrola` bez nálezu o mobilu a přečte ji člověk na opravdovém telefonu.
+
 ### Pravidla pro všechny fáze
 
 - Placené operace jen s výslovným souhlasem operátora a cenou předem. Testy nic neplatí (`GRAFIK_LIVE_TESTS`).

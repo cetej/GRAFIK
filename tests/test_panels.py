@@ -365,6 +365,20 @@ def test_checks_catch_a_struck_label_and_a_second_view_of_the_same_model(tmp_pat
     assert found["vodítka nepřeškrtávají text"] is True and not any("opakují" in text for text in found)
 
 
+def test_checks_measure_the_text_on_a_phone(tmp_path):
+    source = tmp_path / "a.png"
+    Image.new("RGB", (100, 100), "red").save(source)
+    panels.copy_image(source, tmp_path, "hlavni")
+    doc = {"size": "1800x2400", "title": "Studna", "ai_note": "x", "sources": "zdroj", "panels": [
+        {"id": "hlavni", "typ": "obraz", "poradi": 1, "rect": [0, 0, 1800, 1400], "nazev": "Hlavní", "labels": [label("Muž", [50, 50, 0], pos=[100, 100], size=72)]},     # popis je 0,86 názvu
+        {"id": "text", "typ": "text", "poradi": 2, "rect": [0, 1400, 1800, 1000], "nazev": "Text", "items": [{"value": "Nebyl sám", "text": "Kosti 20 lidí"}], "small_size": 60}]}
+    doc["panels"] = panels.validate(doc)
+    assert "písmo čitelné i na mobilu" in {c["text"] for c in panels.checks(doc, tmp_path) if c["ok"]}
+    doc["panels"][1]["small_size"] = 26
+    found = [c for c in panels.checks(doc, tmp_path) if not c["ok"] and "na mobilu" in c["text"]]
+    assert found and "5.2 px" in found[0]["text"]
+
+
 def test_thresholds_match_the_editor():
     source = (REPO / "studio" / "src" / "Infographics.tsx").read_text(encoding="utf-8")
     assert f"const MAX_LABELS = {panels.MAX_LABELS}" in source and f"const MAX_LABEL_CHARS = {panels.MAX_LABEL_CHARS}" in source

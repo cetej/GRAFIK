@@ -43,7 +43,7 @@ MAX_LABELS = 10
 MAX_LABEL_CHARS = 40
 LEADER_MEDIAN_MAX = 0.06
 LEADER_MAX = 0.12
-MIN_NAME_PX, MIN_SMALL_PX = 15, 13     # při šířce 1280
+PHONE_W, PHONE_MIN_PX = 360, 12        # stránka na telefonu, docs/infografiky-zasady.md, oddíl Web a mobil
 PANEL_ID = re.compile(r"[a-z0-9_]{1,40}")
 FILE_NAME = re.compile(r"[\w\-]+\.(png|jpg|json)")
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -490,7 +490,7 @@ def checks(doc: dict, root: Path) -> list[dict]:
     out, lengths = [], []
     long_lines, crossings, outside, missing, unseen = 0, 0, [], [], []
     labels = 0
-    too_small = None
+    sizes = [p.get("small_size", 21 * k) for p in doc["panels"] if p["typ"] != "obraz" and p.get("items")]
     boxes = []
     struck = []
     pictures = [p for p in doc["panels"] if p["typ"] == "obraz"]
@@ -522,9 +522,7 @@ def checks(doc: dict, root: Path) -> list[dict]:
             if x < 0 or y < 0 or x + w > W or y + h > H:
                 outside.append(label["text"])
             boxes.append((label["text"], x, y, w, h))
-            px = size * 1280 / W
-            if px < MIN_NAME_PX or (label["small"] and px * 0.86 < MIN_SMALL_PX):
-                too_small = round(px, 1)
+            sizes.append(size * 0.86 if label["small"] else size)
         own_boxes = [_text_box(label, label.get("size", 23 * k)) for label in panel["labels"]]
         struck += [panel["labels"][i]["text"] for i, poly in enumerate(polys) for box in own_boxes if _strikes(poly, box)] if len(polys) == len(panel["labels"]) else []
         for i in range(len(polys)):
@@ -541,7 +539,9 @@ def checks(doc: dict, root: Path) -> list[dict]:
     if repeats:
         out.append({"ok": False, "text": f"opakují hlavní model a neříkají proč: {', '.join(repeats)}. Co ukážou víc než hlavní obraz?"})
     out.append({"ok": not long_lines, "text": f"{long_lines} popisků delších než {MAX_LABEL_CHARS} znaků" if long_lines else "popisky krátké"})
-    out.append({"ok": too_small is None, "text": f"písmo popisku {too_small} px při šířce 1280, chce aspoň {MIN_NAME_PX}" if too_small else "písmo popisků čitelné"})
+    phone_px = min(sizes, default=PHONE_MIN_PX * W / PHONE_W) * PHONE_W / W
+    too_small = round(phone_px, 1) < PHONE_MIN_PX
+    out.append({"ok": not too_small, "text": f"na mobilu (šířka {PHONE_W} px) má nejmenší text {phone_px:.1f} px, chce aspoň {PHONE_MIN_PX}: větší písmo, méně textu, nebo víc menších stránek" if too_small else "písmo čitelné i na mobilu"})
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
     out.append({"ok": not overlaps, "text": f"překrývají se popisky: {', '.join(overlaps)}" if overlaps else "popisky se nepřekrývají"})
     if outside:

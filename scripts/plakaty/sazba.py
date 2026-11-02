@@ -160,8 +160,19 @@ LAYOUT_JS = """gap => {
 }"""
 
 
+PHONE_W, PHONE_MIN_PX, PHONE_NOTE_PX = 360, 12, 9     # docs/infografiky-zasady.md, section Web a mobil
+PHONE_JS = """([phone, least, note]) => {
+  const k = phone / +document.querySelector('svg').getAttribute('width');
+  const T = [...document.querySelectorAll('svg text')].filter(t => t.textContent.trim()).map(t => ({
+    s: t.textContent, px: parseFloat(getComputedStyle(t).fontSize) * t.getCTM().a * k,
+    floor: /Patička|Zdroj/.test(t.closest('g[id]')?.id || '') ? note : least}));
+  const small = T.filter(t => t.px < t.floor).sort((a, b) => a.px - b.px);
+  return small.length ? ['na mobilu (šířka ' + phone + ' px): ' + small.length + ' z ' + T.length + ' textů je pod ' + least + ' px, nejmenší ' + small[0].px.toFixed(1) + ' px „' + small[0].s.slice(0, 40) + '“. Větší písmo, méně textu, nebo víc menších stránek.'] : [];
+}"""
+
+
 def check_layout(svg: str, gap: int = 40) -> list[str]:
-    """Texts over each other, off the page, or two labels of different groups so close on one line that they read as one sentence.
+    """Texts over each other, off the page, too small on a phone, or two labels of different groups so close on one line that they read as one sentence.
     Measured in Chromium with the page's fonts, without the pictures; a picture beside a label is for text_over with a margin."""
     from playwright.sync_api import sync_playwright
 
@@ -170,7 +181,7 @@ def check_layout(svg: str, gap: int = 40) -> list[str]:
         try:
             page = browser.new_page()
             page.set_content("<!doctype html><body style='margin:0'>" + re.sub(r"<image\b[^>]*/>", "", svg) + "</body>")
-            return page.evaluate(LAYOUT_JS, gap)
+            return page.evaluate(LAYOUT_JS, gap) + page.evaluate(PHONE_JS, [PHONE_W, PHONE_MIN_PX, PHONE_NOTE_PX])
         finally:
             browser.close()
 
