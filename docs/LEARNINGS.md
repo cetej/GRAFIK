@@ -6,7 +6,8 @@
 - **Reálie:** zadání piš podle nálezu a porovnej ho s přijatou grafikou. Scénu jsem nejdřív přepsal na sud v úrovni země, jenže sousední přijatá studna má hranatou roubenou nástavbu; všiml jsem si toho až při pohledu na ni. Tělo „sunk upright“ dalo muže stojícího ve studni, „with care let down feet first, limp, head fallen to one side“ sedí na větu z knihy.
 - **FLUX a tvar věci:** „half of a broken round quern“ dalo tři celé kameny, „jagged half-moon fragment … snapped in two through its centre hole, raw broken edge, not a whole disc“ úlomek. „Millstone“ bez popisu dalo kostky. Kněz „with both arms raised“ je ochotnické divadlo, „head bowed, pours from a small jar“ ne. „No chimneys“ model ignoruje; pár malých komínů proti obloze jde bez generátoru přes `cv2.inpaint` (`RETOUCH` ve `velsen_scenare_stranka.py`), ve 100 % nejsou znát.
 - **Plán na polygony:** barvy třídit po třídách s přednostmi (voda, příkop, pevnost, země) a rám i legendu předlohy vyloučit ručně, jinak rám vyjde jako pevnina a legenda jako pozemek (`velsen_plan.py`).
-- **`kolize.py` ve scratchpadu měří jen text proti textu.** Pánev přitlačená k popisku „obruče“ a dva popisky na stejné řádce vedle sebe prošly s nulou kolizí. Přes celou stránku se podívat i po přeskupení obrazů.
+- **Kontrola kolizí měřila jen text proti textu a žila v mém scratchpadu.** Pánev přitlačená k popisku „obruče“ a dva popisky na stejné řádce vedle sebe prošly s nulou kolizí. Teď je v `sazba.py`: `check_layout` běží v každém `write_poster` a pozná i popisky čtené jako jedna věta, `text_over(…, margin=30)` hlídá odstup od obrazu.
+- **Přijatý soubor neskládat znovu.** `--knihovna` stránku přestaví a přepíše, ještě než ji nahraje. Na přijatou stránku je `python scripts/plakaty/sazba.py nahraj PAGE.png "Název"`, soubory se nezmění.
 
 ## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný
 

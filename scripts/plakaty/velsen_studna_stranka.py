@@ -9,7 +9,7 @@ import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).parent))
-from sazba import FONT, crop_alpha, group, image_tag, para, text, write_poster  # noqa: E402
+from sazba import FONT, crop_alpha, group, image_tag, para, text, text_over, write_poster  # noqa: E402
 
 W, H = 1800, 2400
 BG, GOLD, WHITE, DIM = "#340d11", "#dcb66e", "#f0e8da", "#b9a99a"
@@ -173,6 +173,11 @@ def main() -> int:
 
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">'
            f'<rect id="Pozadí" width="{W}" height="{H}" fill="{BG}"/>' + group("Grafika", grafika) + group("Texty", t) + "</svg>")
+    pelvis = Image.new("L", (W, H), 0)
+    pelvis.paste(bones.getchannel("A").resize((round(vw), round(vh))), (round(vx), round(vy)))
+    hit = text_over(svg, W, H, pelvis, margin=30)
+    if hit:
+        raise SystemExit(f"Text stojí méně než 30 px od kostí, oblast stránky {hit}.")
     write_poster(svg, out, "velsen-studna", W, H, "Muž na dně studny", knihovna, True)
     return 0
 

@@ -55,7 +55,8 @@ Postup a zdroje: [spike](spikes/2026-11-01-plakaty-osoba-zvire.md), skripty `scr
 
 **Před odesláním**
 - Plný náhled vedle vzoru, a pak výřezy v plné velikosti. Postava se kreslí přes panely: u plakátu s postavou zavolej `sazba.text_over` a při nálezu nic neukládej („Proč jde text přes Teslův obličej“). Viz `scripts/plakaty/tesla_kopie.py`.
-- Do Knihovny až po přijetí. Další verze je nová položka s vlastním názvem, soubory se nepřepisují.
+- Do Knihovny až po přijetí, přijatý soubor beze změny: `python scripts/plakaty/sazba.py nahraj PAGE.png "Název"` (`--bez-ai` u čistého renderu). `--knihovna` stránku nejdřív složí znovu. Další verze je nová položka s vlastním názvem, soubory se nepřepisují.
+- `write_poster` vypíše `SAZBA:`, když je text přes text, mimo stránku nebo když dva popisky čtou jako jedna věta. Obrazy tahle kontrola nevidí: popisek vedle kostí nebo modelu hlídej přes `text_over(…, margin=30)` (`scripts/plakaty/velsen_studna_stranka.py`) a přes celou stránku se podívej i po každém přeskupení.
 
 ## Scény k jednomu nálezu (Velsen, 2. 11.)
 
