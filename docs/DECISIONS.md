@@ -451,3 +451,7 @@ Ověřené poznatky z testů 22. 10., které spec přebírá:
 ## 2026-10-31 — Blender sdílený v AppData
 
 Operátor sjednotil Blender všech projektů do jedné přenosné instalace `%LOCALAPPDATA%/Programs/Blender/blender-<ver>-windows-x64/`; Engine bez `GRAFIK_BLENDER` bere nejnovější 5.2.x odtud (jinou řadu sám nevybere) a `C:/Users/stock/tools/` zůstává jen záloha.
+
+## 2026-11-02 — Pantheon na šířku: celá stavba a všechny údaje
+
+Operátor odmítl náčrt s jedním sloupcem popisků, uříznutým portikem a vypuštěnými údaji a stránku upravil sám ve VectorCraftu („Není to ideální, ale aspoň takhle“). Platí jeho verze: stavba celá, údaje všechny, popisky u svých věcí, i přímo v obraze. Render pro web má rezervu za okrajem stavby, aby šel obraz zmenšit a posunout bez useknutých hran (`rez_web_cely`).

@@ -4,6 +4,8 @@ Aktualizováno 2026-11-02.
 
 ## Teď
 
+**Pantheon 16:9, ruční úprava operátora (2026-11-02):** můj náčrt s jedním sloupcem popisků operátor odmítl a stránku `20261102-212616-1c97` předělal sám ve VectorCraftu: `vectorcraft/20261102-225452-5385.svg`, celá stavba na 89,5 %, všechny údaje. Výtka k obrazu: zem a schody useknuté okrajem renderu. Nový render `lod_pantheon.py --shot rez_web_cely --res 2880 1620 --vrstvy` (`library/plakaty/pantheon-web/rez5`, 0 USD): stejný měřítko i střed, tenká dlažba, nic useknuté. Vložený do nové kopie `…-cely-render.svg`, popisky sedí, soubor operátora beze změny. **Zbývá:** překlepy v textech jsou na operátorovi (`9 ms`, `síla kopule`, `kusy cihel a cihly`), dlažba vlevo se dotýká okraje stránky, přijatá verze ještě není v exportu ani v Knihovně. Ověřeno náhledem v Chromiu, okno VectorCraftu otevřené, jeho obsah neviděn.
+
 **Pantheon bez šedého soklu (2026-11-02):** operátor se ptal na informační hodnotu soklu pod portálem, žádnou neměl. Nový render `lod_pantheon.py --shot rez_zem`: stejná kamera, tenká dlažba kolem stavby, hlína jen pod řezem rotundy. Verze 16:9 `20261102-222202-ce0d`, hlavní obraz 84 % stránky, podklad 9 panelů `20261102-222201-d90a` (má po ořezu pruh pod hlavním obrazem, jen pro převod), `scripts/3d/pantheon_bez_soklu.py`. Starší Pantheony se nepřepisují.
 
 **Předělat na formát s výběrem (2026-11-02):** editor zaškrtne, které panely a popisky nechá, náhled nové verze ukáže větší hlavní obraz a jeho podíl na stránce. **Mez:** hlavní obraz roste až tehdy, když zmizí blok, který ho omezuje (Pantheon 16:9: bez vzorků betonu a půdorysu 66 %, jen s čísly 80 %, sám 92 %).
