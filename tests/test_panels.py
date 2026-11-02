@@ -594,3 +594,80 @@ def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, d
     assert not any("mobilu" in c["text"] and not c["ok"] for c in rows) and any("tisková příloha" in c["text"] for c in rows)
     assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "4:5"}).json()["urceni"] == "tisk"
     assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "plakat"}).status_code == 400
+
+
+def _tokens(panel: dict) -> set[str]:
+    texts = [(panel.get("titulek") or {}).get("text", "")]
+    for lab in panel.get("labels", []):
+        texts += [lab["text"], *lab["small"]]
+    if panel.get("pod"):
+        texts += [panel["pod"]["text"], panel["pod"]["small"]]
+    for item in panel.get("items", []):
+        texts += [item["value"], item["text"]]
+    return set(" ".join(texts).split())
+
+
+def test_split_keeps_every_word_and_leaves_the_source(api, settings, doc):
+    source = settings.library_dir / "infographics" / doc["id"] / "info.json"
+    before = source.read_bytes()
+    plan = api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": None}).json()["stranky"]
+    assert source.read_bytes() == before and len(api.get("/api/v2/infographics?panely=true").json()) == 1      # návrh nic nezapíše
+    r = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None})
+    assert r.status_code == 201, r.text
+    pages = r.json()
+    assert len(pages) == len(plan) and source.read_bytes() == before
+    assert [p["serie"]["stranka"] for p in pages] == list(range(1, len(pages) + 1)) and {p["serie"]["celkem"] for p in pages} == {len(pages)}
+    wanted = set().union(*(_tokens(p) for p in doc["panels"]))
+    got = set().union(*(_tokens(q) for p in pages for q in p["panels"])) | {w for p in pages for w in p["title"].split()}
+    assert wanted <= got, wanted - got
+    for page in pages:
+        W, H = map(int, page["size"].split("x"))
+        assert W == 1080
+        rows = api.get(f"/api/v2/infographics/{page['id']}/kontrola").json()
+        assert all(c["ok"] for c in rows if "mobilu" in c["text"]), rows
+        assert api.get(f"/api/v2/infographics/{page['id']}/svg").status_code == 200
+        for p in page["panels"]:
+            x, y, w, h = p["rect"]
+            assert x >= 0 and x + w <= W + 0.5 and y + h <= H + 0.5
+
+
+def test_split_keeps_labels_at_the_picture_and_only_a_short_note(api, settings, doc):
+    pages = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None}).json()
+    hero = next(p for page in pages for p in page["panels"] if p["id"] == "hlavni")
+    assert hero["labels"][0]["text"] == "Věž" and hero["labels"][0]["kotva"] == "vez"
+    assert hero["labels"][0]["size"] * 360 / 1080 >= 12 / 0.86 - 0.01
+    assert "Wikipedie" not in api.get(f"/api/v2/infographics/{pages[0]['id']}/svg").text and pages[0]["sources"] == "Wikipedie"
+
+
+def test_split_puts_extra_labels_on_a_crop_of_the_picture(api, settings):
+    shot(settings.library_dir / "strely" / "hlavni", ["zed"])
+    many = [label(text=f"Věc {n}", kotva=[n * 0.1, 0, 0]) for n in range(7)]
+    fields_many = {"title": "Věž", "size": "1600x2400", "sources": "Wikipedie", "panels": [
+        {"id": "hlavni", "typ": "obraz", "poradi": 1, "nazev": "Hlavní", "rect": [0, 100, 800, 400], "zdroj": {"slozka": "strely/hlavni"}, "labels": many}]}
+    doc = api.post("/api/v2/infographics/panels", json=fields_many).json()
+    before = (settings.library_dir / "infographics" / doc["id"] / "panely" / "hlavni" / "obraz.png").read_bytes()
+    pages = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None}).json()
+    views = [p for page in pages for p in page["panels"] if p["typ"] == "obraz"]
+    assert [len(v["labels"]) for v in views] == [5, 2]
+    assert sorted(lab["text"] for v in views for lab in v["labels"]) == [f"Věc {n}" for n in range(7)]
+    crop = settings.library_dir / "infographics" / next(page["id"] for page in pages if any(p["id"] == "hlavni_v2" for p in page["panels"])) / "panely" / "hlavni_v2"
+    assert (crop / "obraz.png").is_file() and json.loads((crop / "body.json").read_text(encoding="utf-8"))["res"][0] < 200
+    assert (settings.library_dir / "infographics" / doc["id"] / "panely" / "hlavni" / "obraz.png").read_bytes() == before
+
+
+def test_split_lets_the_editor_move_pieces_but_never_drop_one(api, doc):
+    plan = api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": None}).json()["stranky"]
+    ids = [k["id"] for page in plan for k in page["kusy"]]
+    one = api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": [ids[:1], ids[1:]]})
+    assert one.status_code == 200 and len(one.json()["stranky"]) == 2
+    assert api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": [ids[:1]]}).status_code == 400
+    assert api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": [ids, ids[:1]]}).status_code == 400
+    assert len(api.get("/api/v2/infographics?panely=true").json()) == 1
+
+
+def test_split_refuses_documents_without_panels(api):
+    buf = BytesIO()
+    Image.new("RGB", (64, 64), "white").save(buf, "PNG")
+    old = api.post("/api/v2/infographics/upload", json={"b64": base64.b64encode(buf.getvalue()).decode(), "name": "a.png"}).json()
+    assert api.post(f"/api/v2/infographics/{old['id']}/rozdeleni", json={"stranky": None}).status_code == 400
+    assert api.post(f"/api/v2/infographics/{old['id']}/rozdelit", json={"stranky": None}).status_code == 400

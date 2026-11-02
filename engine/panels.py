@@ -243,8 +243,8 @@ def _text(x, y, s, size, fill, weight=400, anchor="start", halo=None, spacing=0.
 
 def footer(doc: dict, f: dict, k: float, W: int, H: int) -> tuple[list[str], float]:
     """Řádky patičky a účaří prvního z nich. Nová stránka nese jen povinné označení AI, zdroje jdou pod článek (operátor 2. 11.)."""
-    note = doc.get("na_strance", "") if f["zalomit"] else f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}"
-    lines = wrap(note, round((W - 2 * f["okraj"] * k) / (f["zdroj"] * k * LINE_WIDTH)))
+    note = doc["paticka"] if "paticka" in doc else doc.get("na_strance", "") if f["zalomit"] else f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}"
+    lines = wrap(note, round((W - 2 * doc.get("paticka_x", f["okraj"] * k)) / (f["zdroj"] * k * LINE_WIDTH))) if note else []
     return lines, doc.get("paticka_y") or H - f["zdroj_dole"] * k - (len(lines) - 1) * f["zdroj_krok"] * k
 
 
@@ -614,7 +614,7 @@ class Renderer:
             txt.append(words)
         self.k = k
         lines, top = footer(doc, f, k, W, H)
-        txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(f["okraj"] * k, top + i * f["zdroj_krok"] * k, line, f["zdroj"] * k, self.t["foot"]) for i, line in enumerate(lines))}</g>')
+        txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(doc.get("paticka_x", f["okraj"] * k), top + i * f["zdroj_krok"] * k, line, f["zdroj"] * k, self.t["foot"]) for i, line in enumerate(lines))}</g>')
         return (f'<svg xmlns="{SVG_NS}" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">{TEXT_SHADOW if self.t.get("stin") else ""}'
                 f'<g id="Grafika">{"".join(gfx)}</g><g id="Texty">{"".join(txt)}</g></svg>')
 
