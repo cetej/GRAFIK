@@ -56,6 +56,16 @@ Vyřešilo se i to, co dřív zůstalo jen jako poznámka bez čísla patentu: 2
 
 **Stavby:** starý kód (`origin/master`) a nový nad stejnými uloženými odpověďmi API: Pantheon 84 faktů a 33 obrázků, Koloseum 44 a 32, položka po položce stejné, stejné i otázky a zdroje. Axolotl beze změny, 34 ze 44.
 
+## Ověření na běžícím Engine
+
+| Kde | Výsledek |
+|---|---|
+| Engine z větve s vlastními daty | úloha `research` 185 s, 120 faktů, 9 rozporů, 26 obrázků bez chyby, 7 ze 7 známých chyb, 0 USD |
+| Opravdový Engine :8300 po sloučení | restart jen podle PID (9864 → 26896) při prázdné frontě, výpadek 3 s |
+| Opravdové Studio :5174, Průvodce → „Nikola Tesla“ → „Jen podklady · 0 USD“ | `nikola-tesla-v3`: 177 s, osoba, 120 faktů, nahoře 9 rozporů, 26 obrázků, měřítko 29 z 35, konzole bez chyb |
+
+Všechny body kritéria níž jsou splněné pro Google Patents.
+
 ## Články z PMC: proč ne
 
 Strojově jdou číst přes API Europe PMC bez klíče (v dokumentaci jsem klíč ani limit nenašel). Podmínky PMC zakazují automatické stahování z hlavního webu, takže jiná cesta není.
