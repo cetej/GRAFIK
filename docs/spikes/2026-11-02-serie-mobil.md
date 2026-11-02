@@ -35,7 +35,7 @@ Operátor k téhle verzi: „Ano, to je výrazně lepší.“
 
 ## Staré dokumenty se nezměnily
 
-- Panelové dokumenty: SVG všech 8 v knihovně je podle kódu masteru `7b89a2f` a větve shodné bajt po bajtu (SHA-1).
+- Panelové dokumenty: SVG všech 4 v knihovně je podle kódu masteru `d0f3fc6` a větve shodné bajt po bajtu (SHA-1). Před odstraněním Rozdělit pro mobil totéž na 8 dokumentech proti `7b89a2f`.
 - Editor: `svg.info-svg` dvou starých dokumentů (`20261101-090450-0447`, 10 popisků a 4 fakta; `20261023-133046-2ea6`) je mezi Studiem masteru a větve shodné (SHA-1). Přibyl jen řádek v Kontrole: titulek 9,6 px, nejmenší text 3,9 px, označení AI 3,1 px na telefonu.
 
 ## Proklikáno ve Studiu za 0 USD
