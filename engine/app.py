@@ -24,7 +24,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, research, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, reformat, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -132,6 +132,8 @@ class InfoVectorCraft(BaseModel):
 
 class InfoReformat(BaseModel):
     size: str                       # "16:9" (same area as the source) or "1920x1080"
+    vynechat_panely: list[str] = []                 # the editor's choice, code leaves nothing out on its own
+    vynechat_popisky: dict[str, list[int]] = {}     # panel id: positions in its labels or items
 
 
 class InfoPanels(BaseModel):
@@ -825,11 +827,28 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
     @app.post("/api/v2/infographics/{info_id}/reformat", status_code=201)
     def info_reformat(info_id: str, body: InfoReformat):
-        _info_or_404(info_id)
+        title = _info_or_404(info_id).get("title") or ""
+
+        def make_base(png: bytes) -> str:
+            job_id = _store_upload(InfoUpload(b64=base64.b64encode(png).decode(), name=f"{title}.png", blender_render=True), "upload", {"prompt": "", "refs": [], "source": title})
+            return f"{job_id}/0"
+
         try:
-            return infos.reformat_panels(info_id, body.size)
+            return infos.reformat_panels(info_id, body.size, body.vynechat_panely, body.vynechat_popisky, make_base)
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
+
+    @app.post("/api/v2/infographics/{info_id}/reformat/nahled")
+    def info_reformat_preview(info_id: str, body: InfoReformat):
+        """The new version before it exists: nothing is written, the pictures are the source's."""
+        _info_or_404(info_id)
+        try:
+            fields = infos.reformat_preview(info_id, body.size, body.vynechat_panely, body.vynechat_popisky)
+            whole = infos.reformat_preview(info_id, body.size)
+            svg = panels.render_svg(fields, infos._dir(info_id), lambda p, f: f"/api/v2/infographics/{info_id}/panely/{p}/{f}")
+        except (InfoError, OSError) as e:
+            raise HTTPException(400, str(e)) from e
+        return {"svg": svg, "size": fields["size"], "hlavni": reformat.hero_share(fields), "hlavni_bez_vynechani": reformat.hero_share(whole)}
 
     @app.get("/api/v2/infographics/{info_id}/svg")
     def info_panels_svg(info_id: str):

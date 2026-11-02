@@ -466,6 +466,68 @@ def test_reformatted_document_reports_the_phone_size_of_its_own_scale(api, doc):
     assert phone[0]["text"] != [c for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json() if "mobilu" in c["text"]][0]["text"]
 
 
+def test_reformat_leaves_out_only_what_the_editor_chose(api, settings, doc):
+    source = settings.library_dir / "infographics" / doc["id"] / "info.json"
+    before = source.read_bytes()
+    whole = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1600x900"}).json()
+    assert [p["id"] for p in whole["panels"]] == [p["id"] for p in doc["panels"]]
+    gone = ["detail", "cisla", "sloupec", "proc", "osa", "plan"]
+    r = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1600x900", "vynechat_panely": gone, "vynechat_popisky": {"hlavni": [0]}})
+    assert r.status_code == 201, r.text
+    new = r.json()
+    assert [p["id"] for p in new["panels"]] == ["hlavni"] and new["panels"][0]["labels"] == []
+    assert new["panels"][0]["rect"][2] > whole["panels"][0]["rect"][2]      # co zbylo, dostane víc místa
+    assert source.read_bytes() == before
+    folder = settings.library_dir / "infographics" / new["id"] / "panely"
+    assert (folder / "hlavni" / "obraz.png").is_file() and not (folder / "detail").exists()
+    assert (settings.library_dir / "infographics" / doc["id"] / "panely" / "detail" / "obraz.png").is_file()
+    assert api.get(f"/api/v2/infographics/{new['id']}/svg").status_code == 200
+
+
+def test_reformat_leaves_out_rows_of_a_text_and_a_panel_with_no_row_left(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1:1", "vynechat_popisky": {"sloupec": [1], "cisla": [0]}}).json()
+    assert [i["value"] for p in new["panels"] if p["id"] == "sloupec" for i in p["items"]] == ["12 m"]
+    assert "cisla" not in [p["id"] for p in new["panels"]]
+    assert api.get(f"/api/v2/infographics/{new['id']}/svg").status_code == 200
+
+
+@pytest.mark.parametrize("choice", [{"vynechat_panely": ["neni"]}, {"vynechat_popisky": {"neni": [0]}}, {"vynechat_popisky": {"hlavni": [9]}}, {"vynechat_popisky": {"plan": [0]}}, {"vynechat_panely": ["hlavni", "detail"]}])
+def test_reformat_refuses_a_choice_that_does_not_fit(api, doc, choice):
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1:1", **choice}).status_code == 400
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat/nahled", json={"size": "1:1", **choice}).status_code == 400
+
+
+def test_reformat_preview_shows_the_bigger_picture_and_writes_nothing(api, settings, doc):
+    folder = settings.library_dir / "infographics"
+    before = sorted(x.name for x in folder.iterdir())
+    r = api.post(f"/api/v2/infographics/{doc['id']}/reformat/nahled", json={"size": "1600x900", "vynechat_panely": ["detail", "cisla", "sloupec", "proc", "osa", "plan"]})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["hlavni"] > body["hlavni_bez_vynechani"] > 0
+    assert f"/api/v2/infographics/{doc['id']}/panely/hlavni/" in body["svg"] and "/panely/detail/" not in body["svg"]
+    assert sorted(x.name for x in folder.iterdir()) == before
+
+
+def test_reformat_without_the_main_picture_has_its_own_thumbnail(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1:1", "vynechat_panely": ["hlavni"]})
+    assert new.status_code == 201, new.text
+    assert new.json()["base"] != doc["base"]
+    same = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1:1", "vynechat_panely": ["plan"]}).json()
+    assert same["base"] == doc["base"]
+
+
+def test_footer_forgets_a_left_out_picture_but_never_a_kept_ai_mark():
+    from engine.reformat import omit
+    note = "Model a render: Blender, bez AI; Palec, Ruka: FLUX 3 Klein (AI); Pollice Verso: Gérôme, Public domain; schéma a popisky redakčně."
+    pic = lambda pid, nazev: {"id": pid, "typ": "obraz", "nazev": nazev, "labels": [], "poradi": 1, "rect": [0, 0, 1, 1]}
+    doc = {"ai_note": note, "ai_generated": True, "panels": [pic("a", "Palec"), pic("b", "Ruka"), pic("c", "Pollice Verso")]}
+    one = omit(doc, ["a"], {})
+    assert one["ai_note"] == "Model a render: Blender, bez AI; Ruka: FLUX 3 Klein (AI); Pollice Verso: Gérôme, Public domain; schéma a popisky redakčně." and one["ai_generated"]
+    both = omit(doc, ["a", "b"], {})
+    assert "(AI)" not in both["ai_note"] and not both["ai_generated"] and doc["ai_note"] == note
+    assert omit(doc, [], {"a": []})["ai_note"] == note
+
+
 def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, doc):
     assert any("mobilu" in c["text"] and not c["ok"] for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json())
     saved = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "tisk"})

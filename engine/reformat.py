@@ -13,7 +13,7 @@ from engine.panels import LINE_WIDTH, _text_box, short_note, wrap
 
 GAP_JOIN = 6            # panely blíž než tolik (při k = 1) tvoří jeden blok
 GAP_SERIES = 40
-HERO_SHARES = [x / 100 for x in range(25, 80, 5)]
+HERO_SHARES = [x / 100 for x in range(25, 101)]
 MIN_REST = 0.5          # ostatní bloky se zmenší nejvýš na tolik, hlavní obraz má přednost (operátor 2. 11.)
 MAX_SCALE = 2.0         # obrázky v dokumentu jsou tak velké, jak je render uložil
 
@@ -264,6 +264,58 @@ def _move_panel(p: dict, s: float, ox: tuple, oy: tuple, pk: float) -> dict:
         keys = ("size", "small_size", "krok") + (("sirka",) if p["typ"] == "osa" else ())   # jinde je `sirka` počet znaků
         out.update({key: p[key] * s for key in keys if key in p})
     return out
+
+
+def _note_without(note: str, names: set[str]) -> str:
+    """Patička bez vynechaných panelů. Co nepozná přesně podle jména, nechá: označení AI nesmí zmizet omylem."""
+    parts = []
+    for part in note.split("; "):
+        head, colon, tail = part.partition(":")
+        left = [name for name in head.split(", ") if name not in names]
+        if colon and left:
+            parts.append(f"{', '.join(left)}:{tail}")
+        elif not colon:
+            parts.append(part)
+    return "; ".join(parts)
+
+
+def omit(doc: dict, panely: list[str], popisky: dict[str, list[int]]) -> dict:
+    """Dokument bez toho, co vybral editor: celé panely a řádky podle pořadí (popisky obrazu, položky textu). Kód sám nic nevyhazuje. Vstup se nemění."""
+    known = {p["id"] for p in doc["panels"]}
+    unknown = [pid for pid in [*panely, *popisky] if pid not in known]
+    if unknown:
+        raise InfoError(f"neznámý panel: {', '.join(unknown)}")
+    kept, gone = [], [p for p in doc["panels"] if p["id"] in panely]
+    for p in doc["panels"]:
+        if p["id"] in panely:
+            continue
+        rows = "labels" if p["typ"] == "obraz" else "items"
+        drop = popisky.get(p["id"], [])
+        if any(rows not in p or not 0 <= i < len(p[rows]) for i in drop):
+            raise InfoError(f"panel {p['id']}: takový řádek nemá")
+        if not drop:
+            kept.append(p)
+            continue
+        left = [row for i, row in enumerate(p[rows]) if i not in drop]
+        if left or rows == "labels":
+            kept.append({**p, rows: left})
+        else:
+            gone.append(p)      # text bez jediného řádku není panel
+    if not any(p["typ"] == "obraz" for p in kept):
+        raise InfoError("musí zůstat aspoň jeden obraz")
+    out = {**doc, "panels": kept}
+    if gone:
+        out["ai_note"] = _note_without(doc.get("ai_note") or "", {p["nazev"] for p in gone})
+        if doc.get("ai_generated"):
+            out["ai_generated"] = "(AI)" in out["ai_note"]
+    return out
+
+
+def hero_share(doc: dict) -> float:
+    """Kolik stránky zabírá hlavní obraz."""
+    W, H = canvas_size(doc["size"])
+    rect = min((p for p in doc["panels"] if p["typ"] == "obraz"), key=lambda p: p["poradi"])["rect"]
+    return rect[2] * rect[3] / (W * H)
 
 
 def reformat(doc: dict, size: str) -> dict:

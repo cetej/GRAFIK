@@ -42,6 +42,18 @@ textarea { width: 100%; height: 120px; border: 1px solid var(--line); border-rad
 :where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .panel-format { display: grid; gap: 10px; justify-items: start; margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .panel-format input { width: 90px; font-size: 16px; }
+main.guide-start.panel-doc.choosing { max-width: 1500px; }
+.panel-choose { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.panel-choose .panel-format { margin: 0; }
+.panel-choose-preview { position: sticky; top: 8px; }
+.panel-choose-preview .panel-preview { margin: 4px 0 0; }
+@media (max-width: 800px) { .panel-choose { grid-template-columns: minmax(0, 1fr); } .panel-choose-preview { position: static; } }
+.panel-keep { display: grid; gap: 6px; font-size: 14px; width: 100%; }
+.panel-keep input { width: auto; }
+.panel-keep label { display: block; padding: 2px 0; cursor: pointer; }
+.panel-keep-name { font-weight: 600; }
+.panel-keep-row { padding-left: 22px !important; }
+.panel-share { margin: 0; font-weight: 600; }
 .panel-preview { margin: 12px 0; }
 .panel-warning { margin: 6px 0; color: #9a4b00; font-weight: 600; }
 .panel-preview svg { display: block; width: 100%; height: auto; max-height: 85vh; }
