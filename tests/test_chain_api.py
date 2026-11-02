@@ -478,7 +478,7 @@ def boxes_of(fields):
 @pytest.mark.parametrize("size", ["1080x1350", "1080x1620", "1080x1080"])
 def test_page_puts_the_callouts_next_to_the_object_and_keeps_all_on_the_page(size, res, solid):
     hero = picture(res, {"horni": [res[0] // 2, res[1] // 3], "dolni": [res[0] // 2, 2 * res[1] // 3]}, solid)
-    fields, dropped = sr.compose("Krátký titulek", "Jedna věta, co čtenář z obrazu pochopí.", "", hero, ITEMS, {}, {}, size)
+    fields, dropped = sr.compose("Krátký titulek", "Jedna věta, co čtenář z obrazu pochopí.", "", hero, ITEMS, {}, size)
     assert not dropped
     W, H = (int(v) for v in fields["size"].split("x"))
     assert W == 1080
@@ -504,15 +504,15 @@ def panels_place(main, hero):
 
 
 def test_picture_grows_as_far_as_the_callouts_allow():
-    small_text = sr.compose("Titulek", "", "", picture(), ITEMS[:1], {}, {}, "1080x1350")[0]
-    much_text = sr.compose("Titulek", "", "", picture(), ITEMS[:1] + [{"value": f"Popisek {i}", "text": "s vysvětlením na dva řádky pod ním", "bod": "dolni"} for i in range(4)], {}, {}, "1080x1350")[0]
+    small_text = sr.compose("Titulek", "", "", picture(), ITEMS[:1], {}, "1080x1350")[0]
+    much_text = sr.compose("Titulek", "", "", picture(), ITEMS[:1] + [{"value": f"Popisek {i}", "text": "s vysvětlením na dva řádky pod ním", "bod": "dolni"} for i in range(4)], {}, "1080x1350")[0]
     width = lambda fields: next(p for p in fields["panels"] if p["typ"] == "obraz")["rect"][2]
     assert width(small_text) >= width(much_text) and width(small_text) > 900
 
 
 def test_what_does_not_fit_is_reported_not_shrunk():
     long = [{"value": f"Položka {i}", "text": "Dlouhá věta, která se na stránku nevejde ani omylem, když je jich tolik. " * 3, "bod": None} for i in range(9)]
-    fields, dropped = sr.compose("Titulek", "", "", picture(), long, {}, {}, "1080x1080")
+    fields, dropped = sr.compose("Titulek", "", "", picture(), long, {}, "1080x1080")
     assert dropped and all(d.startswith("Položka") for d in dropped)
     assert all(p.get("small_size", pn.MOBIL["veta"] * 1080 / 546) * 360 / 1080 >= pn.PHONE_MIN_PX for p in fields["panels"] if p["typ"] == "text")
 
@@ -527,17 +527,22 @@ def test_long_title_takes_two_lines_short_one_is_big():
 def test_small_pictures_go_with_their_items_in_a_column():
     small = {key: {**picture(), "id": key} for key in ("motor", "civka")}
     items = [{"value": "1888", "text": "motor", "bod": None, "obraz": "motor", "fakt": "f"}, {"value": "1891", "text": "cívka", "bod": None, "obraz": "civka", "fakt": "f"}]
-    fields, dropped = sr.compose("Muž za vynálezy", "Věta.", "Figura: AI", picture((400, 1400), {}, (20, 20, 380, 1380)), items, {}, small, "1080x1350")
+    fields, dropped = sr.compose("Muž za vynálezy", "Věta.", "Figura: AI", picture((400, 1400), {}, (20, 20, 380, 1380)), items, small, "1080x1350")
     assert not dropped
     insets = [p for p in fields["panels"] if p["id"].startswith("obr")]
     texts = [p for p in fields["panels"] if p["typ"] == "text"]
     assert len(insets) == 2 and all(p["pruhledny"] for p in insets) and insets[0]["rect"][1] < texts[0]["rect"][1] < insets[1]["rect"][1] < texts[1]["rect"][1]     # po sobě, chronologicky
 
 
-def test_part_names_fill_in_when_there_is_room_and_never_cost_a_fact():
-    fields, dropped = sr.compose("Titulek", "", "", picture(), ITEMS[:1], {"horni": "Horní díl", "dolni": "Spodek"}, {}, "1080x1350")
+def test_picture_keeps_its_size_and_the_weakest_label_goes():
+    """Operátor 2. 11.: „Často zmenšíš hlavní grafiku na úkor pitomých, blbě zalomených popisků s nulovou informační hodnotou.“"""
+    wide = picture((1000, 1000), {"horni": [500, 300], "dolni": [500, 700]}, (60, 60, 940, 940))
+    crowd = [{"value": f"Popisek {i}", "text": "s dlouhým vysvětlením na několik řádků pod názvem", "bod": "horni" if i % 2 else "dolni"} for i in range(5)]
+    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, crowd, {}, "1080x1350")
     main = next(p for p in fields["panels"] if p["typ"] == "obraz")
-    assert not dropped and [label["text"] for label in main["labels"]] == ["Horní díl", "Spodek"] and main["labels"][1]["small"] == []
+    W = int(fields["size"].split("x")[0])
+    assert dropped == [f"Popisek {i} s dlouhým vysvětlením na několik řádků pod názvem" for i in range(len(main["labels"]), 5)][:len(dropped)]
+    assert main["rect"][2] * 0.88 >= 0.55 * W      # objekt zůstane přes půl stránky
 
 
 def test_own_3d_picture_wins_over_an_old_photo():
@@ -591,9 +596,9 @@ def test_empty_band_and_a_lattice_lost_on_the_dark_page_are_found(tmp_path):
 def test_format_follows_the_picture_instead_of_leaving_a_hole():
     tall = picture((600, 1400), {"horni": [300, 400], "dolni": [300, 1000]}, (200, 20, 400, 1380))
     wide = picture((1400, 700), {"horni": [500, 200], "dolni": [900, 500]}, (20, 20, 1380, 680))
-    fields, dropped = sr.compose("Věž", "Věta.", "", tall, ITEMS[:2], {}, {}, "1080x1080")
+    fields, dropped = sr.compose("Věž", "Věta.", "", tall, ITEMS[:2], {}, "1080x1080")
     assert not dropped and fields["size"] == "1080x1620"
-    fields, _ = sr.compose("Stroj", "Věta.", "", wide, [], {}, {}, "1080x1620")
+    fields, _ = sr.compose("Stroj", "Věta.", "", wide, [], {}, "1080x1620")
     assert fields["size"] in ("1080x1080", "1080x1350")     # nízký obraz na vysoké stránce by nechal díru
 
 
@@ -616,7 +621,7 @@ def test_life_page_has_a_timeline_and_birth_and_death_are_always_offered():
     assert any("narození ani smrt" in note for note in out["hlaseni"][1])
     hero = picture((400, 1000), {}, (20, 20, 380, 980))
     items = [{"value": year, "text": "událost v životě člověka", "bod": None, "fakt": "f1"} for year in ("1856", "1884", "1888", "1891", "1943")]
-    fields, dropped = sr.compose("Nikola Tesla", "Kdo byl.", "Figura: AI", hero, items, {}, {}, "1080x1350")
+    fields, dropped = sr.compose("Nikola Tesla", "Kdo byl.", "Figura: AI", hero, items, {}, "1080x1350")
     axis = next(p for p in fields["panels"] if p["typ"] == "osa")
     W, H = (int(v) for v in fields["size"].split("x"))
     assert not dropped and axis["pod_sebou"] and len(axis["items"]) == 5 and axis["rect"][3] > 0.6 * H      # po celé výšce, ne hromádka nahoře

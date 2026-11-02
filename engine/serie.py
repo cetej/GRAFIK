@@ -23,7 +23,7 @@ MAX_TOKENS = 6000
 EST_IN_TOKENS, EST_OUT_TOKENS = 3_000, 1_500    # odhad, skutečnou cenu dává usage
 PAGE_SIZES = {"2:3": "1080x1620", "4:5": "1080x1350", "1:1": "1080x1080", "16:9": "1920x1080"}
 MAX_TITLE = 1 / 9           # podíl šířky; přijatá Studna má 120 px na stránce 1080
-SCALES = (1.0, 0.94, 0.88, 0.82, 0.76, 0.7, 0.64, 0.58, 0.52)
+SCALES = (1.0, 0.94, 0.88, 0.82, 0.76, 0.7)     # obraz před počtem popisků: kdyby měl být menší, raději vypadne nejméně důležitý popisek (operátor 2. 11.)
 NARROW_CHARS = (28, 22, 17)  # širší text má méně řádků; úzký sloupec dá obrazu víc místa
 LABEL_GAP = 1.0             # mezera mezi popisky ve sloupci v písmech, jinak vypadají jako jeden blok
 MIN_ROW_COLUMN = 0.4        # nejužší sloupec pro řádky s malým obrazem, podíl šířky stránky
@@ -49,6 +49,8 @@ Pravidla:
 - „bod“ je id z BODŮ OBRAZU, když se popisek týká té části obrazu, jinak null. Popisek u věci je vždy lepší než popisek bez bodu.
 - „obraz“ je id z MALÝCH OBRAZŮ, když k položce patří, jinak null.
 - Stránka má nejvýš 5 popisků a nejvýš tolik slov, kolik je u ní uvedeno. Méně důležitý fakt vynech.
+- Každý popisek říká něco, co obraz sám neřekne a co pomáhá k větě stránky. Popisek bez informace nepiš, ani když je k němu fakt. Holý název části bez vysvětlení nestačí.
+- Položky seřaď od nejdůležitější: když se nevejdou všechny, vypadne poslední.
 - Rok nebo číslo patentu, které nepatří k části obrazu, dej do „uvod“, ne do samostatného popisku.
 - ŽIVOTOPISNÁ STRÁNKA nese data ze života člověka, ne jeho díla: „value“ je rok, „text“ je událost a místo, první položka je narození, poslední smrt, mezi nimi zlomy života. Dílo má vlastní stránky.
 - „titulek“ je úderný, do 4 slov. „uvod“ je jedna věta do 14 slov: co čtenář z obrazu pochopí.
@@ -405,12 +407,12 @@ def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, mar
     return out
 
 
-def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], names: dict, insets: dict, size: str, f: dict = panels.MOBIL) -> tuple[dict, list[str]]:
+def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict = panels.MOBIL) -> tuple[dict, list[str]]:
     """Formát se řídí obrazem: když na návrhovém zůstane prázdná plocha nebo něco vypadne, zkusí stejně širokou stránku jiné výšky. Vrátí (pole dokumentu, hlášení)."""
     W = infographics.canvas_size(size)[0]
     tried = []
     for candidate in dict.fromkeys([size, *(f"{W}x{round(W * ratio)}" for ratio in HEIGHTS)]):
-        fields, dropped, empty = _compose(title, lead, short_note, hero, items, names, insets, candidate, f)
+        fields, dropped, empty = _compose(title, lead, short_note, hero, items, insets, candidate, f)
         if not dropped and empty <= panels.MAX_EMPTY:
             return fields, dropped
         tried.append((len(dropped), empty, fields, dropped))
@@ -418,9 +420,9 @@ def compose(title: str, lead: str, short_note: str, hero: dict | None, items: li
     return best[2], best[3]
 
 
-def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], names: dict, insets: dict, size: str, f: dict) -> tuple[dict, list[str], float]:
+def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict) -> tuple[dict, list[str], float]:
     """Stránka jako jeden obraz s informacemi na něm: titulek, věta, co největší obraz a popisky do volné plochy vedle objektu.
-    Obraz roste, dokud se popisky vejdou; co se nevejde ani při nejmenším obrazu, vypadne a řekne to hlášení."""
+    Položky jsou seřazené podle důležitosti: co se nevejde ani při nejmenším dovoleném obrazu, vypadne odzadu a řekne to hlášení."""
     W, H = infographics.canvas_size(size)
     k = W / f["jednotek"]
     margin = f["okraj"] * k
@@ -437,7 +439,7 @@ def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: l
     dropped = []
     items = list(items)
     while True:
-        done = _try_page(hero, items, names, insets, W, H, top, bottom, room, margin, label_size, f, k)
+        done = _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k)
         if done is not None:
             return {**fields, "panels": done[0]}, dropped, done[1]
         last = items.pop() if items else None
@@ -446,7 +448,7 @@ def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: l
         dropped.append(f"{last['value']} {last['text']}".strip())
 
 
-def _try_page(hero, items, names, insets, W, H, top, bottom, room, margin, label_size, f, k) -> tuple[list[dict], float] | None:
+def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k) -> tuple[list[dict], float] | None:
     anchored = [it for it in items if it.get("bod") and hero and it["bod"] in hero["_points"]]
     loose = [it for it in items if it not in anchored]
     if hero is None:
@@ -464,8 +466,7 @@ def _try_page(hero, items, names, insets, W, H, top, bottom, room, margin, label
     mask = alpha.point(lambda v: 255 if v > panels.ALPHA_SOLID else 0) if alpha is not None else None
     left, up, right, down = (mask.getbbox() if mask is not None else None) or (0, 0, res[0], res[1])
     fit = min(W / (right - left), room / (down - up), W / res[0], H / res[1])     # rám obrazu se musí vejít na plátno i s průhledným okolím
-    used = {it["bod"] for it in anchored}
-    extra = [{"value": name, "text": "", "bod": point} for point, name in names.items() if point in hero["_points"] and point not in used][:max(0, MAX_CALLOUTS - len(anchored))]
+    anchored = anchored[:MAX_CALLOUTS]
     for scale in SCALES:
         s = fit * scale
         w, h = res[0] * s, res[1] * s
@@ -485,7 +486,7 @@ def _try_page(hero, items, names, insets, W, H, top, bottom, room, margin, label
                 sheet.add_picture((x, y, w, h), alpha)
                 place = {"x": x, "y": y, "k": s, "info": {"points": hero["_points"], "res": res}}
                 span = (top, bottom)
-                got = _best_labels([*anchored, *extra], hero, place, sheet, span, margin, label_size, W) or _best_labels(anchored, hero, place, sheet, span, margin, label_size, W)
+                got = _best_labels(anchored, hero, place, sheet, span, margin, label_size, W)
                 if got is None:
                     continue
                 labels, cost = got
@@ -525,7 +526,6 @@ def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, pic
             pictures.append((panel["poradi"], image, {"id": f"p{i}", "typ": "obraz", "poradi": panel["poradi"], "nazev": name, "rect": [0, 0, 1, 1], "otazka": panel.get("otazka") or "", "fakta": panel["fakta"], **picture_of(image)}))
     pictures.sort(key=lambda row: row[0])
     hero = pictures[0][2] if pictures else None
-    names = (pictures[0][1].get("popisky") or {}) if pictures else {}
     insets = {row[1].get("id"): row[2] for row in pictures[1:] if row[1].get("id")}
     items = [dict(item) for item in text["polozky"]]
     if not pictures:
@@ -535,7 +535,7 @@ def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, pic
     source_names = dict.fromkeys(s["nazev"].split(":")[0] for fid in used for s in known[fid].get("zdroje") or [])
     ai_names = [row[2]["nazev"] for row in pictures if row[2]["zdroj"].get("ai")]
     short = f"{', '.join(ai_names)}: AI" if ai_names else ""
-    fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, names, insets, PAGE_SIZES[page["format"]])
+    fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, insets, PAGE_SIZES[page["format"]])
     notes += [f"Nevešlo se: {d}" for d in dropped]
     if fields["size"] != PAGE_SIZES[page["format"]]:
         notes.append(f"Formát {fields['size']} místo {PAGE_SIZES[page['format']]}: obraz na něm vyplní stránku.")
