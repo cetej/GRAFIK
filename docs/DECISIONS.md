@@ -2,6 +2,13 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Zdroj na infografice je jeden krátký řádek
+
+Operátor k sérii Studny: „Proč jsou tam drobným ty obrovské popisky o zdrojích, na základě kterých to vzniklo, co je to za debilitu?“
+
+- Na stránce zůstane autor a rok, co je AI a nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek (`zdroje.txt` vedle stránek).
+- Označení AI zůstává, chce ho licence FLUX. Přijaté verze série v Knihovně se nepřepisují.
+
 ## 2026-11-02 — Série Studny pro mobil přijatá
 
 Operátor po náhledu v šířce telefonu vedle starého plakátu: „Ano, do Knihovny“. Tři stránky 1080 × 1620 jsou v Knihovně jako nové položky, přijatý plakát zůstal. Velikosti z tabulky v `docs/infografiky-zasady.md` tím prošly první zkouškou; na opravdovém telefonu je zatím nikdo neviděl.
