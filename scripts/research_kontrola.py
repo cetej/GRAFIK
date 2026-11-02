@@ -108,14 +108,14 @@ def fact_texts(fact: dict) -> list[str]:
 def found(checks: list[tuple[str, str]], facts: list[dict]) -> dict[str, dict | None]:
     out: dict[str, dict | None] = {}
     for name, pattern in checks:
-        out[name] = next((f for f in facts if any(re.search(pattern, t, re.S) for t in fact_texts(f))), None)
+        out[name] = next((f for f in facts if any(re.search(pattern, t, re.S | re.I) for t in fact_texts(f))), None)
     return out
 
 
 def ceiling(checks: list[tuple[str, str]], pages: Path) -> set[str]:
     """Co vůbec stojí na stažených stránkách: stejný vzor po odstavcích, bez ohledu na to, co dossier vybral."""
     paragraphs = [p for f in sorted(pages.glob("*.txt")) for p in f.read_text(encoding="utf-8").splitlines()]
-    return {name for name, pattern in checks if any(re.search(pattern, p, re.S) for p in paragraphs)}
+    return {name for name, pattern in checks if any(re.search(pattern, p, re.S | re.I) for p in paragraphs)}
 
 
 def main() -> None:

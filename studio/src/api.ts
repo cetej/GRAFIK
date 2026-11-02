@@ -337,17 +337,17 @@ export interface Infographic {
 }
 
 // -- rešerše k tématu (engine/research.py) ----------------------------------------------------------------
-export interface FactSource { url: string; nazev: string; citace: string; datum: string; jazyk: string; hodnota?: number | number[] }
+export interface FactSource { url: string; nazev: string; citace: string; datum: string; jazyk: string; hodnota?: number | number[] | string }
 export interface Fact {
   id: string
   tvrzeni: string
   predmet: string | null
   velicina: string | null
-  hodnota: number | number[] | null
+  hodnota: number | number[] | string | string[] | null
   jednotka: string | null
   zdroje: FactSource[]
   stav: 'shoda' | 'rozpor' | 'jediny_zdroj'
-  tema: 'rozmery' | 'vznik' | 'stavba' | 'rekord' | 'ostatni'
+  tema: 'rozmery' | 'vznik' | 'stavba' | 'rekord' | 'zivot' | 'dilo' | 'penize' | 'odkaz' | 'myty' | 'vzhled' | 'vyskyt' | 'biologie' | 'ohrozeni' | 'veda' | 'kultura' | 'ostatni'
 }
 export interface DossierImage {
   file: string
@@ -360,6 +360,8 @@ export interface DossierImage {
   sirka: number | null
   vyska: number | null
   role: 'rekonstrukce' | 'pudorys' | 'rez' | 'pruceli' | 'interier' | 'detail' | 'material' | 'nezarazeno'
+    | 'portret' | 'zivot' | 'dilo' | 'misto' | 'pamatka' | 'rukopis'
+    | 'zvire' | 'mapa' | 'prostredi' | 'vyvoj' | 'forma' | 'ilustrace' | 'model'
   ref_id?: string
   chyba?: string
 }
@@ -367,7 +369,7 @@ export interface Dossier {
   id: string
   tema: string
   verze: number
-  entita: { qid: string; label: string; popis: string; url: string }
+  entita: { qid: string; label: string; popis: string; url: string; druh?: 'vec' | 'osoba' | 'zvire' }
   facts: Fact[]
   images: DossierImage[]
   otazky_bez_odpovedi: string[]

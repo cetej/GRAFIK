@@ -6,13 +6,32 @@ import {
 import { fmtUsd, type Confirm } from './App.tsx'
 
 // Infografika z tématu, krok Podklady (engine/research.py). Rozpory nahoře, nic se nerozhoduje potichu; placené hledání je jen tlačítko s cenou.
-const THEMES = { rozmery: 'Rozměry', vznik: 'Vznik', stavba: 'Stavba a materiál', rekord: 'Rekordy', ostatni: 'Ostatní' } as const
-const ROLES = { rekonstrukce: 'Rekonstrukce a modely', pudorys: 'Půdorys', rez: 'Řez', pruceli: 'Průčelí', interier: 'Interiér', detail: 'Detail', material: 'Materiál', nezarazeno: 'Nezařazeno' } as const
+const THEMES = {
+  rozmery: 'Rozměry', vznik: 'Vznik', stavba: 'Stavba a materiál', rekord: 'Rekordy',
+  zivot: 'Život', dilo: 'Dílo a vynálezy', penize: 'Peníze a smlouvy', odkaz: 'Ocenění a odkaz', myty: 'Tvrzení a mýty',
+  vzhled: 'Vzhled', vyskyt: 'Výskyt', biologie: 'Potrava a rozmnožování', ohrozeni: 'Ohrožení a ochrana', veda: 'Věda a vývoj', kultura: 'Jméno a kultura',
+  ostatni: 'Ostatní',
+} as const
+const ROLES = {
+  rekonstrukce: 'Rekonstrukce a modely', pudorys: 'Půdorys', rez: 'Řez', pruceli: 'Průčelí', interier: 'Interiér', detail: 'Detail', material: 'Materiál',
+  portret: 'Portrét', zivot: 'Ze života', dilo: 'Dílo a vynálezy', misto: 'Místa', pamatka: 'Památky a odkaz', rukopis: 'Podpis a rukopis',
+  zvire: 'Celé zvíře', mapa: 'Mapa výskytu', prostredi: 'Prostředí', vyvoj: 'Vývoj a mláďata', forma: 'Barevné formy', ilustrace: 'Kresby a umění', model: '3D modely',
+  nezarazeno: 'Nezařazeno',
+} as const
+type RoleKey = keyof typeof ROLES
+const KIND_ROLES: Record<string, RoleKey[]> = {
+  vec: ['rekonstrukce', 'pudorys', 'rez', 'pruceli', 'interier', 'detail', 'material', 'nezarazeno'],
+  osoba: ['portret', 'zivot', 'dilo', 'misto', 'pamatka', 'rukopis', 'nezarazeno'],
+  zvire: ['zvire', 'mapa', 'detail', 'prostredi', 'vyvoj', 'forma', 'ilustrace', 'model', 'nezarazeno'],
+}
+const KIND_LABEL: Record<string, string> = { osoba: 'osoba', zvire: 'zvíře' }
 const STATE_LABEL = { shoda: 'shoda', rozpor: 'rozpor', jediny_zdroj: 'jeden zdroj' } as const
 
 const num = (v: number) => v.toLocaleString('cs-CZ', { maximumFractionDigits: 2 })
+const fmtDate = (iso: string) => iso.split('-').map(Number).reverse().join('. ')
 const fmtValue = (v: FactSource['hodnota'], unit: string | null) => {
   if (v === undefined || v === null) return ''
+  if (typeof v === 'string') return fmtDate(v)
   return `${Array.isArray(v) ? `${num(v[0])}–${num(v[1])}` : num(v)}${unit ? ` ${unit}` : ''}`
 }
 
@@ -50,7 +69,7 @@ export function TopicStart({ chains, onOpen, onChain, setConfirm, onError }: {
       <p>GRAFIK sám dohledá fakta se zdroji a obrazové podklady z Wikidaty, Wikipedie a Wikimedia Commons. Zdroje, které si odporují, ukáže nahoře.</p>
       <div className="row">
         <input className="search" value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Téma"
-          placeholder="Např. Pantheon, Řím" onKeyDown={(e) => { if (e.key === 'Enter' && topic.trim()) start() }} />
+          placeholder="Např. Pantheon, Řím · Nikola Tesla · axolotl" onKeyDown={(e) => { if (e.key === 'Enter' && topic.trim()) start() }} />
         <button className="btn pay" disabled={!topic.trim() || price === null} onClick={() => startChain(false)} title="Podklady, tři návrhy skladby a kontrola vybraného návrhu. Cena se schvaluje jednou, zastaví se až u výběru.">
           Podklady a návrhy{price !== null ? ` · ${fmtUsd(price)}` : ''}
         </button>
@@ -214,7 +233,7 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
         <div className="row between">
           <div>
             <h2 className="dossier-title">{dossier.entita.label}</h2>
-            <span className="hint">{dossier.entita.popis} · <a href={dossier.entita.url} target="_blank" rel="noreferrer">Wikidata {dossier.entita.qid}</a> · verze {dossier.verze}{dossier.cost_usd ? ` · ${fmtUsd(dossier.cost_usd)}` : ' · 0 USD'}</span>
+            <span className="hint">{dossier.entita.druh && KIND_LABEL[dossier.entita.druh] ? `${KIND_LABEL[dossier.entita.druh]} · ` : ''}{dossier.entita.popis} · <a href={dossier.entita.url} target="_blank" rel="noreferrer">Wikidata {dossier.entita.qid}</a> · verze {dossier.verze}{dossier.cost_usd ? ` · ${fmtUsd(dossier.cost_usd)}` : ' · 0 USD'}</span>
           </div>
           <div className="row tight">
             <button className="btn" onClick={() => setAskQid(!askQid)}>Jiná položka</button>
@@ -261,7 +280,7 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
 
       <section className="card">
         <h3>Obrázky po rolích ({dossier.images.length})</h3>
-        {(Object.keys(ROLES) as (keyof typeof ROLES)[]).map((role) => {
+        {KIND_ROLES[dossier.entita.druh ?? 'vec'].map((role) => {
           const imgs = dossier.images.filter((i) => i.role === role)
           return (
             <div className="role-row" key={role}>
