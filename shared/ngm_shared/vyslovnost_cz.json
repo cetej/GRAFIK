@@ -72,6 +72,8 @@
     {"grapheme": "roztřídí", "alias": "roztříďí", "note": "OmniVoice čte měkké dí tvrdě (POHYB, buňka)"},
     {"grapheme": "opustí", "alias": "opusťí", "note": "OmniVoice čte měkké tí tvrdě (POHYB, buňka)"},
     {"grapheme": "mitochondri", "alias": "mito-chondri", "type": "term", "kmen": true, "note": "OmniVoice čte ch anglicky jako k (Whisper: mitokondrie); spojovník na hranici slova to vrací, ticho rázu zmizelo a pauza nad 30 ms nepřibyla (POHYB, měření 2026-11-01)"},
-    {"grapheme": "mitochondriáln", "alias": "mito-chondriáln", "type": "term", "kmen": true, "note": "přídavné jméno, stejná oprava jako mitochondri; samostatně neměřeno"}
+    {"grapheme": "mitochondriáln", "alias": "mito-chondriáln", "type": "term", "kmen": true, "note": "přídavné jméno, stejná oprava jako mitochondri; samostatně neměřeno"},
+    {"grapheme": "buňku", "alias": "buňjku", "type": "other", "note": "OmniVoice čte ň před k tvrdě („bunku“, POHYB virus v DNA); operátor vybral poslechem 2026-11-02"},
+    {"grapheme": "hostitel", "alias": "hosťitel", "type": "other", "kmen": true, "note": "OmniVoice čte měkké ti tvrdě („hostytele“, POHYB virus v DNA); operátor vybral poslechem 2026-11-02"}
   ]
 }
