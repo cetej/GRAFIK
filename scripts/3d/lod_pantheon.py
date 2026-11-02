@@ -75,6 +75,7 @@ RES = [int(v) for v in opt("--res", (1920, 1080), 2)]
 # portrait) in metres, dx, dz: its centre. lens, cam, look: perspective camera instead. sun: towards the sun.
 SHOTS = {
     "rez": {"cut": "half", "az": -122, "el": 10, "scale": 120, "dx": 12.75, "dz": 15.46, "sun": (-0.38, -0.22, 1.0), "shaft": True, "people": True},
+    "rez_zem": {"cut": "half", "az": -122, "el": 10, "scale": 120, "dx": 12.75, "dz": 15.46, "sun": (-0.38, -0.22, 1.0), "shaft": True, "people": True, "thin_ground": True},   # rez bez šedého soklu, popisky beze změny
     "rez_web": {"cut": "half", "az": -122, "el": 10, "scale": 92, "dx": 12.75, "dz": 20.0, "sun": (-0.38, -0.22, 1.0), "shaft": True, "people": True},   # scripts/3d/pantheon_web_sirka.py
     "rozklad": {"cut": "wedge", "az": -146, "el": 24, "scale": 118, "dx": 0.0, "dz": 22.0, "sun": (-0.5, -0.35, 1.0), "explode": True, "no_portico": True},
     "interier": {"cut": None, "lens": 14, "cam": (-14.0, -13.0, 1.7), "look": (4.0, 7.0, 24.0), "sun": (-0.38, 0.1, 1.0), "shaft": True, "people": True, "sky": True},
@@ -478,10 +479,15 @@ def build(cut):
     if cut:
         explode = SHOT.get("explode")
         if not explode:
-            solids["under"] = disc_solid("under", R_FOUND_I, Z_EARTH, -0.6)
-            solids["under2"] = ring_solid("under2", [(R_FOUND_I, Z_EARTH), (R_FOUND_O, Z_EARTH), (R_FOUND_O, -DIM["found_h"]), (R_FOUND_I, -DIM["found_h"])])
-            solids["ground"] = box_object("ground", (-59, -27, Z_EARTH), (37, 34, 0))
-            hole = disc_solid("hole", R_FOUND_O, Z_EARTH - 1, 1)
+            thin = SHOT.get("thin_ground")      # paving tight around the building, earth only under the rotunda, where it shows the foundation
+            earth = -DIM["found_h"] - 0.8 if thin else Z_EARTH
+            solids["under"] = disc_solid("under", R_FOUND_I, earth, -0.6)
+            solids["under2"] = ring_solid("under2", [(R_FOUND_I, earth), (R_FOUND_O, earth), (R_FOUND_O, -DIM["found_h"]), (R_FOUND_I, -DIM["found_h"])])
+            if thin:
+                solids["ground"] = box_object("ground", (X_COL - 6.0, -DIM["portico_w"] / 2 - 4.0, -0.8), (R_O + 3.0, R_O + 3.0, 0))
+            else:
+                solids["ground"] = box_object("ground", (-59, -27, Z_EARTH), (37, 34, 0))
+            hole = disc_solid("hole", R_FOUND_O, earth - 1, 1)
             boolean(solids["ground"], hole)
             cutters.append(hole)
         if cut == "half":
