@@ -320,8 +320,8 @@ def test_panel_keeps_only_the_picture_roles_the_dossier_has():
 
 
 @pytest.mark.parametrize("kind, sees, not_sees", [
-    ("osoba", ("portret|zivot|dilo", "Životopis po letech nestačí"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
-    ("zvire", ("zvire|mapa|detail", "Mapa výskytu"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
+    ("osoba", ("portret|zivot|dilo", "Životopis po letech nestačí", "predloha portret"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
+    ("zvire", ("zvire|mapa|detail", "Mapa výskytu", "predloha zvire"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
     ("vec", ("hlavni|rez|pudorys|detail|cisla|osa|text", "Jediný velký řez", "kdo věc používal"), ("portret", "Životopis")),
     (None, ("hlavni|rez|pudorys|detail|cisla|osa|text", "Jediný velký řez"), ("portret", "Životopis")),     # starší dossier druh nemá
 ])
