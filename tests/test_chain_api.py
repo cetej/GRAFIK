@@ -542,8 +542,64 @@ def test_picture_keeps_its_size_and_the_weakest_label_goes():
     fields, dropped = sr.compose("Titulek", "Věta.", "", wide, crowd, {}, "1080x1350")
     main = next(p for p in fields["panels"] if p["typ"] == "obraz")
     W = int(fields["size"].split("x")[0])
-    assert dropped == [f"Popisek {i} s dlouhým vysvětlením na několik řádků pod názvem" for i in range(len(main["labels"]), 5)][:len(dropped)]
+    assert sorted(dropped) == [f"Popisek {i} s dlouhým vysvětlením na několik řádků pod názvem" for i in range(len(main["labels"]), 5)]
     assert main["rect"][2] * 0.88 >= 0.55 * W      # objekt zůstane přes půl stránky
+
+
+def test_label_of_the_picture_outranks_loose_facts_and_the_big_page_wins():
+    """Model dal fakty před popisek motoru: popisek zmizel a stránka se kvůli faktům zmenšila na čtverec."""
+    wide = picture((1000, 1000), {"cast": [400, 300]}, (40, 40, 960, 960))
+    items = [{"value": "Niagarská elektrárna", "text": "Podle Teslovy rady vsadila na střídavý proud.", "bod": None},
+             {"value": "60 000 dolarů", "text": "Hotovost a akcie za práva na jeho motor.", "bod": None},
+             {"value": "Cívky", "text": "Střídavý proud v nich roztáčí magnetické pole.", "bod": "cast"}]
+    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, items, {}, "1080x1620")
+    main = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert [label["text"] for label in main["labels"]] == ["Cívky"] and "Cívky Střídavý proud v nich roztáčí magnetické pole." not in dropped
+    assert fields["size"] == "1080x1620" and main["rect"][2] > 900
+
+
+def test_cards_of_one_series_have_the_same_type_sizes():
+    """Operátor 2. 11.: karty v rámci jednoho cyklu nemají mít různé velikosti písem v titulcích a popiscích."""
+    hero = picture((1000, 1000), {"cast": [500, 300]}, (300, 200, 700, 950))
+    label = {"value": "Cívky", "text": "Střídavý proud je žene dokola.", "bod": "cast"}
+    fact = {"value": "1888", "text": "Licence pro firmu.", "bod": None}
+    titles = ["Cívka", "Muž, který poháněl svět"]
+    share = sr.series_title(titles)
+    pages = [sr.compose(title, "Věta.", "", hero, [label, fact], {}, "1080x1620", title_share=share)[0] for title in titles]
+    assert pages[0]["nadpis"]["size"] == pages[1]["nadpis"]["size"] == pytest.approx(sr._title_size(titles[1], 1080, pn.MOBIL, 1080 / pn.MOBIL["jednotek"]))
+    assert sr.compose(titles[0], "Věta.", "", hero, [label], {}, "1080x1620")[0]["nadpis"]["size"] > pages[0]["nadpis"]["size"]      # sama by měla větší
+    fonts = {(panel["size"], panel["small_size"]) for page in pages for panel in page["panels"] if panel["typ"] != "obraz"}
+    assert fonts == {(pn.MOBIL["popisek"] * 1080 / pn.MOBIL["jednotek"], pn.MOBIL["popisek"] * 1080 / pn.MOBIL["jednotek"] * 0.86)}
+    assert not [label for page in pages for panel in page["panels"] for label in panel.get("labels", []) if "size" in label]     # popisky mají velikost z písma stránky
+
+
+def test_leader_to_the_text_does_not_run_across_the_object():
+    tall = picture((1000, 1000), {"osa": [420, 500]}, (360, 40, 640, 960))     # válec uprostřed, bod blíž levé straně
+    item = {"value": "Válec", "text": "Vysvětlení pod názvem.", "bod": "osa"}
+    fields, _ = sr.compose("Titulek", "Věta.", "", tall, [item], {}, "1080x1620")
+    main = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert [label["align"] for label in main["labels"]] == ["right"]     # z pravé strany by čára přešla přes celý válec
+    place = {"x": main["rect"][0], "y": main["rect"][1], "k": main["rect"][2] / 1000, "info": {"points": {"osa": [420, 500]}, "res": (1000, 1000)}}
+    sheet = pn.Sheet(1080, 1620)
+    sheet.add_picture(tuple(main["rect"]), tall["_alpha"])
+    size = pn.MOBIL["popisek"] * 1080 / pn.MOBIL["jednotek"]
+    assert not sr._crosses_object(pn.leader_points(main["labels"][0], place, size, main["id"]), sheet, size * sr.LEADER_OVER)
+    assert sr._crosses_object([(420, 500), (700, 500)], sr_sheet_with_block(), size)
+
+
+def sr_sheet_with_block():
+    sheet = pn.Sheet(1080, 1620)
+    sheet.add_box((400, 400, 280, 200))
+    return sheet
+
+
+def test_number_in_another_fact_of_the_page_keeps_the_label():
+    dossier = {"facts": [{"id": "a", "stav": "shoda", "tvrzeni": "Věž: výška 57 m"}, {"id": "b", "stav": "shoda", "tvrzeni": "Morgan slíbil peníze na stavbu."}], "entita": {"label": "T"}}
+    proposal = {"nazev": "V", "veta": "", "format": "2:3", "panely": [{"fakta": ["a", "b"], "poradi": 1}], "dalsi_stranky": []}
+    answer = {"stranky": [{"stranka": 1, "titulek": "T", "uvod": "", "polozky": [{"fakt": "b", "value": "57 metrů", "text": "Vysoká věž", "bod": "vez"}, {"fakt": "b", "value": "99 metrů", "text": "Vymyšleno"}]}]}
+    out = sr.write_texts(dossier, proposal, [1], ask=lambda *a, **k: claude.Answer(json.dumps(answer), "m", 1, 1, 0.0, "end_turn"))
+    assert [item["value"] for item in out["stranky"][1]["polozky"]] == ["57 metrů"] and out["stranky"][1]["polozky"][0]["fakt"] == "a"
+    assert out["hlaseni"][1] == ["Číslo 99 není ve faktu b, položka vypadla."]
 
 
 def test_proposal_says_which_own_pictures_have_no_page():
@@ -578,7 +634,7 @@ def test_own_3d_picture_wins_over_an_old_photo():
     def picture_of(image):
         return {"zdroj": {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {})}, "_res": (400, 400), "_alpha": alpha, "_points": {"rotor": [200, 200]}}
     fields, said = sr.page_fields(3, pp.pages(proposal)[2], {"titulek": "Muž", "uvod": "", "polozky": [{"value": "1888", "text": "patent", "bod": None, "fakt": "f3"}]}, images, SERIES_DOSSIER, picture_of)
-    assert fields["template"] == "dark" and fields["sources"] == "Wikipedia (cs)" and not [note for note in said if "Formát" not in note]
+    assert fields["template"] == "dark" and fields["sources"] == "Wikipedia (cs)" and [note for note in said if "Formát" not in note] == ["Hlavní obraz nemá žádný popisek."]
 
 
 def page_with_picture(root, rect, picture, res=(400, 800)):
@@ -621,7 +677,7 @@ def test_loose_fact_never_wraps_into_a_narrow_column_or_shrinks_the_picture():
     width = lambda doc: next(p for p in doc["panels"] if p["typ"] == "obraz")["rect"][2]
     assert width(fields) == width(alone) and dropped == [f"{long['value']} {long['text']}"] and not [p for p in fields["panels"] if p["typ"] == "text"]
     short = {"value": "1888", "text": "licence pro Westinghouse", "bod": None}
-    fields, dropped, _ = sr._compose("Titulek", "Věta.", "", wide, [label, short], {}, "1080x1350", pn.MOBIL)
+    fields, dropped, _ = sr._compose("Titulek", "Věta.", "", wide, [label, short], {}, "1080x1620", pn.MOBIL)
     assert not dropped and [p for p in fields["panels"] if p["typ"] == "text"]
 
 
@@ -658,6 +714,9 @@ def test_no_line_ends_with_a_one_letter_word():
         rows = pn.wrap(text, chars)
         assert [row for row in rows[:-1] if len(row.split()[-1]) == 1] == [], chars
         assert " ".join(rows).split() == text.split()
+    for chars in range(6, 30):      # „slíbil 150 / 000 dolarů“, „občanství, 30. / července“
+        rows = pn.wrap(sr._no_orphan("Bankéř slíbil 150 000 dolarů a občanství přišlo 30. července."), chars)
+        assert not [row for row in rows if row.endswith(("150", "30."))] and not [row for row in rows if row.startswith("000")], chars
 
 
 def test_a_life_turn_without_a_year_keeps_the_timeline():

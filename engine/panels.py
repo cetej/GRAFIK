@@ -116,6 +116,8 @@ def _label(where: str, raw: dict) -> dict:
     out = {"text": str(raw["text"]), "small": _lines(raw.get("small")), "kotva": anchor, "pos": _numbers(f"{where}: pos", raw.get("pos"), 2), "align": raw.get("align", "left")}
     if raw.get("nad"):
         out["nad"] = True
+    if raw.get("radek") is not None:
+        out["radek"] = _number(f"{where}: radek", raw["radek"])
     if raw.get("size") is not None:
         out["size"] = _number(f"{where}: size", raw["size"])
     return out
@@ -504,7 +506,7 @@ class Renderer:
             halo = None if self.f["zalomit"] else self.t["halo"]
             line = _text(px, py + size * 0.9, label["text"], size, self.accent, 700, anchor, halo)
             for i, small in enumerate(label["small"]):
-                line += _text(px, py + size * (1.95 + 1.1 * i), small, size * 0.86, self.t["ink"], 400, anchor, halo)
+                line += _text(px, py + size * (1.95 + label.get("radek", 1.1) * i), small, size * 0.86, self.t["ink"], 400, anchor, halo)
             shadow = ' filter="url(#stin-textu)"' if self.t.get("stin") else ""
             words.append(f'<g id="{self.gid(label["text"])}"{shadow}>{line}</g>')
         lead_group = f'<g id="{self.gid(f"Vodítka {panel["nazev"]}")}">{"".join(leads)}</g>' if leads else ""
@@ -647,7 +649,7 @@ def _strikes(poly, box) -> bool:
 
 def _text_box(label: dict, size: float) -> tuple[float, float, float, float]:
     width = max([len(label["text"]) * size * LINE_WIDTH * 1.08] + [len(s) * size * 0.86 * LINE_WIDTH for s in label["small"]])
-    height = size * (1.2 + 1.1 * len(label["small"]))
+    height = size * (1.2 + label.get("radek", 1.1) * len(label["small"]))
     x, y = label["pos"]
     return (x if label["align"] == "left" else x - width, y, width, height)
 

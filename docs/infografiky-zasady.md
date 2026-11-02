@@ -28,8 +28,13 @@ Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má �
 | „Popisky jsou malé a divně nahloučené.“ | Název 1/20 šířky, text pod ním 86 % z toho. Popisky ve sloupci na společné svislici, název ve výšce své věci, mezera aspoň jedno písmo. Objekt přes celou šířku: popisky v řadě nad ním, čára rovně dolů z vlastního textu. Vyhrává to, co dá kratší vodítka. | `serie._column`, `serie._row_above`, `panels.MOBIL` |
 | „Proč otrocky trváš na dlouhých řádcích třeba i ze dvou písem“ | Název a pod ním krátké vysvětlení, nikdy dvě písma na jednom řádku. Řádky vyrovnané, slovo nezůstane samo, jednopísmenná předložka nezůstane na konci řádku. Popisek na víc než 3 řádky se nevezme. | `serie._even_chars`, `serie._no_orphan`, `serie.MAX_FACT_LINES`, u faktů `stackedFacts` v editoru |
 | „Vykašli se na ty drobounké popisky ZDROJ.“ | Na stránce jen označení AI (licence FLUX) a cizí autor. Zdroje jdou pod článek. | `panels.short_note`, Studio „Zdroje pod článek“ |
+| „Jde o karty v rámci jednoho cyklu, tak by tam neměly být různé velikosti písem v titulcích a popiscích.“ | Karty jedné série mají stejné velikosti písma. Titulek určí ten nejdelší v sérii, popisky a text mají velikost z písma stránky. | `serie.series_title`, `chain._stranky`, test `test_cards_of_one_series_have_the_same_type_sizes` |
 
 Rok nebo číslo patentu, které nepatří k části obrazu, nejsou volný lístek vedle obrazu: patří do věty pod titulkem (prompt `serie.SYSTEM`). Volný fakt obraz nezmenšuje. Když by se zalomil na víc než 3 řádky nebo se nevejde, vypadne a řekne to hlášení (`serie.MAX_FACT_LINES`).
+
+Popisek od modelu má nejvýš 8 slov a 50 znaků (životopis 12 slov). Písmo se u nás nemění, takže dva popisky po třech řádcích dlouhých vět jsou širší než stránka, sloupec vedle objektu se nevejde a popisek vypadne nebo skončí jinde než u své věci. Název části je v běžných slovech už v `popisky` obrazu (Spodní cívka, ne Primár).
+
+Popisek obrazu má přednost před volným faktem, i když ho model dal níž, a formát stránky vybírá nejdřív podle popisků a velikosti obrazu, volné fakty až potom (`serie.compose`). Čára k textu nevede přes hlavní věc, nejvýš 1,5 písma (`serie._crosses_object`, `LEADER_OVER`): když se to nedá, obraz se o krok zmenší, nebo je špatně položený bod (věž: bod na pravé noze, popisek vpravo). Všechen text stránky má jedno řádkování a volný fakt vedle popisku sedí na stejném účaří (`serie.LABEL_LINE`, `_free_panels`).
 
 **Než stránku pošleš:** prohlédni ji sám v plné velikosti a řekni si, co je na ní hlavní a jestli to tak na první pohled vypadá. Kontrola najde díru a splývání, ale ne to, že největší je podloží. Výtku převeď na měření v kódu nebo pravidlo tady, ne jen na opravu ukázky: operátor nemá vychytávat každou grafiku zvlášť.
 

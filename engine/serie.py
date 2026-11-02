@@ -32,6 +32,8 @@ ROW_PICTURE = 0.5           # podíl malého obrazu v řádku
 MAX_RISE = 0.28             # o kolik smí popisek odjet od výšky své věci, podíl výšky stránky; dál už vodítko nečte nikdo a obraz se raději zmenší
 LEFT_COLUMN = 0.12          # podíl šířky, o který je dražší sloupec vlevo: série má stejný rytmus, obraz vlevo a popisky vpravo
 LABEL_AIR = 0.3             # odstup textu od obrazu, podíl mezery mezi popisky
+LEADER_OVER = 1.5           # kolik písem smí čára k textu vést přes obraz (cívka 2. 11.: vodorovně přes celý válec)
+LABEL_LINE = 25 / panels.MOBIL["popisek"]      # řádkování popisku stejné jako u volného faktu a osy, stránka má jeden rytmus
 TWO_COLUMNS = 0.3           # a o který jsou dražší dva sloupce: jeden je klidnější
 LEAD_WIDTH = 0.42           # běžná věta v em, změřeno na ukázce Tesly
 LIFE_FACT = re.compile(r"^(Narození|Úmrtí|Místo narození|Místo úmrtí):|\bse narodil|\bzemřel|\bwas born\b|\bdied\b", re.I)
@@ -49,13 +51,13 @@ Jsi redaktor popisků infografik National Geographic, tohle je popularizace věd
 
 Pravidla:
 - Každý popisek odpovídá na „no a co?“: co ta věc dělá, proč je důležitá, co se tím změnilo. Technický parametr sám o sobě nepiš.
-- Odborný pojem nahraď běžnými slovy i v „value“, nebo ho hned vysvětli. Čtenář nesmí potřebovat slovník. Špatně: „Točivé pole: dvě cívky v pravém úhlu, posun 90 stupňů.“ Dobře: „Cívky: střídavý proud v nich žene magnetické pole dokola.“ a „Rotor: běží za tím polem, a tak se motor točí.“
-- Popisek s bodem pojmenuje tu část obrazu a řekne, co dělá. Letopočet, cena a událost nejsou popisek části: ty mají bod null. Stránka s velkým obrazem má 2 až 3 popisky, víc se vedle něj nevejde.
+- Odborný pojem nahraď běžnými slovy i v „value“, i když ho používá fakt nebo BODY OBRAZU, nebo ho hned vysvětli. Čtenář nesmí potřebovat slovník. Špatně: „Točivé pole: dvě cívky v pravém úhlu, posun 90 stupňů.“ Dobře: „Cívky: střídavý proud v nich žene magnetické pole dokola.“ a „Rotor: běží za tím polem, a tak se motor točí.“
+- Popisek s bodem pojmenuje tu část obrazu a řekne, co dělá. Letopočet, cena a událost nejsou popisek části: ty mají bod null. Obraz s BODY OBRAZU má 2 až 3 popisky s bodem a ty jsou v pořadí první. Položka bez bodu je na takové stránce nejvýš jedna, víc se vedle velkého obrazu nevejde.
 - Jeden popisek, jedna myšlenka. Nesouvisející fakt k němu nepřilepuj. Dva popisky smí vycházet z téhož faktu.
 - Místo, které čtenář nezná, zasaď: ne „ve Smiljanu u Gospiće“, ale „ve vesnici v dnešním Chorvatsku“. Známá města stačí jménem. Neznámou firmu nebo člověka uveď tím, čím byli.
 - Tvrzení a čísla jen z faktu. Žádné další události, data ani čísla si nepřidávej. Každé číslo a datum, které použiješ, opiš přesně z faktu; číslo, kterému laik nerozumí, vynech. Vysvětlit běžnými slovy, co pojem znamená, smíš a máš.
 - Fakt se stavem „rozpor“ uveď jako rozpětí, nerozhoduj.
-- Popisek: „value“ je tučný název do 3 slov (věc, číslo nebo letopočet), „text“ je pod ním vysvětlení do 10 slov, na dva řádky. Datum piš jako rok, nebo měsíc slovem a rok.
+- Popisek: „value“ je tučný název do 3 slov (věc, číslo nebo letopočet), „text“ je pod ním vysvětlení nejvýš 8 slov a 50 znaků, jedna krátká věta. Delší se vedle obrazu nevejde a vypadne. Jen položka životopisu smí mít 12 slov. Datum piš jako rok, nebo měsíc slovem a rok.
 - „bod“ je id z BODŮ OBRAZU, když se popisek týká té části obrazu, jinak null. Popisek u věci je vždy lepší než popisek bez bodu.
 - „obraz“ je id z MALÝCH OBRAZŮ, když k položce patří, jinak null.
 - Stránka má nejvýš 5 popisků a nejvýš tolik slov, kolik je u ní uvedeno. Méně důležitý fakt vynech.
@@ -168,8 +170,10 @@ def write_texts(dossier: dict, proposal: dict, chosen: list[int], *, model: str 
                 continue
             strange = documented(item, known[fact_id])
             if strange:
-                note.append(f"Číslo {', '.join(strange)} není ve faktu {fact_id}, položka vypadla.")
-                continue
+                fact_id, wrong = next((f for f in allowed if not documented(item, known[f])), None), fact_id     # model se spletl v odkazu, číslo je v jiném faktu téže stránky
+                if fact_id is None:
+                    note.append(f"Číslo {', '.join(strange)} není ve faktu {wrong}, položka vypadla.")
+                    continue
             items.append({"value": str(item.get("value") or ""), "text": str(item.get("text") or ""), "fakt": fact_id, "bod": item.get("bod") if isinstance(item.get("bod"), str) else None, "obraz": item.get("obraz") if isinstance(item.get("obraz"), str) else None})
         if len(items) > MAX_ITEMS:
             note += [f"Nevešlo se: {item['value']} {item['text']}".strip() for item in items[MAX_ITEMS:]]
@@ -220,12 +224,18 @@ def _title_size(title: str, W: int, f: dict, k: float) -> float:
     return least
 
 
+def series_title(titles: list[str], f: dict = panels.MOBIL) -> float:
+    """Karty jedné série mají stejně velký titulek: co dovolí nejdelší z nich. Podíl šířky stránky."""
+    return min(_title_size(title, 1080, f, 1080 / f["jednotek"]) for title in titles) / 1080
+
+
 Sheet = panels.Sheet
 
 
 def _no_orphan(text: str) -> str:
-    """Předložka nebo spojka o jednom písmenu nezůstane na konci řádku."""
-    return re.sub(r"(?<!\S)([ksvzouaiKSVZOUAI]) ", "\\1\u00a0", text)
+    """Předložka nebo spojka o jednom písmenu nezůstane na konci řádku, číslo se nerozdělí, den zůstane u měsíce a New u Yorku."""
+    text = re.sub(r"(?<!\S)([ksvzouaiKSVZOUAI]) ", "\\1\u00a0", text)
+    return re.sub(r"(?<=\d) (?=\d{3}\b)|(?<=\d\.) (?=\w)|(?<=\bNew) (?=[A-Z])", "\u00a0", text)
 
 
 def _said(item: dict) -> str:
@@ -242,7 +252,7 @@ def _even_chars(text: str, chars: int) -> int:
 
 
 def _callout(item: dict, chars: int, align: str) -> dict:
-    return {"text": item["value"] or item["text"], "small": panels.wrap(item["text"], _even_chars(item["text"], chars)) if item["value"] else [], "kotva": item["bod"], "pos": [0.0, 0.0], "align": align}
+    return {"text": item["value"] or item["text"], "small": panels.wrap(item["text"], _even_chars(item["text"], chars)) if item["value"] else [], "kotva": item["bod"], "pos": [0.0, 0.0], "align": align, "radek": LABEL_LINE}
 
 
 def _slots(sheet: Sheet, x: float, width: float, heights: list[float], wanted: list[float], top: float, bottom: float, gap: float) -> list[float] | None:
@@ -264,6 +274,15 @@ def _slots(sheet: Sheet, x: float, width: float, heights: list[float], wanted: l
         ys.append(best)
         floor = best + h + gap
     return ys
+
+
+def _crosses_object(poly: list, sheet: Sheet, limit: float) -> bool:
+    """Vede čára od textu přes hlavní věc? První úsek z bodu ven je nutný, ten k textu smí přes obraz jen krátce."""
+    (ax, ay), (bx, by) = poly[-2], poly[-1]
+    length = ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+    steps = max(1, int(length / Sheet.CELL))
+    over = sum(not sheet.free((ax + (bx - ax) * i / steps, ay + (by - ay) * i / steps, 1, 1)) for i in range(steps + 1))
+    return over * length / steps > limit
 
 
 def _column(items: list[dict], side: str, hero: dict, place: dict, sheet: Sheet, span: tuple, margin: float, size: float, W: int) -> tuple[list[dict], float] | None:
@@ -291,7 +310,7 @@ def _column(items: list[dict], side: str, hero: dict, place: dict, sheet: Sheet,
                 polys = [panels.leader_points(label, place, size, hero["id"]) for label in placed]
                 frames = [panels._text_box(label, size) for label in placed]
                 crossing = any(panels._cross(a, b, c, d) for i, one in enumerate(polys) for other in polys[i + 1:] for a, b in panels._segments(one) for c, d in panels._segments(other))
-                struck = any(panels._strikes(poly, frame) for poly in polys for frame in frames)
+                struck = any(panels._strikes(poly, frame) for poly in polys for frame in frames) or any(_crosses_object(poly, sheet, size * LEADER_OVER) for poly in polys)
                 if not crossing and not struck:
                     cost = sum(abs(y - w) for y, w in zip(ys, wanted)) + sum(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 for poly in polys for a, b in panels._segments(poly))
                     if best is None or cost < best[0]:
@@ -432,6 +451,8 @@ def _picture_rows(items: list[dict], insets: dict, sheet: Sheet, x: float, margi
         thumb = {**{key: value for key, value in picture.items() if not key.startswith("_")}, "id": f"obr{i}", "rect": [x + (box_w - res[0] * scale) / 2, y + (row_h - res[1] * scale) / 2, res[0] * scale, res[1] * scale], "labels": [], "pruhledny": True}
         chars = _even_chars(item["text"], room_chars)
         lines = panels.wrap(item["text"], chars)
+        if len(lines) > MAX_FACT_LINES or len(item["value"]) * size * panels.LINE_WIDTH * 1.08 > text_w:
+            return None     # úzký sloupek slov a název přes okraj
         height = size * 1.1 + (28 + 25 * max(0, len(lines) - 1)) * k + small * 0.4
         block_y = y + (row_h - height) / 2
         if not sheet.free((text_x, block_y, text_w, height)) or not sheet.free((x, y, box_w, row_h)):
@@ -440,19 +461,18 @@ def _picture_rows(items: list[dict], insets: dict, sheet: Sheet, x: float, margi
     return out
 
 
-def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, margin: float, top: float, bottom: float, f: dict, k: float, W: int) -> tuple[list[dict], list[dict]] | None:
-    """Fakta bez místa na obrazu, stejným písmem jako popisky a bez vodítka, do nejbližší volné plochy; ta s malým obrazem v řádcích.
-    Vrátí panely a co se slušně nevešlo: kvůli volnému faktu se obraz nezmenšuje. None, když se nevejdou řádky s malými obrazy."""
+def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, margin: float, top: float, bottom: float, f: dict, k: float, W: int) -> tuple[list[dict], list[dict]]:
+    """Fakta bez místa na obrazu, stejným písmem jako popisky a bez vodítka, do nejbližší volné plochy; ta s malým obrazem v řádcích, a když se řádky nevejdou, bez něj.
+    Vrátí panely a co se slušně nevešlo: kvůli volnému faktu se obraz nezmenšuje."""
     size = f["popisek"] * k
     small = size * 0.86
     with_picture = [item for item in items if insets.get(item.get("obraz"))]
-    out = []
-    if with_picture:
-        rows = _picture_rows(with_picture, insets, sheet, near[0], margin, top, bottom, k, size, small, W)
-        if rows is None:
-            return None
-        out += rows
+    rows = _picture_rows(with_picture, insets, sheet, near[0], margin, top, bottom, k, size, small, W) if with_picture else None
+    if rows is None:
+        with_picture = []
+    out = rows or []
     x, y = near
+    air = size * LABEL_GAP * LABEL_AIR
     skipped = []
     for i, item in enumerate((item for item in items if item not in with_picture), len(with_picture) + 1):
         placed = None
@@ -463,41 +483,46 @@ def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, mar
                 continue
             width = max(len(item["value"]) * size * panels.LINE_WIDTH * 1.08, max((len(r) for r in rows), default=0) * small * panels.LINE_WIDTH)
             height = size * 1.1 + (28 + 25 * max(0, len(rows) - 1)) * k + small * 0.4
-            spot = _free_block(sheet, width, height, (x, y), margin, top, bottom)
+            spot = _free_block(sheet, width + 2 * air, height + 2 * air, (x - air, y - air), margin - air, top - air, bottom + air)     # odstup od obrazu jako u popisků
             if spot:
-                placed = (spot, width, height, chars)
+                placed = ((spot[0] + air, spot[1] + air), width, height, chars)
                 break
         if not placed:
             skipped.append(item)
             continue
         (px, py), width, height, chars = placed
+        level = near[1] - size * 0.1        # vedle popisku v řadě sedí na stejném účaří
+        if abs(py - level) < size * 0.5 and sheet.free((px, level, width, height)):
+            py = level
         out.append(_fact_panel(i, item, [px, py, width, height], size, small, chars))
         sheet.add_box((px, py, width, height))
         x, y = px, py + height + 10 * k
     return out, skipped
 
 
-def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict = panels.MOBIL) -> tuple[dict, list[str]]:
+def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict = panels.MOBIL, title_share: float | None = None) -> tuple[dict, list[str]]:
     """Formát se řídí obrazem: když na návrhovém zůstane prázdná plocha nebo něco vypadne, zkusí stejně širokou stránku jiné výšky. Vrátí (pole dokumentu, hlášení)."""
     W = infographics.canvas_size(size)[0]
     tried = []
     for candidate in dict.fromkeys([size, *(f"{W}x{round(W * ratio)}" for ratio in HEIGHTS)]):
-        fields, dropped, empty = _compose(title, lead, short_note, hero, items, insets, candidate, f)
+        fields, dropped, empty = _compose(title, lead, short_note, hero, items, insets, candidate, f, title_share)
         if not dropped and empty <= panels.MAX_EMPTY:
             return fields, dropped
-        tried.append((len(dropped), empty, fields, dropped))
-    best = min(tried, key=lambda row: row[:2])
-    return best[2], best[3]
+        lost = sum(bool(it.get("bod")) and _said(it) in dropped for it in items)
+        area = next((p["rect"][2] * p["rect"][3] for p in fields["panels"] if p["typ"] == "obraz"), 0.0)
+        tried.append(((lost, empty > panels.MAX_EMPTY, -area, len(dropped), empty), fields, dropped))     # popisek obrazu a velikost obrazu před volnými fakty
+    _rank, fields, dropped = min(tried, key=lambda row: row[0])
+    return fields, dropped
 
 
-def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict) -> tuple[dict, list[str], float]:
+def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict, title_share: float | None = None) -> tuple[dict, list[str], float]:
     """Stránka jako jeden obraz s informacemi na něm: titulek, věta, co největší obraz a popisky do volné plochy vedle objektu.
     Položky jsou seřazené podle důležitosti: co se nevejde ani při nejmenším dovoleném obrazu, vypadne odzadu a řekne to hlášení."""
     W, H = infographics.canvas_size(size)
     k = W / f["jednotek"]
     margin = f["okraj"] * k
     label_size = f["popisek"] * k
-    title_size = _title_size(title, W, f, k)
+    title_size = title_share * W if title_share else _title_size(title, W, f, k)
     doc = {"title": title, "nadpis": {"size": title_size}, "sources": "", "ai_note": "", "na_strance": short_note, "pismo": f, "panels": []}
     title_y = margin + title_size * 0.82
     lead_lines = panels.wrap(_no_orphan(lead), int((W - 2 * margin) / (f["podtitulek"] * k * LEAD_WIDTH))) if lead else []
@@ -508,6 +533,7 @@ def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: l
     fields = {"title": title, "subtitle": "\n".join(lead_lines), "nadpis": {"x": margin, "y": title_y, "size": title_size}, "size": size, "pismo": "mobil"}
     dropped = []
     items = [{**it, "text": _no_orphan(it["text"])} for it in items]
+    items.sort(key=lambda it: not (hero and it.get("bod") in hero["_points"]))     # popisek obrazu vypadne až po volných faktech, i když je model dal níž
     while True:
         done = _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k)
         if done is not None:
@@ -567,13 +593,8 @@ def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, 
                 beside = x + right * s + 14 * k
                 near_x = right_labels[0]["pos"][0] if right_labels else (beside if W - margin - beside > 0.3 * W else margin)
                 near_y = max((label["pos"][1] for label in labels), default=top)
-                if loose and not labels and not any(it.get("obraz") in insets for it in loose):
-                    got_free = (_even_column(loose, beside, margin, top, bottom, f, k, W), [])
-                else:
-                    got_free = _free_panels(loose, insets, sheet, (near_x, near_y if right_labels else top), margin, top, bottom, f, k, W)
-                if got_free is None or got_free[0] is None:
-                    continue
-                free, skipped = got_free
+                column = _even_column(loose, beside, margin, top, bottom, f, k, W) if loose and not labels and not any(it.get("obraz") in insets for it in loose) else None
+                free, skipped = (column, []) if column else _free_panels(loose, insets, sheet, (near_x, near_y if right_labels else top), margin, top, bottom, f, k, W)
                 for panel in free:
                     sheet.add_box(tuple(panel["rect"]))
                 empty = sheet.largest_empty(top, bottom, margin)
@@ -587,7 +608,7 @@ def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, 
     return None
 
 
-def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, picture_of, template: str = "dark", accent: str = "#e0b35c") -> tuple[dict, list[str]]:
+def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, picture_of, template: str = "dark", accent: str = "#e0b35c", title_share: float | None = None) -> tuple[dict, list[str]]:
     """Pole dokumentu jedné stránky a její hlášení. `picture_of(obraz)` dá zdroj, rozměr, průhlednost a body obrazu."""
     notes = []
     pictures = []
@@ -609,8 +630,10 @@ def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, pic
     ai_names = [picture["nazev"] for picture in shown if picture["zdroj"].get("ai")]
     credits = [panels.credit(picture["nazev"], picture.get("_autor"), picture.get("_licence")) for picture in shown if picture["zdroj"].get("ref_id")]
     short = "; ".join([*([f"{', '.join(ai_names)}: AI"] if ai_names else []), *credits])
-    fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, insets, PAGE_SIZES[page["format"]])
+    fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, insets, PAGE_SIZES[page["format"]], title_share=title_share)
     notes += [f"Nevešlo se: {d}" for d in dropped]
+    if hero and hero["_points"] and not any(panel.get("labels") for panel in fields["panels"]):
+        notes.append("Hlavní obraz nemá žádný popisek.")
     if fields["size"] != PAGE_SIZES[page["format"]]:
         notes.append(f"Formát {fields['size']} místo {PAGE_SIZES[page['format']]}: obraz na něm vyplní stránku.")
     return {**fields, "template": template, "accent": accent, "sources": ", ".join(source_names)}, notes
