@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Druhá infografika „Kdo ho zabil?“ a mapka ze studny na ni
+
+Operátor schválil náčrt („Ano, stavěj“), pevnost („Jo, to vypadá docela zajímavě“) a přijal obě hotové stránky („Ano, obě ber“).
+
+- Stránka odpovídá na otázku, kterou první grafika nechává otevřenou. Nahoře velká 3D pevnost podle plánu z knihy se šesti místy scénářů a osmi dalšími studnami s lidskými kostmi, pod ní šest malovaných scén: jeden argument pro, jeden proti a kdo z editorů se ke scénáři přiklání.
+- Lokační mapa patří sem, ne ke studni („Ale pak asi vyndáme lokační mapu ze studny a dáme ji sem“). Studna bez mapy je nová položka, přijatá verze zůstala.
+- Scéna 4 je přijatý hlavní obrázek článku, ostatní scény jsou nové z lokálního FLUX, 0 USD. Placené `nb-pro` (odhad 0,67 USD) se nepoužilo. Tím padá odložení scén ze záznamu níž.
+
 ## 2026-11-02 — Krok Návrhy podle druhu tématu
 
 Operátor viděl srovnání promptu a schválil placené ověření: „Ano, 0,14 USD“, po upřesnění ceny „Ano, do 0,15 USD“ ([měření](spikes/2026-11-02-navrhy-druhy.md)). Skutečně 0,1452 USD.

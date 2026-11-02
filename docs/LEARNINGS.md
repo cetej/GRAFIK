@@ -1,5 +1,14 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Šest scén a pevnost z plánu: karta sdílená s jinými, reálie z nálezu
+
+- **Sdílená karta:** VoiceStudio a VectorCraft držely VRAM, FLUX téměř dvě hodiny hlásil `generation_failed`, mezitím běžel Blender z POHYBu a jednou se restartoval Engine. Cizí procesy jsem nezavíral. Dávka přežila všechno díky `1024 × 672` (na stránce je scéna 560 px široká) a smyčce, která po `EngineUnavailable` čeká 3 minuty (`velsen_scenare.py`). Po uvolnění karty jde jeden obraz asi za minutu.
+- **Reálie:** zadání piš podle nálezu a porovnej ho s přijatou grafikou. Scénu jsem nejdřív přepsal na sud v úrovni země, jenže sousední přijatá studna má hranatou roubenou nástavbu; všiml jsem si toho až při pohledu na ni. Tělo „sunk upright“ dalo muže stojícího ve studni, „with care let down feet first, limp, head fallen to one side“ sedí na větu z knihy.
+- **FLUX a tvar věci:** „half of a broken round quern“ dalo tři celé kameny, „jagged half-moon fragment … snapped in two through its centre hole, raw broken edge, not a whole disc“ úlomek. „Millstone“ bez popisu dalo kostky. Kněz „with both arms raised“ je ochotnické divadlo, „head bowed, pours from a small jar“ ne. „No chimneys“ model ignoruje; pár malých komínů proti obloze jde bez generátoru přes `cv2.inpaint` (`RETOUCH` ve `velsen_scenare_stranka.py`), ve 100 % nejsou znát.
+- **Plán na polygony:** barvy třídit po třídách s přednostmi (voda, příkop, pevnost, země) a rám i legendu předlohy vyloučit ručně, jinak rám vyjde jako pevnina a legenda jako pozemek (`velsen_plan.py`).
+- **Kontrola kolizí měřila jen text proti textu a žila v mém scratchpadu.** Pánev přitlačená k popisku „obruče“ a dva popisky na stejné řádce vedle sebe prošly s nulou kolizí. Teď je v `sazba.py`: `check_layout` běží v každém `write_poster` a pozná i popisky čtené jako jedna věta, `text_over(…, margin=30)` hlídá odstup od obrazu.
+- **Přijatý soubor neskládat znovu.** `--knihovna` stránku přestaví a přepíše, ještě než ji nahraje. Na přijatou stránku je `python scripts/plakaty/sazba.py nahraj PAGE.png "Název"`, soubory se nezmění.
+
 ## 2026-11-02 — Primární zdroje v rešerši: nejdřív podmínky, pak výběr, až pak kód
 
 - **Rozhodnutí:** do volné rešerše šel jen Google Patents. PMC a IUCN jsou změřené a zamítnuté, důvody v `docs/spikes/2026-11-02-primarni-zdroje.md`.
