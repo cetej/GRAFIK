@@ -299,23 +299,12 @@ class Sheet:
     def __init__(self, W: int, H: int):
         self.W, self.H = W, H
         self.grid = np.zeros((H // self.CELL + 2, W // self.CELL + 2), dtype=np.int32)
-        self.solid = self.grid
         self.sums = None
 
     def add_box(self, box: tuple) -> None:
         x, y, w, h = (int(v) // self.CELL for v in box)
         self.grid[max(0, y):y + h + 2, max(0, x):x + w + 2] = 1
         self.sums = None
-
-    def over_object(self, poly: list[tuple]) -> int:
-        """Kolik bodů vodítka vede přes obraz mimo jeho konec: čára přes cizí část obrazu mate."""
-        hits = 0
-        for a, b in panels._segments(poly):
-            for i in range(25):
-                x, y = a[0] + (b[0] - a[0]) * i / 24, a[1] + (b[1] - a[1]) * i / 24
-                row, col = int(y) // self.CELL, int(x) // self.CELL
-                hits += int(0 <= row < self.solid.shape[0] and 0 <= col < self.solid.shape[1] and self.solid[row, col])
-        return hits
 
     def add_picture(self, rect: tuple, alpha: Image.Image | None) -> None:
         x, y, w, h = rect
@@ -328,7 +317,6 @@ class Sheet:
         top, left = max(0, int(y) // self.CELL), max(0, int(x) // self.CELL)
         rows, cols = min(rows, self.grid.shape[0] - top), min(cols, self.grid.shape[1] - left)
         self.grid[top:top + rows, left:left + cols] |= mask[:rows, :cols]
-        self.solid = self.grid.copy()
         self.sums = None
 
     def free(self, box: tuple) -> bool:

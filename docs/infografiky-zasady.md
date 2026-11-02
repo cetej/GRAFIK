@@ -11,6 +11,25 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 Úsudek o tom, co stojí za popisek a zda celek působí vyváženě, zůstává na člověku. Číselné kontroly jen upozorní na rozháranost.
 
+## Logika stránky (série o Teslovi, 2. 11., výtky operátora)
+
+Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má čtenář pochopit a co je na obraze hlavní. Operátor: „Zkus si z toho brát zkušenosti a zapracovat na logice vytváření infografik.“ Proto má každá výtka níž pravidlo a tam, kde to jde, měření v kódu. Laťka: [série o Teslovi](spikes/img/2026-11-02-serie-tesla-3d.png), operátor: „Ano, to je výrazně lepší.“ Měření v [spiku](spikes/2026-11-02-serie-mobil.md).
+
+| Výtka operátora | Pravidlo | Kdo to hlídá |
+|---|---|---|
+| „Ty karty Tesly jsou hnusné, proč tam dáváš staré fotky“ | Vlastní 3D model nebo figura před dobovou fotkou. Fotka jde na stránku jen tam, kde vlastní obraz není. | `library/tema/<qid>/obrazy.json`, `serie.pick_images` |
+| „U Tesly mají být biografická data.“ | Stránka s člověkem je životopisná: narození, smrt, místa a zlomy života. Dílo má vlastní stránky, ne výčet vedle portrétu. | prompt `proposals.KIND_RULES`, `serie.is_life_page`, hlášení „nemá narození ani smrt“ |
+| „Vrchole věže není vidět.“ (tmavá kupole na tmavé stránce) | Nic tmavého na tmavém. Obraz se nasvítí pro stránku, na které leží. | `panels.faint_parts`, kontrola „splývá s pozadím“: tenká část chce kontrast 2:1, velká plocha 1,2:1 |
+| „Z té věže má být nejdůležitějším prvkem její podloží?“ | Hlavní věc má největší plochu a kontrast, okolí ustupuje. Podloží je pás, který vybledne, šachta z něj pokračuje a ztrácí se, skutečnou hloubku řekne popisek. | příprava obrazu (`scripts/3d/tesla_tema.py`), stroj to nezměří: prohlédni stránku |
+| „Ten motor s tím prázdným pruhem je jako mávání hadrem býkovi před očima.“ | Prázdný pruh ani prázdná třetina stránky nejsou klid, ale chyba. Obraz roste, dokud se popisky vejdou, a když to na daném formátu nejde, změní se formát. | `panels.empty_share`: největší prázdný obdélník pod titulkem nejvýš 20 %; `serie.compose` zkusí stejně širokou stránku jiné výšky |
+| „Popisky jsou malé a divně nahloučené.“ | Název 1/20 šířky, text pod ním 86 % z toho. Popisky ve sloupci na společné svislici, název ve výšce své věci, mezera aspoň jedno písmo. | `serie._column`, `panels.MOBIL` |
+| „Proč otrocky trváš na dlouhých řádcích třeba i ze dvou písem“ | Název a pod ním krátké vysvětlení, nikdy dvě písma na jednom řádku. Řádky vyrovnané, slovo nezůstane samo. | `serie._even_chars`, u faktů `stackedFacts` v editoru |
+| „Vykašli se na ty drobounké popisky ZDROJ.“ | Na nové stránce jen krátké označení AI, je-li na ní AI obraz (licence FLUX). Zdroje jdou pod článek. | `panels.footer`, Studio „Zdroje pod článek“ |
+
+Rok nebo číslo patentu, které nepatří k části obrazu, nejsou volný lístek vedle obrazu: patří do věty pod titulkem (prompt `serie.SYSTEM`).
+
+**Než stránku pošleš:** prohlédni ji sám v plné velikosti a řekni si, co je na ní hlavní a jestli to tak na první pohled vypadá. Kontrola najde díru a splývání, ale ne to, že největší je podloží. Výtku převeď na měření v kódu nebo pravidlo tady, ne jen na opravu ukázky: operátor nemá vychytávat každou grafiku zvlášť.
+
 ## Web a mobil (operátor 2. 11., platí pro každou infografiku)
 
 Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu v těch poměrech velikosti nejdou nic úžasného“. Infografiku čtenář vidí v článku, velmi často na mobilu. Stránka se tam zmenší na šířku displeje a většina lidí ji nezvětšuje, takže větší plátno nepomůže: o čitelnosti rozhoduje jen poměr písma k šířce stránky.
@@ -42,7 +61,7 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 **Velká plachta se dělí.** Kde by text vyšel pod práh, písmo se nezmenšuje a stránka se rozdělí na víc menších.
 - Dělí se podle otázek čtenáře: jedna stránka, jedna otázka, jeden hlavní obraz a nejvýš 3 další panely. Studna a scénáře jsou tak rozdělené už teď, jen každá z nich nese ještě dvakrát až třikrát víc textu, než se vejde.
 - Každá stránka obstojí sama: vlastní titulek a řádek se zdrojem. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
-- **Zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
+- **Na stránce série z návrhu (krok 3g) zdroj není, jen označení AI** (oddíl Logika stránky). Přijatá Studna zůstává, jak je. U ostatních stránek platí: **zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
 - Série drží stejné písmo, barvy a velikosti, stejný objekt vypadá na všech stránkách stejně.
 - Souhrnný plakát na jedné ploše vznikne navíc jen na přání operátora, pro tisk nebo stažení. Do článku jde série.
 - Věrná kopie husté předlohy pravidlo poruší. Řekni to operátorovi předem a navrhni rozdělení.
@@ -51,7 +70,7 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 
 **Hotový dokument s panely.** Tlačítko „Rozdělit pro mobil“ (`engine/rozdeleni.py`) z něj udělá sérii: velký obraz, nejvýš pět popisků s vodítkem na stránku, další na výřezu téhož obrazu, text beze změny. Chce to, když už stránka existuje. Novou sérii lépe navrhnout od začátku, protože text psaný pro stránku je kratší.
 
-**Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely). Výchozí písmo Engine i editoru je pro velký formát a práh nesplní (`docs/plans/2026-11-01-infografika-z-tematu.md`, krok 3g), u nové stránky proto nastav velikosti podle tabulky. Před odesláním PNG zmenši na šířku 360 px a přečti: co nepřečteš, nepřečte ani čtenář. Na počítači se sloupec článku odhaduje kolem 700 px (web jsem neměřil), stránka podle tabulky tam vyjde ještě větší.
+**Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely), editor má stejný řádek v Kontrole. Nový dokument s panely (`panels.MOBIL`) i nový dokument v editoru (`pismo: "mobil"`) mají velikosti podle tabulky. Starý dokument se kreslí beze změny, porovnáno bajt po bajtu ([spike](spikes/2026-11-02-serie-mobil.md)), a dostane jen nález.
 
 **Vzor série.** `scripts/plakaty/velsen_studna_mobil.py`: plakát Muž na dně studny (239 slov) jako tři stránky 1080 × 1620 po 72, 42 a 45 slovech bez zdroje. Fakta zůstala všechna, zmizel jen metrový pruh, který hloubky na okraji nahrazují. Co bylo na plakátu malé, je na stránce velké a vady jsou vidět: pánev a výřez chtěly nový render ve větší velikosti, hladké kameny hrubší povrch (`velsen_studna.py --zblizka`). Výřez z renderu plakátu nestačí.
 

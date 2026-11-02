@@ -9,7 +9,7 @@ import { FactRow, ResearchBody, ROLES, type ResearchProps, type RoleKey } from '
 // Řetězec infografika z tématu (engine/chain.py): podklady a návrhy běží samy, operátor vybírá. Cena se schválila jednou na začátku.
 type View = 'podklady' | 'navrhy' | 'vyber' | 'stranky'
 const RUNNING: Chain['stage'][] = ['podklady', 'navrhy', 'kontrola', 'stranky']
-const PAGES_WORD = (n: number) => (n === 1 ? 'stránka' : n < 5 ? 'stránky' : 'stránek')
+const PAGES_WORD = (n: number) => (n === 1 ? 'stránka' : n >= 2 && n <= 4 ? 'stránky' : 'stránek')
 const SEVERITY_TAG: Record<string, string> = { vysoká: 'bad', střední: '', nízká: 'ok' }
 
 const viewOf = (wf: Chain): View => {
@@ -95,7 +95,7 @@ function Picked({ wf, proposal, onOpen, onError, onPages }: { wf: Chain; proposa
         <p className="hint">Kontrola nic neblokuje.</p>
         {wf.stage === 'hotovo' && !wf.serie.length && <ComposeButton wf={wf} onPages={onPages} />}
         <h4>Fakta podle panelů</h4>
-        {proposal.panely.map((p) => (
+        {[proposal, ...(proposal.dalsi_stranky ?? [])].filter((_, i) => wf.stranky.includes(i + 1)).flatMap((page) => page.panely).map((p) => (
           <div key={`${p.poradi}-${p.titulek}`} className="panel-facts">
             <b>{p.poradi}. {p.titulek}</b>
             {p.fakta.length === 0 && <span className="hint"> bez faktu ze zdroje</span>}

@@ -14,9 +14,6 @@ import json
 import re
 from pathlib import Path
 
-import numpy as np
-from PIL import Image
-
 from engine import infographics, panels, proposals
 from ngm_shared import claude
 
