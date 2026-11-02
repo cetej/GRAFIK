@@ -36,7 +36,10 @@
 - **Relativní `render.filepath` v Blenderu míří jinam než pracovní adresář.** `OUT.mkdir` a `body.json` skončily ve scratchpadu, PNG jinde, exit 0, staré PNG zůstalo a vypadalo jako nové. Dvakrát jsem tak složil plakát se starým přijímačem. Cestu předat přes `Path.resolve()` a po renderu kontrolovat čas souboru.
 - **`tesla_render.py` tiše nedělal nic, když název záběru nebyl v `SHOTS`.** Prázdný seznam teď končí chybou.
 - **Lapač stínu šedí celý snímek.** Na papíře to byl šedý obdélník kolem stroje; `without_veil` v `tesla_kopie.py` odečte úroveň z okraje snímku.
-- **Text u figury kontrolovat na plném náhledu.** Poznámka na okraji panelu skončila operátorovi přes obličej: figura se kreslí přes panely a žádná kontrola kolizi nehledá.
+- **Text přes postavu.** Poznámka na okraji panelu skončila operátorovi přes obličej, postava je obrázek a SVG o ní neví. `sazba.text_over` kreslí stránku s textem a bez něj a porovná to s obrysem postavy. Na plakátu s vrácenou chybou našel oblast obličeje.
+- **Zámek těžké práce bez pořadí.** Blender čekal 1. 11. přes 1200 s a vzdal to (`HeavyBusy`), mezitím Engine zpracovával úlohy dalších projektů. Kdo se trefil do mezery, vyhrál. `acquire` teď drží pořadí příchodu přes lístky v `~/.gpu-lock.waiting`. Starší běžící procesy lístky neznají a můžou předbíhat, dokud se nerestartují.
+- **Limit klienta počítal i frontu.** `grafik_client.wait` spadl po 900 s, úloha mezitím doběhla. Limit teď běží od spuštění, na frontu je zvlášť `queue_timeout` (4 h).
+- **Podklady ve scratchpadu zmizí.** Ruční rešerše ležela jen v dočasné složce, i když se na ni odkazovaly skripty. Co nese zdroje, patří hned do `docs/spikes`.
 
 ## 2026-11-01 — Stránka z modelu: panel musí říct, co hlavní obraz neřekne
 

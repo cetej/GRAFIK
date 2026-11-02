@@ -250,8 +250,9 @@ def submit(prompt: str, *, backend: str = "flux-local", size: str = "1024x1024",
     return data["job_id"]
 
 
-def wait(job_id: str, timeout: float = 900, poll_s: float = 2.0, on_status=None) -> dict:
-    deadline = time.monotonic() + timeout
+def wait(job_id: str, timeout: float = 900, poll_s: float = 2.0, on_status=None, queue_timeout: float = 14400) -> dict:
+    """timeout counts from the moment the job runs: the queue is shared by all projects and waiting in it is no failure."""
+    queue_deadline, deadline = time.monotonic() + queue_timeout, None
     while True:
         status, job = _request("GET", f"/api/v2/jobs/{job_id}")
         if status != 200:
@@ -262,8 +263,13 @@ def wait(job_id: str, timeout: float = 900, poll_s: float = 2.0, on_status=None)
             return job
         if job["status"] in ("failed", "cancelled"):
             raise EngineUnavailable(f"úloha {job_id} {job['status']}: {job.get('error')}")
-        if time.monotonic() > deadline:
-            raise GrafikError(f"úloha {job_id} nedoběhla do {int(timeout)} s (stav {job['status']})")
+        if job["status"] == "queued":
+            if time.monotonic() > queue_deadline:
+                raise GrafikError(f"úloha {job_id} je ve frontě déle než {int(queue_timeout)} s a čeká dál")
+        else:
+            deadline = deadline or time.monotonic() + timeout
+            if time.monotonic() > deadline:
+                raise GrafikError(f"úloha {job_id} nedoběhla do {int(timeout)} s od spuštění a běží dál, výsledek vyzvedne wait('{job_id}')")
         time.sleep(poll_s)
 
 

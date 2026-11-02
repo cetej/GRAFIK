@@ -14,12 +14,14 @@ reuses pids), is abandoned and the next caller takes it over. holder() says who 
 
 Changes go through a short OS lock on ~/.gpu-lock.mutex (released by Windows when the process dies) and
 the file is replaced in one step, so two processes can never both take it. Windows only (msvcrt).
+Those waiting in acquire() go in order of arrival (tickets in ~/.gpu-lock.waiting); try_acquire() does not queue.
 """
 from __future__ import annotations
 
 import json
 import msvcrt
 import os
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -31,6 +33,8 @@ KINDS = ("gpu", "blender", "vectorcraft", "speech", "chrome-render")
 LOCK_PATH = Path.home() / ".gpu-lock"
 # an empty or half-written lock (a writer outside this module) counts as taken for this long
 WRITING_GRACE_S = 10.0
+# a waiter refreshes its ticket on every poll
+TICKET_STALE_S = 60.0
 
 
 class HeavyBusy(RuntimeError):
@@ -122,6 +126,21 @@ def describe(lock: dict | None) -> str:
     return f"{lock.get('kind') or 'gpu'} pro {who}, PID {lock.get('pid', '?')}{at}"
 
 
+def _first_in_line(queue: Path, ticket: Path) -> bool:
+    """Waiters go in order of arrival, otherwise a busy queue re-taking the lock at once starves everyone else.
+    A ticket of a dead process, or one not refreshed for TICKET_STALE_S, no longer counts."""
+    for other in sorted(queue.iterdir(), key=lambda p: int(p.name.split("-")[0])):
+        if other == ticket:
+            return True
+        try:
+            if psutil.pid_exists(int(other.name.split("-")[1])) and time.time() - other.stat().st_mtime < TICKET_STALE_S:
+                return False
+            _retry(other.unlink, True)
+        except OSError:     # its owner just left
+            pass
+    return True
+
+
 class HeavyLock:
     def __init__(self, path: Path = LOCK_PATH, owner: str = "ngm"):
         self.path = Path(path)
@@ -146,14 +165,24 @@ class HeavyLock:
             return True
 
     def acquire(self, wait_s: float, kind: str = "gpu", caller: str | None = None, poll_s: float = 2.0) -> None:
-        """Waits up to wait_s for the lock; HeavyBusy names the holder when it does not come free."""
+        """Waits up to wait_s for the lock, in order of arrival; HeavyBusy names the holder when it does not come free."""
+        if self._mine(read_lock(self.path)):
+            return
         deadline = time.monotonic() + wait_s
-        while not self.try_acquire(kind, caller):
-            if time.monotonic() >= deadline:
-                held = read_lock(self.path)
-                raise HeavyBusy(f"Stroj je obsazený těžkou prací ({describe(held)}) déle než {int(wait_s)} s, "
-                                f"{kind} pro {self.owner} se teď nespustí.", held)
-            time.sleep(poll_s)
+        queue = self.path.with_name(self.path.name + ".waiting")
+        queue.mkdir(exist_ok=True)
+        ticket = queue / f"{time.time_ns()}-{os.getpid()}-{threading.get_ident()}"
+        ticket.touch()
+        try:
+            while not (_first_in_line(queue, ticket) and self.try_acquire(kind, caller)):
+                if time.monotonic() >= deadline:
+                    held = read_lock(self.path)
+                    raise HeavyBusy(f"Stroj je obsazený těžkou prací ({describe(held)}) déle než {int(wait_s)} s, "
+                                    f"{kind} pro {self.owner} se teď nespustí.", held)
+                time.sleep(poll_s)
+                ticket.touch()
+        finally:
+            _retry(ticket.unlink, True)
 
     def release(self) -> None:
         with _mutex(self.path):
