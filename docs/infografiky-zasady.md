@@ -54,7 +54,7 @@ Postup a zdroje: [spike](spikes/2026-11-01-plakaty-osoba-zvire.md), skripty `scr
 - Stejný obsah dvakrát nepatří na stránku (fotka věže vedle modelu věže).
 
 **Před odesláním**
-- Plný náhled vedle vzoru, a pak výřezy v plné velikosti. Postava se kreslí přes panely a kolizi s textem žádná kontrola nehledá („Proč jde text přes Teslův obličej“).
+- Plný náhled vedle vzoru, a pak výřezy v plné velikosti. Postava se kreslí přes panely: u plakátu s postavou zavolej `sazba.text_over` a při nálezu nic neukládej („Proč jde text přes Teslův obličej“). Viz `scripts/plakaty/tesla_kopie.py`.
 - Do Knihovny až po přijetí. Další verze je nová položka s vlastním názvem, soubory se nepřepisují.
 
 ## Řez podle přesné předlohy (Velsen, 2. 11., výtky operátora)

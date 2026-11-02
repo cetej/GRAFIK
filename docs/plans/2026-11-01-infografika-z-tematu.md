@@ -71,6 +71,10 @@ Složeno z naměřených kroků. Návrhy a kontrola změřené živým během 1.
 - **Úsudek o skladbě.** Zásady infografik ho nechávají na člověku, číselné kontroly jen upozorní.
 - **Správnost faktů.** Rešerše zkrátí hledání, před zveřejněním texty dál čte člověk.
 
+## 4a. Osoba a zvíře (doplněno 2. 11. z plakátů Tesla a axolotl)
+
+Rešerše míří na stavby: Tesla 9 faktů a 21 obrázků, axolotl 4 fakty a 11 obrázků, stavby 44 až 84 faktů (dossiery `nikola-tesla-v1`, `axolotl-v1`). Příčiny v `shared/ngm_shared/research.py`: `ROLES`, `PARTS` a `WD_*` jsou slovníky staveb, `_NOT_PICTURE` vyřazuje portrét a mapu, Sketchfab vrací kreslené modely. Kontrolní data s ověřenými údaji: [Tesla](../spikes/2026-11-01-plakaty-fakta-tesla.md), [axolotl](../spikes/2026-11-01-plakaty-fakta-axolotl.md). Ručně se tam dohledalo víc a čísla z Wikipedie byla místy chybná (datum patentu na turbínu), takže rozpor mezi zdroji musí zůstat vidět.
+
 ## 5. Zadání pro samostatnou session
 
 **Cíl:** z tématu nebo vloženého vzoru dojde GRAFIK sám k dossieru faktů a obrazových podkladů, k návrhům skladby a dál k hotové infografice, se dvěma zastávkami pro operátora. Pracuj po fázích, každá je vlastní PR. Přečti `docs/STAV.md`, `docs/infografiky-zasady.md`, `.claude/rules/infografiky.md`, `docs/spikes/2026-11-01-pantheon.md`, DECISIONS 2026-11-01 a 2026-10-27 a tento plán.

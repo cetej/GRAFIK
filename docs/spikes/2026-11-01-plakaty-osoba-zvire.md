@@ -29,7 +29,7 @@ Hotové plakáty a podklady k novému složení: `library/plakaty/tesla/`, `libr
 
 ## Co bylo na vzorech špatně a co je teď
 
-Fakta a zdroje vznikaly mimo repo; do plakátu šly jen údaje dohledané v primárních nebo opakovaných zdrojích.
+Ruční rešerše se stavem každého údaje: [Tesla](2026-11-01-plakaty-fakta-tesla.md), [axolotl](2026-11-01-plakaty-fakta-axolotl.md). Do plakátu šly jen údaje dohledané v primárních nebo opakovaných zdrojích. Rešerši projektu můžou sloužit jako kontrolní data.
 
 **Tesla**
 
@@ -76,4 +76,4 @@ Rozpory, které zůstaly otevřené: patent na turbínu má datum udělení 6. 5
 
 ## Zůstává
 
-Plakát neví o své postavě: kolize textu s figurou hledá zatím jen oko. Rešerše k osobě a zvířeti je slabá (tabulka nahoře). Rozhodnutí operátora jsou v [DECISIONS](../DECISIONS.md).
+Kolizi textu s postavou hlídá `sazba.text_over`, u Tesly plakát bez ní nevznikne. Rešerše k osobě a zvířeti je slabá (tabulka nahoře), zadání v [plánu](../plans/2026-11-01-infografika-z-tematu.md). Rozhodnutí operátora jsou v [DECISIONS](../DECISIONS.md).

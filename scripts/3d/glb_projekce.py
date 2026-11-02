@@ -13,7 +13,7 @@ from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Vector
 
 args = sys.argv[sys.argv.index("--") + 1:]
-GLB, REF, OUT = args[0], args[1], Path(args[2])
+GLB, REF, OUT = args[0], args[1], Path(args[2]).resolve()   # Blender writes a relative render path somewhere else than the working directory
 
 
 def opt(name, default, n=1):

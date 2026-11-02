@@ -128,6 +128,19 @@ def crop_alpha(im: Image.Image, pad: int = 4) -> tuple[Image.Image, tuple[int, i
     return im.crop((x0, y0, min(im.width, box[2] + pad), min(im.height, box[3] + pad))), (x0, y0)
 
 
+def text_over(svg: str, w: int, h: int, mask: Image.Image) -> tuple[int, int, int, int] | None:
+    """Where the layer Texty lands on a figure (mask: L, page size), as a rectangle of the page; None when it does not.
+    The figure is a picture, so the SVG alone cannot tell: the page is drawn with and without the text."""
+    from engine.infographics import rasterize
+
+    def gray(s: str):
+        return np.asarray(Image.open(io.BytesIO(rasterize(s, w, h, "png"))).convert("L"), dtype=np.int16)
+
+    without = svg[:svg.index('<g id="Texty">')] + "</svg>"
+    ys, xs = np.nonzero((np.abs(gray(svg) - gray(without)) > 40) & (np.asarray(mask) > 128))
+    return (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())) if len(xs) > 12 else None
+
+
 def write_poster(svg: str, out: Path, stem: str, w: int, h: int, title: str, knihovna: str | None, ai: bool) -> Path:
     """SVG, PNG, PDF and a fresh copy for the VectorCraft window; the copy is never overwritten, the operator may have edited it."""
     from engine.infographics import for_vectorcraft, rasterize
