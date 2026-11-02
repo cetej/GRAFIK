@@ -4,6 +4,8 @@ Plán [infografika z tématu](../plans/2026-11-01-infografika-z-tematu.md), odd�
 
 Závěr: ano. Tesla a axolotl používají jen role, které dossier má, a žádný panel `rez` ani `pudorys`. Koloseum vyšlo stejně nebo lépe než běhy z 1. 11. Každý dossier běžel jednou a Sonnet dává pokaždé jiné návrhy, takže jde o vzorek, ne o důkaz. Předlohu zatím jen ukazuje Studio, generování obrazů ji začne číst v kroku 3f.
 
+Druhé kolo přidalo zásadu, že každá skladba ukáže, o kom je. Portrét má teď 3 ze 3 návrhů Tesly, celé zvíře 3 ze 3 u axolotla podle obsahu.
+
 ## Co se změnilo
 
 - `predloha` smí být jen role z řádku OBRÁZKY K DISPOZICI. Kód roli, kterou dossier nemá, zahodí a spočítá v `neznama_predloha`, stejně jako neznámé fakty.
@@ -58,10 +60,35 @@ Operátor schválil 0,14 USD. Po Teslovi a axolotlovi bylo jasné, že Koloseum 
 
 Starý odhad 0,04 USD vycházel z dossieru se 44 fakty. S rešerší z 2. 11. mají dossiery fakt až trojnásobně víc, takže Tesla překročila odhad o 38 %. Řetězec by se pak zastavil před kontrolou logiky, protože 0,0551 + 0,07 USD se nevejde do schválených 0,11 USD. Nový odhad 0,057 USD je podle největšího dossieru (11 000 a 3 500 tokenů), Koloseum vyšlo o 34 % levněji. Cena řetězce z tématu je teď 0,127 USD místo 0,11 USD.
 
+## Druhé kolo: každá skladba ukáže, o kom je
+
+První kolo mělo dvě vady, které měřítko nezachytilo. Portrét byl jen v jednom ze tří návrhů Tesly, hlavní obraz byl pokaždé stroj nebo věž. Pravidlo „hlavní obraz je celé zvíře“ dodržel jen první návrh axolotla, druhý začínal mapou a třetí bohem Xolotlem.
+
+Operátor schválil doladění za 0,11 USD. Zásady pro osobu a zvíře teď žádají panel s podobou tématu v každé skladbě a hlavní obraz nechávají na myšlence skladby, u zvířete výslovně i mapu. Prompt pro stavby se nezměnil, proto Koloseum znovu neběželo.
+
+Kritérium zapsané před během: panel s `predloha` `portret` ve 3 ze 3 návrhů Tesly a `zvire` ve 3 ze 3 u axolotla, ostatní hranice stejné jako v prvním kole.
+
+| | Tesla 1. kolo | Tesla 2. kolo | axolotl 1. kolo | axolotl 2. kolo |
+|---|---|---|---|---|
+| Návrhy s panelem podoby | 1 ze 3 | **3 ze 3** | 2 ze 3 | **2 ze 3 podle role, 3 ze 3 podle obsahu** |
+| Panely s předlohou z dossieru | 3, 2, 3 | 5, 4, 3 | 4, 3, 3 | 3, 2, 3 |
+| Role mimo dossier, vypadlá fakta | 0, 0 | 0, 0 | 0, 0 | 0, 0 |
+| Panely `rez`, `pudorys` | 0 | 0 | 0 | 0 |
+| Fakta v návrhu | 19, 12, 15 | 23, 20, 15 | 25, 29, 23 | 29, 20, 27 |
+| Témata v návrhu | 3, 3, 4 | 4, 4, 2 | 4, 6, 4 | 4, 2, 5 |
+| Cena USD | 0,0551 | 0,0581 | 0,0527 | 0,0508 |
+
+Druhé kolo stálo 0,1089 USD (vstup 10 583 a 9 152 tokenů, výstup 3 697 a 3 251), obě kola dohromady 0,2541 USD. Stránky: [Tesla](img/2026-11-02-navrhy-tesla-2.html), [axolotl](img/2026-11-02-navrhy-axolotl-2.html).
+
+U axolotla kritérium podle role doslova neprošlo. Návrh „Regenerace pod lupou“ má jako hlavní obraz celé zvíře s dorůstající nohou, ale s předlohou `forma` místo `zvire`. Podle obsahu zvíře ukazuje, proto jsem prompt dál neměnil. Hlavní obraz je teď celé zvíře ve dvou návrzích a mapa v jednom, což zásada dovoluje.
+
+Vedlejší účinky, oba z jediného běhu:
+
+- Portrét stojí u Tesly ve všech třech návrzích na druhém místě a jeho popis opakuje zadání („z dossieru beze změny“). Skladby jsou si v tomhle bodě podobnější než v prvním kole.
+- U axolotla zmizel kulturní návrh (Xolotl, bankovka). Jde spíš o rozptyl modelu než o zásadu, nedoložil jsem to.
+
 ## Co měřítko nezachytilo
 
-- **Portrét u Tesly je jen v jednom ze tří návrhů.** Hlavní obraz je pokaždé stroj nebo věž, dvě skladby Teslu vůbec neukazují. Zásada „ukaž, co člověk změnil“ tím vyhrála nad jeho podobou. Povinný portrét jsem nepřidal: prompt by se změnil bez dalšího placeného běhu.
-- **Celé zvíře jako hlavní obraz dodržel jen první návrh axolotla.** Druhý začíná mapou, třetí bohem Xolotlem. Jako nápady dávají smysl, takže pravidlo je možná zbytečně přísné. Prompt zůstal v měřené podobě.
 - **Fakta jsem proti zdrojům neověřoval.** Návrhy jen odkazují na id z dossieru, text na stránku se bere z dossieru a čte ho člověk.
 - **Řetězec ze Studia na Teslovi naostro neběžel.** Běžel skript se stejnou funkcí `proposals.propose`. Studio jsem ověřil nad uloženým během Kolosea.
 - **Rostlina jde cestou zvířete,** neověřeno.

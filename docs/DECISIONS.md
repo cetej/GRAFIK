@@ -9,8 +9,10 @@ Operátor viděl srovnání promptu a schválil placené ověření: „Ano, 0,1
 Volby níže jsou návrh session, operátor je ruší tady:
 
 - `predloha` smí být jen role, ke které má dossier stažené obrázky. Role „nezarazeno“ se nepočítá.
-- Portrét u osoby ani celé zvíře jako hlavní obraz kód nevynucuje, prompt je jen žádá. U Tesly má portrét jeden ze tří návrhů, u axolotla je celé zvíře hlavním obrazem v jednom ze tří.
+- Portrét ani celé zvíře kód nevynucuje, prompt je jen žádá.
 - Odhad kroku vychází z největšího dossieru (0,057 USD), u malého dossieru je nad skutečností.
+
+Po prvním kole operátor k návrhu doladit portrét u osoby a hlavní obraz u zvířete: „Ano, 0,11 USD“. Skutečně 0,1089 USD. Každá skladba o osobě nebo zvířeti má panel s jejich podobou, hlavní obraz určuje myšlenka skladby. Prompt pro stavby se nezměnil.
 
 ## 2026-11-02 — Infografika k článku o vojákovi ve studni a hlavní obrázek
 
