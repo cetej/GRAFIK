@@ -11,6 +11,7 @@ import re
 import httpx
 
 from engine.reflib import UA, RefLibError, RefLibrary, fetch
+from ngm_shared import research as rs
 
 API = "https://commons.wikimedia.org/w/api.php"
 META = "LicenseShortName|LicenseUrl|Artist|Credit|ImageDescription"
@@ -41,7 +42,7 @@ def _item(page: dict) -> dict:
         "thumb": ii.get("thumburl"),
         "url": ii.get("thumburl") if ii.get("thumbwidth", 0) > 400 else ii.get("url"),
         "page_url": ii.get("descriptionurl"),
-        "author": _text(val("Artist")) or _text(val("Credit")),
+        "author": rs._author(_text(val("Artist")), _text(val("Credit"))),
         "license": _text(val("LicenseShortName")),
         "license_url": val("LicenseUrl"),
         "description": (_text(val("ImageDescription")) or "")[:300],

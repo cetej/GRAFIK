@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný
+
+- **Rozhodnutí:** druh tématu (osoba, zvíře, věc) určí Wikidata a volí slovníky jen v rešerši. Věc jde původním kódem, takže stavby jsou nad stejnými daty stejné; řetězec se nemění (`predloha` v promptu Návrhů zůstává na rolích staveb). Měřítko a kritérium se zapsaly před kódem ([měření](spikes/2026-11-02-resers-osoba-zvire.md)).
+- **Co se stalo:** na Teslovi a axolotlovi to vypadalo hotově, Marie Curie a irbis okamžitě ukázaly „výšku 6 000 m“ (nadmořskou), „hmotnost 76 kg“ (kořist) a Pierra Curieho místo Marie. **Jak příště:** u slovníků vždy jedno téma navíc, na kterém se neladí, a všechna čísla projít proti citaci. Měřítko hlásilo pokrytí, tyhle chyby ne.
+- **Stejné API dvakrát:** starý a nový kód porovnávej nad diskovou cache odpovědí API, ať rozdíl není v revizi Wikipedie. Porovnání položek odhalí i změnu autora obrázku.
+- **Past v `_sentences`:** `[A-ZÁ-Ž]` je rozsah Unicode a obsahuje malá česká písmena, takže „10. července“ dělí větu. U osoby a zvířete je to obešlé přes `dates=True`, stavby zůstaly beze změny, aby se neposunula jejich měření.
+- **Past v regexu:** `Xolotl` s `re.I` sedí i na „axolotl“. Téma „kultura“ dostalo 46 faktů a výpis to prozradil až podle počtu.
+
 ## 2026-11-02 — Řez podle přesné předlohy: měřit, položit přes ni, popisky bez tlačenice
 
 - **Co se stalo:** operátor: „přestože máš přesnou předlohu, tak úplně zprasíš velikosti a poměry“. Blok měl 3,1 m místo 2,1 m a muž 1,03 m místo asi 1,3 m. Rozměry přišly z textu knihy, kresbu jsem nezměřil a kontroloval jen kolize textu. Přidal jsem i vlastní zvětšeninu sudu, o kterou nikdo nestál.
