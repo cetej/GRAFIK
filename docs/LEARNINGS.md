@@ -1,9 +1,32 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Řez podle přesné předlohy: měřit, položit přes ni, popisky bez tlačenice
+
+- **Co se stalo:** operátor: „přestože máš přesnou předlohu, tak úplně zprasíš velikosti a poměry“. Blok měl 3,1 m místo 2,1 m a muž 1,03 m místo asi 1,3 m. Rozměry přišly z textu knihy, kresbu jsem nezměřil a kontroloval jen kolize textu. Přidal jsem i vlastní zvětšeninu sudu, o kterou nikdo nestál.
+- **Jak příště:** s měřítkem v předloze změř všechno v pixelech, nastav model a před odesláním polož render přes předlohu (`scripts/plakaty/velsen_srovnani.py`). Čti i perspektivu: okraje sudů se v kresbě nahoře prohýbají dolů a dole nahoru, což sedí na kameru přímo proti řezu ze 4,4 m ve výšce hlavy.
+- **Kosti:** model pánve vypadal špatně kvůli širokému objektivu shora, ne kvůli modelu. Než model zavrhnu, vyrenderuju ho rovně zepředu, zboku a zezadu vedle skenu (`velsen_kostra.py --kontrola`). Jedna pánev neukáže vnějšek levého i vnitřek pravého křídla, proto se vpichy ze zadní strany kreslí přes kost zvláštním průchodem bez kostí (`panev-duch.png`).
+- **Popisky:** „natěsnání je ohavné“. Nadpis a nejvýš jeden řádek, zalomení ručně, nad 60 px od obrazu, písmo 30/26. Stránka se tím obešla bez několika popisků.
+- **FLUX, hero 3:2:** „hooded cloak“ dá mnichy; pomůže cloak ke kolenům, holé holeně, caligae a opasek. Dvě předlohy vedle 1200 × 800 se do 8 GB nevejdou ani malé (`generate_image returned no results`), jedna ano. Výřez jen tváře drží podobu lépe než hlava s rameny. Vybraný obraz jako jediná `geometry` předloha 384 × 256 s větou „stejný obraz, změň jen budovy“ odstraní komíny a roubení a nechá skladbu, ubere ale večerní světlo a výraz.
+- **Past:** here-string do `python -` v PowerShellu 5 spadne na konzoli (`WinError 0`); skládat přes Bash heredoc nebo soubor.
+
 ## 2026-11-01 — Restart Engine: kontrola fronty těsně před zabitím
 
 - **Co se stalo:** čekací skript po druhé kontrole prázdné fronty ještě 20 s spal a pak zabil Engine. Mezitím přišla úloha POHYB (`20261101-201901-b431cc`) a restart ji ve 20:19:26 přerušil. Klient ji za 11 s sám zopakoval se stejným semínkem, nic se neztratilo.
 - **Jak příště:** poslední kontrola fronty je bezprostředně před `taskkill`, bez pauzy mezi nimi. Fronta je přes den prakticky pořád plná, okno je krátké; Engine zatím neumí přestat přijímat úlohy před restartem.
+
+## 2026-11-02 — Historické postavy: generátor neumí reálie, výbava jde jako model
+
+- **Co se stalo:** výtky operátora po sobě: „barokní verze římských legionářů“, odhalená ramena na severu, tlustá oběť, „to nejsou římské meče“, chochol podélně. Přemalování celé scény přes FLUX („přetažené“) věci jen zhoršovalo a mě to stálo několik kol.
+- **Příčina:** psal jsem zadání z obecné představy a prameny četl až po výtce. Kniha přitom přímo říká oděv (obr. 2.10, str. 42, 155 „off-duty dress“, caliga str. 57), opasek (str. 60, 69) a dýku (obr. 4.1, 4.2, str. 63–68), odhad 80 kg vylučuje tlusťocha a „heavily built“ generátor čte jako tlustý.
+- **Co funguje:** (1) nejdřív vypsat z pramene oděv a výbavu, pak psát zadání; (2) kresba nebo fotka z knihy jako předloha `subject`; (3) ve slovech „plain, used, dull, no ornament, no bodybuilders, ordinary tired men“, jinak přijde bronz, červená a svaly; (4) meče, dýky a chochol generátoru vůbec nezadávat („no weapons“) a vložit je jako přesné modely (`scripts/3d/velsen_gladius.py`, `velsen_dyka.py`), protože FLUX kreslí dlouhé středověké meče se záštitou a chochol otáčí podélně i po výslovném „transverse“; (5) skupinu lidí generovat na jednom obrázku na šedém pozadí, drží se pak opravdu za ruce; (6) scéna = klidně malované prázdné místo + vyříznutá skupina, nic ji nepřemaluje.
+- **Past:** zámek těžké práce: FLUX dávka drží `gpu` po úlohách a Blender čekající 900 s spadne `HeavyBusy`. Dávky řetězit za sebou, ne souběžně. Engine se umí potichu odmlčet (v logu žádné vypnutí, 1. 11. 23:35); `Start-Process` na `start-grafik.bat` ho nerozběhl, přímé `python -m uvicorn` z hlavního checkoutu ano.
+
+## 2026-11-01 — Infografika k článku: koláž z knihy neprošla
+
+- **Co se stalo:** k článku o vojákovi ve studni jsem z obrázků knihy složil dva světlé listy s odstavci a tabulkou plus a minus. Operátor: „Takováhle sračka myslíš, že jde dát k článku na web? i koncepčně je to blbě.“ Fakta z knihy byla přesná a nepomohlo to, stejně jako u Tesly.
+- **Čím jsem se nechal svést:** zadání ukazovalo na skripty plakátů a já si nepoložil vedle sebe Koloseum, dokud nepřišla výtka. Na něm je vidět, co chybělo: jeden velký vlastní obraz a jednotná ruka.
+- **Jak příště:** nejdřív napsat, co je ten jeden velký obraz. Tabulka a odstavce ho nenahradí. Náčrt směru položit vedle přijatého vzoru dřív, než ho operátor uvidí.
+- **Dohledané:** kniha je ve veřejném prohlížeči vydavatele v plném rozlišení (`sidestone.com/bookviewer/9789464264609`), studna 872 × 1736 px proti 320 × 941 v článku. Text jde číst přes `PDFViewerApplication.pdfDocument`. Ilustrátor je podle knihy Fred Marschall, v NG-ROBOT stojí Marshall.
 
 ## 2026-11-01 — Plakát podle cizího vzoru přes 3D modely
 

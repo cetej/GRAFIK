@@ -1,8 +1,10 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-11-01.
+Aktualizováno 2026-11-02.
 
 ## Teď
+
+**Infografika a hero k článku o vojákovi ve studni (2026-11-02)** (DECISIONS 2026-11-02, [zdroje, měření, rozpory](spikes/2026-11-01-velsen.md)): operátor přijal stránku 1800 × 2400 s řezem podle obr. 2.1 (`scripts/3d/velsen_studna.py`, stránka `scripts/plakaty/velsen_studna_stranka.py`, překryv přes předlohu `velsen_srovnani.py`), jednou kostrou s 21 vpichy (`scripts/3d/velsen_kostra.py`, kosti BodyParts3D) a mapkou, i hlavní obrázek článku 3:2 (`scripts/plakaty/velsen_hero.py`). Soubory `library/plakaty/velsen/hotovo3/velsen-studna.{png,pdf,svg}` a `hero/hero-343-soumrak.png`, v záložce Knihovna úlohy `20261102-063358-c4d618` a `20261102-063358-9995da`. V opravdovém Studiu se načetlo plné rozlišení 1800 × 2400 a 1200 × 800, konzole bez chyb, tlačítko VectorCraftu tam je, okno jsem neotevíral. V NG-ROBOT nic není, článek zůstal jen ke čtení; vložení obrázků je krok operátora. Texty čekají na kontrolu člověkem. Otevřené: práva z knihy (CC BY-NC-ND) ověřit před zveřejněním, článek píše 75 kg kamení, kniha 60 + 19 kg, levá dýka v hero nemá viditelnou ruku. Druhá infografika se šesti scénáři je odložená, scény jako celek operátor odmítl. V Knihovně zůstaly i kandidáti hero. Placené 1,50 USD za modely, žádný není na stránce.
 
 **Počeštění tištěné mapy opravené (2026-11-01):** původní `mapa_cs_01.png` k článku o irbisech byla nepoužitelná (zbytky anglických písmen, díry v areálu, přerušené hranice) a přesto bez varování. Nová kopie `mapa_cs_02.png` vznikla zdarma z uložených textů, `mapa_cs_01.png` zůstala. Knihovna: `textlayer/tisk.py`, křivé popisky `path`, značky `markers`, skutečné měření zbytků. **Meze:** křivky a značky u této mapy zadal člověk; že je Claude při placeném čtení vrátí sám, je v promptu, ale placeným čtením to ověřené není. Pás Himálaje je ve 100 % místy měkčí.
 
