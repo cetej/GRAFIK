@@ -1,10 +1,28 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Šest scén a pevnost z plánu: karta sdílená s jinými, reálie z nálezu
+
+- **Sdílená karta:** VoiceStudio a VectorCraft držely VRAM, FLUX téměř dvě hodiny hlásil `generation_failed`, mezitím běžel Blender z POHYBu a jednou se restartoval Engine. Cizí procesy jsem nezavíral. Dávka přežila všechno díky `1024 × 672` (na stránce je scéna 560 px široká) a smyčce, která po `EngineUnavailable` čeká 3 minuty (`velsen_scenare.py`). Po uvolnění karty jde jeden obraz asi za minutu.
+- **Reálie:** zadání piš podle nálezu a porovnej ho s přijatou grafikou. Scénu jsem nejdřív přepsal na sud v úrovni země, jenže sousední přijatá studna má hranatou roubenou nástavbu; všiml jsem si toho až při pohledu na ni. Tělo „sunk upright“ dalo muže stojícího ve studni, „with care let down feet first, limp, head fallen to one side“ sedí na větu z knihy.
+- **FLUX a tvar věci:** „half of a broken round quern“ dalo tři celé kameny, „jagged half-moon fragment … snapped in two through its centre hole, raw broken edge, not a whole disc“ úlomek. „Millstone“ bez popisu dalo kostky. Kněz „with both arms raised“ je ochotnické divadlo, „head bowed, pours from a small jar“ ne. „No chimneys“ model ignoruje; pár malých komínů proti obloze jde bez generátoru přes `cv2.inpaint` (`RETOUCH` ve `velsen_scenare_stranka.py`), ve 100 % nejsou znát.
+- **Plán na polygony:** barvy třídit po třídách s přednostmi (voda, příkop, pevnost, země) a rám i legendu předlohy vyloučit ručně, jinak rám vyjde jako pevnina a legenda jako pozemek (`velsen_plan.py`).
+- **Kontrola kolizí měřila jen text proti textu a žila v mém scratchpadu.** Pánev přitlačená k popisku „obruče“ a dva popisky na stejné řádce vedle sebe prošly s nulou kolizí. Teď je v `sazba.py`: `check_layout` běží v každém `write_poster` a pozná i popisky čtené jako jedna věta, `text_over(…, margin=30)` hlídá odstup od obrazu.
+- **Přijatý soubor neskládat znovu.** `--knihovna` stránku přestaví a přepíše, ještě než ji nahraje. Na přijatou stránku je `python scripts/plakaty/sazba.py nahraj PAGE.png "Název"`, soubory se nezmění.
+
+## 2026-11-02 — Primární zdroje v rešerši: nejdřív podmínky, pak výběr, až pak kód
+
+- **Rozhodnutí:** do volné rešerše šel jen Google Patents. PMC a IUCN jsou změřené a zamítnuté, důvody v `docs/spikes/2026-11-02-primarni-zdroje.md`.
+- **Přístup není užitek:** Europe PMC dá plný text bez klíče, ale nejcitovanější články o axolotlovi jsou molekulární biologie, 15 z 20 vět mluví o metodě nebo studii. Rozhoduje, kdo vybírá, ne odkud se čte. Zdroj nejdřív změř s výběrem, který kód opravdu umí, ne s články od člověka.
+- **Podmínky čti přímo:** IUCN v § 3 zakazuje i použití, které „pomáhá činnosti ziskové entity“. `robots.txt` to neřekne, ten pro všechny dovoluje `/`. PMC zakazuje automatické stahování z hlavního webu, dovolené jsou jen jeho služby.
+- **Google Patents, mikrodata:** u 29 ze 111 starých patentů chybí vynálezce, u 73 datum podání, názvy jsou z OCR. Patent bez vynálezce se přiřadí jen ze seznamu osoby. `US<číslo>` bez kódu druhu funguje pro staré i nové patenty.
+- **Past v mém měření:** tabulka ruční rešerše má ve sloupci Wikipedie `=`, regex bral jen data, takže první běh porovnal 6 patentů místo 111 a vypadal v pořádku. Počet porovnaných řádků vypisuj vždy.
+
 ## 2026-11-02 — Krok Návrhy podle druhu tématu: odhad ceny a co měřítko nevidí
 
 - **Rozhodnutí:** role obrázku bere prompt z dossieru místo výčtu, kód cizí roli zahodí a spočítá. Výčet rolí by byl další slovník na údržbu a stejně nic nezaručí: model 1. 11. uvedl `material`, ke kterému Koloseum žádné obrázky nemá ([měření](spikes/2026-11-02-navrhy-druhy.md)).
 - **Co se stalo:** odhad kroku 0,04 USD platil pro dossier se 44 fakty, rešerše z 2. 11. dala 120 faktů a Tesla stála 0,0551 USD. Řetězec by se zastavil před kontrolou, protože rozpočet je součet odhadů. Můj odhad ověření „nejvýš 0,14 USD“ počítal s 3 000 tokeny výstupu, skutečnost byla 3 400 a musel jsem se ptát znovu. **Jak příště:** když se změní velikost vstupu placeného kroku, přepočítej jeho odhad ze skutečných dat a do „nejvýš“ počítej i delší výstup.
 - **Co měřítko nevidí:** všechna čísla prošla, přesto dvě ze tří skladeb o Teslovi Teslu neukazují. Počty rolí a faktů neříkají, jestli stránka odpovídá na téma. **Jak příště:** návrhy si přečti, tabulka nestačí.
+- **Zásada, která drží:** „hlavní obraz je celé zvíře“ model dodržel v 1 ze 3 návrhů, protože se tloukla se zásadou, že se skladby liší myšlenkou. „Každá skladba má panel s jeho podobou“ dodržel ve 3 ze 3. **Jak příště:** žádej v promptu něco, co jde splnit vedle ostatních zásad, a jmenuj přesnou hodnotu pole (`predloha portret`).
 - **Past ve worktree:** `scripts/navrhy_srovnani.py` zapisuje cenu do `library/costs.jsonl` podle `Settings`, tedy ve worktree do jeho prázdné knihovny. Placený běh z worktree pouštěj s `GRAFIK_DATA_DIR=<hlavní checkout>`, jinak útrata v ledgeru chybí.
 
 ## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný

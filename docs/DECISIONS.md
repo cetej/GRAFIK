@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Druhá infografika „Kdo ho zabil?“ a mapka ze studny na ni
+
+Operátor schválil náčrt („Ano, stavěj“), pevnost („Jo, to vypadá docela zajímavě“) a přijal obě hotové stránky („Ano, obě ber“).
+
+- Stránka odpovídá na otázku, kterou první grafika nechává otevřenou. Nahoře velká 3D pevnost podle plánu z knihy se šesti místy scénářů a osmi dalšími studnami s lidskými kostmi, pod ní šest malovaných scén: jeden argument pro, jeden proti a kdo z editorů se ke scénáři přiklání.
+- Lokační mapa patří sem, ne ke studni („Ale pak asi vyndáme lokační mapu ze studny a dáme ji sem“). Studna bez mapy je nová položka, přijatá verze zůstala.
+- Scéna 4 je přijatý hlavní obrázek článku, ostatní scény jsou nové z lokálního FLUX, 0 USD. Placené `nb-pro` (odhad 0,67 USD) se nepoužilo. Tím padá odložení scén ze záznamu níž.
+
 ## 2026-11-02 — Krok Návrhy podle druhu tématu
 
 Operátor viděl srovnání promptu a schválil placené ověření: „Ano, 0,14 USD“, po upřesnění ceny „Ano, do 0,15 USD“ ([měření](spikes/2026-11-02-navrhy-druhy.md)). Skutečně 0,1452 USD.
@@ -9,8 +17,10 @@ Operátor viděl srovnání promptu a schválil placené ověření: „Ano, 0,1
 Volby níže jsou návrh session, operátor je ruší tady:
 
 - `predloha` smí být jen role, ke které má dossier stažené obrázky. Role „nezarazeno“ se nepočítá.
-- Portrét u osoby ani celé zvíře jako hlavní obraz kód nevynucuje, prompt je jen žádá. U Tesly má portrét jeden ze tří návrhů, u axolotla je celé zvíře hlavním obrazem v jednom ze tří.
+- Portrét ani celé zvíře kód nevynucuje, prompt je jen žádá.
 - Odhad kroku vychází z největšího dossieru (0,057 USD), u malého dossieru je nad skutečností.
+
+Po prvním kole operátor k návrhu doladit portrét u osoby a hlavní obraz u zvířete: „Ano, 0,11 USD“. Skutečně 0,1089 USD. Každá skladba o osobě nebo zvířeti má panel s jejich podobou, hlavní obraz určuje myšlenka skladby. Prompt pro stavby se nezměnil.
 
 ## 2026-11-02 — Infografika k článku o vojákovi ve studni a hlavní obrázek
 

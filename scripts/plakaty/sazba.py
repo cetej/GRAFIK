@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import re
 import sys
 import urllib.request
 from datetime import datetime
@@ -128,33 +129,94 @@ def crop_alpha(im: Image.Image, pad: int = 4) -> tuple[Image.Image, tuple[int, i
     return im.crop((x0, y0, min(im.width, box[2] + pad), min(im.height, box[3] + pad))), (x0, y0)
 
 
-def text_over(svg: str, w: int, h: int, mask: Image.Image) -> tuple[int, int, int, int] | None:
-    """Where the layer Texty lands on a figure (mask: L, page size), as a rectangle of the page; None when it does not.
-    The figure is a picture, so the SVG alone cannot tell: the page is drawn with and without the text."""
+def text_over(svg: str, w: int, h: int, mask: Image.Image, margin: int = 0) -> tuple[int, int, int, int] | None:
+    """Where a text of the layer Texty lands on a figure (mask: L, page size) or within `margin` px of it, as a rectangle of the page; None when it does not.
+    The figure is a picture, so the SVG alone cannot tell: the page is drawn with and without the text. Leaders may touch the figure."""
     from engine.infographics import rasterize
 
     def gray(s: str):
         return np.asarray(Image.open(io.BytesIO(rasterize(s, w, h, "png"))).convert("L"), dtype=np.int16)
 
-    without = svg[:svg.index('<g id="Texty">')] + "</svg>"
-    ys, xs = np.nonzero((np.abs(gray(svg) - gray(without)) > 40) & (np.asarray(mask) > 128))
+    start = svg.index('<g id="Texty">')
+    labels = "".join(re.findall(r"<text\b.*?</text>", svg[start:], re.S))
+    if margin:
+        mask = mask.filter(ImageFilter.BoxBlur(margin)).point(lambda v: 255 if v else 0)
+    ys, xs = np.nonzero((np.abs(gray(svg[:start] + labels + "</svg>") - gray(svg[:start] + "</svg>")) > 40) & (np.asarray(mask) > 128))
     return (int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())) if len(xs) > 12 else None
 
 
+LAYOUT_JS = """gap => {
+  const T = [...document.querySelectorAll('svg text')].map(t => { const b = t.getBoundingClientRect(); return {s: t.textContent, g: t.closest('g[id]')?.id, x: b.x, y: b.y, r: b.right, b: b.bottom}; });
+  const svg = document.querySelector('svg'), W = +svg.getAttribute('width'), H = +svg.getAttribute('height'), out = [];
+  T.forEach((a, i) => {
+    if (a.x < 0 || a.y < 0 || a.r > W || a.b > H) out.push('mimo stránku: ' + a.s);
+    T.slice(i + 1).forEach(c => {
+      const ox = Math.min(a.r, c.r) - Math.max(a.x, c.x), oy = Math.min(a.b, c.b) - Math.max(a.y, c.y);
+      if (ox > 2 && oy > 6) out.push('přes sebe: ' + a.s + ' / ' + c.s);
+      else if (a.g !== c.g && ox <= 2 && -ox < gap && oy > Math.min(a.b - a.y, c.b - c.y) / 2) out.push('čte se jako jeden řádek: ' + a.s + ' / ' + c.s);
+    });
+  });
+  return out;
+}"""
+
+
+def check_layout(svg: str, gap: int = 40) -> list[str]:
+    """Texts over each other, off the page, or two labels of different groups so close on one line that they read as one sentence.
+    Measured in Chromium with the page's fonts, without the pictures; a picture beside a label is for text_over with a margin."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            page = browser.new_page()
+            page.set_content("<!doctype html><body style='margin:0'>" + re.sub(r"<image\b[^>]*/>", "", svg) + "</body>")
+            return page.evaluate(LAYOUT_JS, gap)
+        finally:
+            browser.close()
+
+
+def vectorcraft_copy(out: Path, stem: str, svg: str) -> Path | None:
+    """A new copy for the VectorCraft window, never over an older one: the operator may have edited it. Nothing when the newest copy says the same."""
+    from engine.infographics import for_vectorcraft
+
+    fresh = for_vectorcraft(svg)
+    copies = sorted(out.glob(f"{stem}-vectorcraft-*.svg"))
+    if copies and copies[-1].read_text(encoding="utf-8") == fresh:
+        return None
+    copy = out / f"{stem}-vectorcraft-{datetime.now():%Y%m%d-%H%M%S}.svg"
+    copy.write_text(fresh, encoding="utf-8")
+    return copy
+
+
+def upload_poster(png: Path, title: str, knihovna: str, ai: bool) -> str:
+    """The finished PNG and the SVG beside it into the Knihovna tab as they are: nothing is built or written again."""
+    body = {"b64": base64.b64encode(png.read_bytes()).decode(), "name": png.name, "title": title, "blender_render": not ai, "svg": png.with_suffix(".svg").read_text(encoding="utf-8")}
+    req = urllib.request.Request(knihovna + "/api/v2/library/upload", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=120) as r:
+        return r.read().decode("utf-8")
+
+
 def write_poster(svg: str, out: Path, stem: str, w: int, h: int, title: str, knihovna: str | None, ai: bool) -> Path:
-    """SVG, PNG, PDF and a fresh copy for the VectorCraft window; the copy is never overwritten, the operator may have edited it."""
-    from engine.infographics import for_vectorcraft, rasterize
+    """SVG, PNG, PDF and a copy for the VectorCraft window; prints what check_layout finds. An accepted page goes to the Knihovna with `sazba.py nahraj`, `knihovna` here builds it first."""
+    from engine.infographics import rasterize
 
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{stem}.svg").write_text(svg, encoding="utf-8")
-    copy = out / f"{stem}-vectorcraft-{datetime.now():%Y%m%d-%H%M%S}.svg"
-    copy.write_text(for_vectorcraft(svg), encoding="utf-8")
+    vectorcraft_copy(out, stem, svg)
     for fmt in ("png", "pdf"):
         (out / f"{stem}.{fmt}").write_bytes(rasterize(svg, w, h, fmt))
     print({p.name: p.stat().st_size for p in sorted(out.iterdir()) if p.is_file()})
+    for issue in check_layout(svg):
+        print("SAZBA:", issue)
     if knihovna:
-        body = {"b64": base64.b64encode((out / f"{stem}.png").read_bytes()).decode(), "name": f"{stem}.png", "title": title, "blender_render": not ai, "svg": svg}
-        req = urllib.request.Request(knihovna + "/api/v2/library/upload", data=json.dumps(body).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=120) as r:
-            print(r.read().decode("utf-8"))
+        print(upload_poster(out / f"{stem}.png", title, knihovna, ai))
     return out / f"{stem}.png"
+
+
+if __name__ == "__main__":
+    # python scripts/plakaty/sazba.py nahraj PAGE.png "Název v Knihovně" [--bez-ai] [--engine http://127.0.0.1:8300]
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    if sys.argv[1:2] != ["nahraj"]:
+        raise SystemExit('python scripts/plakaty/sazba.py nahraj PAGE.png "Název" [--bez-ai] [--engine URL]')
+    engine = sys.argv[sys.argv.index("--engine") + 1] if "--engine" in sys.argv else "http://127.0.0.1:8300"
+    print(upload_poster(Path(sys.argv[2]), sys.argv[3], engine, "--bez-ai" not in sys.argv))

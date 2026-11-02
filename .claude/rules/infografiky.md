@@ -9,6 +9,7 @@ paths:
   - scripts/3d/*plakat*.py
   - scripts/3d/tesla_*.py
   - scripts/3d/axolotl_*.py
+  - scripts/3d/velsen_*.py
   - scripts/plakaty/*.py
 ---
 
@@ -19,3 +20,7 @@ Před změnou vzhledu infografik přečti `docs/infografiky-zasady.md` (čistý 
 Stránka z víc obrazů: oddíl „Stránka z víc obrazů“ tamtéž. Každý panel říká, co hlavní obraz neřekne; stavby z modelu, slavné dílo v originále, lidé z fotorealistického generátoru; postavy na zeleném plátně se stínem z originálu. Výřez kontroluj ve zvětšení.
 
 Plakát podle cizího vzoru: oddíl tamtéž. Nejdřív kopie přes 3D, česky a bez věcných chyb vzoru, vylepšení jen jako návrh. Render pro FLUX má paletu cíle a kameru ze vzoru. Jednotný styl není jeden tón a hustotu vzoru nepřebírej. Ilustrace vysvětluje, jak věc funguje. Před odesláním plný náhled vedle vzoru.
+
+Scény k jednomu nálezu: oddíl tamtéž. Stejná věc vypadá na všech grafikách k článku stejně, zadání generátoru piš až po pohledu na přijatou grafiku a pramen.
+
+Sazba a Knihovna: `write_poster` vypíše `SAZBA:` nálezy, ty oprav před odesláním. `check_layout` nevidí obrazy, popisek vedle postavy nebo modelu hlídá `text_over(…, margin=30)`. Přijatá stránka jde do Knihovny přes `python scripts/plakaty/sazba.py nahraj PAGE.png "Název"`, ne přes `--knihovna`: ten ji nejdřív složí znovu a přepíše.
