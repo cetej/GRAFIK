@@ -4,6 +4,8 @@ Aktualizováno 2026-11-02.
 
 ## Teď
 
+**Pantheon bez šedého soklu (2026-11-02):** operátor se ptal na informační hodnotu soklu pod portálem, žádnou neměl. Nový render `lod_pantheon.py --shot rez_zem`: stejná kamera, tenká dlažba kolem stavby, hlína jen pod řezem rotundy. Verze 16:9 `20261102-222202-ce0d`, hlavní obraz 84 % stránky, podklad 9 panelů `20261102-222201-d90a` (má po ořezu pruh pod hlavním obrazem, jen pro převod), `scripts/3d/pantheon_bez_soklu.py`. Starší Pantheony se nepřepisují.
+
 **Předělat na formát s výběrem (2026-11-02):** editor zaškrtne, které panely a popisky nechá, náhled nové verze ukáže větší hlavní obraz a jeho podíl na stránce. **Mez:** hlavní obraz roste až tehdy, když zmizí blok, který ho omezuje (Pantheon 16:9: bez vzorků betonu a půdorysu 66 %, jen s čísly 80 %, sám 92 %).
 
 **Série stránek z návrhu (2026-11-02, krok 3g):** řetězec infografika z tématu končí stránkami. V kroku Návrhy se vybírají stránky, nový krok Stránky je složí a ukáže na šířce telefonu s kontrolou a hlášením, `engine/serie.py`. Model přepíše fakta do krátkých položek, rozvržení počítá kód, obraz je vlastní 3D z `library/tema/<qid>/obrazy.json` (zatím jen Tesla). Člověk má životopisnou stránku, kontrola nově měří prázdnou plochu a splývání s pozadím. Nový dokument v editoru i s panely má písmo pro telefon, starý se nezměnil, [měření](spikes/2026-11-02-serie-mobil.md). Zásady: `docs/infografiky-zasady.md`, oddíl Logika stránky.
