@@ -27,7 +27,7 @@ Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu 
 | popisek u věci, nejmenší text | ≥ 12 px | 1/30 | 36 px | 60 px |
 | zdroj, označení AI | ≥ 9 px | 1/40 | 27 px | 45 px |
 
-Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com/docs/lighthouse/seo/font-size) (v Lighthouse 13 audit zmizel, hranice zůstává rozumná). Ostatní řádky jsou odstupňované od ní a posoudí je operátor na první sérii.
+Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com/docs/lighthouse/seo/font-size) (v Lighthouse 13 audit zmizel, hranice zůstává rozumná). Ostatní řádky jsou odstupňované od ní. Operátor s nimi přijal první sérii (Studna, 2. 11.).
 
 **Kolik se vejde.** Při 12 px je na šířku stránky zhruba 60 znaků. Na 4:5 (na telefonu 360 × 450 px) s obrazem přes půl stránky zbývá kolem 80 slov, na 2:3 kolem 120. Popisky na obraze se počítají do toho. Dnešní plakáty, změřené 2. 11. ze SVG (`library/plakaty/`):
 
@@ -49,6 +49,8 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 **Formát.** Výchozí je 4:5 (1080 × 1350) nebo 2:3. Delší stránka než 9:16 se nevejde na jednu obrazovku telefonu. Formát 16:9 je na telefonu 360 × 202 px: jeden obraz a několik popisků, žádné panely.
 
 **Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely). Výchozí písmo Engine i editoru je pro velký formát a práh nesplní (`docs/plans/2026-11-01-infografika-z-tematu.md`, krok 3g), u nové stránky proto nastav velikosti podle tabulky. Před odesláním PNG zmenši na šířku 360 px a přečti: co nepřečteš, nepřečte ani čtenář. Na počítači se sloupec článku odhaduje kolem 700 px (web jsem neměřil), stránka podle tabulky tam vyjde ještě větší.
+
+**Vzor série.** `scripts/plakaty/velsen_studna_mobil.py`: plakát Muž na dně studny (239 slov) jako tři stránky 1080 × 1620 po 72, 42 a 45 slovech bez zdroje. Fakta zůstala všechna, zmizel jen metrový pruh, který hloubky na okraji nahrazují. Co bylo na plakátu malé, je na stránce velké a vady jsou vidět: pánev a výřez chtěly nový render ve větší velikosti, hladké kameny hrubší povrch (`velsen_studna.py --zblizka`). Výřez z renderu plakátu nestačí.
 
 ## Stránka z víc obrazů (Koloseum, 1. 11., výtky operátora)
 
