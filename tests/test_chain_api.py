@@ -13,7 +13,7 @@ from engine.app import create_app
 from engine.backends import FluxLocal
 from engine.jobs import load_costs
 from engine.workflows import WorkflowStore
-from ngm_shared import claude
+from ngm_shared import claude, research
 from tests.test_engine_v2 import api, sd, settings  # noqa: F401  (fixtures)
 from tests.test_research_api import fake_get
 
@@ -286,7 +286,7 @@ def test_model_choice_goes_to_the_price_and_the_ledger(lab, settings):
 
 def test_sketch_escapes_text_and_keeps_inside_the_panel():
     proposal = pp.clean({"navrhy": [{"nazev": "X", "panely": [{"titulek": "<script>", "co": "a & b " * 200, "x": 0, "y": 0, "w": 50, "h": 20}]}]},
-                        {"facts": []})[0]
+                        {"facts": [], "images": []})[0]
     svg = pp.sketch(proposal)
     assert "<script>" not in svg and "&lt;script&gt;" in svg and "…" in svg
 
@@ -300,6 +300,46 @@ def test_dossier_text_is_one_line_per_fact_and_cut():
 
 def test_proposal_panel_says_its_question_and_where_the_picture_comes_from():
     known = {"f1": {}}
-    panel = pp._panel({"titulek": "Scéna", "x": 0, "y": 0, "w": 50, "h": 50, "otazka": "Co se tu dělo?", "obrazek": "obraz", "fakta": ["f1"]}, 0, known)
+    panel = pp._panel({"titulek": "Scéna", "x": 0, "y": 0, "w": 50, "h": 50, "otazka": "Co se tu dělo?", "obrazek": "obraz", "fakta": ["f1"]}, 0, known, set())
     assert panel["otazka"] == "Co se tu dělo?" and panel["obrazek"] == "obraz"
-    assert pp._panel({"x": 0, "y": 0, "w": 50, "h": 50, "obrazek": "kouzlo"}, 0, known)["obrazek"] is None
+    assert pp._panel({"x": 0, "y": 0, "w": 50, "h": 50, "obrazek": "kouzlo"}, 0, known, set())["obrazek"] is None
+
+
+def _kind_dossier(kind=None):
+    entity = {"label": "Nikola Tesla", "popis": "vynálezce", **({"druh": kind} if kind else {})}
+    images = [{"role": "portret", "ref_id": "a"}, {"role": "mapa"}, {"role": "nezarazeno", "ref_id": "b"}]
+    return {"tema": "T", "entita": entity, "images": images, "facts": [{"id": "f1", "stav": "shoda", "tema": "zivot", "tvrzeni": "Narodil se."}]}
+
+
+def test_panel_keeps_only_the_picture_roles_the_dossier_has():
+    panel = {"titulek": "P", "x": 0, "y": 0, "w": 50, "h": 50}
+    reply = {"navrhy": [{"nazev": "N", "panely": [{**panel, "predloha": role} for role in ("portret", "rez", "mapa", "nezarazeno", "null", None, ["portret"])]}]}
+    proposal = pp.clean(reply, _kind_dossier("osoba"))[0]
+    assert [p["predloha"] for p in proposal["panely"]] == ["portret", None, None, None, None, None, None]
+    assert proposal["neznama_predloha"] == 3     # rez není role osoby, k mapě není stažený obrázek, nezarazeno není role; null je volba
+
+
+@pytest.mark.parametrize("kind, sees, not_sees", [
+    ("osoba", ("portret|zivot|dilo", "Životopis po letech nestačí"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
+    ("zvire", ("zvire|mapa|detail", "Mapa výskytu"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
+    ("vec", ("hlavni|rez|pudorys|detail|cisla|osa|text", "Jediný velký řez", "kdo věc používal"), ("portret", "Životopis")),
+    (None, ("hlavni|rez|pudorys|detail|cisla|osa|text", "Jediný velký řez"), ("portret", "Životopis")),     # starší dossier druh nemá
+])
+def test_prompt_follows_the_kind_of_topic(kind, sees, not_sees):
+    seen = {}
+
+    def ask(content, system, *, what, model, effort="low", max_tokens=16000):
+        seen["system"] = system
+        return claude.Answer(json.dumps(REPLY, ensure_ascii=False), model, 1000, 500, 0.01, "end_turn")
+
+    pp.propose(_kind_dossier(kind), ask=ask)
+    assert all(word in seen["system"] for word in sees) and not any(word in seen["system"] for word in not_sees)
+
+
+def test_estimate_covers_the_largest_measured_dossier():
+    assert pp.estimate_usd(pp.DEFAULT_MODEL) >= 0.0551     # Tesla, 120 faktů: levnější odhad zastaví řetězec před kontrolou logiky
+
+
+def test_panel_kinds_in_the_prompt_are_roles_of_that_kind():
+    for kind, panels in pp.PANEL_KINDS.items():
+        assert set(panels.split("|")) <= set(research.PROFILES[kind].get("roles", research.ROLES))

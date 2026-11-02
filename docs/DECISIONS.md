@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Krok Návrhy podle druhu tématu
+
+Operátor viděl srovnání promptu a schválil placené ověření: „Ano, 0,14 USD“, po upřesnění ceny „Ano, do 0,15 USD“ ([měření](spikes/2026-11-02-navrhy-druhy.md)). Skutečně 0,1452 USD.
+
+Volby níže jsou návrh session, operátor je ruší tady:
+
+- `predloha` smí být jen role, ke které má dossier stažené obrázky. Role „nezarazeno“ se nepočítá.
+- Portrét u osoby ani celé zvíře jako hlavní obraz kód nevynucuje, prompt je jen žádá. U Tesly má portrét jeden ze tří návrhů, u axolotla je celé zvíře hlavním obrazem v jednom ze tří.
+- Odhad kroku vychází z největšího dossieru (0,057 USD), u malého dossieru je nad skutečností.
+
 ## 2026-11-02 — Infografika k článku o vojákovi ve studni a hlavní obrázek
 
 Operátor po sérii výtek přijal („Ano, obojí ber“) stránku 1800 × 2400 a samostatný hlavní obrázek 3:2.
