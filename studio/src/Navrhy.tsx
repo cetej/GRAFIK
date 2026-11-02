@@ -59,6 +59,7 @@ function ProposalCard({ wf, proposal, onOpen, onPick, onLook }: {
       {proposal.neznama_fakta > 0 && <p className="hint">Odkazy na fakta, která v dossieru nejsou, vypadly: {proposal.neznama_fakta}.</p>}
       {(proposal.neznama_predloha ?? 0) > 0 && <p className="hint">Předlohy, které dossier nemá, vypadly: {proposal.neznama_predloha}.</p>}
       {(proposal.opakovana_fakta ?? 0) > 0 && <p className="hint">Stejná fakta na víc stránkách vypadla: {proposal.opakovana_fakta}.</p>}
+      {(proposal.bez_stranky?.length ?? 0) > 0 && <p className="hint">Vlastní obrazy bez stránky v téhle sérii: {proposal.bez_stranky?.join("; ")}.</p>}
       <div className="row tight">
         <button className="btn go" disabled={!chosen.length} onClick={() => onPick(chosen)}>Vybrat tento · {chosen.length} {PAGES_WORD(chosen.length)}</button>
         {!chosen.length && <span className="hint">Vyberte aspoň jednu stránku.</span>}

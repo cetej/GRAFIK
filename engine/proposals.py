@@ -15,11 +15,11 @@ from ngm_shared import claude, gpt
 DEFAULT_MODEL = "claude-sonnet-5-5"
 EFFORT = "medium"
 MAX_TOKENS = 20000
-# odhad předem podle největšího dossieru: Tesla (120 faktů) 10 550 tokenů vstupu, 3 398 výstupu, axolotl 9 109 a 3 452, Koloseum 3 992 a 2 946 (spike 2026-11-02-navrhy-druhy); skutečnou cenu dává usage
-EST_IN_TOKENS, EST_OUT_TOKENS = 11_000, 9_000
+# odhad předem podle největšího dossieru: Tesla (120 faktů) 10 550 tokenů vstupu, 3 398 výstupu, axolotl 9 109 a 3 452, Koloseum 3 992 a 2 946 (spike 2026-11-02-navrhy-druhy); tři série po 4 stránkách u Tesly 29 kB JSON, asi 10 000 tokenů (spike 2026-11-02-serie-mobil); skutečnou cenu dává usage
+EST_IN_TOKENS, EST_OUT_TOKENS = 12_000, 11_000
 FORMATS = {"2:3": (1200, 1800), "4:5": (1200, 1500), "1:1": (1200, 1200), "16:9": (1600, 900)}
 DEFAULT_FORMAT = "2:3"
-MAX_PAGES = 3
+MAX_PAGES = 4
 MIN_PANEL = 4.0     # procenta strany; menší obdélník by se v náčrtu ani na stránce nedal číst
 MAX_FACT_TEXT = 220
 PICTURE_SOURCES = ("model", "obraz", "ilustrace", "kresba", "nic")
@@ -30,7 +30,7 @@ FOR_READER = {
 }
 
 PRINCIPLES = """\
-Jsi art director infografik National Geographic. Z dossieru faktů navrhni TŘI odlišné série infografik. Série je 1 až 3 stránky, každá stránka je samostatná infografika.
+Jsi art director infografik National Geographic. Z dossieru faktů navrhni TŘI odlišné série infografik. Série je 1 až 4 stránky, každá stránka je samostatná infografika.
 
 Zásady:
 - PRO_KOHO
@@ -55,7 +55,8 @@ KIND_RULES = {
     "osoba": """\
 - Téma je člověk. Každá skladba má panel s jeho podobou, i když hlavní obraz je jeho dílo: jeho 3D figura z VLASTNÍCH OBRAZŮ, a jen když tam není, dobová fotografie nebo portrét z dossieru beze změny (predloha portret, obrazek obraz). Generovaná ilustrace je jen scéna, ke které fotka není. Stroje a přístroje z jeho práce jsou realistické 3D (model).
 - První stránka o člověku je životopisná: figura a data z jeho života (narození, smrt, místa, zlomy). Dílo sem nepatří, každý vynález má vlastní stránku s vlastním obrazem.
-- Životopis sám nestačí: další stránky ukážou, co člověk změnil, z čeho žil a co se o něm tvrdí.""",
+- Životopis sám nestačí: další stránky ukážou, co člověk změnil, z čeho žil a co se o něm tvrdí.
+- Série o člověku je celá: životopis a po jedné stránce na každé stěžejní dílo, ke kterému je vlastní obraz, dohromady 3 až 4 stránky. Skladby se liší tím, která díla vyberou a na co se ptají.""",
     "zvire": """\
 - Téma je živý tvor. Každá skladba má panel s celým zvířetem, realistickým, ne kresleným maskotem (predloha zvire, obrazek ilustrace). Hlavní obraz určuje myšlenka skladby, může to být i mapa. Mapa výskytu z dossieru je obraz.
 - Popis zvířete nestačí: ukaž, kde žije, co ho ohrožuje, jak se vyvíjí a co o něm zjistila věda.""",
@@ -171,8 +172,9 @@ def clean(data: dict, dossier: dict, own: list[dict] | tuple = ()) -> list[dict]
         further = [{"nazev": str(r.get("nazev") or f"Stránka {n}").strip(), "veta": str(r.get("veta") or "").strip(), "format": r.get("format") if r.get("format") in FORMATS else fmt, "panely": page}
                    for n, (r, page) in enumerate(extra, 2) if page][:MAX_PAGES - 1]
         used = dict.fromkeys(f for page in [panels, *(p["panely"] for p in further)] for p in page for f in p["fakta"])
+        main = {page[0]["vlastni"] for page in [panels, *(p["panely"] for p in further)]}
         out.append({"id": len(out) + 1, "nazev": str(raw.get("nazev") or f"Návrh {len(out) + 1}").strip(), "veta": str(raw.get("veta") or "").strip(),
-                    "format": fmt, "panely": panels, "dalsi_stranky": further,
+                    "format": fmt, "panely": panels, "dalsi_stranky": further, "bez_stranky": [o["nazev"] for o in own if o["id"] not in main],
                     "vzhled": str(raw.get("vzhled") or "").strip(), "fakta": len(used), "neznama_fakta": unknown, "neznama_predloha": unknown_roles, "opakovana_fakta": repeated,
                     "rozpory": [known[f]["tvrzeni"] for f in used if known[f]["stav"] == "rozpor"]})
     return out

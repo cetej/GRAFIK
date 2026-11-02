@@ -366,16 +366,16 @@ def series_panel(*facts, **over):
 SERIES = {"navrhy": [{"nazev": "Série", "veta": "Věta.", "format": "4:5", "panely": [series_panel("f1", "f2", predloha="portret", druh="hlavni")],
                       "dalsi_stranky": [{"nazev": "Druhá", "veta": "Jiná.", "panely": [series_panel("f2", "f3", predloha="dilo", druh="hlavni"), series_panel("f4", "f999", poradi=2)]},
                                         {"nazev": "Prázdná", "panely": []}, "rozbité",
-                                        {"nazev": "Třetí", "format": "2:3", "panely": [series_panel("f5")]}, {"nazev": "Navíc", "panely": [series_panel("f6")]}]}]}
+                                        {"nazev": "Třetí", "format": "2:3", "panely": [series_panel("f5")]}, {"nazev": "Čtvrtá", "panely": [series_panel("f1")]}, {"nazev": "Navíc", "panely": [series_panel("f6")]}]}]}
 
 
 def test_proposal_is_a_series_and_a_fact_stays_on_one_page():
     proposal = pp.clean(SERIES, SERIES_DOSSIER)[0]
     pages = pp.pages(proposal)
-    assert [p["nazev"] for p in pages] == ["Série", "Druhá", "Třetí"]       # prázdná a rozbitá vypadly, série má nejvýš 3 stránky
+    assert [p["nazev"] for p in pages] == ["Série", "Druhá", "Třetí", "Čtvrtá"]       # prázdná a rozbitá vypadly, série má nejvýš 4 stránky
     assert pages[1]["format"] == "4:5" and pages[2]["format"] == "2:3"      # bez formátu jako první stránka
     assert pages[0]["panely"][0]["fakta"] == ["f1", "f2"] and pages[1]["panely"][0]["fakta"] == ["f3"]
-    assert proposal["opakovana_fakta"] == 1 and proposal["neznama_fakta"] == 1 and proposal["fakta"] == 5
+    assert proposal["opakovana_fakta"] == 2 and proposal["neznama_fakta"] == 1 and proposal["fakta"] == 5
     assert pp.pages({"nazev": "starý návrh", "panely": []}) == [{"nazev": "starý návrh", "panely": []}]
     assert "stránka 2: Druhá" in pp.layout_text(proposal, [1, 2]) and "stránka 3" not in pp.layout_text(proposal, [1, 2])
 
@@ -544,6 +544,23 @@ def test_picture_keeps_its_size_and_the_weakest_label_goes():
     W = int(fields["size"].split("x")[0])
     assert dropped == [f"Popisek {i} s dlouhým vysvětlením na několik řádků pod názvem" for i in range(len(main["labels"]), 5)][:len(dropped)]
     assert main["rect"][2] * 0.88 >= 0.55 * W      # objekt zůstane přes půl stránky
+
+
+def test_proposal_says_which_own_pictures_have_no_page():
+    """„A co ty další dvě karty. Ty jsi je zahodil?“ Malý doprovod stránku nedá."""
+    own = [{"id": "motor", "nazev": "Motor"}, {"id": "civka", "nazev": "Cívka"}, {"id": "vez", "nazev": "Věž"}, {"id": "figura", "nazev": "Figura"}]
+    reply = {"navrhy": [{"nazev": "S", "panely": [series_panel("f1", vlastni="motor"), series_panel(poradi=2, vlastni="civka")],
+                         "dalsi_stranky": [{"nazev": "D", "panely": [series_panel("f2", vlastni="figura")]}]}]}
+    assert pp.clean(reply, SERIES_DOSSIER, own)[0]["bez_stranky"] == ["Cívka", "Věž"]
+
+
+def test_small_own_picture_stays_after_it_was_the_main_one_on_an_earlier_page():
+    own = [{"id": "motor", "nazev": "Motor"}, {"id": "figura", "nazev": "Figura"}]
+    dossier = {**SERIES_DOSSIER, "images": [{"role": "portret", "ref_id": "fotka"}]}
+    reply = {"navrhy": [{"nazev": "Život", "panely": [series_panel("f1", vlastni="figura")],
+                         "dalsi_stranky": [{"nazev": "Motor", "panely": [series_panel("f2", vlastni="motor"), series_panel(poradi=2, vlastni="figura", druh="portret")]}]}]}
+    images, _ = sr.pick_images(dossier, pp.clean(reply, dossier, own)[0], [1, 2], own)
+    assert images[(2, 2)]["id"] == "figura"     # životopis jde první, dobová fotka ho na další stránce nenahradí
 
 
 def test_own_3d_picture_wins_over_an_old_photo():
