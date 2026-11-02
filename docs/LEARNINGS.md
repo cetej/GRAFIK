@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Studna jako série pro mobil: větší obraz odhalí, co malý schoval
+
+- **Výřez z renderu plakátu nestačí.** Muž ve výřezu měl z renderu 1014 × 2200 jen 415 px na výšku a pánev 450 px na šířku. Oba obrazy šly znovu přes Blender (0 USD): studna ve dvojnásobku a zmenšená pro celkový pohled, ať jsou všechny stránky z jednoho renderu, pánev s kratším rámem (`--vyska 0.44`).
+- **Hladký 3D kámen vedle malovaného muže.** Na plakátu ho nebylo poznat, ve výřezu vypadal jako mnohostěn a dva kameny ležely nalepené na ruce a noze. Pomohl hrubší materiál a jejich odebrání (`velsen_studna.py --zblizka`). Výchozí render se nezměnil.
+- **Vodítka zkontroluj znovu.** Trasa z plakátu vedla ve výřezu přes vlasy a popisek pod hrncem musel jít níž. Kontrola sazby obrazy nevidí, našlo to až prohlédnutí ve 100 %.
+- **Okraj stránky.** `check_layout` hlásí jen text mimo stránku, řádek končící 2 px od okraje projde. Širokou větu zalom ručně a podívej se na pravý okraj.
+
 ## 2026-11-02 — Plakát hodnocený na plné velikosti: písmo na telefonu nikdo neměřil
 
 - **Plný náhled a výřez ve 100 % problém schovají.** Kontroloval jsem PNG 1800 px na monitoru a výřezy v plné velikosti, takže text 26 px vypadal v pořádku. Na telefonu z něj je 5,2 px. Ze všech pěti změřených plakátů má pod 12 px skoro každý text kromě titulku.
