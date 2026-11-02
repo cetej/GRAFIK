@@ -61,9 +61,10 @@ def path_of(geom, to_xy) -> str:
     return d
 
 
-def mapka(lib: Path, x: float, y: float, w: float) -> tuple[str, float]:
+def mapka(lib: Path, x: float, y: float, w: float, small: float = 21, big: float = 28, sea: tuple[float, float] = (0.2, 54.0)) -> tuple[str, float]:
     """The place of the garrison on a small map; today's coast and river. Returns the svg and its height."""
     lon0, lon1, lat0, lat1 = -1.5, 15.5, 47.5, 55.5
+    ks, kb = small / 21, big / 28
     k = w / ((lon1 - lon0) * 0.63)
     h = (lat1 - lat0) * k
 
@@ -84,11 +85,11 @@ def mapka(lib: Path, x: float, y: float, w: float) -> tuple[str, float]:
                     s += '<polyline points="' + " ".join("%.1f,%.1f" % to_xy(a, b) for a, b in part.coords) + f'" fill="none" stroke="{WATER_INK}" stroke-width="2.2"/>'
     vx, vy = to_xy(4.66, 52.46)
     px_, py_ = to_xy(14.42, 50.08)
-    s += f'<circle cx="{px_:.1f}" cy="{py_:.1f}" r="4" fill="{WHITE}"/>' + text(px_ - 9, py_ + 7, "Praha", 21, WHITE, 400, "end")
-    s += text(*to_xy(0.2, 54.0), "Severní moře", 21, WATER_INK)
-    s += text(*to_xy(8.3, 50.75), "Rýn", 21, WATER_INK)
-    s += text(*to_xy(5.3, 53.45), "Frísové", 21, PEOPLE)
-    s += f'<circle cx="{vx:.1f}" cy="{vy:.1f}" r="7" fill="{GOLD}"/>' + text(vx + 13, vy + 9, "Velsen", 28, GOLD, 600)
+    s += f'<circle cx="{px_:.1f}" cy="{py_:.1f}" r="{4 * ks:g}" fill="{WHITE}"/>' + text(px_ - 9 * ks, py_ + 7 * ks, "Praha", small, WHITE, 400, "end")
+    s += text(*to_xy(*sea), "Severní moře", small, WATER_INK)
+    s += text(*to_xy(8.3, 50.75), "Rýn", small, WATER_INK)
+    s += text(*to_xy(5.3, 53.45), "Frísové", small, PEOPLE)
+    s += f'<circle cx="{vx:.1f}" cy="{vy:.1f}" r="{7 * kb:g}" fill="{GOLD}"/>' + text(vx + 13 * kb, vy + 9 * kb, "Velsen", big, GOLD, 600)
     return s, h
 
 
