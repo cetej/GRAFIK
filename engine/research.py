@@ -1,6 +1,6 @@
 """/api/v2/research… — dossier faktů a obrazových podkladů k tématu jako úloha `research` ve společné frontě.
 
-Knihovna: `ngm_shared.research`. Volné zdroje (Wikidata, Wikipedia, Commons) jsou zdarma. Placené hledání na webu
+Knihovna: `ngm_shared.research`. Volné zdroje (Wikidata, Wikipedia, Commons, Google Patents) jsou zdarma. Placené hledání na webu
 doplňuje hotový dossier (`extends`), 402 bez `confirm_cost`, cena po každé odpovědi do `library/costs.jsonl`.
 
 library/research/<slug>-v<n>/request.json   zadání a úloha
@@ -261,7 +261,7 @@ def register(app: FastAPI, researcher: Researcher, store) -> None:
                 "page": f"/api/v2/research/{research_id}/{PAGE}" if dossier and (lib._dir(research_id) / PAGE).exists() else None}
 
     def estimate(paid: bool) -> dict:
-        items = [{"what": "volné zdroje: Wikidata, Wikipedia, Commons, Sketchfab", "usd": 0.0}]
+        items = [{"what": "volné zdroje: Wikidata, Wikipedia, Commons, Sketchfab, Google Patents", "usd": 0.0}]
         if paid:
             items.append({"what": f"hledání na webu, nejvýš {rs.MAX_SEARCHES} hledání ({rs.WEB_MODEL})", "usd": rs.WEB_USD})
         return {"total_usd": round(sum(i["usd"] for i in items), 4), "items": items}

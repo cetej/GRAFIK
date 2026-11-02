@@ -12,13 +12,13 @@ const THEMES = {
   vzhled: 'Vzhled', vyskyt: 'Výskyt', biologie: 'Potrava a rozmnožování', ohrozeni: 'Ohrožení a ochrana', veda: 'Věda a vývoj', kultura: 'Jméno a kultura',
   ostatni: 'Ostatní',
 } as const
-const ROLES = {
+export const ROLES = {
   rekonstrukce: 'Rekonstrukce a modely', pudorys: 'Půdorys', rez: 'Řez', pruceli: 'Průčelí', interier: 'Interiér', detail: 'Detail', material: 'Materiál',
   portret: 'Portrét', zivot: 'Ze života', dilo: 'Dílo a vynálezy', misto: 'Místa', pamatka: 'Památky a odkaz', rukopis: 'Podpis a rukopis',
   zvire: 'Celé zvíře', mapa: 'Mapa výskytu', prostredi: 'Prostředí', vyvoj: 'Vývoj a mláďata', forma: 'Barevné formy', ilustrace: 'Kresby a umění', model: '3D modely',
   nezarazeno: 'Nezařazeno',
 } as const
-type RoleKey = keyof typeof ROLES
+export type RoleKey = keyof typeof ROLES
 const KIND_ROLES: Record<string, RoleKey[]> = {
   vec: ['rekonstrukce', 'pudorys', 'rez', 'pruceli', 'interier', 'detail', 'material', 'nezarazeno'],
   osoba: ['portret', 'zivot', 'dilo', 'misto', 'pamatka', 'rukopis', 'nezarazeno'],

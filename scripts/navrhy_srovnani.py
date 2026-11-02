@@ -33,7 +33,8 @@ ol{padding-left:18px;margin:4px 0}li{margin-bottom:6px}ul{padding-left:14px;marg
 
 def panel_html(panel: dict, facts: dict) -> str:
     cited = "".join(f"<li>{html.escape(facts[f]['tvrzeni'][:160])} <span class='hint'>({facts[f]['stav']})</span></li>" for f in panel["fakta"])
-    return f"<li><b>{html.escape(panel['titulek'])}</b> {html.escape(panel['co'])}" + (f"<ul>{cited}</ul>" if cited else " <span class='warn'>bez faktu</span>") + "</li>"
+    role = f" <span class='hint'>předloha: {html.escape(panel['predloha'])}</span>" if panel["predloha"] else ""
+    return f"<li><b>{html.escape(panel['titulek'])}</b> {html.escape(panel['co'])}{role}" + (f"<ul>{cited}</ul>" if cited else " <span class='warn'>bez faktu</span>") + "</li>"
 
 
 def page(dossier: dict, rows: list[dict]) -> str:
@@ -49,7 +50,7 @@ def page(dossier: dict, rows: list[dict]) -> str:
         for p in row["navrhy"]:
             sketch = proposals.sketch(p)
             parts.append(f"<div class='card' onclick=\"this.classList.toggle('big')\">{sketch}<h3>{html.escape(p['nazev'])}</h3><p>{html.escape(p['veta'])}</p>"
-                         f"<p class='hint'>Formát {p['format']}, panelů {len(p['panely'])}, faktů {p['fakta']}, neexistujících odkazů {p['neznama_fakta']}, rozporných {len(p['rozpory'])}</p>"
+                         f"<p class='hint'>Formát {p['format']}, panelů {len(p['panely'])}, faktů {p['fakta']}, neexistujících odkazů {p['neznama_fakta']}, neexistujících předloh {p['neznama_predloha']}, rozporných {len(p['rozpory'])}</p>"
                          f"<details onclick='event.stopPropagation()'><summary>Panely a fakta</summary><ol>{''.join(panel_html(x, facts) for x in p['panely'])}</ol></details></div>")
         parts.append("</div></section>")
     return "".join(parts)

@@ -1,6 +1,7 @@
 """Rešerše k tématu: fakta se zdroji a obrazové podklady, nejdřív z volných zdrojů bez klíče.
 
 `free_dossier()` vezme Wikidatu, Wikipedii a Commons a vrátí fakta, obrázky po rolích a otázky bez odpovědi. Zdarma.
+U osoby s patenty ověří data v Google Patents (`check_patents`): primární zdroj jmenuje rozpor první, stav zůstává `rozpor`.
 Fakt nese zdroje (URL, název, citace, datum) a stav: `shoda` (dvě a víc stránek souhlasí), `rozpor` (hodnoty se liší
 víc, než dovolí zaokrouhlení), `jediny_zdroj`. Rozpor se nerozhoduje potichu: hodnota je rozpětí. Co se nenašlo,
 zůstane prázdné a jde do `otazky_bez_odpovedi`.
@@ -53,18 +54,44 @@ class ResearchError(RuntimeError):
 
 Get = Callable[[str, dict], dict]
 SKETCHFAB = "api.sketchfab.com"
+GOOGLE_PATENTS = "patents.google.com"
+PATENT_HEAD = 64 * 1024     # data a vynálezci stojí na začátku stránky, celá má i 8 MB
+PATENT_PAUSE = 1.0
+PATENT_CHECKS = 150
+MAX_FACTS = 120
+
+
+def patent_url(number: str) -> str:
+    return f"https://{GOOGLE_PATENTS}/patent/US{number.replace(',', '')}/en"
+
+
+def parse_patent(head: str) -> dict:
+    """Údaje z mikrodat stránky patentu. `udeleno` je datum publikace: u US patentu totéž jako udělení (111 ze 111, docs/spikes/2026-11-02-primarni-zdroje.md)."""
+    def when(prop: str) -> str | None:
+        m = re.search(rf'itemprop="{prop}"[^>]*datetime="([\d-]+)"', head)
+        return m.group(1) if m else None
+    title = re.search(r'itemprop="title">([^<]+)<', head)
+    return {"udeleno": when("publicationDate"), "podano": when("filingDate"), "priorita": when("priorityDate"),
+            "vynalezci": [html.unescape(i).strip() for i in re.findall(r'itemprop="inventor"[^>]*>([^<]+)<', head)],
+            "nazev": re.sub(r"\s+", " ", html.unescape(title.group(1))).strip().rstrip(" .") if title else ""}
 
 
 def get_json(host: str, params: dict, retries: int = 3) -> dict:
-    """Jedno volání MediaWiki API nebo hledání Sketchfabu. 429 a 503 zopakuje s pauzou, kterou server žádá."""
-    query = params if host == SKETCHFAB else {"format": "json", "formatversion": 2, **params}
-    url = f"https://{host}{'/v3/search' if host == SKETCHFAB else '/w/api.php'}?" + urllib.parse.urlencode(query)
+    """Jedno volání MediaWiki API, hledání Sketchfabu nebo hlavička patentu. 429 a 503 zopakuje s pauzou, kterou server žádá."""
+    patent = host == GOOGLE_PATENTS
+    if patent:
+        url = patent_url(params["number"])
+    else:
+        query = params if host == SKETCHFAB else {"format": "json", "formatversion": 2, **params}
+        url = f"https://{host}{'/v3/search' if host == SKETCHFAB else '/w/api.php'}?" + urllib.parse.urlencode(query)
     req = urllib.request.Request(url, headers=UA)
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
-                return json.load(r)
+                return parse_patent(r.read(PATENT_HEAD).decode("utf-8", "replace")) if patent else json.load(r)
         except urllib.error.HTTPError as e:
+            if patent and e.code == 404:
+                return {}
             if e.code not in (429, 503) or attempt == retries - 1:
                 raise ResearchError(f"{host} odpověděl {e.code}") from e
             time.sleep(float(e.headers.get("Retry-After") or 5))
@@ -761,8 +788,9 @@ def _pick_texts(by_section: dict[str, list[tuple[int, dict]]], limit: int) -> li
     return [r[1] for r in picked[:limit]]
 
 
-def _kind_page_facts(page: dict, names: list[str], kind: str) -> list[dict]:
-    """Syrová fakta jedné stránky o osobě nebo zvířeti. Jiný výběr než u stavby: dějiny tu nejsou mimo téma, jsou hlavní obsah."""
+def _kind_page_facts(page: dict, names: list[str], kind: str, fewer: int = 0) -> list[dict]:
+    """Syrová fakta jedné stránky o osobě nebo zvířeti. Jiný výběr než u stavby: dějiny tu nejsou mimo téma, jsou hlavní obsah.
+    `fewer` ubere nejslabší věty hlavního anglického hesla, když je dossier přes limit."""
     if len(_PATENT_ROW.findall(page["text"])) >= 20:     # seznam patentů nemá věty, čte ho `patent_facts`
         return []
     prof, w = PROFILES[kind], KIND_WORDS[kind]
@@ -804,16 +832,11 @@ def _kind_page_facts(page: dict, names: list[str], kind: str) -> list[dict]:
                     by_section.setdefault(path[-1] if path else "", []).append(
                         (score, {"tvrzeni": sentence, "hodnota": None, "jednotka": None, "predmet": part, "velicina": None, "zdroj": source}))
     limits = prof["text_limits"]
-    return raw + _pick_texts(by_section, limits["podobná"] if related else limits[f"hlavní {page['lang']}"] if page["lang"] in TEXT_LANGS else 0)
+    return raw + _pick_texts(by_section, limits["podobná"] if related else max(0, limits[f"hlavní {page['lang']}"] - (fewer if page["lang"] == "en" else 0)) if page["lang"] in TEXT_LANGS else 0)
 
 
-def patent_facts(pages: list[dict], names: list[str]) -> list[dict]:
-    """Datum patentu ve větě proti seznamu patentů. Seznam je stránka se 100 a více řádky `patent N - název - rok měsíc den`.
-
-    Věta s číslem patentu nebo s názvem ze seznamu dá dvě hodnoty téhož patentu, ať se shodnou, nebo ne. Věta bez čísla, jejíž datum
-    v seznamu vůbec není (ani u jiného patentu), jde jako rozpor s vlastní větou: kód neví, o který patent jde, tak to nerozhoduje.
-    Když jiná věta to datum uvádí vedle čísla patentu („April 25, 1891, U.S. patent 454,622 June 23, 1891“), tvrzení ten patent jmenuje.
-    """
+def _patent_listing(pages: list[dict]) -> tuple[dict[str, dict], dict | None]:
+    """Seznam patentů: stránka s 20 a více řádky `patent N - název - rok měsíc den`."""
     rows: dict[str, dict] = {}
     listing = None
     for page in pages:
@@ -821,18 +844,11 @@ def patent_facts(pages: list[dict], names: list[str]) -> list[dict]:
                  for m in _PATENT_ROW.finditer(page["text"])}
         if len(found) > len(rows):
             rows, listing = found, page
-    if len(rows) < 20:
-        return []
+    return (rows, listing) if len(rows) >= 20 else ({}, None)
 
-    def source(page: dict, text: str) -> dict:
-        return {"url": page["permalink"], "nazev": f"Wikipedia ({page['lang']}): {page['title']}", "citace": text[:420], "datum": page["datum"], "jazyk": page["lang"], "stranka": page["url"]}
 
-    def mention(number: str, row: dict, iso: str, src: dict) -> dict:
-        return {"predmet": f"patent US {number} ({row['title']})", "velicina": "datum patentu", "hodnota": iso, "jednotka": None, "presnost": 0.0, "zdroj": src}
-
-    dates = {r["date"] for r in rows.values()}
-    claims = []
-    beside: dict[str, list[tuple[str, dict]]] = {}    # datum stojící ve větě vedle čísla patentu a jiného data
+def _patent_sentences(pages: list[dict], listing: dict | None):
+    """(stránka, věta) o americkém patentu z anglických hesel mimo seznam."""
     for page in pages:
         if page is listing or page["lang"] != "en":
             continue
@@ -840,45 +856,157 @@ def patent_facts(pages: list[dict], names: list[str]) -> list[dict]:
             if any(SKIP_SECTION.search(h) for h in path):
                 continue
             for sentence in _sentences(paragraph, dates=True):
-                found = [_iso_date(m) for m in _DATE.finditer(sentence)]
-                if not found or not re.search(r"\bpatent", sentence, re.I) or _FOREIGN.search(sentence) or re.search(r"\bfiled\b", sentence, re.I):
-                    continue
-                number = next((n for n in _PATENT_NUMBER.findall(sentence) if n in rows), None)
-                # „July 1, 1898, U.S. patent 613,809 November 8, 1898“: k patentu patří datum za číslem
-                iso = found[-1] if number else found[0]
-                if number and len(found) > 1:
-                    beside.setdefault(found[0], []).append((number, source(page, sentence)))
-                claims.append((page, sentence, number, iso))
+                if re.search(r"\bpatent", sentence, re.I) and not _FOREIGN.search(sentence):
+                    yield page, sentence
+
+
+def patent_numbers(pages: list[dict]) -> list[str]:
+    """Co ověřit: čísla z vět hesel, pak celý seznam. Osoba bez patentů tu nemá nic a Google Patents se nevolá.
+    Podobná stránka jen ve větě s tím jménem: heslo Tesla coil cituje i cizí patenty (Armstrong, Stone)."""
+    rows, listing = _patent_listing(pages)
+    said = [n for page, sentence in _patent_sentences(pages, listing) if page.get("jen_s_nazvem", "") in sentence for n in _PATENT_NUMBER.findall(sentence)]
+    return list(dict.fromkeys(said + list(rows)))
+
+
+def check_patents(numbers: list[str], short: str, get: Get = get_json, listed: tuple | dict = ()) -> dict:
+    """Data patentů z Google Patents, jeden dotaz za sekundu. Patent bez jména tématu mezi vynálezci se nepřiřadí, jde do otázek
+    (Hedy Lamarr má patent na jméno Markey). Vynálezce u starých patentů často chybí (Tesla 29 ze 111): patent ze seznamu `listed` tím neztrácí autora,
+    jiný se nepřiřadí. Po třech výpadcích za sebou se přestane: dossier nesmí spadnout, jen řekne, kolik ověřil."""
+    records: dict[str, dict] = {}
+    foreign: dict[str, dict] = {}
+    failures = 0
+    for number in numbers[:PATENT_CHECKS]:
+        try:
+            record = get(GOOGLE_PATENTS, {"number": number})
+        except ResearchError:
+            failures += 1
+            if failures == 3:
+                break
+            continue
+        failures = 0
+        if record.get("udeleno"):
+            named = any(re.search(rf"\b{re.escape(short)}\b", i, re.I) for i in record["vynalezci"])
+            (records if named or (number in listed and not record["vynalezci"]) else foreign)[number] = record
+        if get is get_json:
+            time.sleep(PATENT_PAUSE)
+    return {"cisla": len(numbers), "zaznamy": records, "jine_jmeno": foreign}
+
+
+def patent_questions(checked: dict | None) -> list[str]:
+    if not checked:
+        return []
+    known = len(checked["zaznamy"]) + len(checked["jine_jmeno"])
+    # u starých patentů vynálezce v mikrodatech často chybí a název je z OCR, tak se nevypisuje
+    nameless = [n for n, r in checked["jine_jmeno"].items() if not r["vynalezci"]]
+    alien = [f"Patent US {n} ({r['nazev']}) má podle Google Patents vynálezce {', '.join(r['vynalezci'])}, jméno tématu mezi nimi není. Patří k tématu?"
+             for n, r in checked["jine_jmeno"].items() if r["vynalezci"]]
+    return ([f"Google Patents ověřil jen {known} z {checked['cisla']} patentů, u ostatních je datum jen z Wikipedie."] if known < checked["cisla"] else []) + alien \
+        + ([f"Google Patents neuvádí vynálezce u US {', '.join(nameless)}, data těchto patentů nejsou přiřazená."] if nameless else [])
+
+
+def patent_facts(pages: list[dict], names: list[str], checked: dict | None = None) -> list[dict]:
+    """Datum patentu ve větě proti seznamu patentů a proti Google Patents.
+
+    Věta s číslem patentu nebo s názvem ze seznamu dá dvě hodnoty téhož patentu, ať se shodnou, nebo ne. Věta bez čísla, jejíž datum
+    v seznamu vůbec není (ani u jiného patentu), jde jako rozpor s vlastní větou: kód neví, o který patent jde, tak to nerozhoduje.
+    Když jiná věta to datum uvádí vedle čísla patentu („April 25, 1891, U.S. patent 454,622 June 23, 1891“), tvrzení ten patent jmenuje.
+    Ověřený patent (`checked` z `check_patents`) přidá datum udělení s primárním zdrojem. Datum podání jednoho patentu nebo datum
+    vedle jediného čísla pak určí, o který patent ve větě jde. Bez seznamu dá fakt každý patent, který věty jmenují a který je ověřený.
+    """
+    rows, listing = _patent_listing(pages)
+    records = checked["zaznamy"] if checked else {}
+    if not rows and not records:
+        return []
+
+    def source(page: dict, text: str) -> dict:
+        return {"url": page["permalink"], "nazev": f"Wikipedia ({page['lang']}): {page['title']}", "citace": text[:420], "datum": page["datum"], "jazyk": page["lang"], "stranka": page["url"]}
+
+    def mention(number: str, iso: str, src: dict) -> dict:
+        title = rows[number]["title"] if number in rows else records[number]["nazev"]
+        return {"predmet": f"patent US {number} ({title})", "velicina": "datum patentu", "hodnota": iso, "jednotka": None, "presnost": 0.0, "zdroj": src}
+
+    def primary(number: str) -> dict:
+        r = records[number]
+        said = [f"Vynálezci: {', '.join(r['vynalezci'])}."] if r["vynalezci"] else []
+        said += [f"Uděleno {_fmt_date(r['udeleno'])}."]
+        said +=[f"{what} {_fmt_date(r[key])}." for what, key in (("Podáno", "podano"), ("První přihláška", "priorita")) if r.get(key)]
+        # podání přepíše první přihlášku, když je to totéž datum
+        labels = {r[key]: what for what, key in (("první přihláška", "priorita"), ("podání", "podano")) if r.get(key)}
+        return {"url": patent_url(number), "nazev": f"Google Patents: US {number}", "citace": f"{r['nazev']}. " + " ".join(said), "datum": date.today().isoformat(),
+                "jazyk": "patent", "primarni": True, "udaje": labels}
+
+    def filed_as(iso: str) -> str | None:
+        for key in ("podano", "priorita"):
+            hits = [n for n, r in records.items() if r.get(key) == iso]
+            if len(hits) == 1:
+                return hits[0]
+        return None
+
+    dates = {r["date"] for r in rows.values()} | {r["udeleno"] for r in records.values()}
+    claims = []
+    beside: dict[str, list[tuple[str, dict]]] = {}    # datum stojící ve větě vedle čísla patentu a jiného data
+    for page, sentence in _patent_sentences(pages, listing):
+        found = [_iso_date(m) for m in _DATE.finditer(sentence)]
+        if not found or re.search(r"\bfiled\b", sentence, re.I):
+            continue
+        number = next((n for n in _PATENT_NUMBER.findall(sentence) if n in rows or n in records), None)
+        # „July 1, 1898, U.S. patent 613,809 November 8, 1898“: k patentu patří datum za číslem
+        iso = found[-1] if number else found[0]
+        if number and len(found) > 1:
+            beside.setdefault(found[0], []).append((number, source(page, sentence)))
+        claims.append((page, sentence, number, iso))
     raw: list[dict] = []
     told: dict[str, set[str]] = {}
-    checked: set[str] = set()
+    noted: set[str] = set()
     for page, sentence, number, iso in claims:
         if number is None and re.search(r"\bpatented\b", sentence) and any(n in sentence for n in names):
             number = next((n for n, r in rows.items() if re.search(rf"\b{re.escape(r['title'])}\b", sentence, re.I)), None)
-            if number is None and iso not in dates:
+            if number is None and iso not in dates and records:
+                near = {n for n, _ in beside.get(iso, [])}
+                number = filed_as(iso) or (near.pop() if len(near) == 1 else None)
+            if number is None and iso not in dates and listing:
                 near = beside.get(iso, [])
                 statement = f"Patent s datem {_fmt_date(iso)}: v seznamu patentů toto datum není" \
                     + (". Stojí vedle " + ", ".join(f"US {n} z {_fmt_date(rows[n]['date'])}" for n, _ in near) if near else "")
                 note = {"hodnota": None, "jednotka": None, "predmet": "patent", "velicina": "datum patentu", "stav": "rozpor", "tvrzeni": statement}
                 raw.append({**note, "zdroj": source(page, sentence)})
-                if iso not in checked:
-                    checked.add(iso)
+                if iso not in noted:
+                    noted.add(iso)
                     raw.append({**note, "zdroj": source(listing, f"{iso[:4]}: " + "; ".join(f"US {n} {_fmt_date(r['date'])}" for n, r in rows.items() if r["date"].startswith(iso[:4])))})
                     raw += [{**note, "zdroj": src} for _, src in near]
                 continue
         if number:
-            told.setdefault(number, {rows[number]["date"]}).add(iso)
-            raw.append(mention(number, rows[number], iso, source(page, sentence)))
-    for number, values in told.items():     # shodné řádky nic neříkají a Návrhy by za ně platily; drží se jen rozpor
-        if len(values) == 1:
+            told.setdefault(number, {rows[number]["date"]} if number in rows else set()).add(iso)
+            raw.append(mention(number, iso, source(page, sentence)))
+    for number, record in records.items():
+        told.setdefault(number, {rows[number]["date"]} if number in rows else set()).add(record["udeleno"])
+    for number, values in told.items():     # shodné řádky nic neříkají a Návrhy by za ně platily; drží se jen rozpor. Bez seznamu je patentů pár a fakt nese primární zdroj.
+        if len(values) == 1 and number in rows:
             raw = [f for f in raw if not (f["hodnota"] is not None and f["predmet"].startswith(f"patent US {number} "))]
-        else:
-            raw.append(mention(number, rows[number], rows[number]["date"], source(listing, rows[number]["row"])))
+            continue
+        if number in rows:
+            raw.append(mention(number, rows[number]["date"], source(listing, rows[number]["row"])))
+        if number in records:
+            raw.append(mention(number, records[number]["udeleno"], primary(number)))
+    if not listing:
+        return raw
     by_year: dict[str, int] = {}
-    for row in rows.values():
-        by_year[row["date"][:4]] = by_year.get(row["date"][:4], 0) + 1
-    summary = f"Americké patenty podle seznamu na Wikipedii: {len(rows)}. Podle roku: " + ", ".join(f"{y}: {by_year[y]}" for y in sorted(by_year))
-    raw.append({"tvrzeni": summary, "hodnota": None, "jednotka": None, "predmet": None, "velicina": "počet", "zdroj": source(listing, summary)})
+    by_day: dict[str, list[str]] = {}
+    for number, row in rows.items():
+        iso = records[number]["udeleno"] if number in records else row["date"]
+        by_year[iso[:4]] = by_year.get(iso[:4], 0) + 1
+        if number in records:
+            by_day.setdefault(iso, []).append(number)
+    years = ", ".join(f"{y}: {by_year[y]}" for y in sorted(by_year))
+    summary = f"Americké patenty podle seznamu na Wikipedii: {len(rows)}. Podle roku: {years}"
+    sources = [source(listing, summary)]
+    if by_day:
+        most = max(map(len, by_day.values()))
+        busiest = [f"{_fmt_date(day)} (US {', '.join(same)})" for day, same in sorted(by_day.items()) if len(same) == most]
+        summary = f"Americké patenty podle Google Patents: {sum(map(len, by_day.values()))} ověřeno z {len(rows)} v seznamu na Wikipedii. Podle roku: {years}" \
+            + (f". Nejvíc patentů v jeden den: {most}, {', '.join(busiest)}" if most > 1 else "")
+        sources = [source(listing, summary), {**primary(next(iter(records))), "citace": summary[:420]}]
+    raw += [{"tvrzeni": summary, "hodnota": None, "jednotka": None, "predmet": None, "velicina": "počet", "zdroj": src} for src in sources]
     return raw
 
 
@@ -924,6 +1052,13 @@ def _statement(entity: dict, predmet: str, velicina: str, value, unit: str) -> s
     return f"{who}: {_fmt_value(value, unit)}" if velicina.startswith("datum") else f"{who}: {velicina} {_fmt_value(value, unit)}"
 
 
+def _primary_statement(predmet: str, items: list[dict], first: dict) -> str:
+    """Rozpor s primárním zdrojem: co říká originál, pak ostatní hodnoty. U jiného data řekne, čím to je, když to originál ví."""
+    labels = first["zdroj"].get("udaje", {})
+    rest = ", ".join(_fmt_date(v) + (f" ({labels[v]})" if v in labels else "") for v in sorted({i["hodnota"] for i in items} - {first["hodnota"]}))
+    return f"{predmet[0].upper()}{predmet[1:]}: uděleno {_fmt_date(first['hodnota'])} podle {first['zdroj']['nazev'].split(':')[0]}. Jiné zdroje: {rest}"
+
+
 def _kind_theme(fact: dict, prof: dict) -> str:
     what = fact.get("velicina")
     if what:
@@ -956,7 +1091,7 @@ def merge_facts(raw: list[dict], entity: dict) -> list[dict]:
             groups.setdefault((fact["predmet"], fact["velicina"], fact["jednotka"]), []).append(fact)
     out: list[dict] = []
     for (predmet, velicina, unit), items in groups.items():
-        if not any(i["zdroj"]["jazyk"] in (*TEXT_LANGS, "wikidata", "web") for i in items):
+        if not any(i["zdroj"]["jazyk"] in (*TEXT_LANGS, "wikidata", "web", "patent") for i in items):
             continue        # ostatní jazyky jen ověřují, co říká čeština, angličtina nebo Wikidata
         pages = {i["zdroj"].get("stranka") or i["zdroj"]["url"] for i in items}
         conflict = any(not _agree(a, b) for k, a in enumerate(items) for b in items[k + 1:])
@@ -977,7 +1112,8 @@ def merge_facts(raw: list[dict], entity: dict) -> list[dict]:
             if key not in seen:
                 seen.add(key)
                 sources.append({**i["zdroj"], "hodnota": i["hodnota"], "presnost": i.get("presnost", 0.0)})
-        out.append({"tvrzeni": _statement(entity, predmet, velicina, value, unit), "predmet": predmet, "velicina": velicina,
+        first = next((i for i in items if i["zdroj"].get("primarni")), None)
+        out.append({"tvrzeni": _primary_statement(predmet, items, first) if conflict and first else _statement(entity, predmet, velicina, value, unit), "predmet": predmet, "velicina": velicina,
                     "hodnota": value, "jednotka": unit or None, "zdroje": sources, "stav": state,
                     "tema": "rozmery" if kind == "vec" or unit == "m" or unit == "kg" else theme({"velicina": velicina if velicina != "datum" else predmet})})
     seen_text: dict[str, dict] = {}
@@ -1295,11 +1431,15 @@ def free_dossier(topic: str, *, qid: str | None = None, langs=LANGS, per_role: i
     raw = wikidata_facts(entity, get)
     pages = load_pages(entity, langs, related, get)
     kind = entity["druh"]
-    for page in pages:
-        raw += page_facts(page, entity["names"]) if kind == "vec" else _kind_page_facts(page, entity["names"], kind)
-    if kind == "osoba":
-        raw += patent_facts(pages, entity["names"])
-    facts = merge_facts(raw, entity)
+    checked = check_patents(patent_numbers(pages), entity["short"], get, _patent_listing(pages)[0]) if kind == "osoba" else None
+    patents = patent_facts(pages, entity["names"], checked) if checked else []
+
+    def all_facts(fewer: int = 0) -> list[dict]:
+        texts = [f for page in pages for f in (page_facts(page, entity["names"]) if kind == "vec" else _kind_page_facts(page, entity["names"], kind, fewer))]
+        return merge_facts(raw + texts + patents, entity)
+    facts = all_facts()
+    if patents and len(facts) > MAX_FACTS:      # ověřený patent má přednost před nejslabší větou; Návrhy platí za každý fakt
+        facts = all_facts(len(facts) - MAX_FACTS)
     entity["mista"] = [p["title"] for p in pages if p.get("jen_s_nazvem") and re.fullmatch(r"(?:Lake|Mount|River) \w+|\w+ (?:Lake|River|Island|Mountains|Valley|Forest|National Park)", p["title"])]
     found = find_images(entity, per_role, get) if images else []
     return {
@@ -1308,8 +1448,8 @@ def free_dossier(topic: str, *, qid: str | None = None, langs=LANGS, per_role: i
         "facts": facts,
         "images": found,
         "pinterest": pinterest_queries(entity),
-        "otazky_bez_odpovedi": _questions(facts, found, images, kind),
-        "zdroje": _sources_of(pages, entity),
+        "otazky_bez_odpovedi": _questions(facts, found, images, kind) + patent_questions(checked),
+        "zdroje": _sources_of(pages, entity) + ([{"nazev": f"Google Patents (ověřených patentů: {len(checked['zaznamy'])})", "url": f"https://{GOOGLE_PATENTS}/", "datum": date.today().isoformat()}] if checked and checked["zaznamy"] else []),
         "cost_usd": 0.0,
         "pages": pages,
     }
