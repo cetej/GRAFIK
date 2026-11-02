@@ -6,6 +6,8 @@ Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
 Operátor po náhledu v šířce telefonu vedle starého plakátu: „Ano, do Knihovny“. Tři stránky 1080 × 1620 jsou v Knihovně jako nové položky, přijatý plakát zůstal. Velikosti z tabulky v `docs/infografiky-zasady.md` tím prošly první zkouškou; na opravdovém telefonu je zatím nikdo neviděl.
 
+Pak doplnil: „měla by přibýt i karta s lokací a modelem pevnosti“. Karta Kde se to stalo je čtvrtá stránka série, přijatá a v Knihovně („Ano, přidej ji“). Čísla míst šesti scénářů zůstala na plakátu Kdo ho zabil?.
+
 ## 2026-11-02 — Infografika se navrhuje pro web a mobil
 
 Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“
