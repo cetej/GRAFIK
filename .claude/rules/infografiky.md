@@ -9,6 +9,8 @@ paths:
   - scripts/3d/*infografika*.py
   - scripts/3d/*dokument*.py
   - scripts/3d/*plakat*.py
+  - scripts/3d/pantheon_*.py
+  - scripts/3d/lod_pantheon.py
   - scripts/3d/tesla_*.py
   - scripts/3d/axolotl_*.py
   - scripts/3d/velsen_*.py
@@ -22,6 +24,8 @@ Před změnou vzhledu infografik přečti `docs/infografiky-zasady.md` (čistý 
 Logika stránky: oddíl tamtéž, čti první. Co má čtenář pochopit a co je hlavní? Hlavní věc má největší plochu a kontrast, okolí ustupuje, nic tmavého na tmavém. Člověk = životopisná data, dílo na vlastních stránkách. Prázdný pruh nebo třetina stránky je chyba (`panels.empty_share`, práh 20 %), formát se řídí obrazem. Popisky velké, ve výšce své věci, název a pod ním text. Výtku operátora převeď na měření v kódu, ne jen na opravu ukázky.
 
 Web a mobil: oddíl tamtéž, platí pro každou infografiku pro web (výchozí; jen tisková příloha `urceni: "tisk"` má volnost) a počítá se před skladbou. Čtenář je často na telefonu, stránka se zmenší na 360 px a větší plátno nepomůže. Nejmenší text aspoň 1/30 šířky stránky, titulek 1/15. Na stránku 4:5 se vejde kolem 80 slov, na 2:3 kolem 120, jeden hlavní obraz a nejvýš 3 další panely. Velkou plachtu s titěrným písmem rozděl na sérii menších stránek, každou s vlastním titulkem. Řádek Zdroj na stránce není: jen označení AI a cizí autor, plný výčet patří pod článek. Porušení písma hlásí `write_poster` (`SAZBA: na mobilu…`) a `GET …/kontrola`.
+
+Přepis na šířku a ruční úprava: oddíl tamtéž. Výčet údajů od operátora je závazný, hlavní předmět celý a render s rezervou za okrajem. Po výtce „nepochopil“ žádná další vlastní verze: editovatelná kopie a učit se z jeho úpravy. Jeho soubor se nepřepisuje.
 
 Stránka z víc obrazů: oddíl „Stránka z víc obrazů“ tamtéž. Každý panel říká, co hlavní obraz neřekne; stavby z modelu, slavné dílo v originále, lidé z fotorealistického generátoru; postavy na zeleném plátně se stínem z originálu. Výřez kontroluj ve zvětšení.
 

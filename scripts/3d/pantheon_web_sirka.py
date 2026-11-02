@@ -18,7 +18,7 @@ FOLDER = "plakaty/pantheon-web/rez3"
 ENGINE = "http://127.0.0.1:8300/api/v2"
 
 W, H = 1920, 1080
-CROP = (120, 0, 1920, 1080)     # room on the right for the scale, the portico's stairs may leave the frame
+CROP = (120, 0, 1920, 1080)     # room on the right for the scale; cuts the portico's stairs, hand work starts from --shot rez_web_cely instead
 BIG, NAME = 64, 40
 
 SCALE_X = 1640                  # text of the concrete scale

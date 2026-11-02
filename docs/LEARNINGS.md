@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Pantheon na šířku: vlastní pravidlo místo zadání a ořez, který vyjde najevo až po úpravě
+
+Operátor chtěl všechny údaje v hlavní grafice. Já jsem si na výtku „odezdikezdismus“ vymyslel rozvrh s jedním sloupcem, uřízl portik a půlku údajů vyhodil, a ještě jsem to zapsal do paměti jako pravidlo. Odmítl to a stránku upravil sám. Výklad výtky není zadání, a dokud ho operátor nepotvrdí, do pravidel nepatří. Pravidlo je v `docs/infografiky-zasady.md`, oddíl Přepis na šířku.
+
+- Ořez `CROP` v `pantheon_web_sirka.py` a střed `rez_web` usekly schody a zem. Na mé stránce to obraz schovával, po zmenšení na 89,5 % vyšla rovná hrana. Render pro stránku má rezervu vždy.
+- Širší záběr se stejnou zemí vrátil šedou plochu, kterou operátor předtím nechtěl. Před odesláním jsem to viděl jen díky prohlídce celé stránky.
+- Chromium nezná rodinu `Bahnschrift Bold SemiCondensed` z exportu VectorCraftu a kreslí patkové písmo. V souboru je to v pořádku; pro náhled názvy nahraď, nebo se dívej ve VectorCraftu.
+- VectorCraft v uloženém SVG nechal text „Sample copy flows here…“ nad plátnem (y −20). Není vidět, ale je v souboru a počítá se do slov.
+- Hookovaný `curl` vrátil místo JSON jen schéma (`{created: bool, opened: string, …}`) s exit 0. Hodnoty čti přes `rtk proxy curl` nebo pipe do `python`.
+
 ## 2026-11-02 — Skladatel prošel na mých textech a neprošel na textech modelu
 
 Ruční ukázka měla krátké popisky. Opravdové texty pro laika měly 60 až 70 znaků a skladatel na nich selhal třikrát z jedné příčiny: dva popisky širší než stránka, Rotor vypadl, u cívky zůstal jeden popisek ze čtyř a „57 metrů“ se vešlo jen pod zem, kde vypadalo jako hloubka šachty. Všechny kontroly prošly. Pomohl limit délky v zadání a pohled na stránku v plné velikosti. Každá další zkouška odhalila, že model popisek obrazu klidně dá až za fakty nebo odkáže na špatný fakt, proto pořadí a odkaz teď hlídá kód, ne zadání.
