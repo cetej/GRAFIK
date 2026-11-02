@@ -59,7 +59,7 @@ PLAKAT = {"jednotek": 1600, "titulek": 88, "titulek_x": 50, "titulek_y": 118, "p
 # popisek s vysvětlením je hlavní nositel textu; dlouhé vodítko na telefonu nevadí (přijatá Studna, 2. 11.), popisek u věci je větší než krátká čára
 MOBIL = {**PLAKAT, "jednotek": 546, "titulek": 36.4, "titulek_x": 20, "titulek_y": 50, "podtitulek": 21, "podtitulek_od": 36, "podtitulek_krok": 26, "nadpis": 27.3, "cislo": 27.3, "vedouci": 22.75,
          "veta": 19.6, "popisek": 27.3, "pod": 21, "pod_maly": 19, "znacka": 19, "zdroj": 13.65, "zdroj_krok": 17, "zdroj_dole": 14, "okraj": 20, "osa_sloupec": None, "zalomit": True,
-         "vodidlo_median": 0.5, "vodidlo_max": 0.8, "popisek_znaku": 95}
+         "vodidlo_median": 0.6, "vodidlo_max": 0.8, "popisek_znaku": 95}     # řada nad objektem: k věci uprostřed vede dlouhá rovná čára, ze dvou popisků je medián ta delší
 TITLE_WIDTH = 0.52          # šířka velkého tučného znaku v em i s prostrkáním, změřeno na ukázce Tesly
 PANEL_ID = re.compile(r"[a-z0-9_]{1,40}")
 FILE_NAME = re.compile(r"[\w\-]+\.(png|jpg|json)")
