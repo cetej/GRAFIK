@@ -328,6 +328,8 @@ class InfographicStore:
             if doc["schema_version"] != panels.SCHEMA:
                 raise InfoError(f"neznámá verze dokumentu {doc['schema_version']!r}")
             doc["panels"] = panels.validate(doc)
+            if doc.get("urceni", "web") not in panels.URCENI:
+                raise InfoError(f"neznámé určení {doc['urceni']!r}")
         if doc.get("schema") and doc["schema"].get("svg"):
             # a schema may hold a raster picture too (e.g. a cross-section render next to the main image)
             doc["schema"] = {**doc["schema"], "svg": clean_svg(doc["schema"]["svg"], allow_data_images=True)}

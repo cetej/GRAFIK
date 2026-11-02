@@ -2,9 +2,17 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
-## 2026-11-02 — Infografiky se navrhují pro web a telefon, velká plachta se dělí
+## 2026-11-02 — Infografika se navrhuje pro web a mobil
 
-Operátor k článku o legionáři ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“ Zásady `docs/infografiky-zasady.md`, oddíl „Web a telefon“, kontrola v `engine/panels.py`, věta v promptu návrhů. Práh 11 px na šířce 390 je návrh, ne jeho zadání.
+Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“
+
+- Měřítko je telefon široký 360 px. Nejmenší text má 1/30 šířky stránky (12 px na telefonu), titulek 1/15. Tabulka a meze: `docs/infografiky-zasady.md`, oddíl Web a mobil. Čísla jsem navrhl já, mez 12 px je z auditu Lighthouse; operátor je zatím neviděl na hotové sérii.
+- Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
+- Hotové plakáty se nepřepisují, pravidlo platí pro nové.
+
+## 2026-11-02 — Infografika je pro web, nebo pro tisk; výchozí je web
+
+Operátor: „De facto by tam mělo být rozhodování / možnost, zda vytváříme tiskovou přílohu, nebo infografiky pro web, které budou defaultním požadavkem.“ Přepínač „Kam to půjde“ na začátku řetězce z tématu a u dokumentu s panely (`urceni`), prompt návrhů a kontrola mobilu se podle něj řídí. Dosavadní dokumenty bez pole se berou jako web.
 
 ## 2026-11-02 — Předělat na formát: tlačítko u dokumentu s panely, rozpočet do 1 USD
 

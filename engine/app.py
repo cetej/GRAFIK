@@ -136,6 +136,7 @@ class InfoReformat(BaseModel):
 
 class InfoPanels(BaseModel):
     title: str
+    urceni: str = "web"             # "tisk": printed supplement, no phone check
     subtitle: str = ""
     size: str = "1600x2400"
     template: str = "dark"

@@ -382,6 +382,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
   const [own, setOwn] = useState({ w: 1920, h: 1080 })
   const [busy, setBusy] = useState<string | null>(null)
   const [png, setPng] = useState<string | null>(null)
+  const [urceni, setUrceni] = useState(doc.urceni ?? 'web')
   const svgUrl = `/api/v2/infographics/${doc.id}/svg`
   useEffect(() => {
     fetch(svgUrl).then((r) => r.text()).then(setSvg).catch((e) => onError(e.message))
@@ -393,6 +394,11 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
   }
   const reformat = () => run('format', async () => {
     setOpenId((await infoApi.reformat(doc.id, target === 'own' ? `${own.w}x${own.h}` : target)).id)
+  })
+  const changeUrceni = (value: 'web' | 'tisk') => run('urceni', async () => {
+    await infoApi.save({ ...doc, urceni: value })
+    setUrceni(value)
+    setChecks(await infoApi.checks(doc.id))
   })
   const exportPng = () => run('png', async () => setPng((await infoApi.export(doc.id, '', 'png')).url))
   return (
@@ -407,6 +413,13 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
       </div>
       <h2>{doc.title || 'bez nadpisu'}</h2>
       <p className="hint">Dokument s panely · {doc.size.replace('x', '×')} · {doc.panels?.length} panelů{doc.predelano_z && ` · předěláno z ${doc.predelano_z.size.replace('x', '×')}`}</p>
+      <div className="row">
+        <span className="hint">Kam to půjde</span>
+        <div className="seg">
+          <button className={urceni === 'web' ? 'on' : ''} disabled={!!busy} onClick={() => changeUrceni('web')}>Web a mobil</button>
+          <button className={urceni === 'tisk' ? 'on' : ''} disabled={!!busy} onClick={() => changeUrceni('tisk')}>Tisková příloha</button>
+        </div>
+      </div>
       {png && <p className="hint">Hotovo: <a href={png} target="_blank" rel="noreferrer">otevřít PNG</a></p>}
       {choosing && (
         <div className="panel-format">

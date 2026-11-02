@@ -365,6 +365,20 @@ def test_checks_catch_a_struck_label_and_a_second_view_of_the_same_model(tmp_pat
     assert found["vodítka nepřeškrtávají text"] is True and not any("opakují" in text for text in found)
 
 
+def test_checks_measure_the_text_on_a_phone(tmp_path):
+    source = tmp_path / "a.png"
+    Image.new("RGB", (100, 100), "red").save(source)
+    panels.copy_image(source, tmp_path, "hlavni")
+    doc = {"size": "1800x2400", "title": "Studna", "ai_note": "x", "sources": "zdroj", "panels": [
+        {"id": "hlavni", "typ": "obraz", "poradi": 1, "rect": [0, 0, 1800, 1400], "nazev": "Hlavní", "labels": [label("Muž", [50, 50, 0], pos=[100, 100], size=72)]},     # popis je 0,86 názvu
+        {"id": "text", "typ": "text", "poradi": 2, "rect": [0, 1400, 1800, 1000], "nazev": "Text", "items": [{"value": "Nebyl sám", "text": "Kosti 20 lidí"}], "small_size": 60}]}
+    doc["panels"] = panels.validate(doc)
+    assert "písmo čitelné i na mobilu" in {c["text"] for c in panels.checks(doc, tmp_path) if c["ok"]}
+    doc["panels"][1]["small_size"] = 26
+    found = [c for c in panels.checks(doc, tmp_path) if not c["ok"] and "na mobilu" in c["text"]]
+    assert found and "5.2 px" in found[0]["text"]
+
+
 def test_thresholds_match_the_editor():
     source = (REPO / "studio" / "src" / "Infographics.tsx").read_text(encoding="utf-8")
     assert f"const MAX_LABELS = {panels.MAX_LABELS}" in source and f"const MAX_LABEL_CHARS = {panels.MAX_LABEL_CHARS}" in source
@@ -444,7 +458,18 @@ def test_reformat_refuses_documents_without_panels_and_missing_ones(api):
     assert api.post("/api/v2/infographics/20000101-000000-0000/reformat", json={"size": "1:1"}).status_code == 404
 
 
-def test_checks_say_when_text_is_tiny_on_a_phone(api, doc):
+def test_reformatted_document_reports_the_phone_size_of_its_own_scale(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "16:9"}).json()
+    phone = [c for c in api.get(f"/api/v2/infographics/{new['id']}/kontrola").json() if "mobilu" in c["text"]]
+    assert phone and not phone[0]["ok"]
+    assert phone[0]["text"] != [c for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json() if "mobilu" in c["text"]][0]["text"]
+
+
+def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, doc):
+    assert any("mobilu" in c["text"] and not c["ok"] for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json())
+    saved = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "tisk"})
+    assert saved.status_code == 200, saved.text
     rows = api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json()
-    phone = [c for c in rows if c["text"].startswith("na telefonu")]
-    assert phone and not phone[0]["ok"] and "rozdělte" in phone[0]["text"]
+    assert not any("mobilu" in c["text"] and not c["ok"] for c in rows) and any("tisková příloha" in c["text"] for c in rows)
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "4:5"}).json()["urceni"] == "tisk"
+    assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "plakat"}).status_code == 400

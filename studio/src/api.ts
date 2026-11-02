@@ -223,7 +223,7 @@ export interface Chain {
 }
 export const chainApi = {
   estimate: (research?: string) => call<{ total_usd: number; items: CostItem[] }>(`/api/v2/workflows/infografika/estimate${research ? `?research=${encodeURIComponent(research)}` : ''}`),
-  start: (body: { topic?: string; research?: string; vzor?: string | null; confirm_cost: boolean }) => post<Chain>('/api/v2/workflows/infografika', body),
+  start: (body: { topic?: string; research?: string; vzor?: string | null; urceni?: 'web' | 'tisk'; confirm_cost: boolean }) => post<Chain>('/api/v2/workflows/infografika', body),
   get: (id: string) => call<Chain>(`/api/v2/workflows/${id}`),
   pick: (id: string, navrh: number) => post<Chain>(`/api/v2/workflows/${id}/pick`, { navrh }),
   resume: (id: string, confirm: boolean) => post<Chain>(`/api/v2/workflows/${id}/continue`, { confirm_cost: confirm }),
@@ -315,11 +315,13 @@ export interface InfoLabel { text: string; small: string; anchor: [number, numbe
 export interface InfoFact { value: string; text: string }
 export interface InfoSchema { title: string; svg: string }
 
+export type Urceni = 'web' | 'tisk'
 export interface Infographic {
   id: string
   schema_version?: number
   panels?: { id: string }[]
   predelano_z?: { id: string; size: string }
+  urceni?: Urceni
   base: string
   title: string
   subtitle: string

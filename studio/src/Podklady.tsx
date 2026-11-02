@@ -45,12 +45,13 @@ export function TopicStart({ chains, onOpen, onChain, setConfirm, onError }: {
   const [list, setList] = useState<ResearchRow[]>([])
   const [price, setPrice] = useState<number | null>(null)
   const [vzor, setVzor] = useState<RefMeta | null>(null)
+  const [urceni, setUrceni] = useState<'web' | 'tisk'>('web')
   useEffect(() => { researchApi.list().then(setList).catch((e) => onError(e.message)) }, [onError])
   useEffect(() => { chainApi.estimate().then((e) => setPrice(e.total_usd)).catch(() => setPrice(null)) }, [])
   const running = chains.filter((w): w is Chain => w.kind === 'infografika')
   const startChain = async (confirm = false) => {
     try {
-      onChain((await chainApi.start({ topic: topic.trim(), vzor: vzor?.id ?? null, confirm_cost: confirm })).id)
+      onChain((await chainApi.start({ topic: topic.trim(), vzor: vzor?.id ?? null, urceni, confirm_cost: confirm })).id)
     } catch (e) {
       if (e instanceof PaymentRequired) setConfirm({ title: `Podklady a návrhy: ${topic.trim()}`, items: e.items, total: e.estimate, onOk: () => startChain(true) })
       else onError((e as Error).message)
@@ -67,6 +68,13 @@ export function TopicStart({ chains, onOpen, onChain, setConfirm, onError }: {
     <section className="card">
       <h2>Infografika z tématu</h2>
       <p>GRAFIK sám dohledá fakta se zdroji a obrazové podklady z Wikidaty, Wikipedie a Wikimedia Commons. Zdroje, které si odporují, ukáže nahoře.</p>
+      <div className="row">
+        <span className="hint">Kam to půjde</span>
+        <div className="seg">
+          <button className={urceni === 'web' ? 'on' : ''} onClick={() => setUrceni('web')} title="Čte se v článku, často na telefonu: málo textu, velké písmo, víc menších stránek">Web a mobil</button>
+          <button className={urceni === 'tisk' ? 'on' : ''} onClick={() => setUrceni('tisk')} title="Čte se z papíru: bohatá stránka, menší písmo">Tisková příloha</button>
+        </div>
+      </div>
       <div className="row">
         <input className="search" value={topic} onChange={(e) => setTopic(e.target.value)} aria-label="Téma"
           placeholder="Např. Pantheon, Řím · Nikola Tesla · axolotl" onKeyDown={(e) => { if (e.key === 'Enter' && topic.trim()) start() }} />
