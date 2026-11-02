@@ -473,3 +473,65 @@ def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, d
     assert not any("mobilu" in c["text"] and not c["ok"] for c in rows) and any("tisková příloha" in c["text"] for c in rows)
     assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "4:5"}).json()["urceni"] == "tisk"
     assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "plakat"}).status_code == 400
+
+
+def _tokens(panel: dict) -> set[str]:
+    texts = [(panel.get("titulek") or {}).get("text", "")]
+    for lab in panel.get("labels", []):
+        texts += [lab["text"], *lab["small"]]
+    if panel.get("pod"):
+        texts += [panel["pod"]["text"], panel["pod"]["small"]]
+    for item in panel.get("items", []):
+        texts += [item["value"], item["text"]]
+    return set(" ".join(texts).split())
+
+
+def test_split_keeps_every_word_and_leaves_the_source(api, settings, doc):
+    source = settings.library_dir / "infographics" / doc["id"] / "info.json"
+    before = source.read_bytes()
+    plan = api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": None}).json()["stranky"]
+    assert source.read_bytes() == before and len(api.get("/api/v2/infographics?panely=true").json()) == 1      # návrh nic nezapíše
+    r = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None})
+    assert r.status_code == 201, r.text
+    pages = r.json()
+    assert len(pages) == len(plan) and source.read_bytes() == before
+    assert [p["serie"]["stranka"] for p in pages] == list(range(1, len(pages) + 1)) and {p["serie"]["celkem"] for p in pages} == {len(pages)}
+    wanted = set().union(*(_tokens(p) for p in doc["panels"]))
+    got = set().union(*(_tokens(q) for p in pages for q in p["panels"])) | {w for p in pages for w in p["title"].split()}
+    assert wanted <= got, wanted - got
+    for page in pages:
+        W, H = map(int, page["size"].split("x"))
+        assert W == 1080
+        rows = api.get(f"/api/v2/infographics/{page['id']}/kontrola").json()
+        assert all(c["ok"] for c in rows if "mobilu" in c["text"]), rows
+        assert api.get(f"/api/v2/infographics/{page['id']}/svg").status_code == 200
+        for p in page["panels"]:
+            x, y, w, h = p["rect"]
+            assert x >= 0 and x + w <= W + 0.5 and y + h <= H + 0.5
+            assert not p.get("labels")
+
+
+def test_split_turns_labels_into_marks_and_a_legend(api, doc):
+    pages = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None}).json()
+    hero = next(p for page in pages for p in page["panels"] if p["id"] == "hlavni")
+    assert [m["text"] for m in hero["znacky"]] == ["1"] and hero["znacky"][0]["kotva"] == "vez"
+    legend = next(p for page in pages for p in page["panels"] if p["id"].startswith("hlavni_legenda"))
+    assert legend["items"][0] == {"value": "1 Věž", "text": "z kamene"}
+
+
+def test_split_lets_the_editor_move_pieces_but_never_drop_one(api, doc):
+    plan = api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": None}).json()["stranky"]
+    ids = [k["id"] for page in plan for k in page["kusy"]]
+    one = api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": [ids[:1], ids[1:]]})
+    assert one.status_code == 200 and len(one.json()["stranky"]) == 2
+    assert api.post(f"/api/v2/infographics/{doc['id']}/rozdeleni", json={"stranky": [ids[:1]]}).status_code == 400
+    assert api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": [ids, ids[:1]]}).status_code == 400
+    assert len(api.get("/api/v2/infographics?panely=true").json()) == 1
+
+
+def test_split_refuses_documents_without_panels(api):
+    buf = BytesIO()
+    Image.new("RGB", (64, 64), "white").save(buf, "PNG")
+    old = api.post("/api/v2/infographics/upload", json={"b64": base64.b64encode(buf.getvalue()).decode(), "name": "a.png"}).json()
+    assert api.post(f"/api/v2/infographics/{old['id']}/rozdeleni", json={"stranky": None}).status_code == 400
+    assert api.post(f"/api/v2/infographics/{old['id']}/rozdelit", json={"stranky": None}).status_code == 400

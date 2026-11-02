@@ -14,6 +14,10 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
 
+## 2026-11-02 — Rozdělit pro mobil: čísla v obraze a legenda
+
+Operátor schválil náčrt („Ano, stav to“). Hotový dokument s panely se tlačítkem rozdělí na sérii nových dokumentů, originál se nemění. Popisky přes obraz se změní na čísla a legendu, text se nepřepisuje, každé slovo zůstává. Před vytvořením jde kusy přesouvat mezi stránkami. 0 USD. Stránka má šířku 1080 a výšku podle obsahu, delší než 9:16 se ohlásí.
+
 ## 2026-11-02 — Infografika je pro web, nebo pro tisk; výchozí je web
 
 Operátor: „De facto by tam mělo být rozhodování / možnost, zda vytváříme tiskovou přílohu, nebo infografiky pro web, které budou defaultním požadavkem.“ Přepínač „Kam to půjde“ na začátku řetězce z tématu a u dokumentu s panely (`urceni`), prompt návrhů a kontrola mobilu se podle něj řídí. Dosavadní dokumenty bez pole se berou jako web.
