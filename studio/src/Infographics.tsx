@@ -22,6 +22,12 @@ const MAX_LABELS = 10
 const MAX_LABEL_CHARS = 40
 const LEADER_MEDIAN_MAX = 0.06   // of the canvas width (reference infographic 0.035)
 const LEADER_MAX = 0.12
+// kopie z engine/panels.py a docs/infografiky-zasady.md, oddíl Web a mobil; hlídá tests/test_infographics.py
+const PHONE_W = 360
+const PHONE_MIN_PX = 12
+const PHONE_TITLE_PX = 24
+const PHONE_SOURCE_PX = 9
+const LETTER = 0.49   // průměrná šířka znaku v em, Bahnschrift semi-condensed
 type Suggestion = { text: string; small: string; anchor: [number, number] }
 
 const clamp = (v: number, lo = 0, hi = 1000) => Math.max(lo, Math.min(hi, v))
@@ -36,6 +42,25 @@ function wrap(text: string, maxChars: number): string[] {
   return out
 }
 
+/** Písmo dokumentu v pixelech plátna. Starý dokument bez pole pismo se kreslí přesně jako dřív, nový má velikosti z tabulky pro telefon
+ *  (1/15 šířky titulek, 1/26 věta, 1/30 nejmenší text, 1/40 označení AI), fakta na dva řádky a na stránce jen označení AI, zdroj jde pod článek. */
+function fontsOf(doc: Infographic, W: number, k: number) {
+  if (doc.pismo === 'mobil') {
+    const u = W / 400
+    return { mobil: true, titulek: 26.7 * u, podtitulek: 15.4 * u, fakt: 20 * u, faktHodnota: 20 * u, faktText: 13.4 * u, popisek: 15.4 * u, popisekMaly: 13.4 * u, schema: 13.4 * u, schemaKlasika: 13.4 * u, paticka: 10 * u, patickaKrok: 12 * u, lem: 1.2 * u }
+  }
+  return { mobil: false, titulek: 34 * k, podtitulek: 17 * k, fakt: 18 * k, faktHodnota: 22 * k, faktText: 13.5 * k, popisek: 16 * k, popisekMaly: 14 * k, schema: 15 * k, schemaKlasika: 13 * k, paticka: 11 * k, patickaKrok: 13 * k, lem: 3 * k }
+}
+
+/** Fakta nového dokumentu pod sebou: tučná hodnota a pod ní krátký text. */
+function stackedFacts(doc: Infographic, f: ReturnType<typeof fontsOf>, width: number) {
+  const chars = Math.max(12, Math.floor(width / (f.faktText * LETTER)))
+  return doc.facts.filter((x) => x.value || x.text).map((x) => {
+    const lines = wrap(x.text, chars)
+    return { ...x, lines, h: f.faktHodnota * 1.15 + lines.length * f.faktText * 1.2 + f.faktText * 0.5 }
+  })
+}
+
 /** Geometry shared by the renderer and the editor. "klasika": image on top, facts and schema below it;
  *  "pruh": image over the whole canvas, title and facts in a bar across its bottom, schema inset top right. */
 export function layout(doc: Infographic, iw: number, ih: number) {
@@ -43,13 +68,16 @@ export function layout(doc: Infographic, iw: number, ih: number) {
   const k = W / 1280
   const pad = 40 * k
   const pruh = doc.layout === 'pruh'
-  const bottomH = doc.facts.length || doc.schema ? 265 * k : 60 * k
+  const f = fontsOf(doc, W, k)
+  const bottomH = f.mobil
+    ? Math.max(doc.schema ? 265 * k : 0, stackedFacts(doc, f, W - 2 * pad).reduce((sum, x) => sum + x.h, 0)) + 60 * k + f.patickaKrok * 2
+    : doc.facts.length || doc.schema ? 265 * k : 60 * k
   const imgH = pruh ? H : Math.min((W * ih) / iw, H - bottomH)
   const s = Math.max(W / iw, imgH / ih)
   const ox = (W - iw * s) / 2
   const oy = (imgH - ih * s) / 2
   return {
-    W, H, k, pad, imgH, pruh,
+    W, H, k, pad, imgH, pruh, f,
     toCanvas: (a: [number, number]): [number, number] => [ox + (a[0] / 1000) * iw * s, oy + (a[1] / 1000) * ih * s],
     toImage: (x: number, y: number): [number, number] => [Math.round(clamp(((x - ox) / (iw * s)) * 1000)), Math.round(clamp(((y - oy) / (ih * s)) * 1000))],
     pos: (p: [number, number]): [number, number] => [(p[0] / 1000) * W, (p[1] / 1000) * H],
@@ -68,8 +96,8 @@ function placeLabel(L: ReturnType<typeof layout>, anchor: [number, number], text
 
 function labelBox(l: InfoLabel, L: ReturnType<typeof layout>) {
   const [x, y] = L.pos(l.pos)
-  const w = Math.max(l.text.length * 8.4, l.small.length * 6.9, 30) * L.k
-  const h = (l.small ? 38 : 21) * L.k
+  const w = L.f.mobil ? Math.max(l.text.length * L.f.popisek * 0.525, l.small.length * L.f.popisekMaly * LETTER, 30 * L.k) : Math.max(l.text.length * 8.4, l.small.length * 6.9, 30) * L.k
+  const h = L.f.mobil ? L.f.popisek * 1.2 + (l.small ? L.f.popisekMaly * 1.2 : 0) : (l.small ? 38 : 21) * L.k
   return { x: l.align === 'right' ? x - w : x, y, w, h }
 }
 
@@ -79,7 +107,7 @@ export function leader(l: InfoLabel, L: ReturnType<typeof layout>): [number, num
   const [ax, ay] = L.toCanvas(l.anchor)
   const [px, py] = L.pos(l.pos)
   const ex = px + (l.align === 'right' ? 6 : -6) * L.k
-  const ey = py + 11 * L.k
+  const ey = py + (L.f.mobil ? L.f.popisek * 0.69 : 11 * L.k)
   if (Math.abs(ax - ex) < 8 * L.k || Math.abs(ay - ey) < 8 * L.k) return [[ax, ay], [ex, ey]]
   return [[ax, ay], [ax, ey], [ex, ey]]
 }
@@ -109,6 +137,23 @@ export function leaderChecks(doc: Infographic, L: ReturnType<typeof layout>): { 
   return out
 }
 
+/** Stejné prahy jako panels._phone_checks v Engine: stránka se na telefonu zmenší na 360 px. */
+export function phoneChecks(doc: Infographic, L: ReturnType<typeof layout>): { ok: boolean; text: string }[] {
+  if (doc.urceni === 'tisk') return [{ ok: true, text: 'tisková příloha: mobil se nekontroluje' }]
+  const { W, H, f } = L
+  const facts = doc.facts.filter((x) => x.value || x.text)
+  const sizes = [...doc.labels.flatMap((l) => [l.small ? f.popisekMaly : f.popisek]), ...facts.map(() => (L.pruh ? f.fakt : f.faktText)), ...(f.mobil ? facts.map(() => f.faktText) : [])]
+  const rows: [string, number, number][] = [['titulek', f.titulek, PHONE_TITLE_PX], ['nejmenší text', Math.min(W, ...sizes), PHONE_MIN_PX], ['označení AI', f.paticka, PHONE_SOURCE_PX]]
+  const onPhone = (size: number) => Math.round((size * PHONE_W / W) * 10) / 10
+  const low = rows.filter(([, size, need]) => onPhone(size) < need).map(([name, size, need]) => `${name} ${onPhone(size)} px, chce aspoň ${need}`)
+  const words = [doc.title, doc.subtitle, ...doc.labels.flatMap((l) => [l.text, l.small]), ...facts.flatMap((x) => [x.value, x.text])].join(' ').split(/\s+/).filter(Boolean).length
+  const budget = Math.max(30, Math.round(80 + (H / W - 1.25) * 160))
+  return [
+    { ok: !low.length, text: low.length ? `na mobilu (šířka ${PHONE_W} px): ${low.join(', ')}. Větší písmo, méně textu, nebo víc menších stránek` : 'písmo čitelné i na mobilu' },
+    { ok: words <= budget * 1.25, text: words > budget * 1.25 ? `na mobilu se na stránku vejde kolem ${budget} slov, tady je ${words}` : `text se na mobil vejde, ${words} slov z asi ${budget}` },
+  ]
+}
+
 /** The schema split in two, drawing and its texts: they go to different layers (operator 2026-10-31). */
 function schemaParts(svg: string): { viewBox: string; drawing: string; texts: string } | null {
   const doc = new DOMParser().parseFromString(svg, 'image/svg+xml')
@@ -130,13 +175,17 @@ interface EditorHooks {
 }
 
 /** Facts one per line, flush left (ragged right), in a block at the bottom left: only that block gets a backing. */
-function factBar(doc: Infographic, W: number, H: number, k: number, pad: number) {
+function factBar(doc: Infographic, W: number, H: number, k: number, pad: number, fonts: ReturnType<typeof fontsOf>, footerLines: number) {
+  if (fonts.mobil) {
+    const rows = stackedFacts(doc, fonts, W - 2 * pad)
+    return { top: H - (rows.reduce((sum, x) => sum + x.h, 0) + footerLines * fonts.patickaKrok + 20 * k), lines: [], w: Math.min(W - 2 * pad, Math.max(0, ...rows.map((x) => Math.max(x.value.length * fonts.faktHodnota * 0.55, ...x.lines.map((line) => line.length * fonts.faktText * LETTER))))), rows }
+  }
   const lines = doc.facts.filter((f) => f.value || f.text).map((f) => [f])
   const width = (f: { value: string; text: string }) => (f.value.length * 8 + (f.text ? f.text.length * 7.3 + 5 : 0)) * k   // Bahnschrift semi-condensed at 18 px, measured
   const w = Math.min(Math.max(0, ...lines.map(([f]) => width(f))), W - 2 * pad)
   const footerH = 34 * k
   const top = H - (12 * k + lines.length * LINE * k + footerH)
-  return { top, lines, w }
+  return { top, lines, w, rows: [] }
 }
 
 const LINE = 30   // fact line spacing at 1280 width
@@ -145,10 +194,11 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
   doc: Infographic; href: string; iw: number; ih: number; svgRef?: RefObject<SVGSVGElement | null>; ed?: EditorHooks
 }) {
   const L = layout(doc, iw, ih)
-  const { W, H, k, pad, imgH, pruh } = L
+  const { W, H, k, pad, imgH, pruh, f: fonts } = L
   const t = THEMES[doc.template]
   const schema = doc.schema ? schemaParts(doc.schema.svg) : null
-  const bar = pruh ? factBar(doc, W, H, k, pad) : null
+  const footer = wrap(doc.ai_note, Math.floor((W - 2 * pad) / (fonts.mobil ? fonts.paticka * LETTER : 5.4 * k)))
+  const bar = pruh ? factBar(doc, W, H, k, pad, fonts, footer.length) : null
   const bottomTop = imgH + 10 * k
   const schemaW = 500 * k
   const factsW = (schema ? W - 2 * pad - schemaW - 40 * k : W - 2 * pad) - 134 * k
@@ -162,7 +212,12 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
   const schemaBox = !schema ? null : pruh
     ? (() => { const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number); const w = 0.38 * W; return { x: W - pad - w, y: pad + 26 * k, width: w, height: (w * vh) / vw } })()
     : { x: W - pad - schemaW, y: bottomTop + 47 * k, width: schemaW, height: Math.min(200 * k, H - bottomTop - 47 * k - 30 * k) }
-  const footer = wrap(doc.ai_note, Math.floor((W - 2 * pad) / (5.4 * k)))
+  const titleRows = fonts.mobil ? wrap(doc.title.toUpperCase(), Math.floor((W - 2 * pad) / (fonts.titulek * 0.58))) : [doc.title.toUpperCase()]
+  const titleY = fonts.mobil ? pad + fonts.titulek * 0.88 : pad + 30 * k
+  const subtitleRows = fonts.mobil ? wrap(doc.subtitle, Math.floor((W - 2 * pad) / (fonts.podtitulek * LETTER))) : [doc.subtitle]
+  const subtitleY = fonts.mobil ? titleY + (titleRows.length - 1) * fonts.titulek * 1.08 + fonts.podtitulek * 1.4 : pad + 56 * k
+  let stackY = bottomTop + 22 * k
+  const stacked = fonts.mobil && !pruh ? stackedFacts(doc, fonts, schema ? W - 2 * pad - schemaW - 40 * k : W - 2 * pad).map((x) => { const y = stackY; stackY += x.h; return { ...x, y } }) : []
   const svgPoint = (e: { clientX: number; clientY: number }) => {
     const svg = svgRef?.current
     if (!svg) return [0, 0]
@@ -219,13 +274,36 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
 
       <g id="Texty">
         <g id="Nadpis">
-          <text x={pad} y={pad + 30 * k} fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontWeight="700" fontSize={34 * k} letterSpacing={0.6 * k}>{doc.title.toUpperCase()}</text>
-          {doc.subtitle && <text x={pad} y={pad + 56 * k} fill={t.muted} fontFamily={FONT} fontStretch="semi-condensed" fontSize={17 * k}>{doc.subtitle}</text>}
+          {titleRows.map((row, j) => <text key={j} x={pad} y={titleY + j * fonts.titulek * 1.08} fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontWeight="700" fontSize={fonts.titulek} letterSpacing={0.6 * k}>{row}</text>)}
+          {doc.subtitle && subtitleRows.map((row, j) => <text key={j} x={pad} y={subtitleY + j * fonts.podtitulek * 1.2} fill={fonts.mobil ? t.ink : t.muted} fontFamily={FONT} fontStretch="semi-condensed" fontSize={fonts.podtitulek}>{row}</text>)}
         </g>
-        {bar && (
+        {bar && fonts.mobil && (
+          <g id="Fakta" fontFamily={FONT} fontStretch="semi-condensed">
+            {bar.rows.map((row, j) => {
+              const y = bar.top + bar.rows.slice(0, j).reduce((sum, x) => sum + x.h, 0) + fonts.faktHodnota
+              return (
+                <g key={j}>
+                  <text x={pad} y={y} fill={doc.accent} fontSize={fonts.faktHodnota} fontWeight="700">{row.value}</text>
+                  {row.lines.map((line, n) => <text key={n} x={pad} y={y + (n + 1) * fonts.faktText * 1.2} fill={t.ink} fontSize={fonts.faktText}>{line}</text>)}
+                </g>
+              )
+            })}
+          </g>
+        )}
+        {stacked.length > 0 && (
+          <g id="Fakta" fontFamily={FONT} fontStretch="semi-condensed">
+            {stacked.map((row, j) => (
+              <g key={j}>
+                <text x={pad} y={row.y + fonts.faktHodnota} fill={doc.accent} fontSize={fonts.faktHodnota} fontWeight="700">{row.value}</text>
+                {row.lines.map((line, n) => <text key={n} x={pad} y={row.y + fonts.faktHodnota + (n + 1) * fonts.faktText * 1.2} fill={t.ink} fontSize={fonts.faktText}>{line}</text>)}
+              </g>
+            ))}
+          </g>
+        )}
+        {bar && !fonts.mobil && (
           <g id="Fakta" fontFamily={FONT} fontStretch="semi-condensed">
             {bar.lines.map((line, j) => (
-              <text key={j} x={pad} y={bar.top + 22 * k + j * LINE * k} fontSize={18 * k}>
+              <text key={j} x={pad} y={bar.top + 22 * k + j * LINE * k} fontSize={fonts.fakt}>
                 {line.map((f, n) => (
                   <tspan key={n}>
                     {n > 0 && <tspan fill={t.rule}>{'   |   '}</tspan>}
@@ -237,12 +315,12 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
             ))}
           </g>
         )}
-        {!pruh && facts.length > 0 && (
+        {!pruh && !fonts.mobil && facts.length > 0 && (
           <g id="Fakta">
             {facts.map((f, i) => (
               <g key={i} fontFamily="Segoe UI, sans-serif">
-                <text x={pad} y={f.y + 20 * k} fill={doc.accent} fontSize={22 * k} fontWeight="700">{f.value}</text>
-                {f.lines.map((line, j) => <text key={j} x={pad + 134 * k} y={f.y + 15 * k + j * 19 * k} fill={t.muted} fontSize={13.5 * k}>{line}</text>)}
+                <text x={pad} y={f.y + 20 * k} fill={doc.accent} fontSize={fonts.faktHodnota} fontWeight="700">{f.value}</text>
+                {f.lines.map((line, j) => <text key={j} x={pad + 134 * k} y={f.y + 15 * k + j * 19 * k} fill={t.muted} fontSize={fonts.faktText}>{line}</text>)}
               </g>
             ))}
           </g>
@@ -252,9 +330,9 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
             const [px, py] = L.pos(l.pos)
             const anchorEnd = l.align === 'right' ? 'end' : 'start'
             return (
-              <g key={i} filter="url(#halo)" stroke={t.shadow} strokeWidth={3 * k} strokeLinejoin="round" paintOrder="stroke">
-                <text x={px} y={py + 16 * k} textAnchor={anchorEnd} fill={doc.accent} fontSize={16 * k} fontWeight="700">{l.text}</text>
-                {l.small && <text x={px} y={py + 33 * k} textAnchor={anchorEnd} fill={t.ink} fontSize={14 * k}>{l.small}</text>}
+              <g key={i} filter="url(#halo)" stroke={t.shadow} strokeWidth={fonts.lem} strokeLinejoin="round" paintOrder="stroke">
+                <text x={px} y={py + (fonts.mobil ? fonts.popisek : 16 * k)} textAnchor={anchorEnd} fill={doc.accent} fontSize={fonts.popisek} fontWeight="700">{l.text}</text>
+                {l.small && <text x={px} y={py + (fonts.mobil ? fonts.popisek + fonts.popisekMaly * 1.15 : 33 * k)} textAnchor={anchorEnd} fill={t.ink} fontSize={fonts.popisekMaly}>{l.small}</text>}
               </g>
             )
           })}
@@ -262,13 +340,13 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
         {schema && doc.schema && schemaBox && (
           <g id="Popisky schématu">
             {pruh
-              ? <text x={schemaBox.x + schemaBox.width} y={pad + 14 * k} textAnchor="end" fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontSize={15 * k} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema.title.toUpperCase()}</text>
-              : <text x={schemaBox.x} y={bottomTop + 35 * k} fill={doc.accent} fontFamily="Segoe UI, sans-serif" fontSize={13 * k} fontWeight="700" letterSpacing={1 * k}>{doc.schema.title.toUpperCase()}</text>}
+              ? <text x={schemaBox.x + schemaBox.width} y={pad + 14 * k} textAnchor="end" fill={doc.accent} fontFamily={FONT} fontStretch="semi-condensed" fontSize={fonts.schema} fontWeight="700" letterSpacing={0.6 * k}>{doc.schema.title.toUpperCase()}</text>
+              : <text x={schemaBox.x} y={bottomTop + 35 * k} fill={doc.accent} fontFamily="Segoe UI, sans-serif" fontSize={fonts.schemaKlasika} fontWeight="700" letterSpacing={1 * k}>{doc.schema.title.toUpperCase()}</text>}
             {schema.texts && <svg {...schemaBox} viewBox={schema.viewBox} fontFamily={pruh ? FONT : undefined} fontStretch={pruh ? 'semi-condensed' : undefined} dangerouslySetInnerHTML={{ __html: schema.texts }} />}
           </g>
         )}
         <g id="Patička">
-          {footer.map((line, i) => <text key={i} x={pad} y={H - 8 * k - (footer.length - 1 - i) * 13 * k} fill={t.foot} fontFamily={FONT} fontStretch="semi-condensed" fontSize={11 * k}>{line}</text>)}
+          {footer.map((line, i) => <text key={i} x={pad} y={H - 8 * k - (footer.length - 1 - i) * fonts.patickaKrok} fill={t.foot} fontFamily={FONT} fontStretch="semi-condensed" fontSize={fonts.paticka}>{line}</text>)}
         </g>
       </g>
 
@@ -605,6 +683,7 @@ function Editor({ id, onClose, recentImages, onError }: { id: string; onClose: (
     { ok: doc.labels.length <= MAX_LABELS, text: `${doc.labels.length} popisků${doc.labels.length > MAX_LABELS ? `, doporučeno do ${MAX_LABELS}` : ''}` },
     ...(longLabels.length ? longLabels.map((x) => ({ ok: false, text: `popisek ${x.i + 1} je delší než ${MAX_LABEL_CHARS} znaků` })) : [{ ok: true, text: 'popisky krátké' }]),
     ...leaderChecks(doc, L),
+    ...phoneChecks(doc, L),
     { ok: true, text: 'text jen z editoru, ne z modelu' },
     { ok: !!doc.sources.trim(), text: doc.sources.trim() ? 'zdroj vyplněn' : 'chybí zdroj' },
     { ok: true, text: 'označení AI v patičce' },

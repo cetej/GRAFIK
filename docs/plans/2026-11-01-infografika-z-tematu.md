@@ -149,7 +149,7 @@ Zkušenost z Kolosea: dokument s panely umí skript, řetězec z tématu zatím 
 - Kontroly jako nyní (`GET …/kontrola`) a kontrolní list výřezů ve zvětšení, který člověk vidí před složením stránky. Lokální FLUX 0 USD, placený model jen s cenou předem.
 - **Hotovo:** z tématu vznikne stránka srovnatelná s Koloseem bez ručních skriptů, ověřeno v opravdovém Studiu a na druhém tématu mimo stavby.
 
-### Krok 3g: stránka pro mobil a série (po 3f, vlastní PR, UI s náčrtem)
+### Krok 3g: stránka pro mobil a série (hotovo, `engine/serie.py`, Studio krok Stránky, [spike](../spikes/2026-11-02-serie-mobil.md))
 
 Platí pro určení web. Tisková příloha (`urceni: "tisk"`, DECISIONS 2026-11-02) si nechává bohatou stránku.
 

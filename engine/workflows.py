@@ -89,6 +89,9 @@ class Workflow(BaseModel):
     navrhy: list[dict] = []
     rozbor: dict | None = None           # co ze vzoru držet a co změnit
     vyber: int | None = None             # id vybraného návrhu
+    stranky: list[int] = []              # vybrané stránky série, od 1
+    stranky_usd: float = 0.0             # odhad kroku Stránky z ceny řetězce, ukáže ho tlačítko
+    serie: list[dict] = []               # složené stránky: stranka, nazev, doc, hlaseni
     kontrola: dict | None = None         # poradní kontrola logiky, nic neblokuje
     stop_reason: str | None = None
     resume_stage: str | None = None

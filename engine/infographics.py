@@ -271,7 +271,7 @@ class InfographicStore:
         return sorted((d for d in docs if d), key=lambda d: d["updated"], reverse=True)
 
     def create(self, base: str, title: str, prov: dict | None, size: str = "1920x1080") -> dict:
-        doc = new_doc(base, title, prov, size)
+        doc = {**new_doc(base, title, prov, size), "pismo": "mobil"}     # jen nový dokument, starý bez pole se kreslí jako dřív
         return self.save(doc["id"], doc, new=True)
 
     def create_panels(self, fields: dict, source_of, make_base, note_of) -> dict:
@@ -279,7 +279,7 @@ class InfographicStore:
         folder of a render or the file of a finished picture, make_base(png bytes) the upload the document list shows, note_of(panels, prov)
         the footer line and whether a picture is AI."""
         from engine import panels
-        draft = {**fields, "schema_version": panels.SCHEMA}
+        draft = {**fields, "schema_version": panels.SCHEMA, "pismo": panels.MOBIL if fields.get("pismo", "mobil") == "mobil" else fields["pismo"]}
         validated = panels.validate(draft)
         doc = new_doc("", fields.get("title") or "", None, fields["size"])
         root = self._dir(doc["id"])
@@ -293,8 +293,8 @@ class InfographicStore:
                     else:
                         panels.copy_render(source, root, panel["id"])
             base, prov = make_base(panels.flat_hero(root, {**draft, "panels": validated}))
-            note, is_ai = note_of(validated, prov)
-            return self.save(doc["id"], {**doc, **draft, "panels": validated, "base": base, "ai_note": note, "ai_generated": is_ai, "layout": "pruh"}, new=True)
+            note, is_ai, short = note_of(validated, prov)
+            return self.save(doc["id"], {**doc, **draft, "panels": validated, "base": base, "ai_note": note, "na_strance": short, "ai_generated": is_ai, "layout": "pruh"}, new=True)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)     # no half document in the list
             raise

@@ -479,3 +479,22 @@ def test_suggest_labels_paid_and_parsed(api, settings, monkeypatch):
                              {"text": "Věž", "small": "", "anchor": [700, 1000]}]
     assert "loď" in sent[0][1]["text"] and max(Image.open(BytesIO(base64.b64decode(sent[0][0]["source"]["data"]))).size) <= 1024
     assert api.get("/api/v2/costs").json()["entries"][-1]["backend"] == "claude:labels"
+
+
+def test_studio_phone_thresholds_match_the_engine():
+    from engine import panels
+
+    source = (Path(__file__).parents[1] / "studio" / "src" / "Infographics.tsx").read_text(encoding="utf-8")
+    for name in ("PHONE_W", "PHONE_MIN_PX", "PHONE_TITLE_PX", "PHONE_SOURCE_PX"):
+        assert f"const {name} = {getattr(panels, name)}\n" in source
+
+
+def test_new_editor_document_is_for_the_phone_and_an_old_one_stays(tmp_path):
+    from engine.infographics import InfographicStore, new_doc
+
+    store = InfographicStore(tmp_path / "docs", tmp_path / "schemas")
+    doc = store.create("job/0", "Nová", None)
+    assert doc["pismo"] == "mobil"
+    old = new_doc("job/0", "Stará", None)
+    saved = store.save(old["id"], old, new=True)
+    assert "pismo" not in saved and "pismo" not in store.get(old["id"])

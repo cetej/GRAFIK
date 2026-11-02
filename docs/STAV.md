@@ -4,6 +4,8 @@ Aktualizováno 2026-11-02.
 
 ## Teď
 
+**Série stránek z návrhu (2026-11-02, krok 3g):** řetězec infografika z tématu končí stránkami. V kroku Návrhy se vybírají stránky, nový krok Stránky je složí a ukáže na šířce telefonu s kontrolou a hlášením, `engine/serie.py`. Model přepíše fakta do krátkých položek, rozvržení počítá kód, obraz je vlastní 3D z `library/tema/<qid>/obrazy.json` (zatím jen Tesla). Člověk má životopisnou stránku, kontrola nově měří prázdnou plochu a splývání s pozadím. Nový dokument v editoru i s panely má písmo pro telefon, starý se nezměnil, [měření](spikes/2026-11-02-serie-mobil.md). Zásady: `docs/infografiky-zasady.md`, oddíl Logika stránky.
+
 **Řádek Zdroj pryč, hlavní obraz první (2026-11-02):** dokument s panely i editor kreslí jen označení AI a cizího autora, `sources` jsou v dokumentu a Studio je ukáže jako „Zdroje pod článek“. Předělat na formát dá hlavnímu obrazu co nejvíc plochy. **Mez:** ostatní bloky pak vycházejí malé (Pantheon 16:9 nejmenší text 1,4 px na telefonu) a kontrola to hlásí, převod tím neřeší mobil.
 
 **Rozdělit pro mobil odstraněno (2026-11-02):** automat zmenšoval hlavní obraz kvůli slabým popiskům, operátor ho odmítl (DECISIONS). Série Pantheonu z něj je v koši Engine, originál beze změny.

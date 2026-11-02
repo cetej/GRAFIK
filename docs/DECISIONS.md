@@ -2,6 +2,18 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Série stránek z návrhu: logika stránky, text z faktů, vlastní 3D
+
+Krok 3g. Operátor k ukázkám série o Teslovi, po čtyřech kolech výtek: „Ano, to je výrazně lepší.“ Zásady a měření: `docs/infografiky-zasady.md`, oddíl Logika stránky.
+
+- **Text na stránce píše model, vázaný na fakta** (operátor „Model zkrátí fakt“). Upřesňuje „text v infografice nikdy z modelu“ z 23. 10.: položka nese id faktu a číslo, které ve faktu není, ji vyřadí a řekne to hlášení. Text v obrazu dál generátor nekreslí.
+- **Vlastní 3D před dobovou fotkou** („proč tam dáváš staré fotky, když máme 3D figuru a modely“). Vlastní obrazy tématu popisuje `library/tema/<qid>/obrazy.json`.
+- **Člověk = životopisná stránka** („U Tesly mají být biografická data“): figura a osa života, dílo na vlastních stránkách. Narození a smrt jsou k dispozici vždy, i když je návrh nevybral.
+- **Na nové stránce žádný řádek se zdrojem, jen označení AI a cizí autor** („vykašli se na ty drobounké popisky ZDROJ“), stejně jako „Řádek Zdroj pryč“ pro ostatní dokumenty. Přijatá Studna se nepřepisuje. Zdroje jsou v dokumentu a ve Studiu pod „Zdroje pod článek“.
+- **Prázdná plocha je chyba, kterou hledá stroj** („jako mávání hadrem býkovi před očima“), práh 20 % plochy pod titulkem. Formát stránky se řídí obrazem, návrh ho jen navrhuje; změnu řekne hlášení.
+- **Popisky velké, ve sloupci, ve výšce své věci, název a pod ním text**; hlavní věc dominuje a obraz je nasvícený pro stránku. Tmavá stránka je pro Teslu výchozí, ne závazná pro všechny série („Nedodržuj otrocky styl“).
+- Tisková příloha prochází stejnou skladbou, kontrola o mobilu jí nic nehlásí. Vlastní skladbu pro tisk zatím nikdo nechtěl.
+
 ## 2026-11-02 — Zdroj na infografice je jeden krátký řádek
 
 Operátor k sérii Studny: „Proč jsou tam drobným ty obrovské popisky o zdrojích, na základě kterých to vzniklo, co je to za debilitu?“

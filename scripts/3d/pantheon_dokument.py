@@ -71,7 +71,7 @@ def fields(folder: str, exploded: dict) -> dict:
          "items": [{"value": value, "text": small, "x": x} for x, (value, small) in zip((50, 190, 372, 530, 668), plakat.FACTS)]},
         {"id": "pudorys", "typ": "kresba", "poradi": 9, "nazev": "Půdorys", "rect": box, "viewbox": box, "kresba": drawing, "texty": plan_words},
     ]
-    return {"title": "Pantheon", "subtitle": "Největší kupole z nevyztuženého betonu\nŘím, asi 114–126 n. l.", "size": "1600x2400", "accent": plakat.ACCENT,
+    return {"pismo": "plakat", "title": "Pantheon", "subtitle": "Největší kupole z nevyztuženého betonu\nŘím, asi 114–126 n. l.", "size": "1600x2400", "accent": plakat.ACCENT,
             "sources": plakat.SOURCES.removeprefix("Zdroj: "), "nadpis": {"x": 50, "y": 118, "size": 88}, "paticka_y": 2306, "panels": panels}
 
 
