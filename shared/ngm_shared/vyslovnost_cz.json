@@ -74,6 +74,11 @@
     {"grapheme": "mitochondri", "alias": "mito-chondri", "type": "term", "kmen": true, "note": "OmniVoice čte ch anglicky jako k (Whisper: mitokondrie); spojovník na hranici slova to vrací, ticho rázu zmizelo a pauza nad 30 ms nepřibyla (POHYB, měření 2026-11-01)"},
     {"grapheme": "mitochondriáln", "alias": "mito-chondriáln", "type": "term", "kmen": true, "note": "přídavné jméno, stejná oprava jako mitochondri; samostatně neměřeno"},
     {"grapheme": "buňku", "alias": "buňjku", "type": "other", "note": "OmniVoice čte ň před k tvrdě („bunku“, POHYB virus v DNA); operátor vybral poslechem 2026-11-02"},
-    {"grapheme": "hostitel", "alias": "hosťitel", "type": "other", "kmen": true, "note": "OmniVoice čte měkké ti tvrdě („hostytele“, POHYB virus v DNA); operátor vybral poslechem 2026-11-02"}
+    {"grapheme": "hostitel", "alias": "hosťitel", "type": "other", "kmen": true, "note": "OmniVoice čte měkké ti tvrdě („hostytele“, POHYB virus v DNA); operátor vybral poslechem 2026-11-02"},
+    {"grapheme": "Nizozemsk", "alias": "Ňizozemsk", "type": "toponym", "kmen": true, "note": "OmniVoice čte Ni tvrdě („Nyzozemsko“, operátor POHYB Velsen 2026-11-02); poslechem neověřeno"},
+    {"grapheme": "shora", "alias": "zhora", "type": "other", "note": "čte se „zhora“, OmniVoice řekl „schora“ (operátor POHYB Velsen 2026-11-02)"},
+    {"grapheme": "Harz", "alias": "Harc", "type": "toponym", "note": "německé pohoří"},
+    {"grapheme": "Driessen", "alias": "Drísen", "type": "name", "note": "Mark Driessen, archeolog, Leiden"},
+    {"grapheme": "dani", "alias": "daňi", "type": "other", "note": "měkké ni, OmniVoice ho čte tvrdě (jako hostitel a buňku); poslechem neověřeno"}
   ]
 }
