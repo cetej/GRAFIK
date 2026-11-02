@@ -9,12 +9,12 @@ from __future__ import annotations
 import re
 
 from engine.infographics import InfoError, canvas_size
-from engine.panels import LINE_WIDTH, _text_box, fonts, text_height, title_lines, wrap
+from engine.panels import LINE_WIDTH, _text_box, fonts, short_note, text_height, title_lines, wrap
 
 GAP_JOIN = 6            # panely blíž než tolik (při k = 1) tvoří jeden blok
 GAP_SERIES = 40
 HERO_SHARES = [x / 100 for x in range(25, 80, 5)]
-HERO_MIN_AREA = 0.25    # hlavní blok zabere aspoň tolik volné plochy, jinak by vyhrály drobnosti
+MIN_REST = 0.5          # ostatní bloky se zmenší nejvýš na tolik, hlavní obraz má přednost (operátor 2. 11.)
 MAX_SCALE = 2.0         # obrázky v dokumentu jsou tak velké, jak je render uložil
 
 
@@ -166,7 +166,7 @@ def _place(lines, s, tall, x0, y0, width, height, gap, out) -> None:
 
 
 def arrange(blocks: list[dict], W: int, H: int, foot: float, k: float) -> list[tuple]:
-    """[(blok, měřítko, x, y)]. Zkouší hlavní blok nahoře i vlevo a různě velký; vyhrává největší písmo v ostatních blocích."""
+    """[(blok, měřítko, x, y)]. Hlavní blok dostane co nejvíc plochy, ostatní se přizpůsobí, dokud nejsou menší než MIN_REST originálu."""
     margin, gap = 30 * k, 26 * k
     free_w, free_h = W - 2 * margin, H - 2 * margin - foot
     top = margin
@@ -179,7 +179,7 @@ def arrange(blocks: list[dict], W: int, H: int, foot: float, k: float) -> list[t
     rest = [b for b in blocks if not b["title_only"]]
     hero, others = rest[0], rest[1:]
     hw, hh = hero["box"][2:]
-    best, best_score = None, (-1.0, -1.0)
+    best, best_score = None, (-1.0, -1.0, -1.0)
     for side in ("top", "left"):
         for share in HERO_SHARES:
             if side == "top":
@@ -190,10 +190,10 @@ def arrange(blocks: list[dict], W: int, H: int, foot: float, k: float) -> list[t
                 area = (free_w - hw * sh - gap, free_h)
             hero_area = hw * hh * sh * sh
             if not others:
-                if (sh, hero_area) > best_score:
-                    best, best_score = (side, sh, None, None, False, area), (sh, hero_area)
+                if (sh, hero_area, sh) > best_score:
+                    best, best_score = (side, sh, None, None, False, area), (sh, hero_area, sh)
                 continue
-            if min(area) <= 0 or hero_area < HERO_MIN_AREA * free_w * free_h:
+            if min(area) <= 0:
                 continue
             found = _best_fill(others, area[0], area[1], gap)
             if not found:
@@ -202,8 +202,9 @@ def arrange(blocks: list[dict], W: int, H: int, foot: float, k: float) -> list[t
             s = min(s, sh)      # nic není větší než hlavní obraz
             if hero_area < max(b["box"][2] * b["box"][3] for b in others) * s * s:
                 continue
-            if (s, hero_area) > best_score:
-                best, best_score = (side, sh, s, lines, tall, area), (s, hero_area)
+            score = (min(s, MIN_REST), hero_area, s)    # nad MIN_REST rozhoduje velikost hlavního obrazu
+            if score > best_score:
+                best, best_score = (side, sh, s, lines, tall, area), score
     if best is None:
         raise InfoError("panely se do tohohle formátu nevejdou; zvolte jiný poměr nebo větší rozměr")
     side, sh, s, lines, tall, area = best
@@ -244,9 +245,9 @@ def reformat(doc: dict, size: str) -> dict:
     W, H = canvas_size(size)
     k, f = page_k(doc), fonts(doc)
     new_k = k * ((W * H) / (canvas_size(doc["size"])[0] * canvas_size(doc["size"])[1])) ** 0.5
-    note = f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}"
+    note = short_note(doc)
     lines = wrap(note, round((W - 2 * f["okraj"] * new_k) / (f["zdroj"] * new_k * LINE_WIDTH)))
-    foot = f["zdroj_dole"] * new_k + len(lines) * f["zdroj_krok"] * new_k
+    foot = f["zdroj_dole"] * new_k + len(lines) * f["zdroj_krok"] * new_k if lines else 0
     blocks = make_blocks(doc)
     panels_out = list(doc["panels"])
     head = None
@@ -263,7 +264,7 @@ def reformat(doc: dict, size: str) -> dict:
         if p["typ"] in ("fakta", "text", "osa"):    # rám textu je širší než text sám, kreslí se z něj jen to, co je v `_text_extent`
             x, y, w, h = p["rect"]
             p["rect"] = [x, y, min(w, W - x), min(h, H - y)]
-    fields = {**doc, "size": size, "panels": panels_out, "meritko": new_k, "paticka_y": H - f["zdroj_dole"] * new_k - (len(lines) - 1) * f["zdroj_krok"] * new_k, "predelano_z": {"id": doc["id"], "size": doc["size"]}}
+    fields = {**doc, "size": size, "panels": panels_out, "meritko": new_k, "predelano_z": {"id": doc["id"], "size": doc["size"]}}
     if head:
         fields["nadpis"] = head
     return fields

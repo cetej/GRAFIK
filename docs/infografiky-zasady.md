@@ -25,7 +25,7 @@ Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má �
 | „Často zmenšíš hlavní grafiku na úkor pitomých, blbě zalomených popisků s nulovou informační hodnotou.“ | Velikost obrazu se určí dřív než popisky. Kvůli popiskům se zmenší nejvýš na 70 %, pak vypadne nejméně důležitý popisek a hlášení to řekne. Holý název části bez vysvětlení na stránku nepatří. | `serie.SCALES`, `serie._compose`, prompt `serie.SYSTEM` |
 | „Popisky jsou malé a divně nahloučené.“ | Název 1/20 šířky, text pod ním 86 % z toho. Popisky ve sloupci na společné svislici, název ve výšce své věci, mezera aspoň jedno písmo. | `serie._column`, `panels.MOBIL` |
 | „Proč otrocky trváš na dlouhých řádcích třeba i ze dvou písem“ | Název a pod ním krátké vysvětlení, nikdy dvě písma na jednom řádku. Řádky vyrovnané, slovo nezůstane samo. | `serie._even_chars`, u faktů `stackedFacts` v editoru |
-| „Vykašli se na ty drobounké popisky ZDROJ.“ | Na nové stránce jen krátké označení AI, je-li na ní AI obraz (licence FLUX). Zdroje jdou pod článek. | `panels.footer`, Studio „Zdroje pod článek“ |
+| „Vykašli se na ty drobounké popisky ZDROJ.“ | Na stránce jen označení AI (licence FLUX) a cizí autor. Zdroje jdou pod článek. | `panels.short_note`, Studio „Zdroje pod článek“ |
 
 Rok nebo číslo patentu, které nepatří k části obrazu, nejsou volný lístek vedle obrazu: patří do věty pod titulkem (prompt `serie.SYSTEM`).
 
@@ -62,7 +62,7 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 **Velká plachta se dělí.** Kde by text vyšel pod práh, písmo se nezmenšuje a stránka se rozdělí na víc menších.
 - Dělí se podle otázek čtenáře: jedna stránka, jedna otázka, jeden hlavní obraz a nejvýš 3 další panely. Studna a scénáře jsou tak rozdělené už teď, jen každá z nich nese ještě dvakrát až třikrát víc textu, než se vejde.
 - Každá stránka obstojí sama: vlastní titulek a řádek se zdrojem. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
-- **Na stránce série z návrhu (krok 3g) zdroj není, jen označení AI** (oddíl Logika stránky). Přijatá Studna zůstává, jak je. U ostatních stránek platí: **zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
+- **Řádek Zdroj na stránce není (operátor 2. 11., novější než věta dál).** Renderer dokumentu i editor kreslí jen označení AI a cizího autora. Starší znění: **Zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
 - Série drží stejné písmo, barvy a velikosti, stejný objekt vypadá na všech stránkách stejně.
 - Souhrnný plakát na jedné ploše vznikne navíc jen na přání operátora, pro tisk nebo stažení. Do článku jde série.
 - Věrná kopie husté předlohy pravidlo poruší. Řekni to operátorovi předem a navrhni rozdělení.

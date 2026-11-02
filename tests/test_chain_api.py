@@ -429,8 +429,9 @@ def test_pages_are_built_from_facts_and_each_is_checked(settings, sd):
             assert doc["size"] in ("1080x1350", "1080x1620", "1080x1080") and doc["pismo"]["jednotek"] == pn.MOBIL["jednotek"] and doc["serie"]["celkem"] == 2
             found = [row for row in c.get(f"/api/v2/infographics/{page['doc']}/kontrola").json() if not row["ok"]]
             assert not [row for row in found if "mobil" in row["text"] or "zasahuje" in row["text"] or "přetéká" in row["text"]], found
-            assert doc["sources"] and doc["na_strance"] == "" and doc["sources"] not in c.get(f"/api/v2/infographics/{page['doc']}/svg").text      # zdroj je v dokumentu, na stránce ne
-        assert "Dehio, CC0" in c.get(f"/api/v2/infographics/{done['serie'][0]['doc']}").json()["ai_note"]      # autor obrazu zůstává v provenienci
+            assert doc["sources"] and doc["sources"] not in c.get(f"/api/v2/infographics/{page['doc']}/svg").text      # zdroj je v dokumentu, na stránce ne
+        first = c.get(f"/api/v2/infographics/{done['serie'][0]['doc']}").json()
+        assert "Dehio, CC0" in first["ai_note"] and "Dehio, CC0" in first["na_strance"] and "Dehio, CC0" in c.get(f"/api/v2/infographics/{first['id']}/svg").text      # autor cizího obrazu zůstává i na stránce
         assert c.post(f"/api/v2/workflows/{wf['id']}/stranky").status_code == 409     # složené se znovu neplatí
 
 

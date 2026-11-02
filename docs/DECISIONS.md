@@ -9,7 +9,7 @@ Krok 3g. Operátor k ukázkám série o Teslovi, po čtyřech kolech výtek: „
 - **Text na stránce píše model, vázaný na fakta** (operátor „Model zkrátí fakt“). Upřesňuje „text v infografice nikdy z modelu“ z 23. 10.: položka nese id faktu a číslo, které ve faktu není, ji vyřadí a řekne to hlášení. Text v obrazu dál generátor nekreslí.
 - **Vlastní 3D před dobovou fotkou** („proč tam dáváš staré fotky, když máme 3D figuru a modely“). Vlastní obrazy tématu popisuje `library/tema/<qid>/obrazy.json`.
 - **Člověk = životopisná stránka** („U Tesly mají být biografická data“): figura a osa života, dílo na vlastních stránkách. Narození a smrt jsou k dispozici vždy, i když je návrh nevybral.
-- **Na nové stránce žádný řádek se zdrojem, jen označení AI** („vykašli se na ty drobounké popisky ZDROJ“). Zpřísňuje rozhodnutí o jednom řádku níž pro nové stránky; přijatá Studna se nepřepisuje. Zdroje jsou v dokumentu a ve Studiu pod „Zdroje pod článek“.
+- **Na nové stránce žádný řádek se zdrojem, jen označení AI a cizí autor** („vykašli se na ty drobounké popisky ZDROJ“), stejně jako „Řádek Zdroj pryč“ pro ostatní dokumenty. Přijatá Studna se nepřepisuje. Zdroje jsou v dokumentu a ve Studiu pod „Zdroje pod článek“.
 - **Prázdná plocha je chyba, kterou hledá stroj** („jako mávání hadrem býkovi před očima“), práh 20 % plochy pod titulkem. Formát stránky se řídí obrazem, návrh ho jen navrhuje; změnu řekne hlášení.
 - **Popisky velké, ve sloupci, ve výšce své věci, název a pod ním text**; hlavní věc dominuje a obraz je nasvícený pro stránku. Tmavá stránka je pro Teslu výchozí, ne závazná pro všechny série („Nedodržuj otrocky styl“).
 - Tisková příloha prochází stejnou skladbou, kontrola o mobilu jí nic nehlásí. Vlastní skladbu pro tisk zatím nikdo nechtěl.
@@ -34,6 +34,10 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Měřítko je telefon široký 360 px. Nejmenší text má 1/30 šířky stránky (12 px na telefonu), titulek 1/15. Tabulka a meze: `docs/infografiky-zasady.md`, oddíl Web a mobil. Čísla jsem navrhl já, mez 12 px je z auditu Lighthouse; operátor je zatím neviděl na hotové sérii.
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
+
+## 2026-11-02 — Řádek Zdroj na infografice není, hlavní obraz má přednost
+
+Operátor: „Co jsem KURVA říkal o tom popisku ZDROJ? Zase si umenšil hlavní zajímavou grafiku na úkor debilního popisku, který měl být vyřazen.“ Renderer dokumentu s panely i editor kreslí jen označení AI a cizího autora, `sources` zůstávají v dokumentu a Studio je ukáže jako „Zdroje pod článek“. Předělat na formát dá hlavnímu obrazu co nejvíc plochy, ostatní bloky se zmenší nejvýš na polovinu.
 
 ## 2026-11-02 — Rozdělit pro mobil odstraněno
 

@@ -819,7 +819,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
                     meta = reflib.get(source["ref_id"]) or {}
                     credits.append(panels.credit(panel["nazev"], meta.get("author"), meta.get("license")))
             rendered = any(not any((p.get("zdroj") or {}).get(key) for key in ("obraz", "ref_id", "ai")) for p in validated if p["typ"] == "obraz")
-            short = "; ".join(f"{', '.join(names)}: AI" for names in illustrated.values())
+            short = "; ".join([*(f"{', '.join(names)}: AI" for names in illustrated.values()), *credits])
             return panels.compose_note(rendered and bool((prov or {}).get("render")), illustrated, credits), bool(illustrated), short
 
         return infos.create_panels(fields, source_of, make_base, note_of)

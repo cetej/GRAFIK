@@ -428,7 +428,7 @@ def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: l
     margin = f["okraj"] * k
     label_size = f["popisek"] * k
     title_size = _title_size(title, W, f, k)
-    doc = {"title": title, "nadpis": {"size": title_size}, "sources": "", "ai_note": "", "na_strance": short_note, "panels": []}
+    doc = {"title": title, "nadpis": {"size": title_size}, "sources": "", "ai_note": "", "na_strance": short_note, "pismo": f, "panels": []}
     title_y = margin + title_size * 0.82
     lead_lines = panels.wrap(lead, int((W - 2 * margin) / (f["podtitulek"] * k * LEAD_WIDTH))) if lead else []
     top = panels.head_bottom({**doc, "nadpis": {"y": title_y, "size": title_size}, "subtitle": "\n".join(lead_lines)}, f, k, W)
@@ -534,7 +534,8 @@ def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, pic
     used = {fid for panel in page["panely"] for fid in panel["fakta"]}
     source_names = dict.fromkeys(s["nazev"].split(":")[0] for fid in used for s in known[fid].get("zdroje") or [])
     ai_names = [row[2]["nazev"] for row in pictures if row[2]["zdroj"].get("ai")]
-    short = f"{', '.join(ai_names)}: AI" if ai_names else ""
+    credits = [panels.credit(row[2]["nazev"], row[2].get("_autor"), row[2].get("_licence")) for row in pictures if row[2]["zdroj"].get("ref_id")]
+    short = "; ".join([*([f"{', '.join(ai_names)}: AI"] if ai_names else []), *credits])
     fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, insets, PAGE_SIZES[page["format"]])
     notes += [f"Nevešlo se: {d}" for d in dropped]
     if fields["size"] != PAGE_SIZES[page["format"]]:

@@ -197,7 +197,7 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
   const { W, H, k, pad, imgH, pruh, f: fonts } = L
   const t = THEMES[doc.template]
   const schema = doc.schema ? schemaParts(doc.schema.svg) : null
-  const footer = fonts.mobil ? wrap(doc.ai_note, Math.floor((W - 2 * pad) / (fonts.paticka * LETTER))) : wrap(`${doc.sources ? `Zdroj: ${doc.sources} ` : ''}${doc.ai_note}`, Math.floor((W - 2 * pad) / (5.4 * k)))
+  const footer = wrap(doc.ai_note, Math.floor((W - 2 * pad) / (fonts.mobil ? fonts.paticka * LETTER : 5.4 * k)))
   const bar = pruh ? factBar(doc, W, H, k, pad, fonts, footer.length) : null
   const bottomTop = imgH + 10 * k
   const schemaW = 500 * k
@@ -518,6 +518,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <button className="btn go" disabled={!!busy} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
         </div>
       )}
+      {doc.sources && <p className="hint">Zdroje pod článek: {doc.sources}</p>}
       <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />
       <ul className="panel-checks">
         {checks.map((c, i) => <li key={i} className={c.ok ? 'ok' : 'warn'}>{c.ok ? '✓' : '!'} {c.text}</li>)}

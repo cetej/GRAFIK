@@ -235,9 +235,11 @@ class Chain:
             source = {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {})}
         else:
             path, points, source = self.reflib.image_path(image["ref_id"]), {}, {"ref_id": image["ref_id"]}
+            meta = self.reflib.get(image["ref_id"]) or {}
         with Image.open(path) as im:
             alpha = im.getchannel("A").copy() if im.mode == "RGBA" else None
-            return {"zdroj": source, "_res": im.size, "_alpha": alpha, "_points": points}
+            found = {"zdroj": source, "_res": im.size, "_alpha": alpha, "_points": points}
+        return {**found, "_autor": meta.get("author"), "_licence": meta.get("license")} if image.get("ref_id") and not image.get("slozka") else found
 
 
 def register(app: FastAPI, chain: Chain, workflows) -> None:

@@ -242,10 +242,9 @@ def _text(x, y, s, size, fill, weight=400, anchor="start", halo=None, spacing=0.
 
 
 def footer(doc: dict, f: dict, k: float, W: int, H: int) -> tuple[list[str], float]:
-    """Řádky patičky a účaří prvního z nich. Nová stránka nese jen povinné označení AI, zdroje jdou pod článek (operátor 2. 11.)."""
-    note = doc.get("na_strance", "") if f["zalomit"] else f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}"
-    lines = wrap(note, round((W - 2 * f["okraj"] * k) / (f["zdroj"] * k * LINE_WIDTH)))
-    return lines, doc.get("paticka_y") or H - f["zdroj_dole"] * k - (len(lines) - 1) * f["zdroj_krok"] * k
+    """Řádky patičky a účaří prvního z nich."""
+    lines = wrap(short_note(doc), round((W - 2 * f["okraj"] * k) / (f["zdroj"] * k * LINE_WIDTH)))
+    return lines, H - f["zdroj_dole"] * k - (len(lines) - 1) * f["zdroj_krok"] * k
 
 
 def axis_gap(panel: dict, f: dict, k: float, size: float) -> float:
@@ -350,6 +349,19 @@ class Sheet:
                     best = max(best, tall * (col - start))
                 stack.append((start, h))
         return best / ((r1 - r0) * (c1 - c0))
+
+
+def short_note(doc: dict) -> str:
+    """Patička stránky: jen co je AI a cizí autor (licence). Řádek Zdroj na stránku nepatří, `sources` jdou pod článek (operátor 2. 11.)."""
+    pismo = doc.get("pismo")
+    if isinstance(pismo, dict) and pismo.get("zalomit") and "na_strance" in doc:     # nová stránka: kratší „Figura: AI“, spočítané při skládání
+        return doc["na_strance"]
+    kept = []
+    for part in (doc.get("ai_note") or "").split(";"):
+        part = part.strip()
+        if ":" in part and "bez AI" not in part:
+            kept.append(part)
+    return "; ".join(kept)
 
 
 class Renderer:

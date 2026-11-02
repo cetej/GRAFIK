@@ -203,17 +203,19 @@ def vc_copy(d: Path, make, mode: str | None = None) -> dict:
     return {"path": d / name, "file": name, "created": True}
 
 
-def visible_note(doc: dict) -> str:
-    """Věta, která musí zůstat na plátně. Nová stránka nese jen krátké označení AI, a jen když je na ní AI obraz; prázdná věta je v každém textu."""
-    pismo = doc.get("pismo")
-    return doc.get("na_strance", "") if isinstance(pismo, dict) and pismo.get("zalomit") else doc["ai_note"]
+def _footer_note(doc: dict) -> str:
+    """What must stay visible: a panel document shows only the AI mark and foreign authors, the editor's document its whole note."""
+    if doc.get("schema_version"):
+        from engine import panels
+        return panels.short_note(doc)
+    return doc["ai_note"]
 
 
 def _clean_with_note(svg: str, doc: dict) -> str:
     svg = clean_svg(svg, allow_data_images=True)
     # the footer is wrapped into several <text> lines: compare the bare text without tags and spaces
     bare = re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", svg).replace("&amp;", "&"))
-    if re.sub(r"\s+", "", visible_note(doc)) not in bare:
+    if re.sub(r"\s+", "", _footer_note(doc)) not in bare:
         raise InfoError("v exportu chybí označení AI v patičce")
     return svg
 
@@ -425,9 +427,8 @@ class InfographicStore:
                 if opened.get("missingLinks"):
                     raise InfoError(f"v úpravě chybí propojené soubory: {', '.join(map(str, opened['missingLinks']))}")
                 texts = _canvas_texts(vc.tool("inspect_document"))
-                note = visible_note(doc)
-                if re.sub(r"\s+", "", note) not in re.sub(r"\s+", "", "".join(texts)):
-                    raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{note}“. Nic se neuložilo.")
+                if re.sub(r"\s+", "", _footer_note(doc)) not in re.sub(r"\s+", "", "".join(texts)):
+                    raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{_footer_note(doc)}“. Nic se neuložilo.")
                 vc.tool("export", path=str(out / "e.png"))
                 vc.tool("export", path=str(out / "e.pdf"))
                 vc.tool("export", path=str(out / "e.svg"), outlineText=True)   # same look without the fonts, as NG-ROBOT
