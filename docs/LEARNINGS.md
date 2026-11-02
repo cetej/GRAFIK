@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Patička zkopírovaná z velkého plakátu
+
+Na každou kartu šla patička z plakátu, na šířce 1080 px v písmu 27 px z ní bylo 4 až 7 řádků, skoro polovina textu stránky. Vlastní pravidlo o tom mlčelo a žádalo „zdroj a větu o AI“ na každé stránce, přitom `~/.claude/rules/grafika-texty.md` už říká, že výhrady a citace patří do jednoho řádku pod obraz. Kontrola sazby hlídá velikost písma, délku patičky ne. Před odesláním spočítej slova patičky proti slovům stránky.
+
 ## 2026-11-02 — Studna jako série pro mobil: větší obraz odhalí, co malý schoval
 
 - **Výřez z renderu plakátu nestačí.** Muž ve výřezu měl z renderu 1014 × 2200 jen 415 px na výšku a pánev 450 px na šířku. Oba obrazy šly znovu přes Blender (0 USD): studna ve dvojnásobku a zmenšená pro celkový pohled, ať jsou všechny stránky z jednoho renderu, pánev s kratším rámem (`--vyska 0.44`).
