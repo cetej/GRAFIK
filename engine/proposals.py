@@ -34,6 +34,7 @@ Jsi art director infografik National Geographic. Z dossieru faktů navrhni TŘI 
 
 Zásady:
 - PRO_KOHO
+- Je to popularizace vědy pro zvědavého laika. Věty a otázky piš tak, aby jim rozuměl člověk bez odborného vzdělání. Technický detail má místo jen tam, kde vysvětluje, jak věc funguje nebo proč je důležitá.
 - Čistý styl a rovnováha: jedna věc, na kterou čtenář kouká první, kolem ní jen to, co k ní patří. Žádné prázdné pásy, nic stísněného, panely se nepřekrývají.
 - Informační hodnota: každý panel odpovídá na otázku, kterou si čtenář položí, a ukazuje něco, co jiný panel neukáže. Nic jen pro výplň.
 - Co nemá doklad, do obrazu nepatří: každý panel s informací uvede id faktů z dossieru, o které se opírá. Nic si nedomýšlej.
