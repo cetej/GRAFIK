@@ -29,6 +29,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter
 from engine.infographics import InfoError, canvas_size, clean_svg
 
 SCHEMA = 2
+URCENI = ("web", "tisk")     # tisková příloha se čte z papíru, kontrola mobilu pro ni neplatí (operátor 2. 11.)
 KINDS = ("obraz", "fakta", "text", "osa", "kresba")
 THEMES = {"dark": {"bg": "#1d2532", "ink": "#f1ede4", "muted": "#a7b1bf", "foot": "#8b95a4", "lead": "#ffffff", "halo": "#000000"},
           "light": {"bg": "#f2f3f5", "ink": "#1d1f23", "muted": "#5d636b", "foot": "#6b7079", "lead": "#1d1f23", "halo": "#ffffff"},
@@ -142,6 +143,8 @@ def validate(doc: dict) -> list[dict]:
         if rect[2] <= 0 or rect[3] <= 0 or rect[0] < 0 or rect[1] < 0 or rect[0] + rect[2] > W + 0.5 or rect[1] + rect[3] > H + 0.5:
             raise InfoError(f"panel {pid}: rect {rect} je mimo plátno {W} × {H}")
         panel = {"id": pid, "typ": raw["typ"], "rect": rect, "poradi": int(_number(f"panel {pid}: poradi", raw.get("poradi", i + 1))), "nazev": str(raw.get("nazev") or pid), "fakta": _lines(raw.get("fakta")), "otazka": str(raw.get("otazka") or "")}
+        if raw.get("k") is not None:
+            panel["k"] = _number(f"panel {pid}: k", raw["k"])   # měřítko písma panelu po přeformátování (engine/reformat.py)
         if raw.get("titulek"):
             title = raw["titulek"] if isinstance(raw["titulek"], dict) else {"text": str(raw["titulek"])}
             panel["titulek"] = {"text": str(title.get("text") or ""), **{k: _number(f"panel {pid}: titulek", title[k]) for k in ("x", "y") if title.get(k) is not None}}
@@ -240,7 +243,7 @@ class Renderer:
     def __init__(self, doc: dict, root: Path, href=None):
         self.doc, self.root, self.href = doc, root, href
         self.W, self.H = canvas_size(doc["size"])
-        self.k = self.W / 1600
+        self.k = doc.get("meritko") or self.W / 1600
         self.t = THEMES.get(doc.get("template"), THEMES["dark"])
         self.accent = doc.get("accent") or "#dcb062"
         self.ids: set[str] = set()
@@ -436,18 +439,21 @@ class Renderer:
         gfx = [f'<g id="Pozadí"><rect width="{W}" height="{H}" fill="{self.t["bg"]}"/></g>']
         txt = []
         head = doc.get("nadpis") or {}
-        size = head.get("size", 88 * k)
-        x, y = head.get("x", 50 * k), head.get("y", 118 * k)
+        hk = head.get("k", k)
+        size = head.get("size", 88 * hk)
+        x, y = head.get("x", 50 * hk), head.get("y", 118 * hk)
         title = _text(x, y, doc["title"].upper(), size, self.accent, 700, spacing=2)
         for i, line in enumerate((doc.get("subtitle") or "").split("\n")):
             if line:
-                title += _text(x, y + (44 + 38 * i) * k, line, 31 * k, self.t["muted"])
+                title += _text(x, y + (44 + 38 * i) * hk, line, 31 * hk, self.t["muted"])
         txt.append(f'<g id="{self.gid("Nadpis")}">{title}</g>')
         draw = {"obraz": self._picture, "fakta": self._facts, "text": self._prose, "osa": self._timeline, "kresba": self._drawing}
         for panel in doc["panels"]:
+            self.k = panel.get("k", k)
             graphics, words = draw[panel["typ"]](panel)
             gfx.append(graphics)
             txt.append(words)
+        self.k = k
         foot = 17 * k
         lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 100 * k) / (foot * LINE_WIDTH)))
         top = doc.get("paticka_y") or H - 30 * k - (len(lines) - 1) * 22 * k
@@ -486,11 +492,11 @@ def _text_box(label: dict, size: float) -> tuple[float, float, float, float]:
 def checks(doc: dict, root: Path) -> list[dict]:
     """Stejné prahy jako editor, přes všechny panely. Upozorní, nic nezastaví: úsudek zůstává na člověku (docs/infografiky-zasady.md)."""
     W, H = canvas_size(doc["size"])
-    k = W / 1600
+    page = doc.get("meritko") or W / 1600
     out, lengths = [], []
     long_lines, crossings, outside, missing, unseen = 0, 0, [], [], []
     labels = 0
-    sizes = [p.get("small_size", 21 * k) for p in doc["panels"] if p["typ"] != "obraz" and p.get("items")]
+    sizes = []
     boxes = []
     struck = []
     pictures = [p for p in doc["panels"] if p["typ"] == "obraz"]
@@ -498,6 +504,9 @@ def checks(doc: dict, root: Path) -> list[dict]:
     model_of = lambda p: (p.get("zdroj") or {}).get("model_id")
     repeats = [p["nazev"] for p in pictures if p is not hero and model_of(p) and model_of(p) == model_of(hero) and not p.get("otazka")]
     for panel in doc["panels"]:
+        k = panel.get("k", page)
+        if panel["typ"] != "obraz" and panel.get("items"):
+            sizes.append(panel.get("small_size", 21 * k))
         if panel["typ"] != "obraz":
             continue
         info = body_of(root, panel)
@@ -539,9 +548,12 @@ def checks(doc: dict, root: Path) -> list[dict]:
     if repeats:
         out.append({"ok": False, "text": f"opakují hlavní model a neříkají proč: {', '.join(repeats)}. Co ukážou víc než hlavní obraz?"})
     out.append({"ok": not long_lines, "text": f"{long_lines} popisků delších než {MAX_LABEL_CHARS} znaků" if long_lines else "popisky krátké"})
-    phone_px = min(sizes, default=PHONE_MIN_PX * W / PHONE_W) * PHONE_W / W
-    too_small = round(phone_px, 1) < PHONE_MIN_PX
-    out.append({"ok": not too_small, "text": f"na mobilu (šířka {PHONE_W} px) má nejmenší text {phone_px:.1f} px, chce aspoň {PHONE_MIN_PX}: větší písmo, méně textu, nebo víc menších stránek" if too_small else "písmo čitelné i na mobilu"})
+    if doc.get("urceni", "web") == "web":
+        phone_px = min(sizes, default=PHONE_MIN_PX * W / PHONE_W) * PHONE_W / W
+        too_small = round(phone_px, 1) < PHONE_MIN_PX
+        out.append({"ok": not too_small, "text": f"na mobilu (šířka {PHONE_W} px) má nejmenší text {phone_px:.1f} px, chce aspoň {PHONE_MIN_PX}: větší písmo, méně textu, nebo víc menších stránek" if too_small else "písmo čitelné i na mobilu"})
+    else:
+        out.append({"ok": True, "text": "tisková příloha: mobil se nekontroluje"})
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
     out.append({"ok": not overlaps, "text": f"překrývají se popisky: {', '.join(overlaps)}" if overlaps else "popisky se nepřekrývají"})
     if outside:

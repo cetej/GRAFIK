@@ -15,6 +15,8 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu v těch poměrech velikosti nejdou nic úžasného“. Infografiku čtenář vidí v článku, velmi často na mobilu. Stránka se tam zmenší na šířku displeje a většina lidí ji nezvětšuje, takže větší plátno nepomůže: o čitelnosti rozhoduje jen poměr písma k šířce stránky.
 
+**Volba: web, nebo tisková příloha.** Operátor 2. 11.: „De facto by tam mělo být rozhodování / možnost, zda vytváříme tiskovou přílohu, nebo infografiky pro web, které budou defaultním požadavkem.“ Výchozí je web a platí vše v tomto oddílu. Tisková příloha (`urceni: "tisk"`, přepínač „Kam to půjde“) se čte z papíru, smí být bohatá a kontrola mobilu pro ni neplatí.
+
 **Navrhuj pro telefon široký 360 px, a to před skladbou.** Hotovou stránku už to nezachrání.
 
 | Text | Na telefonu | Podíl šířky stránky | Stránka 1080 px | Stránka 1800 px |

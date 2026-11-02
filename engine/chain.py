@@ -17,6 +17,8 @@ import threading
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from typing import Literal
+
 from pydantic import BaseModel
 
 from engine import infographics, proposals
@@ -41,6 +43,7 @@ class ChainIn(BaseModel):
     vzor: str | None = None             # ref_id vzoru z knihovny předloh
     research: str | None = None         # začít od hotového dossieru
     model: str | None = None            # jinak proposals.DEFAULT_MODEL
+    urceni: Literal["web", "tisk"] = "web"
     confirm_cost: bool = False
     caller: str = "studio"
 
@@ -136,7 +139,7 @@ class Chain:
         what = f"návrhy skladby ({wf.model})"
         self.log_cost({**ledger, "usd": estimate, "status": "pending", "items": [{"what": f"{what}, odhad", "usd": estimate}]})
         try:
-            out = proposals.propose(dossier, vzor=vzor, model=wf.model, ask=self.ask)
+            out = proposals.propose(dossier, vzor=vzor, model=wf.model, ask=self.ask, urceni=wf.urceni)
         except claude.ClaudeError as e:
             cost = e.cost or {"usd": 0.0}
             self.log_cost({**ledger, "usd": cost["usd"], "status": "failed", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
@@ -219,7 +222,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
         est = chain.estimate(draft, STEPS[1:] if body.research else STEPS)
         if not body.confirm_cost:
             return payment(est, "Řetězec")
-        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"])
+        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"])
         chain.enqueue(wf, "navrhy" if body.research else "podklady")
         return wf
 

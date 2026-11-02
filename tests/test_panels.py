@@ -405,3 +405,71 @@ def test_examples_build_valid_documents():
     points = {a["nazev"] for a in clean["kotvy"]}
     assert all(label_["kotva"] in points for p in checked if p["typ"] == "obraz" for label_ in p["labels"] if isinstance(label_["kotva"], str))
     assert sorted(p["poradi"] for p in checked) == list(range(1, len(checked) + 1))
+
+
+def test_reformat_makes_a_new_document_and_leaves_the_source(api, settings, doc):
+    source = settings.library_dir / "infographics" / doc["id"] / "info.json"
+    before = source.read_bytes()
+    r = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "16:9"})
+    assert r.status_code == 201, r.text
+    new = r.json()
+    assert new["id"] != doc["id"] and new["predelano_z"] == {"id": doc["id"], "size": "1600x2400"}
+    W, H = map(int, new["size"].split("x"))
+    assert abs(W / H - 16 / 9) < 0.01 and abs(W * H - 1600 * 2400) < 0.01 * 1600 * 2400
+    assert source.read_bytes() == before
+    assert (settings.library_dir / "infographics" / new["id"] / "panely" / "hlavni" / "obraz.png").is_file()
+    # stejné panely a texty, jen jinde
+    assert [p["id"] for p in new["panels"]] == [p["id"] for p in doc["panels"]]
+    assert api.get(f"/api/v2/infographics/{new['id']}/svg").text.count('<g id="Texty">') == 1
+    assert [i["value"] for p in new["panels"] if "items" in p for i in p["items"]] == [i["value"] for p in doc["panels"] if "items" in p for i in p["items"]]
+    for p in new["panels"]:
+        x, y, w, h = p["rect"]
+        assert x >= 0 and y >= 0 and x + w <= W + 0.5 and y + h <= H + 0.5
+    assert api.get(f"/api/v2/infographics/{new['id']}/svg").status_code == 200
+    assert api.get(f"/api/v2/infographics/{new['id']}/kontrola").status_code == 200
+
+
+def test_reformat_keeps_labels_on_the_same_point_of_the_picture(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1080x1350"}).json()
+    old_p, new_p = doc["panels"][0], new["panels"][0]
+    s = new_p["rect"][2] / old_p["rect"][2]
+    assert new_p["k"] == pytest.approx(s * 1.0)
+    dx = new_p["labels"][0]["pos"][0] - new_p["rect"][0]
+    assert dx == pytest.approx((old_p["labels"][0]["pos"][0] - old_p["rect"][0]) * s)
+
+
+def test_reformat_again_scales_from_the_new_format(api, doc):
+    one = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "1:1"}).json()
+    two = api.post(f"/api/v2/infographics/{one['id']}/reformat", json={"size": "2:3"})
+    assert two.status_code == 201, two.text
+    assert two.json()["predelano_z"]["id"] == one["id"]
+
+
+@pytest.mark.parametrize("size", ["nesmysl", "0:5", "1x1"])
+def test_reformat_refuses_unknown_format(api, doc, size):
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": size}).status_code == 400
+
+
+def test_reformat_refuses_documents_without_panels_and_missing_ones(api):
+    buf = BytesIO()
+    Image.new("RGB", (64, 64), "white").save(buf, "PNG")
+    old = api.post("/api/v2/infographics/upload", json={"b64": base64.b64encode(buf.getvalue()).decode(), "name": "a.png"}).json()
+    assert api.post(f"/api/v2/infographics/{old['id']}/reformat", json={"size": "1:1"}).status_code == 400
+    assert api.post("/api/v2/infographics/20000101-000000-0000/reformat", json={"size": "1:1"}).status_code == 404
+
+
+def test_reformatted_document_reports_the_phone_size_of_its_own_scale(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "16:9"}).json()
+    phone = [c for c in api.get(f"/api/v2/infographics/{new['id']}/kontrola").json() if "mobilu" in c["text"]]
+    assert phone and not phone[0]["ok"]
+    assert phone[0]["text"] != [c for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json() if "mobilu" in c["text"]][0]["text"]
+
+
+def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, doc):
+    assert any("mobilu" in c["text"] and not c["ok"] for c in api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json())
+    saved = api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "tisk"})
+    assert saved.status_code == 200, saved.text
+    rows = api.get(f"/api/v2/infographics/{doc['id']}/kontrola").json()
+    assert not any("mobilu" in c["text"] and not c["ok"] for c in rows) and any("tisková příloha" in c["text"] for c in rows)
+    assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "4:5"}).json()["urceni"] == "tisk"
+    assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "plakat"}).status_code == 400

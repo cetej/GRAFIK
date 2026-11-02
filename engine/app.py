@@ -130,8 +130,13 @@ class InfoVectorCraft(BaseModel):
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the document
 
 
+class InfoReformat(BaseModel):
+    size: str                       # "16:9" (same area as the source) or "1920x1080"
+
+
 class InfoPanels(BaseModel):
     title: str
+    urceni: str = "web"             # "tisk": printed supplement, no phone check
     subtitle: str = ""
     size: str = "1600x2400"
     template: str = "dark"
@@ -769,7 +774,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
     @app.get("/api/v2/infographics")
     def info_list(panely: bool = False):
-        """Panel documents only on request: the Studio editor does not draw them yet."""
+        """Panel documents only on request: older callers expect the labels of the editor's documents."""
         return [d for d in infos.list() if panely or not panels.is_panel_doc(d)]
 
     @app.post("/api/v2/infographics/panels", status_code=201)
@@ -815,6 +820,14 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
         try:
             return infos.create_panels(body.model_dump(), source_of, make_base, note_of)
+        except InfoError as e:
+            raise HTTPException(400, str(e)) from e
+
+    @app.post("/api/v2/infographics/{info_id}/reformat", status_code=201)
+    def info_reformat(info_id: str, body: InfoReformat):
+        _info_or_404(info_id)
+        try:
+            return infos.reformat_panels(info_id, body.size)
         except InfoError as e:
             raise HTTPException(400, str(e)) from e
 

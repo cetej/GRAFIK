@@ -343,3 +343,10 @@ def test_estimate_covers_the_largest_measured_dossier():
 def test_panel_kinds_in_the_prompt_are_roles_of_that_kind():
     for kind, panels in pp.PANEL_KINDS.items():
         assert set(panels.split("|")) <= set(research.PROFILES[kind].get("roles", research.ROLES))
+
+
+def test_web_is_the_default_and_print_changes_the_prompt():
+    from engine import proposals
+    assert proposals.system_prompt("vec") == proposals.system_prompt("vec", "web")
+    assert "360 px" in proposals.system_prompt("vec") and "PRO_KOHO" not in proposals.system_prompt("vec")
+    assert "tisková příloha" in proposals.system_prompt("vec", "tisk") and "360 px" not in proposals.system_prompt("vec", "tisk")

@@ -14,6 +14,18 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
 
+## 2026-11-02 — Infografika je pro web, nebo pro tisk; výchozí je web
+
+Operátor: „De facto by tam mělo být rozhodování / možnost, zda vytváříme tiskovou přílohu, nebo infografiky pro web, které budou defaultním požadavkem.“ Přepínač „Kam to půjde“ na začátku řetězce z tématu a u dokumentu s panely (`urceni`), prompt návrhů a kontrola mobilu se podle něj řídí. Dosavadní dokumenty bez pole se berou jako web.
+
+## 2026-11-02 — Předělat na formát: tlačítko u dokumentu s panely, rozpočet do 1 USD
+
+Operátor chce tlačítko, které hotový výstup předělá na jiný formát, a schválil náčrt („Ano, stav to“). Rozpočet: „pokud bude potřeba vše tak u jedné transformace rozměru do 1 dolaru automaticky, od dolaru výš na schválení“. Tahle verze stojí 0 USD, placený krok zatím není potřeba.
+
+- Panely se přeskládají jako celé bloky a zmenší se rovnoměrně (`engine/reformat.py`), nic se neořízne ani nepřezalomí. Popisky zůstávají vůči obrazu na stejném místě, proto se nové kolo Blenderu z plánu nestaví.
+- Úloha běží hned, ne ve frontě: nepracuje s GPU ani s modelem.
+- Staré dokumenty bez panelů a plakáty ze skriptů se nemění. Ilustrace: GRAFIK#150.
+
 ## 2026-11-02 — Druhá infografika „Kdo ho zabil?“ a mapka ze studny na ni
 
 Operátor schválil náčrt („Ano, stavěj“), pevnost („Jo, to vypadá docela zajímavě“) a přijal obě hotové stránky („Ano, obě ber“).
