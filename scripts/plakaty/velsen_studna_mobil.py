@@ -11,6 +11,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
 from sazba import FONT, crop_alpha, group, image_tag, text, text_over, wrap, write_poster  # noqa: E402
+from velsen_scenare_stranka import RED, mapka  # noqa: E402
 from velsen_studna_stranka import BG, DIM, GOLD, WHITE, compose, torn  # noqa: E402
 
 W, H = 1080, 1620
@@ -138,10 +139,38 @@ def bones(lib: Path) -> tuple[str, Image.Image]:
     return page(group("Pánev", image_tag(pelvis, M, vy, vw, vh, "PNG")), t), mask
 
 
+def fort(lib: Path) -> str:
+    """Where it happened: the place on a map, under it the fort with the wells where other bones lay. The numbered places of the stories stay on the page Kdo ho zabil?"""
+    sv, _ = mapka(lib, W - M - 580, 170, 580, LINE, HEAD, (0.2, 54.6))
+    t = group("Titulek", text(M, 118, "KDE SE TO STALO", TITLE, GOLD, 700)
+              + lines(M, 208, ("Římská námořní", "základna Velsen", "v zemi Frísů,", "na nejsevernějším", "rameni Rýna.", "Dnes Nizozemsko."), LEAD, WHITE))
+    picture = Image.open(lib / "pevnost/hotovo/pevnost.png").convert("RGB")
+    points = json.loads((lib / "pevnost/hotovo/body.json").read_text(encoding="utf-8"))["points"]
+    fy = 630
+    k = W / picture.width
+    fh = picture.height * k
+
+    def at(name):
+        return points[name][0] * k, fy + points[name][1] * k
+
+    wells = "".join(f'<circle cx="{at(n)[0]:.1f}" cy="{at(n)[1]:.1f}" r="10" fill="{RED}" stroke="{WHITE}" stroke-width="2"/>' for n in ("W.5", "W.8", "W.1", "W.20", "W.24", "W.16", "S221", "S190"))
+    x, y = at("W.2")
+    t += group("Studny s kostmi", wells)
+    t += group("Studna s mužem", f'<circle cx="{x:.1f}" cy="{y:.1f}" r="13" fill="{RED}" stroke="{WHITE}" stroke-width="3"/><circle cx="{x:.1f}" cy="{y:.1f}" r="24" fill="none" stroke="{WHITE}" stroke-width="3"/>'
+               f'<polyline points="{x:.1f},{y + 24:.1f} {x:.1f},{y + 112:.1f} {x + 8:.1f},{y + 112:.1f}" fill="none" stroke="{BG}" stroke-width="2"/>' + text(x + 14, y + 124, "Studna s mužem", HEAD, BG, 600))     # on the plain sand, the jetties are to the right
+    t += group("Přístav", text(W - M, fy + 88, "Přístav", LINE, WHITE, 400, "end"))
+    by = fy + fh + 62
+    t += group("Nebyl sám", lines(M, by, ("Nebyl sám",), HEAD, GOLD, weight=600) + lines(M, by + HEAD * 1.16 + 2, ("Kosti nejméně 20 lidí, i žen a dětí, v přístavu", "a v dalších studních (červeně)."), LINE, WHITE))
+    t += note(M, f"{SOURCE}: plán pevnosti (fáze 3 se studnami). Model: Blender podle plánu, bez AI; podoba budov a lodě jsou rekonstrukce, výšky 2× převýšené. Mapa: Natural Earth, dnešní pobřeží a tok Rýna; poloha podle Livius.org.", 94)
+    return page(group("Mapka", sv) + group("Pevnost", image_tag(picture, 0, fy, W, fh)), t)
+
+
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     lib, out = Path(sys.argv[1]), Path(sys.argv[2])
-    only = sys.argv[sys.argv.index("--jen") + 1].split(",") if "--jen" in sys.argv else ["1", "2", "3"]
+    only = sys.argv[sys.argv.index("--jen") + 1].split(",") if "--jen" in sys.argv else ["1", "2", "3", "4"]
+    if "4" in only:
+        write_poster(fort(lib), out, "studna-4-pevnost", W, H, "Kde se to stalo", None, False)
     if "1" in only:
         write_poster(well(lib), out, "studna-1-kde", W, H, "Muž na dně studny", None, True)
     for n, build, stem, title in (("2", barrel, "studna-2-zatizeny", "Aby nevyplaval"), ("3", bones, "studna-3-vpichy", "Kam ho bodali")):
