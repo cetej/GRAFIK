@@ -1,4 +1,4 @@
-# The infographic of the well of Velsen: one tall section after the book's fig. 2.1 in 3D, labels at its side; the bones with the stabs, the place of the garrison. Text is vector, layers for VectorCraft.
+# The infographic of the well of Velsen: one tall section after the book's fig. 2.1 in 3D, labels at its side; the bones with the stabs. Text is vector, layers for VectorCraft.
 # Facts with pages: docs/spikes/2026-11-01-velsen.md. Models: scripts/3d/velsen_studna.py, velsen_kostra.py. The overlay on the book's section: velsen_srovnani.py.
 #   python scripts/plakaty/velsen_studna_stranka.py LIB OUT [--knihovna http://127.0.0.1:8300]
 import json
@@ -7,19 +7,15 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
-from shapely.geometry import box, shape
-from shapely.ops import unary_union
 
 sys.path.insert(0, str(Path(__file__).parent))
 from sazba import FONT, crop_alpha, group, image_tag, para, text, write_poster  # noqa: E402
 
 W, H = 1800, 2400
 BG, GOLD, WHITE, DIM = "#340d11", "#dcb66e", "#f0e8da", "#b9a99a"
-SEA, LAND, WATER_INK, PEOPLE = "#26090d", "#6a3a35", "#8fb6c9", "#e0ad97"
 HEAD, BODY = 30, 26
 SECTION = 36
 CLOAK = "skupiny/plast-s403-cut.png"
-LAND_FILE = Path(r"C:/Users/stock/Documents/000_NGM/NG-ROBOT/data/teaser_satmap/ne_10m_land.geojson")     # Natural Earth, read only
 
 
 def man(lib: Path) -> tuple[Image.Image, tuple[int, int, int, int]]:
@@ -94,48 +90,6 @@ def torn(im: Image.Image, z_start: float) -> Image.Image:
     return out
 
 
-def path_of(geom, to_xy) -> str:
-    def ring(c):
-        return "M" + "L".join("%.1f,%.1f" % to_xy(x, y) for x, y in c) + "Z"
-    polys = geom.geoms if hasattr(geom, "geoms") else [geom]
-    d = ""
-    for g in polys:
-        if g.geom_type == "Polygon" and not g.is_empty:
-            d += ring(g.exterior.coords) + "".join(ring(i.coords) for i in g.interiors)
-    return d
-
-
-def mapka(lib: Path, x: float, y: float, w: float) -> tuple[str, float]:
-    """The place of the garrison on a small map; today's coast and river. Returns the svg and its height."""
-    lon0, lon1, lat0, lat1 = -1.5, 15.5, 47.5, 55.5
-    k = w / ((lon1 - lon0) * 0.63)
-    h = (lat1 - lat0) * k
-
-    def to_xy(lon, lat):
-        return x + (lon - lon0) * 0.63 * k, y + (lat1 - lat) * k
-
-    frame = box(lon0, lat0, lon1, lat1)
-    land = json.loads(LAND_FILE.read_text(encoding="utf-8"))
-    near = [shape(f["geometry"]).buffer(0).intersection(frame) for f in land["features"] if shape(f["geometry"]).intersects(frame)]
-    area = unary_union(near).simplify(0.015)
-    s = f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" fill="{SEA}"/><path d="{path_of(area, to_xy)}" fill="{LAND}" fill-rule="evenodd"/>'
-    rivers = json.loads((lib / "mapa/ne_10m_rivers.geojson").read_text(encoding="utf-8"))
-    for f in rivers["features"]:
-        if f["properties"].get("name") in ("Rhein", "Rhin", "Rhine", "Lek"):
-            line = shape(f["geometry"]).intersection(frame)
-            for part in (line.geoms if hasattr(line, "geoms") else [line]):
-                if not part.is_empty:
-                    s += '<polyline points="' + " ".join("%.1f,%.1f" % to_xy(a, b) for a, b in part.coords) + f'" fill="none" stroke="{WATER_INK}" stroke-width="2.2"/>'
-    vx, vy = to_xy(4.66, 52.46)
-    px_, py_ = to_xy(14.42, 50.08)
-    s += f'<circle cx="{px_:.1f}" cy="{py_:.1f}" r="4" fill="{WHITE}"/>' + text(px_ - 9, py_ + 7, "Praha", 21, WHITE, 400, "end")
-    s += text(*to_xy(0.2, 54.0), "Severní moře", 21, WATER_INK)
-    s += text(*to_xy(8.3, 50.75), "Rýn", 21, WATER_INK)
-    s += text(*to_xy(5.3, 53.45), "Frísové", 21, PEOPLE)
-    s += f'<circle cx="{vx:.1f}" cy="{vy:.1f}" r="7" fill="{GOLD}"/>' + text(vx + 13, vy + 9, "Velsen", 28, GOLD, 600)
-    return s, h
-
-
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     lib, out = Path(sys.argv[1]), Path(sys.argv[2])
@@ -183,10 +137,10 @@ def main() -> int:
     scale += f'<polyline points="{mx + 7:.1f},{my0:.1f} {mx:.1f},{my0:.1f} {mx:.1f},{my1:.1f} {mx + 7:.1f},{my1:.1f}" fill="none" stroke="{WHITE}" stroke-width="2"/>' + text(mx + 13, (my0 + my1) / 2 + 8, "1 m", 23, WHITE, 500)
     t += group("Hloubka", scale)
 
-    # the right column: one pelvis with all the wounds, the map at the foot
+    # the right column: one pelvis with all the wounds
     rx = 1205
-    t += group("Kostra nadpis", text(rx, 330, "KAM HO BODALI", SECTION, GOLD, 600)
-               + "".join(text(rx, 376 + i * 34, line, BODY, WHITE) for i, line in enumerate(("Úhly ran jsou podobné, muž se nejspíš nehýbal:", "spoutaný, držený, v bezvědomí, nebo už mrtvý.", "Forenzní specialisté v tom vidí spíš ponížení než boj."))))
+    t += group("Kostra nadpis", text(rx, 370, "KAM HO BODALI", SECTION, GOLD, 600)
+               + "".join(text(rx, 416 + i * 34, line, BODY, WHITE) for i, line in enumerate(("Úhly ran jsou podobné, muž se nejspíš nehýbal:", "spoutaný, držený, v bezvědomí, nebo už mrtvý.", "Forenzní specialisté v tom vidí spíš ponížení než boj."))))
     d = lib / "kostra/hotovo"
     bones = Image.open(d / "panev.png").convert("RGBA")
     ghost = Image.open(d / "panev-duch.png").convert("RGBA")
@@ -194,7 +148,7 @@ def main() -> int:
     bones.alpha_composite(ghost)
     marks = json.loads((d / "body.json").read_text(encoding="utf-8"))["panev"]
     bones, (kx, ky) = crop_alpha(bones)
-    zoom, vy = 0.77, 590
+    zoom, vy = 0.885, 810
     vw, vh = bones.width * zoom, bones.height * zoom
     vx = 1775 - vw
     grafika += group("Kostra", image_tag(bones, vx, vy, vw, vh, "PNG"))
@@ -204,7 +158,7 @@ def main() -> int:
 
     def callout(x, name, head, lines):
         ax, ay = on_bones(name)
-        y0 = 500
+        y0 = 660
         s = text(x, y0, head, HEAD, GOLD, 600) + "".join(text(x, y0 + 36 + i * 32, line, BODY, WHITE) for i, line in enumerate(lines))
         top = y0 + 36 + (len(lines) - 1) * 32 + 12
         s += f'<line x1="{ax:.1f}" y1="{top:.1f}" x2="{ax:.1f}" y2="{ay:.1f}" stroke="{GOLD}" stroke-width="1.5"/><circle cx="{ax:.1f}" cy="{ay:.1f}" r="4" fill="{GOLD}"/>'
@@ -213,16 +167,9 @@ def main() -> int:
     t += callout(rx, "pravy", "Pravá strana", ("3 větší a 4 menší zepředu",))
     t += callout(1530, "levy", "Levá strana", ("Nejméně 14 zezadu", "Čepel v největším z nich"))
 
-    # the map, its heading and one line above it
-    sv, mh = mapka(lib, rx, 0, 420)
-    my = 2230 - mh
-    sv, mh = mapka(lib, rx, my, 420)
-    grafika += group("Mapka", sv)
-    t += group("Mapka text", text(rx, my - 52, "KDE STÁLA POSÁDKA", SECTION, GOLD, 600) + text(rx, my - 16, "Námořní základna u ramene Rýna, v zemi Frísů", BODY, WHITE))
-
     t += group("Zdroj", para(bx, 2286, "Zdroj: Driessen, van Driel-Murray (eds.), Victims of Violence from the early Roman fort Velsen 1, Sidestone 2026, CC BY-NC-ND 4.0: řez a muž podle kreseb F. Marschalla (obr. 2.1, 11.1), vpichy podle skenu pánve. "
                                   "Studna a kosti: 3D model, render v Blenderu, bez AI. Postava muže a plášť: FLUX 3 Klein (AI) podle obr. 11.1. Kosti: BodyParts3D, © 2008 Life Science Integrated Database Center, CC BY-SA 2.1 JP, obecný model, ne kosti oběti. "
-                                  "Mapa: Natural Earth, dnešní pobřeží a tok Rýna; poloha podle Livius.org. Nadzemní část a horní sud jsou rekonstrukce, ne nález. Vpichy zezadu jsou zakreslené přes kost. Výšky jsou vůči hladině moře (NAP).", 20, DIM, 225, 1.3))
+                                  "Nadzemní část a horní sud jsou rekonstrukce, ne nález. Vpichy zezadu jsou zakreslené přes kost. Výšky jsou vůči hladině moře (NAP).", 20, DIM, 225, 1.3))
 
     svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">'
            f'<rect id="Pozadí" width="{W}" height="{H}" fill="{BG}"/>' + group("Grafika", grafika) + group("Texty", t) + "</svg>")
