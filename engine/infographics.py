@@ -309,30 +309,6 @@ class InfographicStore:
             shutil.rmtree(root, ignore_errors=True)     # no half document in the list
             raise
 
-    def split_panels(self, info_id: str, wanted: list[list[str]] | None) -> list[dict]:
-        """A series of new documents for the phone, each with copies of its own pictures. Nothing half-made stays if a page fails."""
-        from engine import panels, rozdeleni
-        source = self.get(info_id)
-        if not panels.is_panel_doc(source):
-            raise InfoError("rozdělit jde jen dokument s panely")
-        root = self._dir(info_id)
-        pages = rozdeleni.resolve_pages(source, root, rozdeleni.make_pieces(source, root), wanted)
-        made: list[Path] = []
-        docs = []
-        try:
-            for n, group in enumerate(pages, 1):
-                fields, _notes = rozdeleni.build_page(source, root, group, n, len(pages))
-                doc = new_doc("", fields["title"], None, fields["size"])
-                target = self._dir(doc["id"])
-                made.append(target)
-                rozdeleni.copy_pictures(fields, root, target)
-                docs.append(self.save(doc["id"], {**doc, **fields}, new=True))
-            return docs
-        except Exception:
-            for target in made:
-                shutil.rmtree(target, ignore_errors=True)
-            raise
-
     def save(self, info_id: str, data: dict, new: bool = False) -> dict:
         d = self._dir(info_id)
         old = self.get(info_id)

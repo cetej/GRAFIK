@@ -4,7 +4,7 @@ Aktualizováno 2026-11-02.
 
 ## Teď
 
-**Rozdělit pro mobil (2026-11-02):** tlačítko u dokumentu s panely (`engine/rozdeleni.py`, `POST …/rozdeleni` návrh, `POST …/rozdelit`), 0 USD. Velký obraz, popisky s vodítkem přímo u věci, nejvýš pět na stránku, další na výřezu téhož obrazu. Každé slovo zůstává, nejmenší text 12 px na telefonu, originál se nemění. Na stránce je jen označení AI a cizí autor, `sources` jsou pod článek a Studio je ukáže. Pantheon vyjde na 4 stránky, Koloseum na 5. **Meze:** u obrazu na šířku jsou vodítka dlouhá (medián 23 %, práh 6 % je z velkého plakátu) a stránky skládá automat, takže témata na jedné stránce nemusí k sobě ladit; kusy jde před vytvořením přesunout. Čísla 1 a 2, 4 a 5 se v obraze Kolosea překrývají, Studio to hlásí. Na opravdovém telefonu to nikdo neviděl.
+**Rozdělit pro mobil odstraněno (2026-11-02):** automat zmenšoval hlavní obraz kvůli slabým popiskům, operátor ho odmítl (DECISIONS). Série Pantheonu z něj je v koši Engine, originál beze změny.
 
 **Web, nebo tisk (2026-11-02):** přepínač „Kam to půjde“ na začátku řetězce a u dokumentu s panely, výchozí web. Tisková příloha má vlastní větu v promptu návrhů a nehlásí mobil.
 
