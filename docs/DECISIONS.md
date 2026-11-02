@@ -35,9 +35,9 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
 
-## 2026-11-02 — Rozdělit pro mobil: popisky u obrazu, ne legenda
+## 2026-11-02 — Rozdělit pro mobil odstraněno
 
-Operátor schválil tlačítko, po výtkách k sérii Tesly a Studny („Využití místa a kombinace s obrázkem jsou někdy hodně pochybné“, „ty obrovské popisky o zdrojích“) první verzi s čísly a legendou odmítl a chce předělat („Ano, předělej“). Hotový dokument s panely se rozdělí na sérii nových dokumentů, originál se nemění. Popisky s vodítkem jsou u obrazu, nejvýš pět na stránku, další na výřezu téhož obrazu. Text se nepřepisuje, na stránce je jen označení AI a cizí autor, výčet zdrojů zůstává v dokumentu a patří pod článek. Před vytvořením jde kusy přesouvat. 0 USD.
+Tlačítko dělilo hotový plakát na sérii stránek a zachovávalo každé slovo. Tu podmínku jsem si přidal sám. Operátor: „Často zmenšíš hlavní grafiku na úkor pitomých, blbě zalomených popisků s nulovou informační hodnotou.“ Na návrh odstranit odpověděl „Ano, odstraň“. Dobrá stránka vzniká výběrem, co čtenáři říct a co vynechat, a to pravidla rozmístění neumějí. Stránky pro web se dělají s úsudkem o obsahu (`docs/infografiky-zasady.md`, oddíl Web a mobil). Předělat na formát a volba web, nebo tisk zůstávají. Kód je v historii, GRAFIK#159.
 
 ## 2026-11-02 — Infografika je pro web, nebo pro tisk; výchozí je web
 
