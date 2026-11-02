@@ -317,6 +317,9 @@ export interface InfoSchema { title: string; svg: string }
 
 export interface Infographic {
   id: string
+  schema_version?: number
+  panels?: { id: string }[]
+  predelano_z?: { id: string; size: string }
   base: string
   title: string
   subtitle: string
@@ -418,7 +421,9 @@ export const localizeApi = {
 }
 
 export const infoApi = {
-  list: () => call<Infographic[]>('/api/v2/infographics'),
+  list: () => call<Infographic[]>('/api/v2/infographics?panely=true'),
+  reformat: (id: string, size: string) => post<Infographic>(`/api/v2/infographics/${id}/reformat`, { size }),
+  checks: (id: string) => call<{ ok: boolean; text: string }[]>(`/api/v2/infographics/${id}/kontrola`),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
   upload: (b64: string, name: string, blenderRender = false) => post<Infographic>('/api/v2/infographics/upload', { b64, name, blender_render: blenderRender }),
   fromRef: (refId: string, title: string) => post<Infographic>('/api/v2/infographics/from-ref', { ref_id: refId, title }),

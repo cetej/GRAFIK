@@ -291,6 +291,24 @@ class InfographicStore:
             shutil.rmtree(root, ignore_errors=True)     # no half document in the list
             raise
 
+    def reformat_panels(self, info_id: str, size: str) -> dict:
+        """A new document in another format, sharing nothing with the source: its pictures are copied, its exports stay with it."""
+        from engine import panels, reformat
+        source = self.get(info_id)
+        if not panels.is_panel_doc(source):
+            raise InfoError("přeformátovat jde jen dokument s panely")
+        target = reformat.target_size(size, source["size"])
+        fields = reformat.reformat(source, target)
+        doc = new_doc("", source.get("title") or "", None, target)
+        root = self._dir(doc["id"])
+        try:
+            shutil.copytree(self._dir(info_id) / "panely", root / "panely")
+            keep = {k: v for k, v in fields.items() if k not in ("id", "created", "updated", "exports", "in_library", "reviewed_by", "reviewed_at")}
+            return self.save(doc["id"], {**doc, **keep}, new=True)
+        except Exception:
+            shutil.rmtree(root, ignore_errors=True)     # no half document in the list
+            raise
+
     def save(self, info_id: str, data: dict, new: bool = False) -> dict:
         d = self._dir(info_id)
         old = self.get(info_id)

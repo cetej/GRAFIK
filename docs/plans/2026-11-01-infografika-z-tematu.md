@@ -122,6 +122,8 @@ Rešerše míří na stavby: Tesla 9 faktů a 21 obrázků, axolotl 4 fakty a 11
 
 ### Krok 3d: přeformátování hotové infografiky (po 3c, vlastní PR, UI s náčrtem)
 
+**Hotovo 2. 11.:** `engine/reformat.py`, panely jdou jako celé bloky, proto nové rendery v Blenderu nebyly potřeba. Rozhodnutí v `docs/DECISIONS.md`.
+
 Operátor 1. 11.: „Máme tam možnos hotovou infografiku automaticky předělat na jiný formát?“ a na návrh tohoto kroku „Ano, přidat“. Dnes editor jen přepne plátno a obraz ořízne, plakát má formát napevno ve skriptu.
 
 - Editor: tlačítko „Předělat na formát“ s volbou cíle (16:9, 4:5, 1:1, 2:3, vlastní rozměr). Cena v tlačítku, bez placeného kroku 0 USD. Stávající přepínač formátu plátna se nemění.

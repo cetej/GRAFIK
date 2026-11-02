@@ -11,6 +11,16 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 Úsudek o tom, co stojí za popisek a zda celek působí vyváženě, zůstává na člověku. Číselné kontroly jen upozorní na rozháranost.
 
+## Web a telefon (2. 11., operátor po grafikách k legionáři ve studni)
+
+Operátor: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“
+
+- **Navrhuj od cílového zobrazení.** Infografika k článku se čte na webu a často na telefonu, ne vytištěná. Než začneš skládat, spočítej písmo na šířce 390 px: velikost na plátně × 390 / šířka plátna.
+- **Telefon: nejmenší písmo aspoň 11 px** (návrh prahu, operátor ho zatím neměřil). Na plátně širokém 1080 px to je aspoň 31 px, na 1600 px aspoň 45 px. Kontrola `na telefonu nejmenší písmo` to hlásí u každého dokumentu s panely.
+- **Velká plachta se rozdělí.** Když text na telefonu vychází titěrně, nezmenšuj ho a nepřidávej panely. Rozděl obsah na několik menších infografik, každou s jednou myšlenkou a hlavním obrazem. Výchozí je 4:5 nebo užší; 2:3 na výšku a 16:9 jen tam, kde to médium chce.
+- **Poměry velikostí:** hlavní obraz musí být čitelný i v malém, detaily patří do další grafiky, ne do drobné řady.
+- Měření 2. 11.: Pantheon a Koloseum (1600 × 2400) mají na telefonu nejmenší písmo 4,6 px, tedy méně než polovinu prahu. Stejná stránka v jiném poměru to nespraví: 4:5 vychází 3,5 až 3,8 px, 16:9 asi 2,3 px.
+
 ## Stránka z víc obrazů (Koloseum, 1. 11., výtky operátora)
 
 **Skladba**

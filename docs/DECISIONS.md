@@ -2,6 +2,18 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Infografiky se navrhují pro web a telefon, velká plachta se dělí
+
+Operátor k článku o legionáři ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“ Zásady `docs/infografiky-zasady.md`, oddíl „Web a telefon“, kontrola v `engine/panels.py`, věta v promptu návrhů. Práh 11 px na šířce 390 je návrh, ne jeho zadání.
+
+## 2026-11-02 — Předělat na formát: tlačítko u dokumentu s panely, rozpočet do 1 USD
+
+Operátor chce tlačítko, které hotový výstup předělá na jiný formát, a schválil náčrt („Ano, stav to“). Rozpočet: „pokud bude potřeba vše tak u jedné transformace rozměru do 1 dolaru automaticky, od dolaru výš na schválení“. Tahle verze stojí 0 USD, placený krok zatím není potřeba.
+
+- Panely se přeskládají jako celé bloky a zmenší se rovnoměrně (`engine/reformat.py`), nic se neořízne ani nepřezalomí. Popisky zůstávají vůči obrazu na stejném místě, proto se nové kolo Blenderu z plánu nestaví.
+- Úloha běží hned, ne ve frontě: nepracuje s GPU ani s modelem.
+- Staré dokumenty bez panelů a plakáty ze skriptů se nemění. Ilustrace: GRAFIK#150.
+
 ## 2026-11-02 — Druhá infografika „Kdo ho zabil?“ a mapka ze studny na ni
 
 Operátor schválil náčrt („Ano, stavěj“), pevnost („Jo, to vypadá docela zajímavě“) a přijal obě hotové stránky („Ano, obě ber“).

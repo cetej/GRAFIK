@@ -324,7 +324,7 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
   const [blender, setBlender] = useState(false)
   useEffect(() => { if (!openId) infoApi.list().then(setList).catch((e) => onError(e.message)) }, [openId, onError])
 
-  if (openId) return <Editor key={openId} id={openId} onClose={() => setOpenId(null)} recentImages={recentImages} onError={onError} />
+  if (openId) return <OpenDoc key={openId} id={openId} setOpenId={setOpenId} recentImages={recentImages} onError={onError} />
 
   const create = async () => {
     if (!selectedImage) return
@@ -354,11 +354,81 @@ export default function Infographics({ openId, setOpenId, selectedImage, recentI
         {list.map((d) => (
           <button key={d.id} className="wf-item" onClick={() => setOpenId(d.id)}>
             <img src={imageUrl(d.base, 256)} alt="" />
-            <span><b>{d.title || 'bez nadpisu'}</b><small>{d.labels.length} popisků · {d.exports.length} exportů · {d.updated.slice(0, 16).replace('T', ' ')}</small></span>
+            <span><b>{d.title || 'bez nadpisu'}</b><small>{d.panels ? `${d.panels.length} panelů · ${d.size.replace('x', '×')}` : `${d.labels.length} popisků`} · {d.exports.length} exportů · {d.updated.slice(0, 16).replace('T', ' ')}</small></span>
           </button>
         ))}
         {!list.length && <p className="hint">Zatím žádná infografika.</p>}
       </div>
+    </main>
+  )
+}
+
+/** Panel documents are drawn by the Engine, the editor below does not know them. */
+function OpenDoc({ id, setOpenId, recentImages, onError }: { id: string; setOpenId: (id: string | null) => void; recentImages: string[]; onError: (msg: string) => void }) {
+  const [doc, setDoc] = useState<Infographic | null>(null)
+  useEffect(() => { infoApi.get(id).then(setDoc).catch((e) => onError(e.message)) }, [id, onError])
+  if (!doc) return <main className="guide-start"><p className="hint">Načítám…</p></main>
+  if (doc.schema_version) return <PanelDoc doc={doc} setOpenId={setOpenId} onError={onError} />
+  return <Editor id={id} onClose={() => setOpenId(null)} recentImages={recentImages} onError={onError} />
+}
+
+const REFORMATS = ['16:9', '4:5', '1:1', '2:3']
+
+function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (id: string | null) => void; onError: (msg: string) => void }) {
+  const [svg, setSvg] = useState('')
+  const [checks, setChecks] = useState<{ ok: boolean; text: string }[]>([])
+  const [choosing, setChoosing] = useState(false)
+  const [target, setTarget] = useState('16:9')
+  const [own, setOwn] = useState({ w: 1920, h: 1080 })
+  const [busy, setBusy] = useState<string | null>(null)
+  const [png, setPng] = useState<string | null>(null)
+  const svgUrl = `/api/v2/infographics/${doc.id}/svg`
+  useEffect(() => {
+    fetch(svgUrl).then((r) => r.text()).then(setSvg).catch((e) => onError(e.message))
+    infoApi.checks(doc.id).then(setChecks).catch((e) => onError(e.message))
+  }, [doc.id, svgUrl, onError])
+  const run = async (name: string, job: () => Promise<void>) => {
+    setBusy(name)
+    try { await job() } catch (e) { onError((e as Error).message) } finally { setBusy(null) }
+  }
+  const reformat = () => run('format', async () => {
+    setOpenId((await infoApi.reformat(doc.id, target === 'own' ? `${own.w}x${own.h}` : target)).id)
+  })
+  const exportPng = () => run('png', async () => setPng((await infoApi.export(doc.id, '', 'png')).url))
+  return (
+    <main className="guide-start panel-doc">
+      <div className="row between">
+        <button className="btn" onClick={() => setOpenId(null)}>← Zpět na seznam</button>
+        <div className="row">
+          <a className="btn" href={svgUrl} target="_blank" rel="noreferrer">Otevřít ve velkém</a>
+          <button className="btn" disabled={!!busy} onClick={exportPng}>{busy === 'png' ? 'Exportuji…' : 'Export PNG'}</button>
+          <button className="btn go" onClick={() => setChoosing(!choosing)}>Předělat na formát · 0 USD</button>
+        </div>
+      </div>
+      <h2>{doc.title || 'bez nadpisu'}</h2>
+      <p className="hint">Dokument s panely · {doc.size.replace('x', '×')} · {doc.panels?.length} panelů{doc.predelano_z && ` · předěláno z ${doc.predelano_z.size.replace('x', '×')}`}</p>
+      {png && <p className="hint">Hotovo: <a href={png} target="_blank" rel="noreferrer">otevřít PNG</a></p>}
+      {choosing && (
+        <div className="panel-format">
+          <div className="hint">Nový formát</div>
+          <div className="seg wrap">
+            {REFORMATS.map((f) => <button key={f} className={target === f ? 'on' : ''} onClick={() => setTarget(f)}>{f}</button>)}
+            <button className={target === 'own' ? 'on' : ''} onClick={() => setTarget('own')}>Vlastní rozměr</button>
+          </div>
+          {target === 'own' && (
+            <div className="row">
+              <label>Šířka <input type="number" min={100} max={9999} value={own.w} onChange={(e) => setOwn({ ...own, w: Number(e.target.value) })} /></label>
+              <label>Výška <input type="number" min={100} max={9999} value={own.h} onChange={(e) => setOwn({ ...own, h: Number(e.target.value) })} /></label>
+            </div>
+          )}
+          <p className="hint">Vznikne nová infografika. Tahle zůstane beze změny. Panely se přeskládají celé, nic se neořízne.</p>
+          <button className="btn go" disabled={!!busy} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
+        </div>
+      )}
+      <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />
+      <ul className="panel-checks">
+        {checks.map((c, i) => <li key={i} className={c.ok ? 'ok' : 'warn'}>{c.ok ? '✓' : '!'} {c.text}</li>)}
+      </ul>
     </main>
   )
 }

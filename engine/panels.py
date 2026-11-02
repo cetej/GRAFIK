@@ -44,6 +44,7 @@ MAX_LABEL_CHARS = 40
 LEADER_MEDIAN_MAX = 0.06
 LEADER_MAX = 0.12
 MIN_NAME_PX, MIN_SMALL_PX = 15, 13     # při šířce 1280
+PHONE_WIDTH, MIN_PHONE_PX = 390, 11    # článek na telefonu: infografika přes celou šířku displeje (operátor 2. 11.)
 PANEL_ID = re.compile(r"[a-z0-9_]{1,40}")
 FILE_NAME = re.compile(r"[\w\-]+\.(png|jpg|json)")
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -142,6 +143,8 @@ def validate(doc: dict) -> list[dict]:
         if rect[2] <= 0 or rect[3] <= 0 or rect[0] < 0 or rect[1] < 0 or rect[0] + rect[2] > W + 0.5 or rect[1] + rect[3] > H + 0.5:
             raise InfoError(f"panel {pid}: rect {rect} je mimo plátno {W} × {H}")
         panel = {"id": pid, "typ": raw["typ"], "rect": rect, "poradi": int(_number(f"panel {pid}: poradi", raw.get("poradi", i + 1))), "nazev": str(raw.get("nazev") or pid), "fakta": _lines(raw.get("fakta")), "otazka": str(raw.get("otazka") or "")}
+        if raw.get("k") is not None:
+            panel["k"] = _number(f"panel {pid}: k", raw["k"])   # měřítko písma panelu po přeformátování (engine/reformat.py)
         if raw.get("titulek"):
             title = raw["titulek"] if isinstance(raw["titulek"], dict) else {"text": str(raw["titulek"])}
             panel["titulek"] = {"text": str(title.get("text") or ""), **{k: _number(f"panel {pid}: titulek", title[k]) for k in ("x", "y") if title.get(k) is not None}}
@@ -240,7 +243,7 @@ class Renderer:
     def __init__(self, doc: dict, root: Path, href=None):
         self.doc, self.root, self.href = doc, root, href
         self.W, self.H = canvas_size(doc["size"])
-        self.k = self.W / 1600
+        self.k = doc.get("meritko") or self.W / 1600
         self.t = THEMES.get(doc.get("template"), THEMES["dark"])
         self.accent = doc.get("accent") or "#dcb062"
         self.ids: set[str] = set()
@@ -436,18 +439,21 @@ class Renderer:
         gfx = [f'<g id="Pozadí"><rect width="{W}" height="{H}" fill="{self.t["bg"]}"/></g>']
         txt = []
         head = doc.get("nadpis") or {}
-        size = head.get("size", 88 * k)
-        x, y = head.get("x", 50 * k), head.get("y", 118 * k)
+        hk = head.get("k", k)
+        size = head.get("size", 88 * hk)
+        x, y = head.get("x", 50 * hk), head.get("y", 118 * hk)
         title = _text(x, y, doc["title"].upper(), size, self.accent, 700, spacing=2)
         for i, line in enumerate((doc.get("subtitle") or "").split("\n")):
             if line:
-                title += _text(x, y + (44 + 38 * i) * k, line, 31 * k, self.t["muted"])
+                title += _text(x, y + (44 + 38 * i) * hk, line, 31 * hk, self.t["muted"])
         txt.append(f'<g id="{self.gid("Nadpis")}">{title}</g>')
         draw = {"obraz": self._picture, "fakta": self._facts, "text": self._prose, "osa": self._timeline, "kresba": self._drawing}
         for panel in doc["panels"]:
+            self.k = panel.get("k", k)
             graphics, words = draw[panel["typ"]](panel)
             gfx.append(graphics)
             txt.append(words)
+        self.k = k
         foot = 17 * k
         lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 100 * k) / (foot * LINE_WIDTH)))
         top = doc.get("paticka_y") or H - 30 * k - (len(lines) - 1) * 22 * k
@@ -486,7 +492,7 @@ def _text_box(label: dict, size: float) -> tuple[float, float, float, float]:
 def checks(doc: dict, root: Path) -> list[dict]:
     """Stejné prahy jako editor, přes všechny panely. Upozorní, nic nezastaví: úsudek zůstává na člověku (docs/infografiky-zasady.md)."""
     W, H = canvas_size(doc["size"])
-    k = W / 1600
+    page = doc.get("meritko") or W / 1600
     out, lengths = [], []
     long_lines, crossings, outside, missing, unseen = 0, 0, [], [], []
     labels = 0
@@ -497,7 +503,16 @@ def checks(doc: dict, root: Path) -> list[dict]:
     hero = min(pictures, key=lambda p: p["poradi"]) if pictures else None
     model_of = lambda p: (p.get("zdroj") or {}).get("model_id")
     repeats = [p["nazev"] for p in pictures if p is not hero and model_of(p) and model_of(p) == model_of(hero) and not p.get("otazka")]
+    small_text = None
+    smallest = None     # nejmenší písmo na stránce, v pixelech plátna
     for panel in doc["panels"]:
+        k = panel.get("k", page)
+        if panel["typ"] in ("fakta", "text", "osa"):
+            size = panel.get("small_size", 21 * k)
+            smallest = min(smallest or size, size)
+            px = size * 1280 / W
+            if px < MIN_SMALL_PX:
+                small_text = min(small_text or px, px)
         if panel["typ"] != "obraz":
             continue
         info = body_of(root, panel)
@@ -522,6 +537,8 @@ def checks(doc: dict, root: Path) -> list[dict]:
             if x < 0 or y < 0 or x + w > W or y + h > H:
                 outside.append(label["text"])
             boxes.append((label["text"], x, y, w, h))
+            shown = size * 0.86 if label["small"] else size
+            smallest = min(smallest or shown, shown)
             px = size * 1280 / W
             if px < MIN_NAME_PX or (label["small"] and px * 0.86 < MIN_SMALL_PX):
                 too_small = round(px, 1)
@@ -542,6 +559,11 @@ def checks(doc: dict, root: Path) -> list[dict]:
         out.append({"ok": False, "text": f"opakují hlavní model a neříkají proč: {', '.join(repeats)}. Co ukážou víc než hlavní obraz?"})
     out.append({"ok": not long_lines, "text": f"{long_lines} popisků delších než {MAX_LABEL_CHARS} znaků" if long_lines else "popisky krátké"})
     out.append({"ok": too_small is None, "text": f"písmo popisku {too_small} px při šířce 1280, chce aspoň {MIN_NAME_PX}" if too_small else "písmo popisků čitelné"})
+    if small_text:
+        out.append({"ok": False, "text": f"text panelů {small_text:.1f} px při šířce 1280, chce aspoň {MIN_SMALL_PX}"})
+    if smallest:
+        phone = smallest * PHONE_WIDTH / W
+        out.append({"ok": phone >= MIN_PHONE_PX, "text": f"na telefonu nejmenší písmo {phone:.1f} px" + ("" if phone >= MIN_PHONE_PX else f", chce aspoň {MIN_PHONE_PX}: rozdělte na menší infografiky")})
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
     out.append({"ok": not overlaps, "text": f"překrývají se popisky: {', '.join(overlaps)}" if overlaps else "popisky se nepřekrývají"})
     if outside:
