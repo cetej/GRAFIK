@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Skladatel prošel na mých textech a neprošel na textech modelu
+
+Ruční ukázka měla krátké popisky. Opravdové texty pro laika měly 60 až 70 znaků a skladatel na nich selhal třikrát z jedné příčiny: dva popisky širší než stránka, Rotor vypadl, u cívky zůstal jeden popisek ze čtyř a „57 metrů“ se vešlo jen pod zem, kde vypadalo jako hloubka šachty. Všechny kontroly prošly. Pomohl limit délky v zadání a pohled na stránku v plné velikosti. Každá další zkouška odhalila, že model popisek obrazu klidně dá až za fakty nebo odkáže na špatný fakt, proto pořadí a odkaz teď hlídá kód, ne zadání.
+
+- Zadání textů i návrhů jde zkoušet zdarma: `serie.SYSTEM` a `request_text` do souboru, odpověď od subagenta přes `write_texts(ask=…)`. Placený běh až na konec. Odpověď Sonnetu přes subagenta není totéž co placené API, ale chyby skladby ukáže stejně.
+- Texty stránek se v řetězci neukládají, po skládání zůstanou jen v dokumentech a v hlášení. Nová skladba tedy znamená nové placené texty.
+
 ## 2026-11-02 — Dvě karty ze čtyř zmizely a žádná kontrola to neřekla
 
 Operátor schválil ukázku se čtyřmi kartami (Tesla, motor, cívka, věž), ruční text za 0 USD. V opravdovém řetězci model rozdělil témata do tří návrhů po 2, 2 a 1 stránce a vybrat jde jen jeden, takže cívka a věž vypadly a já jsem dál ladil dvě zbylé. Hlášení mluví jen o tom, co se nevešlo na vybranou stránku, ne o tom, co v sérii chybí. Operátor se musel zeptat. Před prací na dalším kole porovnej výsledek s tím, co bylo schválené, a rozdíl řekni. Návrh teď vypisuje `bez_stranky` a Studio to ukáže.

@@ -22,8 +22,8 @@ SOIL_M = 5.0            # the ground under the tower fades out within this depth
 SHAFT_FADE_M = (9.0, 17.0)      # the shaft goes on below it and disappears here, the label gives the real depth
 GROUND_SIDE_M = (-15.0, 48.0, 4.0)      # ground left and right of the tower fades out towards these x, metres from the axis
 PICTURES = [
-    ("motor", "Střídavý indukční motor, model", {"rotor": "Rotor", "civka0": "Cívka statoru", "svorky": "Svorky", "hridel": "Hřídel"}),
-    ("civka", "Teslova cívka, model", {"vrchol": "Vrchol s výbojem", "sekundar": "Sekundár", "primar": "Primár", "jiskriste": "Jiskřiště"}),
+    ("motor", "Střídavý indukční motor, model", {"rotor": "Rotor", "civka0": "Cívka", "svorky": "Svorky", "hridel": "Hřídel"}),
+    ("civka", "Teslova cívka, model", {"vrchol": "Vrchol s výbojem", "sekundar": "Vysoká cívka", "primar": "Spodní cívka", "jiskriste": "Jiskřiště"}),
     ("vez", "Věž Wardenclyffe v řezu, model", {"kopule": "Kupole", "vez": "Věž", "dilna": "Cihlová dílna", "sachta": "Šachta"}),
     ("turbina", "Teslova turbína, model", {"disky": "Hladké disky", "hridel": "Hřídel", "tryska": "Tryska", "kryt": "Kryt"}),
     ("elektrarna", "Vodní elektrárna v řezu, model", {"generator": "Generátor", "privadec": "Přivaděč", "hridel": "Hřídel", "turbina": "Turbína"}),
@@ -70,6 +70,7 @@ def tower_section(im: Image.Image, points: dict) -> tuple[Image.Image, tuple[int
     x0, y0, x1, y1 = max(0, int(xs.min()) - MARGIN), max(0, int(ys.min()) - MARGIN), min(im.width, int(xs.max()) + MARGIN), min(im.height, int(ys.max()) + MARGIN)
     kept = dict(points)
     kept["sachta"] = [axis, surface + 7.0 * metre]
+    kept["vez"] = [axis + 6.0 * metre, surface - 32.0 * metre]      # na pravé noze nad dílnou: popisek vpravo nevede čáru přes celou věž
     kept = {k: v for k, v in kept.items() if v[1] < y1 and x0 <= v[0] < x1 and k != "zem"}
     return Image.fromarray(rgba[y0:y1, x0:x1].astype(np.uint8), "RGBA"), (x0, y0), kept
 

@@ -31,6 +31,10 @@ Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má �
 
 Rok nebo číslo patentu, které nepatří k části obrazu, nejsou volný lístek vedle obrazu: patří do věty pod titulkem (prompt `serie.SYSTEM`). Volný fakt obraz nezmenšuje. Když by se zalomil na víc než 3 řádky nebo se nevejde, vypadne a řekne to hlášení (`serie.MAX_FACT_LINES`).
 
+Popisek od modelu má nejvýš 8 slov a 50 znaků (životopis 12 slov). Písmo se u nás nemění, takže dva popisky po třech řádcích dlouhých vět jsou širší než stránka, sloupec vedle objektu se nevejde a popisek vypadne nebo skončí jinde než u své věci. Název části je v běžných slovech už v `popisky` obrazu (Spodní cívka, ne Primár).
+
+Popisek obrazu má přednost před volným faktem, i když ho model dal níž, a formát stránky vybírá nejdřív podle popisků a velikosti obrazu, volné fakty až potom (`serie.compose`). Čára k textu nevede přes hlavní věc, nejvýš 1,5 písma (`serie._crosses_object`, `LEADER_OVER`): když se to nedá, obraz se o krok zmenší, nebo je špatně položený bod (věž: bod na pravé noze, popisek vpravo). Všechen text stránky má jedno řádkování a volný fakt vedle popisku sedí na stejném účaří (`serie.LABEL_LINE`, `_free_panels`).
+
 **Než stránku pošleš:** prohlédni ji sám v plné velikosti a řekni si, co je na ní hlavní a jestli to tak na první pohled vypadá. Kontrola najde díru a splývání, ale ne to, že největší je podloží. Výtku převeď na měření v kódu nebo pravidlo tady, ne jen na opravu ukázky: operátor nemá vychytávat každou grafiku zvlášť.
 
 ## Web a mobil (operátor 2. 11., platí pro každou infografiku)
