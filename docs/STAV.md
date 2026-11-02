@@ -4,6 +4,8 @@ Aktualizováno 2026-11-02.
 
 ## Teď
 
+**Rozdělit pro mobil (2026-11-02):** tlačítko u dokumentu s panely (`engine/rozdeleni.py`, `POST …/rozdeleni` návrh, `POST …/rozdelit`), 0 USD. Velký obraz, popisky s vodítkem přímo u věci, nejvýš pět na stránku, další na výřezu téhož obrazu. Každé slovo zůstává, nejmenší text 12 px na telefonu, originál se nemění. Na stránce je jen označení AI a cizí autor, `sources` jsou pod článek a Studio je ukáže. Pantheon vyjde na 4 stránky, Koloseum na 5. **Meze:** u obrazu na šířku jsou vodítka dlouhá (medián 23 %, práh 6 % je z velkého plakátu) a stránky skládá automat, takže témata na jedné stránce nemusí k sobě ladit; kusy jde před vytvořením přesunout. Čísla 1 a 2, 4 a 5 se v obraze Kolosea překrývají, Studio to hlásí. Na opravdovém telefonu to nikdo neviděl.
+
 **Web, nebo tisk (2026-11-02):** přepínač „Kam to půjde“ na začátku řetězce a u dokumentu s panely, výchozí web. Tisková příloha má vlastní větu v promptu návrhů a nehlásí mobil.
 
 **Předělat na formát (2026-11-02):** dokument s panely má ve Studiu tlačítko (`engine/reformat.py`, `POST /api/v2/infographics/<id>/reformat`), 0 USD, vznikne nový dokument. Panely se přeskládají celé a nic se neořízne. Pantheon a Koloseum přešly na 16:9 a 4:5 se stejnými panely a texty. **Otevřené:** čitelnost na telefonu to neřeší, nejmenší text u Pantheonu a Kolosea je 4,3 px, po převodu 2,1 až 3,6 px, práh 12 px, kontrola to hlásí. Dělení stránky je krok 3g: popisky hlavního obrazu by se musely přesadit. Pantheon má v originále 2 křížení vodítek a medián 8,4 %, 4:5 po převodu 7,0 % a křížení zůstávají. Ilustrace GRAFIK#150.

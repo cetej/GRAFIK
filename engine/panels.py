@@ -455,9 +455,11 @@ class Renderer:
             txt.append(words)
         self.k = k
         foot = 17 * k
-        lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 100 * k) / (foot * LINE_WIDTH)))
+        foot_x = doc.get("paticka_x", 50 * k)
+        note = doc["paticka"] if "paticka" in doc else f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}"
+        lines = wrap(note, round((W - 2 * foot_x) / (foot * LINE_WIDTH))) if note else []
         top = doc.get("paticka_y") or H - 30 * k - (len(lines) - 1) * 22 * k
-        txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(50 * k, top + i * 22 * k, line, foot, self.t["foot"]) for i, line in enumerate(lines))}</g>')
+        txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(foot_x, top + i * 22 * k, line, foot, self.t["foot"]) for i, line in enumerate(lines))}</g>')
         return (f'<svg xmlns="{SVG_NS}" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">{TEXT_SHADOW if self.t.get("stin") else ""}'
                 f'<g id="Grafika">{"".join(gfx)}</g><g id="Texty">{"".join(txt)}</g></svg>')
 
