@@ -52,7 +52,7 @@ Operátor k plakátům o vojákovi ve studni: grafiky jsou fajn, ale „na webu 
 | nadpis panelu | ≥ 18 px | 1/20 | 54 px | 90 px |
 | věta, vysvětlení | ≥ 14 px | 1/26 | 42 px | 70 px |
 | popisek u věci, nejmenší text | ≥ 12 px | 1/30 | 36 px | 60 px |
-| zdroj, označení AI | ≥ 9 px | 1/40 | 27 px | 45 px |
+| označení AI, cizí autor | ≥ 9 px | 1/40 | 27 px | 45 px |
 
 Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com/docs/lighthouse/seo/font-size) (v Lighthouse 13 audit zmizel, hranice zůstává rozumná). Ostatní řádky jsou odstupňované od ní. Operátor s nimi přijal první sérii (Studna, 2. 11.).
 
@@ -68,19 +68,41 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 
 **Velká plachta se dělí.** Kde by text vyšel pod práh, písmo se nezmenšuje a stránka se rozdělí na víc menších.
 - Dělí se podle otázek čtenáře: jedna stránka, jedna otázka, jeden hlavní obraz a nejvýš 3 další panely. Studna a scénáře jsou tak rozdělené už teď, jen každá z nich nese ještě dvakrát až třikrát víc textu, než se vejde.
-- Každá stránka obstojí sama: vlastní titulek a řádek se zdrojem. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
-- **Řádek Zdroj na stránce není (operátor 2. 11., novější než věta dál).** Renderer dokumentu i editor kreslí jen označení AI a cizího autora. Starší znění: **Zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
+- Každá stránka obstojí sama: vlastní titulek. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
+- **Řádek Zdroj na stránce není (operátor 2. 11.).** Renderer dokumentu i editor kreslí jen označení AI a cizího autora. Zdroje, licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek.
 - Série drží stejné písmo, barvy a velikosti, stejný objekt vypadá na všech stránkách stejně.
 - Souhrnný plakát na jedné ploše vznikne navíc jen na přání operátora, pro tisk nebo stažení. Do článku jde série.
 - Věrná kopie husté předlohy pravidlo poruší. Řekni to operátorovi předem a navrhni rozdělení.
 
-**Formát.** Výchozí je 4:5 (1080 × 1350) nebo 2:3. Delší stránka než 9:16 se nevejde na jednu obrazovku telefonu. Formát 16:9 je na telefonu 360 × 202 px: jeden obraz a několik popisků, žádné panely.
+**Formát.** Výchozí je 4:5 (1080 × 1350) nebo 2:3. Delší stránka než 9:16 se nevejde na jednu obrazovku telefonu. Formát 16:9 je na telefonu 360 × 202 px: jeden obraz a několik popisků, žádné panely. Výjimka a její cena: oddíl Přepis na šířku.
 
 **Hotovou stránku neděl mechanicky.** Automat, který rozdělil plakát a zachoval každé slovo, operátor odmítl (2. 11.): zmenšoval hlavní obraz kvůli popiskům bez informační hodnoty. Nejdřív jedna věta, co má čtenář pochopit, pak obraz co největší a jen popisky, které k té větě pomáhají. Co vypadne, řekni operátorovi. Ukaž jednu stránku, až po souhlasu další.
 
 **Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely), editor má stejný řádek v Kontrole. Nový dokument s panely (`panels.MOBIL`) i nový dokument v editoru (`pismo: "mobil"`) mají velikosti podle tabulky. Starý dokument se kreslí beze změny, porovnáno bajt po bajtu ([spike](spikes/2026-11-02-serie-mobil.md)), a dostane jen nález.
 
 **Vzor série.** `scripts/plakaty/velsen_studna_mobil.py`: plakát Muž na dně studny (239 slov) jako tři stránky 1080 × 1620 po 72, 42 a 45 slovech bez zdroje. Fakta zůstala všechna, zmizel jen metrový pruh, který hloubky na okraji nahrazují. Co bylo na plakátu malé, je na stránce velké a vady jsou vidět: pánev a výřez chtěly nový render ve větší velikosti, hladké kameny hrubší povrch (`velsen_studna.py --zblizka`). Výřez z renderu plakátu nestačí.
+
+## Přepis na šířku (Pantheon 16:9, 2. 11., ruční úprava operátora)
+
+Zadání: „všechny informace dostat do hlavní grafiky - přehledně a čitelně - zvětšit ji a na ty ostatní grafické prvky se vykašlal“. Moje pokusy operátor odmítl („odezdikezdismus“, „nechápe proporce“, u náčrtu „vůbec nepochopil“) a stránku upravil sám („Není to ideální, ale aspoň takhle“). Platná verze je `library/infographics/20261102-212616-1c97/vectorcraft/20261102-225452-5385-cely-render.svg`: jeho texty a rozmístění, nový obraz.
+
+| Výtka operátora | Pravidlo | Kdo to hlídá |
+|---|---|---|
+| „Ty jsi mé připomínky vůbec nepochopil“ (náčrt s jedním sloupcem popisků, uříznutým portikem a vypuštěnými údaji) | Výčet od operátora je závazný. Rozvrh, který vyžaduje vyhodit údaje nebo uříznout předmět, je můj výklad, ne jeho zadání. Po takové výtce nestav další vlastní verzi: otevři mu editovatelnou kopii a uč se z jeho úpravy. | člověk |
+| „Ořezal jsi to blbě“ (zem a schody useknuté okrajem renderu) | Hlavní předmět je celý a render má rezervu za jeho okrajem, aby šel obraz zmenšit a posunout bez rovné hrany. Ořez těsně u stavby se ukáže až po první ruční úpravě. | zatím jen pohled; stroj to neměří |
+| „Šedý sokl“ pod portálem | Širší záběr vrací okolí. Stavba s rezervou jde s tenkou dlažbou (`thin_ground`), ne s velkou plochou země. | `lod_pantheon.py`, prohlédni stránku |
+
+Co jeho úprava ukazuje:
+- Obraz zmenšil na 89,5 %, aby byla vidět celá stavba i s portikem a okolo volné pozadí. Celek má u této stránky přednost před největším možným výřezem.
+- Popisky leží u svých věcí, i přímo v obraze (140 kazet v kupoli, 60 t na střeše). Velké 43,3 m je dole pod stavbou. Na této stránce neplatí „sloupec na společné svislici“ ze skladatele série.
+- **Otevřený rozpor s oddílem Web a mobil:** 61 slov a nejčastější popisek 34,4 px, tedy 1/56 šířky a na telefonu 6,4 px (práh 12 px, u 16:9 kolem 30 slov). Operátor tady dal přednost úplnosti a sám říká, že to není ideální. Neber to jako nový práh ani jako zrušení starého: u další stránky řekni ten rozpor předem.
+
+**Výměna obrazu pod ruční úpravou (0 USD).**
+1. Stejný střed a měřítko na větším plátně: `scale` a `--res` ve stejném poměru (92 × 2880 / 1920 = 138), `--shot rez_web_cely --res 2880 1620 --vrstvy`, přes `scripts/3d/velsen_studna_run.py` pod zámkem.
+2. Starý obraz leží v novém s posunem o celé pixely (u `rez3`: 480 + 120 ořez, 270). Před výměnou porovnej překryv; bez změny země se lišilo 0,07 % pixelů.
+3. V nové kopii SVG vyměň `<image>` ve skupinách `Zem_a_základ`, `Podlaha`, `Rotunda_v_řezu`, `Portik`, `Postavy`. Každá vrstva je oříznutá na svůj obsah, `transform` spočítej z měřítka úpravy. Soubor operátora nepřepisuj, texty neopravuj bez ptaní, překlepy mu řekni.
+
+**Zlatý řez není pravidlo.** Přednost pro něj se v pokusech bez metodických chyb potvrzuje slabě nebo vůbec ([přehled](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10792139/), [Stieger a Swami](https://westminsterresearch.westminster.ac.uk/item/8yvwz/time-to-let-go-no-automatic-aesthetic-preference-for-the-golden-ratio)). Stroj umí měřit zarovnání, překryvy a volnou plochu, kvalitu tím ale nedokazuje: na odmítnuté stránce `ce0d` kontrola hlásila vodítka a malé písmo, rozházenost, kterou operátor vytkl, ne. Malé písmo má i jeho přijatá verze. Před odesláním rozhoduje pohled na celou stránku, ne součet měření.
 
 ## Stránka z víc obrazů (Koloseum, 1. 11., výtky operátora)
 
