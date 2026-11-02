@@ -12,7 +12,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from sazba import cover, crop_alpha, fit, group, image_tag, text, wrap, write_poster  # noqa: E402
+from sazba import cover, crop_alpha, fit, group, image_tag, text, text_over, wrap, write_poster  # noqa: E402
 
 S = 2
 W, H = 736 * S, 1308 * S
@@ -172,16 +172,28 @@ def page(assets: Path) -> str:
     return group("Pergamen", image_tag(paper, 0, 0, W, H, "JPEG"))
 
 
+def figure_box(fig: Image.Image) -> tuple[float, float, float, float]:
+    x, y, w, h = 253, 342, 230, 705
+    k = min(u(w) / fig.width, u(h) / fig.height)
+    pw, ph = fig.width * k, fig.height * k
+    return u(x) + (u(w) - pw) / 2, u(y) + (u(h) - ph) / 2, pw, ph
+
+
+def figure_mask(assets: Path) -> Image.Image:
+    fig, _ = crop_alpha(Image.open(assets / "postava.png").convert("RGBA"), 0)
+    fx, fy, pw, ph = figure_box(fig)
+    mask = Image.new("L", (W, H), 0)
+    mask.paste(fig.getchannel("A").resize((round(pw), round(ph)), Image.LANCZOS), (round(fx), round(fy)))
+    return mask
+
+
 def figure(assets: Path) -> str:
     """The figure with the soft shadow it casts on the paper on the sample."""
     fig, _ = crop_alpha(Image.open(assets / "postava.png").convert("RGBA"), 0)
     tone = np.asarray(fig, dtype=np.float32).copy()
     tone[..., :3] = np.clip((tone[..., :3] / 255 - 0.5) * 1.14 + 0.44, 0, 1) * 255
     fig = Image.fromarray(tone.astype("uint8"), "RGBA")
-    x, y, w, h = 253, 342, 230, 705
-    k = min(u(w) / fig.width, u(h) / fig.height)
-    pw, ph = fig.width * k, fig.height * k
-    fx, fy = u(x) + (u(w) - pw) / 2, u(y) + (u(h) - ph) / 2
+    fx, fy, pw, ph = figure_box(fig)
     pad = 90
     canvas = Image.new("L", (round(pw) + 2 * pad, round(ph) + 2 * pad), 0)
     mask = fig.getchannel("A").resize((round(pw), round(ph)), Image.LANCZOS)
@@ -290,7 +302,11 @@ def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     renders, assets, out = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
     knihovna = sys.argv[sys.argv.index("--knihovna") + 1] if "--knihovna" in sys.argv else None
-    write_poster(poster(renders, assets), out, "tesla-kopie", W, H, "Nikola Tesla: infografika podle vzoru, stroje z 3D modelů", knihovna, ai=True)
+    svg = poster(renders, assets)
+    hit = text_over(svg, W, H, figure_mask(assets))
+    if hit:
+        raise SystemExit(f"Text leží přes postavu, oblast stránky {hit}. Oprav skladbu.")
+    write_poster(svg, out, "tesla-kopie", W, H, "Nikola Tesla: infografika podle vzoru, stroje z 3D modelů", knihovna, ai=True)
     return 0
 
 

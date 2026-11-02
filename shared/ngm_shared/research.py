@@ -8,6 +8,9 @@ zůstane prázdné a jde do `otazky_bez_odpovedi`.
 Čísla z textu přiřazuje kód podle blízkých slov, bez modelu. Když si není jistý předmětem nebo veličinou, číslo
 s ničím neporovnává a nechá ho jen jako větu. Správnost faktů dál kontroluje člověk před zveřejněním.
 
+Druh tématu (`entity_kind`: osoba, zvíře, věc) určuje Wikidata a volí slovníky. Osoba a zvíře mají své v `research_druhy.py`,
+vlastní výběr vět (`_kind_page_facts`) a obrázků (`_kind_images`). Věc jde původní cestou, slovníky tady míří na stavby.
+
 `web_research()` je placené doplnění z webu (převzato z KLAPKA klapka/research.py, navíc vrací jednotlivá fakta):
 Sonnet 5.5 s nástrojem web_search, nejvýš 8 hledání, odhad WEB_USD. Zdroj, který model v tomto běhu nečetl, se zahodí.
 Volná část běží jen na standardní knihovně, stejně jako grafik_client.
@@ -22,10 +25,11 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from datetime import date
 from typing import Callable
 
-from ngm_shared import claude
+from ngm_shared import claude, research_druhy as druhy
 
 UA = {"User-Agent": "GRAFIK-Engine/2 (https://github.com/cetej/GRAFIK)"}
 LANGS = ("cs", "en", "de", "it")
@@ -38,7 +42,9 @@ USD_PER_SEARCH = 0.01
 MAX_SEARCHES = 8
 ROLES = ("rekonstrukce", "pudorys", "rez", "pruceli", "interier", "detail", "material")
 ROLE_LABEL = {"rekonstrukce": "rekonstrukce a modely", "pudorys": "půdorys", "rez": "řez", "pruceli": "průčelí", "interier": "interiér", "detail": "detail",
-              "material": "materiál", "nezarazeno": "nezařazeno"}
+              "material": "materiál", "nezarazeno": "nezařazeno",
+              "portret": "portrét", "zivot": "ze života", "dilo": "dílo a vynálezy", "misto": "místa", "pamatka": "památky a odkaz", "rukopis": "podpis a rukopis",
+              "zvire": "celé zvíře", "mapa": "mapa výskytu", "prostredi": "prostředí", "vyvoj": "vývoj a mláďata", "forma": "barevné formy", "ilustrace": "kresby a umění", "model": "3D modely"}
 
 
 class ResearchError(RuntimeError):
@@ -95,6 +101,14 @@ def _search_entity(topic: str, lang: str, get: Get) -> str | None:
     return best["pageprops"]["wikibase_item"] if best and score(best)[0] else None
 
 
+def entity_kind(claims: dict) -> str:
+    """Co je téma podle Wikidaty: člověk (P31 = Q5), taxon (P31 = Q16521 nebo vědecké jméno P225), jinak věc."""
+    instance = {c["mainsnak"]["datavalue"]["value"]["id"] for c in claims.get("P31", []) if "datavalue" in c["mainsnak"]}
+    if "Q5" in instance:
+        return "osoba"
+    return "zvire" if "Q16521" in instance or "P225" in claims else "vec"
+
+
 def find_entity(topic: str, qid: str | None = None, get: Get = get_json) -> dict:
     """Téma → položka Wikidaty. První stránka hledání, která není rozcestník; dossier entitu ukazuje, člověk ji opraví."""
     topic = topic.strip()
@@ -117,7 +131,12 @@ def find_entity(topic: str, qid: str | None = None, get: Get = get_json) -> dict
     category = next((c["mainsnak"]["datavalue"]["value"] for c in item.get("claims", {}).get("P373", [])
                      if "datavalue" in c["mainsnak"]), None)
     names = set(labels.values()) | {re.split(r"[,(]", t)[0].strip() for t in sitelinks.values()}
-    return {"qid": qid, "label": labels.get("cs") or labels.get("en") or qid,
+    kind = entity_kind(item.get("claims", {}))
+    short = re.split(r"[,(]", sitelinks.get("en", labels.get("cs") or labels.get("en") or qid))[0].strip()
+    if kind == "osoba":
+        short = (labels.get("en") or short).split()[-1]
+        names.add(short)
+    return {"qid": qid, "label": labels.get("cs") or labels.get("en") or qid, "druh": kind, "short": short,
             "popis": item.get("descriptions", {}).get("cs", item.get("descriptions", {}).get("en", {})).get("value", ""),
             "url": f"https://www.wikidata.org/wiki/{qid}", "sitelinks": sitelinks, "commons_category": category,
             "names": sorted(n for n in names if len(n) > 2), "claims": item.get("claims", {}),
@@ -132,6 +151,7 @@ WD_ITEM = {"P84": "architekt", "P170": "autor", "P112": "zakladatel", "P88": "ob
 WD_TIME = {"P571": "vznik", "P1619": "otevření", "P576": "zánik"}
 WD_UNIT = {"Q11573": ("m", 1.0), "Q828224": ("m", 1000.0), "Q174728": ("m", 0.01), "Q3710": ("m", 0.3048),
            "Q25343": ("m²", 1.0), "Q191118": ("t", 1.0), "Q11570": ("t", 0.001), "1": ("míst", 1.0)}
+VEC = {"wd_item": WD_ITEM, "wd_time": WD_TIME, "wd_quantity": WD_QUANTITY, "wd_string": {}}
 
 
 def _wd_year(value: dict) -> str | None:
@@ -145,6 +165,16 @@ def _wd_year(value: dict) -> str | None:
     return f"{year}{' př. n. l.' if m.group(1) == '-' else ''}"
 
 
+def _wd_date(value: dict) -> tuple[str, int] | None:
+    """Datum z Wikidaty jako ISO s tím, co položka opravdu ví (den, měsíc, rok), a přesnost pro výběr nejpřesnějšího."""
+    m = re.match(r"\+0*(\d{4})-(\d\d)-(\d\d)", value["time"])
+    precision = value.get("precision", 9)
+    if not m or precision < 9:
+        return None
+    iso = "-".join(m.groups()[:{9: 1, 10: 2}.get(precision, 3)])
+    return iso, 10 - len(iso)
+
+
 def _claim_refs(claim: dict) -> list[str]:
     return [s["datavalue"]["value"] for ref in claim.get("references", []) for s in ref.get("snaks", {}).get("P854", [])
             if "datavalue" in s]
@@ -152,7 +182,10 @@ def _claim_refs(claim: dict) -> list[str]:
 
 def wikidata_facts(entity: dict, get: Get = get_json) -> list[dict]:
     claims = entity["claims"]
-    want = [c["mainsnak"]["datavalue"]["value"]["id"] for pid in WD_ITEM for c in claims.get(pid, []) if "datavalue" in c["mainsnak"]]
+    kind = entity.get("druh", "vec")
+    prof = PROFILES[kind]
+    units = druhy.WD_UNIT_ZVIRE if kind == "zvire" else WD_UNIT
+    want = [c["mainsnak"]["datavalue"]["value"]["id"] for pid in prof["wd_item"] for c in claims.get(pid, []) if "datavalue" in c["mainsnak"]]
     labels: dict[str, str] = {}
     for i in range(0, len(want), 50):
         data = get("www.wikidata.org", {"action": "wbgetentities", "ids": "|".join(want[i:i + 50]), "props": "labels", "languages": "cs|en"})
@@ -164,12 +197,12 @@ def wikidata_facts(entity: dict, get: Get = get_json) -> list[dict]:
                 "jazyk": "wikidata", "reference": _claim_refs(claim)}
 
     out = []
-    for pid, quantity in WD_QUANTITY.items():
+    for pid, quantity in prof["wd_quantity"].items():
         for c in claims.get(pid, []):
             dv = c["mainsnak"].get("datavalue")
             if not dv or "P518" in c.get("qualifiers", {}):     # „platí pro část“: údaj není o celku
                 continue
-            unit, factor = WD_UNIT.get(dv["value"]["unit"].rsplit("/", 1)[-1], (None, None))
+            unit, factor = units.get(dv["value"]["unit"].rsplit("/", 1)[-1], (None, None))
             if unit is None:
                 continue
             raw = float(dv["value"]["amount"])
@@ -177,16 +210,28 @@ def wikidata_facts(entity: dict, get: Get = get_json) -> list[dict]:
             out.append({"predmet": "celek", "velicina": quantity, "hodnota": value, "jednotka": unit,
                         "presnost": _precision(dv["value"]["amount"].lstrip("+")) * factor,
                         "zdroj": source(pid, f"{quantity}: {_fmt(value)} {unit}".strip(), c)})
-    for pid, what in WD_ITEM.items():
+    for pid, what in prof["wd_item"].items():
         values = [(labels.get(c["mainsnak"]["datavalue"]["value"]["id"]), c) for c in claims.get(pid, []) if "datavalue" in c["mainsnak"]]
         values = [(v, c) for v, c in values if v]
         if values:
             text = ", ".join(dict.fromkeys(v for v, _ in values))
             out.append({"tvrzeni": f"{what.capitalize()}: {text}", "hodnota": None, "jednotka": None, "predmet": "celek",
                         "velicina": what, "zdroj": source(pid, f"{what}: {text}", values[0][1])})
-    for pid, what in WD_TIME.items():
+    for pid, what in prof["wd_string"].items():
         for c in claims.get(pid, []):
             dv = c["mainsnak"].get("datavalue")
+            if dv:
+                out.append({"tvrzeni": f"{what.capitalize()}: {dv['value']}", "hodnota": None, "jednotka": None, "predmet": "celek",
+                            "velicina": what, "zdroj": source(pid, f"{what}: {dv['value']}", c)})
+    for pid, what in prof["wd_time"].items():
+        for c in claims.get(pid, []):
+            dv = c["mainsnak"].get("datavalue")
+            if kind != "vec":
+                found = _wd_date(dv["value"]) if dv else None
+                if found:
+                    out.append({"predmet": what, "velicina": "datum", "hodnota": found[0], "jednotka": None, "presnost": found[1],
+                                "zdroj": source(pid, f"{what}: {_fmt_date(found[0])}", c)})
+                continue
             year = _wd_year(dv["value"]) if dv else None
             if year:
                 out.append({"tvrzeni": f"{what.capitalize()}: {year}", "hodnota": None, "jednotka": None, "predmet": "celek",
@@ -223,11 +268,52 @@ def load_page(lang: str, title: str, get: Get = get_json) -> dict | None:
 _WORK_ABOUT = re.compile(r"\b(?:film|movie|documentary|docudrama|television|novel|album|song|video game)\b", re.I)
 
 
+def _search_titles(query: str, limit: int, get: Get) -> list[str]:
+    found = get("en.wikipedia.org", {"action": "query", "list": "search", "srsearch": query, "srlimit": limit, "srprop": ""})
+    return [hit["title"] for hit in (found.get("query") or {}).get("search", [])]
+
+
+def _main_articles(title: str, get: Get) -> list[str]:
+    """Hesla z odkazů „Hlavní článek“ v anglickém hesle: ty vybrali redaktoři (Tesla coil, Tesla turbine, Wardenclyffe Tower)."""
+    data = get("en.wikipedia.org", {"action": "query", "prop": "revisions", "rvprop": "content", "rvslots": "main", "titles": title})
+    pages = (data.get("query") or {}).get("pages") or [{}]
+    text = ((pages[0].get("revisions") or [{}])[0].get("slots") or {}).get("main", {}).get("content", "")
+    return [t.split("#")[0].strip() for m in re.findall(r"\{\{\s*[Mm]ain\s*\|([^}]+)\}\}", text) for t in m.split("|") if "=" not in t]
+
+
+def _kind_related(entity: dict, limit: int, get: Get) -> list[dict]:
+    """Podobné stránky o osobě nebo zvířeti. Osoba: hlavní články, seznam patentů, podobná hesla; musí jmenovat celé jméno.
+    Zvíře: hlavní články a hledání podle jména, úvod musí mluvit o přírodě (Axolotl je i šifrovací protokol)."""
+    en_title = entity["sitelinks"]["en"]
+    short, kind = entity["short"], entity["druh"]
+    nocase = kind == "zvire"
+    titles = _main_articles(en_title, get)
+    if kind == "osoba":
+        titles += _search_titles(f'intitle:"{en_title}" intitle:patents', 2, get) + _search_titles(f"morelike:{en_title}", limit, get)
+    else:
+        titles += _search_titles(short, limit * 2, get) + _search_titles(f"morelike:{en_title}", limit, get)
+    pages: list[dict] = []
+    for title in dict.fromkeys(t for t in titles if t != en_title and "(disambiguation)" not in t):
+        if len(pages) >= limit:
+            break
+        page = load_page("en", title, get)
+        lead = page["text"].split("\n==")[0] if page else ""
+        if not page or _KIND_WORK.search(lead[:200]) or not _mentions(lead, short, nocase) or (kind == "zvire" and not _NATURE.search(lead)):
+            continue
+        if kind == "osoba" and _life_dates(page):       # životopis někoho jiného: u Marie Curie by „Curie“ na stránce Pierra byl Pierre
+            continue
+        if len(re.findall(rf"\b{re.escape(short)}", page["text"], re.I if nocase else 0)) >= (5 if nocase else 3) and (nocase or en_title in page["text"]):
+            pages.append({**page, "jen_s_nazvem": short, "bez_velikosti": nocase})
+    return pages
+
+
 def load_pages(entity: dict, langs=LANGS, related: int = RELATED_PAGES, get: Get = get_json) -> list[dict]:
     """Hlavní stránky jazyků a podobné anglické stránky, které entitu jmenují v úvodu a aspoň třikrát celkem (u nich jen odstavce
     s jejím jménem). Úvod odfiltruje stránky o něčem jiném, co ji jen zmiňuje (Volkshalle, Roman amphitheatre), i film nebo knihu o ní."""
     pages = [p for lang in langs if lang in entity["sitelinks"] for p in [load_page(lang, entity["sitelinks"][lang], get)] if p]
     en_title = entity["sitelinks"].get("en")
+    if entity.get("druh", "vec") != "vec":
+        return pages + (_kind_related(entity, PROFILES[entity["druh"]]["related"], get) if related and en_title else [])
     if related and en_title:
         found = get("en.wikipedia.org", {"action": "query", "list": "search", "srsearch": f"morelike:{en_title}", "srlimit": related, "srprop": ""})
         short = re.split(r"[,(]", en_title)[0].strip()
@@ -251,10 +337,11 @@ def _sections(text: str):
             yield [p[1] for p in path], line.strip()
 
 
-def _sentences(paragraph: str) -> list[str]:
+def _sentences(paragraph: str, dates: bool = False) -> list[str]:
+    """Věty odstavce. S `dates` nerozdělí datum („10. července 1856“, „10. Juli 1856“), v životopisu jich je plno; u staveb se to neměnilo."""
     out: list[str] = []
     for piece in re.split(r"(?<=[.!?])\s+(?=[A-ZÁ-Ž„\"(])", paragraph):
-        if out and _ABBREV.search(out[-1]):
+        if out and (_ABBREV.search(out[-1]) or (dates and re.search(r"\d\.$", out[-1]) and piece.split()[0].rstrip(",") in druhy.MONTHS)):
             out[-1] = f"{out[-1]} {piece}"
         else:
             out.append(piece)
@@ -274,7 +361,6 @@ UNITS = [
     (r"ft|feet|foot", "m", 0.3048),
     (r"(?:\w+\s)?(?:spectators|viewers|diváků|Zuschauer\w*|spettatori)", "míst", 1.0),
 ]
-_UNIT = "|".join(f"(?:{u[0]})" for u in UNITS)
 # Přepočet v závorce za metrickou hodnotou není další údaj.
 CONVERSION = re.compile(r"\s*\([^()]*\b(?:ft|feet|in|mi|miles|yd|psi|long tons?|short tons?|lb|sq|acres?)\b[^()]*\)")
 QUANTITIES = {
@@ -320,6 +406,35 @@ _RANGE_PREFIX = re.compile(r"(?:\bfrom|\bbetween|\bod|\bmezi|\bvon|\bzwischen|\b
 _RANGE_LINK = re.compile(r"(?:\bto|\band|\bdo|\ba|\baž|\bbis|\bund|\be|[–—-])\s*$", re.I)
 
 
+@dataclass(frozen=True)
+class Words:
+    """Slova, podle kterých se číslo přiřazuje předmětu a veličině. Výchozí platí pro stavby."""
+    parts: dict
+    units: tuple
+    unit_quantity: dict
+    whole: tuple = _WHOLE_QUANTITIES
+    whole_start: re.Pattern = _WHOLE
+    name_window: int = 28           # jak daleko od začátku věty smí stát jméno, aby číslo patřilo k celku
+    keep_range: bool = False        # „15 až 45 cm, nejčastěji 23 cm“ je rozsah, ne dva rozporné údaje
+    right_stops: bool = False       # slovo za číslem platí jen po spojku
+    carry: bool = True              # „Each was…“ míří na díl z minulé věty; u zvířete je „They“ zvíře
+    wide_range: bool = False        # „between 22 and 55 kg“ je rozsah
+    whole_part: tuple = ()          # (vzor, díl): celá věta je o tomhle dílu („mládě váží…, ocas měří…“)
+
+    @property
+    def unit_re(self) -> str:
+        return "|".join(f"(?:{u[0]})" for u in self.units)
+
+
+BUILDING = Words(PARTS, tuple(UNITS), UNIT_QUANTITY)
+PERSON = Words(druhy.OSOBA_PARTS, tuple(u for u in UNITS if u[1] == "m"), {}, name_window=40, right_stops=True, carry=False)
+ANIMAL = Words(druhy.ZVIRE_PARTS, druhy.UNITS_ZVIRE, {"kg": "hmotnost"}, whole=("výška", "šířka", "délka", "hmotnost"),
+               whole_start=re.compile(r"^(?:It|Its|They|Adults?|Je|Má|Měří|Dorůstá|Dosahuje|Váží|Sie|Er|Es)\b"), name_window=60, keep_range=True, right_stops=True, carry=False, wide_range=True,
+               whole_part=(druhy.ZVIRE_YOUNG, "mládě"))
+KIND_WORDS = {"vec": BUILDING, "osoba": PERSON, "zvire": ANIMAL}
+PROFILES = {"vec": VEC, "osoba": druhy.OSOBA, "zvire": druhy.ZVIRE}
+
+
 def _precision(num: str) -> float:
     """Polovina posledního uvedeného řádu: „9“ může být cokoli od 8,5 do 9,5, „9,1“ jen od 9,05 do 9,15."""
     digits = re.sub(r"[^\d.,]", "", num)
@@ -335,24 +450,26 @@ def _num(text: str, lang: str) -> tuple[float, float]:
     return float(clean), _precision(clean)
 
 
-def _unit(text: str) -> tuple[str, float]:
-    for pattern, unit, factor in UNITS:
+def _unit(text: str, w: Words = BUILDING) -> tuple[str, float]:
+    for pattern, unit, factor in w.units:
         if re.fullmatch(pattern, text):
             return unit, factor
     return text, 1.0
 
 
-def number_mentions(sentence: str, lang: str) -> list[dict]:
+def number_mentions(sentence: str, lang: str, w: Words = BUILDING) -> list[dict]:
     """Čísla s jednotkou ve větě (bez přepočtů v závorce), s rozsahy „od X do Y“ spojenými do jednoho."""
     num = EN_NUM if lang == "en" else EU_NUM
     found = []
-    pattern = rf"(?<![\d.,])({num})(?:\s*(?:až|to|–|—|-|bis)\s*({num}))?[\s -]*({_UNIT})(?![a-zA-ZÀ-ž²\d])"
+    unit_re = w.unit_re
+    links = "až|to|–|—|-|bis" + ("|and|a|und|e" if w.wide_range else "")
+    pattern = rf"(?<![\d.,])({num})(?:\s*(?:{links})\s*({num}))?[\s -]*({unit_re})(?![a-zA-ZÀ-ž²\d])"
     for m in re.finditer(pattern, sentence):
         before = sentence[max(0, m.start() - 16):m.start()]
         if m.group(3) in ("ft", "feet", "foot") and re.search(r"(Roman|římsk\w*|römisch\w*|romani)\s*$", before, re.I):
             continue
         value, precision = _num(m.group(1), lang)
-        unit, factor = _unit(m.group(3))
+        unit, factor = _unit(m.group(3), w)
         item = {"start": m.start(), "end": m.end(), "unit": unit, "factor": factor, "value": value * factor, "precision": precision * factor}
         if m.group(2):
             high, _ = _num(m.group(2), lang)
@@ -360,7 +477,7 @@ def number_mentions(sentence: str, lang: str) -> list[dict]:
         found.append(item)
     merged: list[dict] = []
     # „83 × 48 metrů“: první číslo jednotku nemá, nese délku a druhé šířku
-    for m in re.finditer(rf"(?<![\d.,])({num})\s*(?:by|×|x)\s*(?=(?:{num})[\s\u00a0-]*(?:{_UNIT})(?![a-zA-ZÀ-ž²\d]))", sentence):
+    for m in re.finditer(rf"(?<![\d.,])({num})\s*(?:by|×|x)\s*(?=(?:{num})[\s\u00a0-]*(?:{unit_re})(?![a-zA-ZÀ-ž²\d]))", sentence):
         later = next((i for i in found if i["start"] == m.end()), None)
         if later:
             value, precision = _num(m.group(1), lang)
@@ -382,19 +499,19 @@ def number_mentions(sentence: str, lang: str) -> list[dict]:
     return merged
 
 
-def _last_part(text: str) -> str | None:
+def _last_part(text: str, w: Words = BUILDING) -> str | None:
     best, where = None, -1
-    for name, pattern in PARTS.items():
+    for name, pattern in w.parts.items():
         for m in re.finditer(pattern, text, re.I if name != "dveře" else 0):
             if m.start() > where:
                 best, where = name, m.start()
     return best
 
 
-def _nearest_part(left: str, right: str) -> str | None:
+def _nearest_part(left: str, right: str, w: Words = BUILDING) -> str | None:
     """Slovo nejblíž číslu; do SPECIFIC_WITHIN znaků vyhraje to konkrétnější („dveře do cely“ jsou dveře)."""
     distance: dict[str, int] = {}
-    for name, pattern in PARTS.items():
+    for name, pattern in w.parts.items():
         hits = [len(left) - m.end() for m in re.finditer(pattern, left, re.I)]
         m = re.search(pattern, right, re.I)
         if m:
@@ -403,32 +520,32 @@ def _nearest_part(left: str, right: str) -> str | None:
             distance[name] = min(hits)
     if not distance:
         return None
-    close = [n for n in PARTS if distance.get(n, 10 ** 6) <= SPECIFIC_WITHIN]
+    close = [n for n in w.parts if distance.get(n, 10 ** 6) <= SPECIFIC_WITHIN]
     return close[0] if close else min(distance, key=distance.get)
 
 
-def _named_part(left: str, right: str, unit: str) -> tuple[str, str] | None:
+def _named_part(left: str, right: str, unit: str, w: Words = BUILDING) -> tuple[str, str] | None:
     """„Tloušťka kupole se mění od…“: veličina a předmět jsou řečené těsně před číslem, blízkost dalších slov nerozhoduje."""
     if unit != "m" or any(re.search(q, right[:24], re.I) for q in QUANTITIES.values()):
         return None
     best = None
     for quantity, q in QUANTITIES.items():
-        if quantity in UNIT_QUANTITY.values():
+        if quantity in w.unit_quantity.values():
             continue
-        for part, pattern in PARTS.items():
+        for part, pattern in w.parts.items():
             for m in re.finditer(rf"(?:{q})\w*\s+{_OF}(?:{pattern})\w*", left, re.I):
                 if len(left) - m.end() <= 20 and (best is None or m.end() > best[0]):
                     best = (m.end(), part, quantity)
     return (best[1], best[2]) if best else None
 
 
-def _quantities(left: str, right: str, unit: str) -> list[str]:
+def _quantities(left: str, right: str, unit: str, w: Words = BUILDING) -> list[str]:
     near = right[:24]
     hits = [q for q, pattern in QUANTITIES.items() if re.search(pattern, near, re.I)]
     if hits:
         return [min(hits, key=lambda q: re.search(QUANTITIES[q], near, re.I).start())]
-    if unit in UNIT_QUANTITY:
-        return [UNIT_QUANTITY[unit]]
+    if unit in w.unit_quantity:
+        return [w.unit_quantity[unit]]
     if unit != "m":
         return []
     scored = []
@@ -441,46 +558,54 @@ def _quantities(left: str, right: str, unit: str) -> list[str]:
     return [q for _, q in sorted(scored, reverse=True)[:2]]
 
 
-def sentence_numbers(sentence: str, lang: str, names: list[str], carried: str | None, need_name: bool = False) -> list[dict]:
+def sentence_numbers(sentence: str, lang: str, names: list[str], carried: str | None, need_name: bool = False, w: Words = BUILDING) -> list[dict]:
     """Čísla ve větě s předmětem a veličinou. Bez jistoty o obojím se číslo nevrátí a věta zůstane jen jako text.
     Dvě různé hodnoty téhož předmětu a veličiny v jedné větě bývají srovnání s něčím jiným, proto ani jedna."""
     clean = CONVERSION.sub("", sentence)
-    mentions = number_mentions(clean, lang)
+    mentions = number_mentions(clean, lang, w)
     out = []
     prev_end = 0
     prev_part = None
     for i, m in enumerate(mentions):
         next_start = mentions[i + 1]["start"] if i + 1 < len(mentions) else len(clean)
         left, right = clean[prev_end:m["start"]][-90:], clean[m["end"]:next_start][:48]
+        if w.right_stops:       # „tower 57 m tall and the cupola…“: za spojkou začíná jiná věc
+            right = re.split(r"\band\b|,", right)[0]
         before = clean[:m["start"]]
         prev_end = m["end"]
         if _WOULD_BE.search(left) or (need_name and (_COMPARED.search(clean) or not any(n in before for n in names))) \
-                or (m["unit"] == "t" and re.match(r"\s*(?:of|ze?)\b", right)):      # „300 tun železných skob“ není hmotnost stavby
+                or (m["unit"] in ("t", "kg") and re.match(r"\)?\s*(?:of|ze?)\b", right)):      # „300 tun železných skob“ není hmotnost stavby
             continue
-        named = _named_part(left, right, m["unit"])
-        quantities = [m["quantity"]] if m.get("quantity") else [named[1]] if named else _quantities(left, right, m["unit"])
+        named = _named_part(left, right, m["unit"], w)
+        quantities = [m["quantity"]] if m.get("quantity") else [named[1]] if named else _quantities(left, right, m["unit"], w)
         # Slovo za číslem platí, jen když za číslem stojí i veličina („9,1 m v průměru, které tvoří okulus“), nebo před ním nic není.
         has_q_right = any(re.search(q, right[:24], re.I) for q in QUANTITIES.values())
-        left_part = _nearest_part(left, "")
+        left_part = _nearest_part(left, "", w)
         if named:
             part = named[0]
         elif left_part is None and prev_part and len(left) <= 20:
             part = prev_part            # „87 m dlouhá a 55 m široká, obklopená zdí“: druhé číslo patří k témuž
         elif has_q_right or left_part is None:
-            part = _nearest_part(left, right)
+            part = _nearest_part(left, right, w)
         else:
             part = left_part
+        if w.whole_part and re.search(w.whole_part[0], clean, re.I):
+            part = w.whole_part[1]
         if not part:
-            if carried and _CARRY.match(clean):
+            if carried and w.carry and _CARRY.match(clean):
                 part = carried
-            elif (_WHOLE.match(clean) or any(n in clean[:28] for n in names) or m["unit"] == "míst") and set(quantities) & set(_WHOLE_QUANTITIES):
+            elif (w.whole_start.match(clean) or any(n in clean[:w.name_window] for n in names) or m["unit"] == "míst") and set(quantities) & set(w.whole):
                 part = "celek"
             else:
-                part = _last_part(clean[:28])
+                part = _last_part(clean[:28], w)
         prev_part = part
         if part and quantities:
             out.append({"predmet": part, "velicina": quantities, "hodnota": m.get("range") or m["value"], "jednotka": m["unit"],
                         "presnost": m["precision"]})
+    if w.keep_range:
+        for n in [n for n in out if isinstance(n["hodnota"], list)]:
+            out = [o for o in out if o is n or isinstance(o["hodnota"], list) or o["predmet"] != n["predmet"] or not set(o["velicina"]) & set(n["velicina"])
+                   or not n["hodnota"][0] <= o["hodnota"] <= n["hodnota"][1]]
     groups: dict[tuple, set] = {}
     for n in out:
         for q in n["velicina"]:
@@ -549,12 +674,226 @@ def page_facts(page: dict, names: list[str]) -> list[dict]:
     return raw + [t[1] for t in texts[:limit]]
 
 
+# -- osoba a zvíře: co z jedné stránky ---------------------------------------------------------------------------------
+_MONTH = "|".join(sorted(druhy.MONTHS, key=len, reverse=True))
+_DATE = re.compile(rf"(?<!\d)(\d{{1,2}})\.?º?\s+({_MONTH})\s+(\d{{4}})\b|\b({_MONTH})\s+(\d{{1,2}}),?\s+(\d{{4}})\b")
+_YEAR = re.compile(r"\b(?:1[0-9]{3}|20\d\d)\b")
+_MONEY_OR_MEASURE = re.compile(r"[$€£]\s?\d|\b\d[\d,. ]*\s?(?:%|°C|km|cm|mm|kg|feet|foot|ft|miles?|years?|let|percent|million|billion|horsepower|hp|volts?)\b|\b\d+ (?:patents?|eggs|chromosomes?|pairs)\b")
+_MONTH_YEAR = re.compile(rf"\b(?:{_MONTH})\s+\d{{4}}\b")
+_DEMONSTRATIVE = re.compile(r"(?:These|This|Those|Ty|Tyto|Toto)\b")
+_SPELLED = re.compile(r"\b(?:two|three|four|five|six|seven|eight|nine|ten|dozens?|hundreds?|thousands?|dva|dvě|tři|čtyři|pět)\b", re.I)
+_KIND_WORK = re.compile(r"\b(?:film|movie|documentary|docudrama|television|novel|album|song|video game|short story|book|band|comic|biography|opera)\b", re.I)
+_NATURE = re.compile(r"species|genus|family|amphibian|\blakes?\b|wetland|\brivers?\b|habitat|salamander|\banimal|organism|mytholog|deity|\bgod\b|regenerat|neoten|ecolog|mountain|\bmammal|\bbird|\bfish|reptile|\bcats?\b|conservation", re.I)
+_PATENT_ROW = re.compile(rf"(?:U\.S\. )?[Pp]atent (\d{{1,3}}(?:,\d{{3}})+) - (.+?) - (\d{{4}}) ({_MONTH}) (\d{{1,2}})\b")
+_PATENT_NUMBER = re.compile(r"[Pp]atent (?:No\. )?(\d{1,3}(?:,\d{3})+)")
+_METRIC_AFTER = re.compile(r"\b[\d,.]+[- ](?:feet|foot|ft|miles?|mi|inches|inch|in)\b(?: [\d.]+ (?:inches|inch|in)\b)?\s*\((?=[^()]*\d\s?(?:m|km|cm|mm)\b)")
+_US_SCOPE = re.compile(r"\bUSA\b|\bU\.?S\.?\b|United States|americk|\bamerik", re.I)
+_FOREIGN = re.compile(r"British|Britain|\bUK\b|Canad|French|France|German|Spanish", re.I)
+
+
+def _iso_date(match: re.Match) -> str:
+    day, month, year = (match.group(1), match.group(2), match.group(3)) if match.group(1) else (match.group(5), match.group(4), match.group(6))
+    return f"{year}-{druhy.MONTHS[month]:02d}-{int(day):02d}"
+
+
+def _fmt_date(iso: str) -> str:
+    return ". ".join(str(int(p)) for p in reversed(iso.split("-")[1:])) + (". " if "-" in iso else "") + iso.split("-")[0]
+
+
+def _mentions(text: str, name: str, nocase: bool) -> bool:
+    return name.lower() in text.lower() if nocase else name in text
+
+
+def _pronoun_first(sentence: str, name: str) -> bool:
+    """„In 1919 she took a course with Marie Curie“: zájmeno před jménem je na podobné stránce někdo jiný."""
+    return bool(re.search(r"\b(?:she|he)\b", sentence[:sentence.find(name)], re.I)) if name in sentence else False
+
+
+def _life_dates(page: dict) -> list[dict]:
+    """Narození a úmrtí ze závorky v první větě hesla: tam stojí ve všech jazycích stejně. Závorka bez dvou dat a bez „born“ nic neřekne."""
+    lead = next((p for path, p in _sections(page["text"]) if not path), "")
+    group = re.search(r"\([^()]*\d{4}[^()]*\)", lead[:600])
+    dates = [_iso_date(m) for m in _DATE.finditer(group.group(0))] if group else []
+    events = list(zip(("narození", "úmrtí"), (dates[0], dates[-1]))) if len(dates) > 1 else \
+        [("narození", dates[0])] if dates and re.search(r"\bborn\b|\*|\bnar\.", group.group(0)) else []
+    source = {"url": page["permalink"], "nazev": f"Wikipedia ({page['lang']}): {page['title']}", "citace": lead[:420], "datum": page["datum"],
+              "jazyk": page["lang"], "stranka": page["url"]}
+    return [{"predmet": event, "velicina": "datum", "hodnota": iso, "jednotka": None, "presnost": 0.0, "zdroj": source} for event, iso in events]
+
+
+def _counts(sentence: str, lang: str, prof: dict) -> list[dict]:
+    """Počty, které nemají jednotku v metrech ani kilogramech: délka života, vejce, patenty. Letopočet není počet."""
+    num = EN_NUM if lang == "en" else EU_NUM
+    out = []
+    for what, unit, pattern in prof["counts"]:
+        m = re.search(pattern.format(num=num), sentence, re.I)
+        if not m:
+            continue
+        low, precision = _num(m.group("a"), lang)
+        high = _num(m.group("b"), lang)[0] if m.group("b") else None
+        if unit == "patentů" and 1500 <= low <= 2100 and "," not in m.group("a"):
+            continue
+        whole = unit != "patentů" or not _US_SCOPE.search(sentence[:m.start()])     # „v USA 112 patentů“ je jiný údaj než „278 ve 26 zemích“
+        out.append({"predmet": "celek" if whole else "v USA", "velicina": what, "hodnota": sorted((low, high)) if high is not None else low, "jednotka": unit, "presnost": precision})
+    return out
+
+
+def _kind_score(sentence: str, names: list[str], prof: dict) -> int:
+    """Kolik důvodů číst větu: patří k tématu, má datum, částku nebo míru, jmenuje věc. Věta bez tématu a bez události nestojí za nic."""
+    hits = sum(bool(re.search(p, sentence, re.I)) for _, p in prof["themes"])
+    if not hits and not re.search(prof["events"], sentence, re.I):
+        return 0
+    # věta s nezavřenou závorkou je useknutá na zkratce („Laboratorio de Restauracion Ecologica (transl.“)
+    if re.search(prof["noise"], sentence, re.I) or sentence.count("(") != sentence.count(")"):
+        return 0
+    score = 1 + min(hits, 2)
+    score += bool(_YEAR.search(sentence)) + bool(_DATE.search(sentence) or _MONTH_YEAR.search(sentence)) + 2 * bool(_MONEY_OR_MEASURE.search(sentence)) + bool(_SPELLED.search(sentence))
+    score += any(n in sentence for n in names)
+    return score - (len(sentence) > 300) - bool(_DEMONSTRATIVE.match(sentence))     # „These are…“ bez minulé věty nic neřekne
+
+
+def _pick_texts(by_section: dict[str, list[tuple[int, dict]]], limit: int) -> list[dict]:
+    """Věty po kolech: z každého oddílu nejlepší, pak z každého druhá nejlepší. Oddíly hesla rozdělili redaktoři, tak žádná část života nebo biologie nezmizí."""
+    sections = [sorted(rows, key=lambda r: -r[0]) for rows in by_section.values()]
+    picked: list[tuple[int, dict]] = []
+    for turn in range(max(map(len, sections), default=0)):
+        picked += sorted((rows[turn] for rows in sections if len(rows) > turn), key=lambda r: -r[0])
+    return [r[1] for r in picked[:limit]]
+
+
+def _kind_page_facts(page: dict, names: list[str], kind: str) -> list[dict]:
+    """Syrová fakta jedné stránky o osobě nebo zvířeti. Jiný výběr než u stavby: dějiny tu nejsou mimo téma, jsou hlavní obsah."""
+    if len(_PATENT_ROW.findall(page["text"])) >= 20:     # seznam patentů nemá věty, čte ho `patent_facts`
+        return []
+    prof, w = PROFILES[kind], KIND_WORDS[kind]
+    related = page.get("jen_s_nazvem")
+    # „Tesla coil“ na stránce Tesla coil není zmínka o člověku
+    eponym = re.compile(re.escape(re.sub(r"^History of (?:the )?", "", page["title"])) + "s?")
+    nocase = page.get("bez_velikosti", False)
+    raw: list[dict] = _life_dates(page) if not related and kind == "osoba" else []
+    by_section: dict[str, list[tuple[int, dict]]] = {}
+    carried: str | None = None
+    for path, paragraph in _sections(page["text"]):
+        if any(SKIP_SECTION.search(h) or re.search(prof["skip_sections"], h, re.I) for h in path):
+            continue
+        if related and not (_mentions(paragraph, related, nocase) or any(_mentions(h, related, nocase) for h in path)):
+            continue
+        anchor = urllib.parse.quote(path[-1].replace(" ", "_")) if path else ""
+        for sentence in _sentences(paragraph, dates=True):
+            if len(sentence) < 25:
+                continue
+            source = {"url": page["permalink"] + (f"#{anchor}" if anchor else ""), "nazev": f"Wikipedia ({page['lang']}): {page['title']}",
+                      "citace": sentence[:420], "datum": page["datum"], "jazyk": page["lang"], "stranka": page["url"]}
+            # „187 feet (57 m)“: platí metry v závorce, stopy jsou přepočet. U člověka je celek jen jeho výška, ostatní míry patří věcem kolem něj.
+            numbers = sentence_numbers(_METRIC_AFTER.sub("(", sentence), page["lang"], names, carried, need_name=bool(related), w=w)
+            if kind == "osoba":
+                numbers = [n for n in numbers if n["predmet"] != "celek" or (not related and n["velicina"] == ["výška"] and isinstance(n["hodnota"], float) and 1.2 < n["hodnota"] < 2.4)]
+            elif re.search(druhy.ZVIRE_NOT_BODY, sentence, re.I):   # nadmořská výška, kořist a porce masa nejsou míry zvířete
+                numbers = []
+            counted = [] if related else _counts(sentence, page["lang"], prof)
+            part = _last_part(sentence, w)
+            carried = part or carried
+            for n in numbers:
+                for quantity in n["velicina"]:
+                    raw.append({**n, "velicina": quantity, "zdroj": source})
+            raw += [{**n, "zdroj": source} for n in counted]
+            if page["lang"] in TEXT_LANGS and not numbers and not counted and len(sentence) <= 420 \
+                    and (not related or (_mentions(eponym.sub("", sentence), related, nocase) and not _COMPARED.search(sentence) and not _pronoun_first(sentence, related))):
+                score = _kind_score(sentence, names, prof)
+                if score >= 2:
+                    by_section.setdefault(path[-1] if path else "", []).append(
+                        (score, {"tvrzeni": sentence, "hodnota": None, "jednotka": None, "predmet": part, "velicina": None, "zdroj": source}))
+    limits = prof["text_limits"]
+    return raw + _pick_texts(by_section, limits["podobná"] if related else limits[f"hlavní {page['lang']}"] if page["lang"] in TEXT_LANGS else 0)
+
+
+def patent_facts(pages: list[dict], names: list[str]) -> list[dict]:
+    """Datum patentu ve větě proti seznamu patentů. Seznam je stránka se 100 a více řádky `patent N - název - rok měsíc den`.
+
+    Věta s číslem patentu nebo s názvem ze seznamu dá dvě hodnoty téhož patentu, ať se shodnou, nebo ne. Věta bez čísla, jejíž datum
+    v seznamu vůbec není (ani u jiného patentu), jde jako rozpor s vlastní větou: kód neví, o který patent jde, tak to nerozhoduje.
+    Když jiná věta to datum uvádí vedle čísla patentu („April 25, 1891, U.S. patent 454,622 June 23, 1891“), tvrzení ten patent jmenuje.
+    """
+    rows: dict[str, dict] = {}
+    listing = None
+    for page in pages:
+        found = {m.group(1): {"title": m.group(2).strip(), "date": f"{m.group(3)}-{druhy.MONTHS[m.group(4)]:02d}-{int(m.group(5)):02d}", "row": m.group(0)}
+                 for m in _PATENT_ROW.finditer(page["text"])}
+        if len(found) > len(rows):
+            rows, listing = found, page
+    if len(rows) < 20:
+        return []
+
+    def source(page: dict, text: str) -> dict:
+        return {"url": page["permalink"], "nazev": f"Wikipedia ({page['lang']}): {page['title']}", "citace": text[:420], "datum": page["datum"], "jazyk": page["lang"], "stranka": page["url"]}
+
+    def mention(number: str, row: dict, iso: str, src: dict) -> dict:
+        return {"predmet": f"patent US {number} ({row['title']})", "velicina": "datum patentu", "hodnota": iso, "jednotka": None, "presnost": 0.0, "zdroj": src}
+
+    dates = {r["date"] for r in rows.values()}
+    claims = []
+    beside: dict[str, list[tuple[str, dict]]] = {}    # datum stojící ve větě vedle čísla patentu a jiného data
+    for page in pages:
+        if page is listing or page["lang"] != "en":
+            continue
+        for path, paragraph in _sections(page["text"]):
+            if any(SKIP_SECTION.search(h) for h in path):
+                continue
+            for sentence in _sentences(paragraph, dates=True):
+                found = [_iso_date(m) for m in _DATE.finditer(sentence)]
+                if not found or not re.search(r"\bpatent", sentence, re.I) or _FOREIGN.search(sentence) or re.search(r"\bfiled\b", sentence, re.I):
+                    continue
+                number = next((n for n in _PATENT_NUMBER.findall(sentence) if n in rows), None)
+                # „July 1, 1898, U.S. patent 613,809 November 8, 1898“: k patentu patří datum za číslem
+                iso = found[-1] if number else found[0]
+                if number and len(found) > 1:
+                    beside.setdefault(found[0], []).append((number, source(page, sentence)))
+                claims.append((page, sentence, number, iso))
+    raw: list[dict] = []
+    told: dict[str, set[str]] = {}
+    checked: set[str] = set()
+    for page, sentence, number, iso in claims:
+        if number is None and re.search(r"\bpatented\b", sentence) and any(n in sentence for n in names):
+            number = next((n for n, r in rows.items() if re.search(rf"\b{re.escape(r['title'])}\b", sentence, re.I)), None)
+            if number is None and iso not in dates:
+                near = beside.get(iso, [])
+                statement = f"Patent s datem {_fmt_date(iso)}: v seznamu patentů toto datum není" \
+                    + (". Stojí vedle " + ", ".join(f"US {n} z {_fmt_date(rows[n]['date'])}" for n, _ in near) if near else "")
+                note = {"hodnota": None, "jednotka": None, "predmet": "patent", "velicina": "datum patentu", "stav": "rozpor", "tvrzeni": statement}
+                raw.append({**note, "zdroj": source(page, sentence)})
+                if iso not in checked:
+                    checked.add(iso)
+                    raw.append({**note, "zdroj": source(listing, f"{iso[:4]}: " + "; ".join(f"US {n} {_fmt_date(r['date'])}" for n, r in rows.items() if r["date"].startswith(iso[:4])))})
+                    raw += [{**note, "zdroj": src} for _, src in near]
+                continue
+        if number:
+            told.setdefault(number, {rows[number]["date"]}).add(iso)
+            raw.append(mention(number, rows[number], iso, source(page, sentence)))
+    for number, values in told.items():     # shodné řádky nic neříkají a Návrhy by za ně platily; drží se jen rozpor
+        if len(values) == 1:
+            raw = [f for f in raw if not (f["hodnota"] is not None and f["predmet"].startswith(f"patent US {number} "))]
+        else:
+            raw.append(mention(number, rows[number], rows[number]["date"], source(listing, rows[number]["row"])))
+    by_year: dict[str, int] = {}
+    for row in rows.values():
+        by_year[row["date"][:4]] = by_year.get(row["date"][:4], 0) + 1
+    summary = f"Americké patenty podle seznamu na Wikipedii: {len(rows)}. Podle roku: " + ", ".join(f"{y}: {by_year[y]}" for y in sorted(by_year))
+    raw.append({"tvrzeni": summary, "hodnota": None, "jednotka": None, "predmet": None, "velicina": "počet", "zdroj": source(listing, summary)})
+    return raw
+
+
 # -- slučování --------------------------------------------------------------------------------------------------------
 def _fmt(value: float) -> str:
+    if 0 < abs(value) < 0.01:
+        return f"{value:.2g}".replace(".", ",")
     return f"{value:,.2f}".rstrip("0").rstrip(".").replace(",", " ").replace(".", ",")
 
 
 def _fmt_value(value, unit: str | None) -> str:
+    if isinstance(value, str):
+        return _fmt_date(value)
+    if isinstance(value, list) and isinstance(value[0], str):
+        return " nebo ".join(_fmt_date(v) for v in value)
     text = f"{_fmt(value[0])} až {_fmt(value[1])}" if isinstance(value, list) else _fmt(value)
     return f"{text} {unit}".strip() if unit else text
 
@@ -569,6 +908,8 @@ def _agree(a: dict, b: dict) -> bool:
     """Překryv intervalů zaokrouhlení, nebo rozdíl do 0,5 %: 43,3 a 43,22 jsou totéž, 8,95 a 9,1 ne.
     Rozsah „od 1,2 do 6,4“ a hodnota uvnitř si neodporují, dva rozsahy se porovnávají po koncích."""
     va, vb = a["hodnota"], b["hodnota"]
+    if isinstance(va, str):         # datum: „1888“ a „1888-05-01“ si neodporují, přesnější věc jen říká víc
+        return va.startswith(vb) or vb.startswith(va)
     if isinstance(va, list) and isinstance(vb, list):
         return all(_agree({**a, "hodnota": x}, {**b, "hodnota": y}) for x, y in zip(va, vb))
     a0, a1 = _bounds(a)
@@ -579,8 +920,15 @@ def _agree(a: dict, b: dict) -> bool:
 
 
 def _statement(entity: dict, predmet: str, velicina: str, value, unit: str) -> str:
-    who = entity["label"] if predmet == "celek" else predmet.capitalize()
-    return f"{who}: {velicina} {_fmt_value(value, unit)}"
+    who = entity["label"] if predmet == "celek" else predmet[0].upper() + predmet[1:]
+    return f"{who}: {_fmt_value(value, unit)}" if velicina.startswith("datum") else f"{who}: {velicina} {_fmt_value(value, unit)}"
+
+
+def _kind_theme(fact: dict, prof: dict) -> str:
+    what = fact.get("velicina")
+    if what:
+        return prof["value_theme"].get(what, prof["default_theme"])
+    return next((theme for theme, pattern in prof["themes"] if re.search(pattern, fact["tvrzeni"], re.I)), prof["default_theme"])
 
 
 def _theme(fact: dict) -> str:
@@ -597,6 +945,8 @@ def _theme(fact: dict) -> str:
 
 def merge_facts(raw: list[dict], entity: dict) -> list[dict]:
     """Čísla stejného předmětu a veličiny → jeden fakt se všemi zdroji a stavem; věty zůstávají samostatně."""
+    kind = entity.get("druh", "vec")
+    theme = _theme if kind == "vec" else lambda f: _kind_theme(f, PROFILES[kind])
     groups: dict[tuple, list[dict]] = {}
     texts: list[dict] = []
     for fact in raw:
@@ -610,7 +960,10 @@ def merge_facts(raw: list[dict], entity: dict) -> list[dict]:
             continue        # ostatní jazyky jen ověřují, co říká čeština, angličtina nebo Wikidata
         pages = {i["zdroj"].get("stranka") or i["zdroj"]["url"] for i in items}
         conflict = any(not _agree(a, b) for k, a in enumerate(items) for b in items[k + 1:])
-        if conflict:
+        if conflict and isinstance(items[0]["hodnota"], str):
+            value = sorted({i["hodnota"] for i in items})
+            state = "rozpor"
+        elif conflict:
             lows, highs = zip(*[(min(i["hodnota"]), max(i["hodnota"])) if isinstance(i["hodnota"], list) else (i["hodnota"], i["hodnota"]) for i in items])
             value = [min(lows), max(highs)]
             state = "rozpor"
@@ -625,7 +978,8 @@ def merge_facts(raw: list[dict], entity: dict) -> list[dict]:
                 seen.add(key)
                 sources.append({**i["zdroj"], "hodnota": i["hodnota"], "presnost": i.get("presnost", 0.0)})
         out.append({"tvrzeni": _statement(entity, predmet, velicina, value, unit), "predmet": predmet, "velicina": velicina,
-                    "hodnota": value, "jednotka": unit or None, "zdroje": sources, "stav": state, "tema": "rozmery"})
+                    "hodnota": value, "jednotka": unit or None, "zdroje": sources, "stav": state,
+                    "tema": "rozmery" if kind == "vec" or unit == "m" or unit == "kg" else theme({"velicina": velicina if velicina != "datum" else predmet})})
     seen_text: dict[str, dict] = {}
     for fact in texts:
         known = seen_text.get(fact["tvrzeni"])
@@ -634,7 +988,7 @@ def merge_facts(raw: list[dict], entity: dict) -> list[dict]:
                 known["zdroje"].append(fact["zdroj"])
             continue
         seen_text[fact["tvrzeni"]] = {"tvrzeni": fact["tvrzeni"], "predmet": fact.get("predmet"), "velicina": fact.get("velicina"), "hodnota": None,
-                                      "jednotka": None, "zdroje": [fact["zdroj"]], "stav": "jediny_zdroj", "tema": _theme(fact)}
+                                      "jednotka": None, "zdroje": [fact["zdroj"]], "stav": fact.get("stav", "jediny_zdroj"), "tema": theme(fact)}
     out += seen_text.values()
     order = {"rozpor": 0, "shoda": 1, "jediny_zdroj": 2}
     out.sort(key=lambda f: (order[f["stav"]], f["hodnota"] is None, f["predmet"] or "~", f["velicina"] or "~"))
@@ -652,7 +1006,10 @@ ASPECTS = [
 ]
 
 
-def open_questions(facts: list[dict]) -> list[str]:
+def open_questions(facts: list[dict], kind: str = "vec") -> list[str]:
+    if kind != "vec":
+        seen = {f["velicina"] for f in facts} | {f["predmet"] for f in facts if f["velicina"] == "datum"} | {f["tema"] for f in facts}
+        return [q for q, wanted in PROFILES[kind]["aspects"] if not seen & set(wanted)]
     return [q for q, has in ASPECTS if not any(has(f) for f in facts)]
 
 
@@ -670,13 +1027,20 @@ _ROLE_WORDS = {
 _ROLE_SEARCH = {"rekonstrukce": "reconstruction", "pudorys": "floor plan", "rez": "section drawing", "pruceli": "facade exterior", "interier": "interior", "detail": "detail", "material": "brick wall masonry"}
 _NOT_PICTURE = re.compile(r"\b(?:map|coin|stamp|logo|flag|poster|portrait|seal)\b", re.I)
 _MIN_EDGE = 800
-_ORIGIN_RANK = {"clanek": 0, "sketchfab": 1, "kategorie": 2, "hledání": 3}
+_ORIGIN_RANK = {"wikidata": -1, "clanek": 0, "sketchfab": 1, "kategorie": 2, "hledání": 3}
+_UNKNOWN_AUTHOR = re.compile(r"^(?:Neznámý|Unknown|Unbekannt|Autor/-in unbekannt|Sconosciuto)", re.I)
 
 
 def _clean(value: str | None) -> str | None:
     if not value:
         return None
     return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", value))).strip() or None
+
+
+def _author(artist: str | None, credit: str | None) -> str | None:
+    """Commons u neznámého autora vrací dvakrát přeložený text („NeznámýUnknown author“) a někdy jen adresu, do patičky infografiky ani jedno nepatří."""
+    value = next((v for v in (artist, credit) if v and not v.startswith("http")), None)
+    return "autor neznámý" if value and _UNKNOWN_AUTHOR.match(value) else value
 
 
 def _image_item(page: dict) -> dict | None:
@@ -687,7 +1051,7 @@ def _image_item(page: dict) -> dict | None:
     val = lambda k: (meta.get(k) or {}).get("value")  # noqa: E731
     name = page["title"].split(":", 1)[-1]     # Soubor:, Datei:, File: podle jazyka
     return {"file": f"File:{name}", "nazev": name, "url": info.get("url"), "thumb": info.get("thumburl"),
-            "stranka": info.get("descriptionurl"), "autor": _clean(val("Artist")) or _clean(val("Credit")), "licence": _clean(val("LicenseShortName")),
+            "stranka": info.get("descriptionurl"), "autor": _author(_clean(val("Artist")), _clean(val("Credit"))), "licence": _clean(val("LicenseShortName")),
             "licence_url": val("LicenseUrl"), "popis": (_clean(val("ImageDescription")) or "")[:300], "kategorie": _clean(val("Categories")) or "",
             "sirka": info.get("width"), "vyska": info.get("height")}
 
@@ -730,11 +1094,15 @@ def _article_images(entity: dict, get: Get) -> list[dict]:
 
 def find_models(entity: dict, limit: int = 4, get: Get = get_json) -> list[dict]:
     """3D modely ze Sketchfabu pod licencí, která dovoluje použití i úpravy (ne NC, ne ND); obrázek je jejich náhled.
-    Hledání nevyžaduje účet. Výpadek Sketchfabu dossier nezastaví, role pak zůstane bez modelů."""
+    Hledání nevyžaduje účet. Výpadek Sketchfabu dossier nezastaví, role pak zůstane bez modelů.
+    U zvířete jen věcné modely (sken, anatomie, kostra), maskot a kreslený model se nebere. U osoby žádné, jsou to karikatury."""
+    kind = entity.get("druh", "vec")
+    if kind != "vec" and not PROFILES[kind]["models"]:
+        return []
     names = {re.split(r"[,(]", n)[0].strip().lower() for n in (*entity["sitelinks"].values(), entity["label"])}
     name = re.split(r"[,(]", entity["sitelinks"].get("en", entity["label"]))[0].strip()
     found: dict[str, dict] = {}
-    for query in (name, f"{name} reconstruction"):
+    for query in (name, f"{name} reconstruction") if kind == "vec" else (name, f"{name} skeleton", f"{name} scan"):
         try:
             rows = get(SKETCHFAB, {"type": "models", "q": query, "downloadable": "true", "count": 24}).get("results", [])
         except ResearchError:
@@ -745,13 +1113,17 @@ def find_models(entity: dict, limit: int = 4, get: Get = get_json) -> list[dict]
                 continue
             if not any(n in re.sub(r"\(.*?\)", "", row.get("name") or "").lower() for n in names):     # „Gerudo Desert (Colosseum)“
                 continue
+            if kind != "vec":
+                about = " ".join([row.get("name") or "", row.get("description") or "", *[t.get("name", "") for t in row.get("tags") or []]])
+                if re.search(druhy.MODEL_CARTOON, about, re.I) or not re.search(druhy.MODEL_REAL, about, re.I):
+                    continue
             images = sorted((row.get("thumbnails") or {}).get("images", []), key=lambda i: i.get("width", 0))
             if not images or images[-1].get("width", 0) < _MIN_EDGE:
                 continue
             small = next((i for i in images if i.get("width", 0) >= 400), images[-1])
             found[row["uid"]] = {"file": f"sketchfab:{row['uid']}", "nazev": row["name"], "url": images[-1]["url"], "thumb": small["url"], "stranka": row.get("viewerUrl"),
                                  "autor": (row.get("user") or {}).get("displayName"), "licence": label, "popis": "",
-                                 "sirka": images[-1].get("width"), "vyska": images[-1].get("height"), "role": "rekonstrukce", "puvod": "sketchfab",
+                                 "sirka": images[-1].get("width"), "vyska": images[-1].get("height"), "role": "rekonstrukce" if kind == "vec" else "model", "puvod": "sketchfab",
                                  "steny": row.get("faceCount"), "lajky": row.get("likeCount") or 0}
     return sorted(found.values(), key=lambda m: -m["lajky"])[:limit]
 
@@ -759,14 +1131,100 @@ def find_models(entity: dict, limit: int = 4, get: Get = get_json) -> list[dict]
 def pinterest_queries(entity: dict) -> list[dict]:
     """Dotazy na Pinterest. Engine tam sám nemůže (bez přihlášení jen zeď), jdou přes operátorův Chrome (docs/pinterest.md)."""
     name = re.split(r"[,(]", entity["sitelinks"].get("en", entity["label"]))[0].strip()
-    queries = [f"{name} {suffix}" for suffix in ("3D reconstruction", "construction model", "infographic", "cross section")]
+    suffixes = PROFILES[entity["druh"]]["pinterest"] if entity.get("druh", "vec") != "vec" else ("3D reconstruction", "construction model", "infographic", "cross section")
+    queries = [f"{name} {suffix}" for suffix in suffixes]
     return [{"dotaz": q, "url": "https://www.pinterest.com/search/pins/?" + urllib.parse.urlencode({"q": q})} for q in queries]
+
+
+def _claim_files(entity: dict, pid: str) -> list[str]:
+    return [f"File:{c['mainsnak']['datavalue']['value']}" for c in entity["claims"].get(pid, []) if "datavalue" in c["mainsnak"]]
+
+
+def _kind_role(item: dict, prof: dict, about: bool) -> str:
+    """Role podle názvu, pak popisu a kategorií. Osoba: svislá fotka, která se o ní nějak jmenuje, je nejspíš portrét. Zvíře: soubor z jeho kategorie je zvíře."""
+    for field in (item["nazev"], f"{item['popis']} {item.get('kategorie', '')}"):
+        for role, pattern in prof["role_words"].items():
+            if re.search(pattern, field, re.I) and (about or role != "zivot"):      # „A bar magnet with poles“ není ze života
+                return role
+    if not about:
+        return "nezarazeno"
+    if "portret" in prof["roles"]:
+        return "portret" if (item["vyska"] or 0) > (item["sirka"] or 0) else "zivot"
+    return "zvire"
+
+
+def _kind_images(entity: dict, per_role: int, get: Get) -> list[dict]:
+    """Obrázky k osobě nebo zvířeti: hlavní obrázek a mapa z Wikidaty, hesla Wikipedie a jejich podobné stránky o místech, kategorie, hledání po rolích.
+    Mapa smí být SVG (Commons ji vykreslí jako bitmapu) a menší, je to vektor. Portrét a mapa tady nejsou odpad jako u stavby."""
+    prof = PROFILES[entity["druh"]]
+    category = entity.get("commons_category")
+    name = entity["short"]
+    pool: dict[str, dict] = {}
+
+    def about_it(item: dict) -> bool:
+        haystack = f"{item['nazev']} {item.get('kategorie', '')}".lower()
+        return name.lower() in haystack or bool(category and category.lower() in haystack)
+
+    def add(items: list[dict], origin: str, role: str | None = None, must_be_about: bool = False) -> None:
+        for item in items:
+            file = item["file"].lower()
+            if item["file"] in pool or (must_be_about and not about_it(item)) or re.search(prof["not_picture"], f"{item['nazev']} {item.get('kategorie', '')}", re.I):
+                continue
+            found = role or _kind_role(item, prof, about_it(item))
+            is_map = found == "mapa" and file.endswith(".svg")
+            if not is_map and (max(item["sirka"] or 0, item["vyska"] or 0) < prof["min_edge"] or file.endswith((".svg", ".pdf", ".djvu", ".tif", ".tiff", ".webm", ".ogv", ".ogg"))):
+                continue
+            pool[item["file"]] = {**item, "role": found, "puvod": origin}
+
+    for pid, role in prof["image_claims"].items():
+        files = _claim_files(entity, pid)
+        if files:
+            add(_image_query({"titles": "|".join(files[:10])}, get), "wikidata", role)
+    add(_article_images(entity, get), "clanek", must_be_about=entity["druh"] == "zvire")
+    for title in entity.get("mista", []):
+        place = re.sub(r"\b(?:Lake|Mount|River|Island|Mountains|Valley|Forest|National Park)\b", "", title).strip().lower()
+        try:
+            found = _image_query({"generator": "images", "titles": title, "gimlimit": 40}, get, "en.wikipedia.org")
+        except ResearchError:
+            continue
+        add([i for i in found if place in f"{i['nazev']} {i['popis']} {i.get('kategorie', '')}".lower()], "clanek", "prostredi")
+    if category:
+        add(_image_query({"generator": "categorymembers", "gcmtitle": f"Category:{category}", "gcmtype": "file", "gcmlimit": 50}, get), "kategorie")
+        subs = get(COMMONS, {"action": "query", "list": "categorymembers", "cmtitle": f"Category:{category}", "cmtype": "subcat", "cmlimit": 200})
+        for sub in (subs.get("query") or {}).get("categorymembers", []):
+            title = sub["title"].removeprefix("Category:")
+            role = next((r for r, pattern in prof["role_words"].items() if re.search(pattern, title, re.I)), None)
+            if role or title.startswith("Photographs of"):
+                add(_image_query({"generator": "categorymembers", "gcmtitle": sub["title"], "gcmtype": "file", "gcmlimit": 20}, get), "kategorie", role)
+    for role in prof["roles"]:
+        words = prof["role_search"].get(role)
+        if words is None or sum(1 for i in pool.values() if i["role"] == role) >= per_role:
+            continue
+        query = " ".join(w for w in (name, words, "filetype:bitmap") if w)
+        found = _image_query({"generator": "search", "gsrsearch": query, "gsrnamespace": 6, "gsrlimit": 15}, get)
+        add([i for i in found if _kind_role(i, prof, about_it(i)) == role], "hledání", must_be_about=True)
+    for model in find_models(entity, per_role, get):
+        pool[model["file"]] = model
+    out: list[dict] = []
+    for role in (*prof["roles"], "nezarazeno"):
+        ranked = sorted((i for i in pool.values() if i["role"] == role),
+                        key=lambda i: (_ORIGIN_RANK[i["puvod"]], -i.get("jazyku", 0), -min(i["sirka"] or 0, 2000)))
+        series: set[str] = set()
+        picked = []
+        for item in ranked:
+            if _series(item["nazev"])[:24] not in series:     # „with his equipment EDIT“ a „… Wellcome“ jsou jedna fotka
+                series.add(_series(item["nazev"])[:24])
+                picked.append(item)
+        out += picked[:per_role]
+    return [{k: v for k, v in i.items() if k not in ("kategorie", "lajky")} for i in out]
 
 
 def find_images(entity: dict, per_role: int = 4, get: Get = get_json) -> list[dict]:
     """Kandidáti z hesel Wikipedie, ze Sketchfabu, z kategorie entity a jejích podkategorií podle rolí a z hledání po rolích. Jen rastry a dost velké.
     Soubor z kategorie bez jasné role se nebere: název o něm nic neřekne a kategorie je podle abecedy (Koloseum: 907 souborů, kamera, hřebík).
     Hledání bez uvozovek: název v uvozovkách vrátil u „Pantheon“ jen jeden nesouvisející soubor (měření 2026-11-01)."""
+    if entity.get("druh", "vec") != "vec":
+        return _kind_images(entity, per_role, get)
     category = entity.get("commons_category")
     pool: dict[str, dict] = {}
 
@@ -824,9 +1282,10 @@ def _sources_of(pages: list[dict], entity: dict) -> list[dict]:
         + [{"nazev": f"Wikidata {entity['qid']}", "url": entity["url"], "datum": entity["modified"]}]
 
 
-def _questions(facts: list[dict], images: list[dict], want_images: bool) -> list[str]:
-    missing = [f"Chybí obrázek: {ROLE_LABEL[r]}." for r in ROLES if want_images and not any(i["role"] == r for i in images)]
-    return open_questions(facts) + missing
+def _questions(facts: list[dict], images: list[dict], want_images: bool, kind: str = "vec") -> list[str]:
+    roles = ROLES if kind == "vec" else PROFILES[kind]["roles"]
+    missing = [f"Chybí obrázek: {ROLE_LABEL[r]}." for r in roles if want_images and r != "model" and not any(i["role"] == r for i in images)]
+    return open_questions(facts, kind) + missing
 
 
 def free_dossier(topic: str, *, qid: str | None = None, langs=LANGS, per_role: int = 4, related: int = RELATED_PAGES,
@@ -835,17 +1294,21 @@ def free_dossier(topic: str, *, qid: str | None = None, langs=LANGS, per_role: i
     entity = find_entity(topic, qid, get)
     raw = wikidata_facts(entity, get)
     pages = load_pages(entity, langs, related, get)
+    kind = entity["druh"]
     for page in pages:
-        raw += page_facts(page, entity["names"])
+        raw += page_facts(page, entity["names"]) if kind == "vec" else _kind_page_facts(page, entity["names"], kind)
+    if kind == "osoba":
+        raw += patent_facts(pages, entity["names"])
     facts = merge_facts(raw, entity)
+    entity["mista"] = [p["title"] for p in pages if p.get("jen_s_nazvem") and re.fullmatch(r"(?:Lake|Mount|River) \w+|\w+ (?:Lake|River|Island|Mountains|Valley|Forest|National Park)", p["title"])]
     found = find_images(entity, per_role, get) if images else []
     return {
         "tema": topic.strip(),
-        "entita": {k: entity[k] for k in ("qid", "label", "popis", "url", "commons_category", "sitelinks")},
+        "entita": {k: entity[k] for k in ("qid", "label", "popis", "url", "commons_category", "sitelinks", "druh")},
         "facts": facts,
         "images": found,
         "pinterest": pinterest_queries(entity),
-        "otazky_bez_odpovedi": _questions(facts, found, images),
+        "otazky_bez_odpovedi": _questions(facts, found, images, kind),
         "zdroje": _sources_of(pages, entity),
         "cost_usd": 0.0,
         "pages": pages,
@@ -917,7 +1380,8 @@ def raw_from_facts(facts: list[dict]) -> list[dict]:
     for fact in facts:
         for source in fact["zdroje"]:
             if fact["hodnota"] is None:
-                raw.append({k: fact.get(k) for k in ("tvrzeni", "predmet", "velicina")} | {"hodnota": None, "jednotka": None, "zdroj": source})
+                raw.append({k: fact.get(k) for k in ("tvrzeni", "predmet", "velicina")} | {"hodnota": None, "jednotka": None, "zdroj": source}
+                           | ({"stav": "rozpor"} if fact.get("stav") == "rozpor" else {}))
             else:
                 raw.append({"predmet": fact["predmet"], "velicina": fact["velicina"], "hodnota": source.get("hodnota", fact["hodnota"]),
                             "jednotka": fact["jednotka"], "presnost": source.get("presnost", 0.0),

@@ -1,5 +1,14 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný
+
+- **Rozhodnutí:** druh tématu (osoba, zvíře, věc) určí Wikidata a volí slovníky jen v rešerši. Věc jde původním kódem, takže stavby jsou nad stejnými daty stejné; řetězec se nemění (`predloha` v promptu Návrhů zůstává na rolích staveb). Měřítko a kritérium se zapsaly před kódem ([měření](spikes/2026-11-02-resers-osoba-zvire.md)).
+- **Co se stalo:** na Teslovi a axolotlovi to vypadalo hotově, Marie Curie a irbis okamžitě ukázaly „výšku 6 000 m“ (nadmořskou), „hmotnost 76 kg“ (kořist) a Pierra Curieho místo Marie. **Jak příště:** u slovníků vždy jedno téma navíc, na kterém se neladí, a všechna čísla projít proti citaci. Měřítko hlásilo pokrytí, tyhle chyby ne.
+- **Stejné API dvakrát:** starý a nový kód porovnávej nad diskovou cache odpovědí API, ať rozdíl není v revizi Wikipedie. Porovnání položek odhalí i změnu autora obrázku.
+- **Past v `_sentences`:** `[A-ZÁ-Ž]` je rozsah Unicode a obsahuje malá česká písmena, takže „10. července“ dělí větu. U osoby a zvířete je to obešlé přes `dates=True`, stavby zůstaly beze změny, aby se neposunula jejich měření.
+- **Past v regexu:** `Xolotl` s `re.I` sedí i na „axolotl“. Téma „kultura“ dostalo 46 faktů a výpis to prozradil až podle počtu.
+- **Restart Engine ze skriptu bez konzole:** `start-grafik.bat` spuštěný přes `subprocess.Popen` s `DETACHED_PROCESS` Engine nerozběhl a nic nezalogoval, výpadek :8300 trval 6,5 minuty (08:46:42 až 08:53, žádná úloha se neztratila). Příčinu jsem nezjistil. Zabralo `Start-Process cmd -ArgumentList '/c python -m uvicorn engine.app:app --port 8300 --host 127.0.0.1 --access-log >> logs\engine.log 2>&1' -WorkingDirectory <hlavní checkout> -WindowStyle Minimized`. **Jak příště:** skript, který zabíjí Engine, spouští tenhle příkaz a čeká nejvýš 30 s; víc nečekat, Engine používají všechny projekty.
+
 ## 2026-11-02 — Řez podle přesné předlohy: měřit, položit přes ni, popisky bez tlačenice
 
 - **Co se stalo:** operátor: „přestože máš přesnou předlohu, tak úplně zprasíš velikosti a poměry“. Blok měl 3,1 m místo 2,1 m a muž 1,03 m místo asi 1,3 m. Rozměry přišly z textu knihy, kresbu jsem nezměřil a kontroloval jen kolize textu. Přidal jsem i vlastní zvětšeninu sudu, o kterou nikdo nestál.
@@ -36,7 +45,10 @@
 - **Relativní `render.filepath` v Blenderu míří jinam než pracovní adresář.** `OUT.mkdir` a `body.json` skončily ve scratchpadu, PNG jinde, exit 0, staré PNG zůstalo a vypadalo jako nové. Dvakrát jsem tak složil plakát se starým přijímačem. Cestu předat přes `Path.resolve()` a po renderu kontrolovat čas souboru.
 - **`tesla_render.py` tiše nedělal nic, když název záběru nebyl v `SHOTS`.** Prázdný seznam teď končí chybou.
 - **Lapač stínu šedí celý snímek.** Na papíře to byl šedý obdélník kolem stroje; `without_veil` v `tesla_kopie.py` odečte úroveň z okraje snímku.
-- **Text u figury kontrolovat na plném náhledu.** Poznámka na okraji panelu skončila operátorovi přes obličej: figura se kreslí přes panely a žádná kontrola kolizi nehledá.
+- **Text přes postavu.** Poznámka na okraji panelu skončila operátorovi přes obličej, postava je obrázek a SVG o ní neví. `sazba.text_over` kreslí stránku s textem a bez něj a porovná to s obrysem postavy. Na plakátu s vrácenou chybou našel oblast obličeje.
+- **Zámek těžké práce bez pořadí.** Blender čekal 1. 11. přes 1200 s a vzdal to (`HeavyBusy`), mezitím Engine zpracovával úlohy dalších projektů. Kdo se trefil do mezery, vyhrál. `acquire` teď drží pořadí příchodu přes lístky v `~/.gpu-lock.waiting`. Starší běžící procesy lístky neznají a můžou předbíhat, dokud se nerestartují.
+- **Limit klienta počítal i frontu.** `grafik_client.wait` spadl po 900 s, úloha mezitím doběhla. Limit teď běží od spuštění, na frontu je zvlášť `queue_timeout` (4 h).
+- **Podklady ve scratchpadu zmizí.** Ruční rešerše ležela jen v dočasné složce, i když se na ni odkazovaly skripty. Co nese zdroje, patří hned do `docs/spikes`.
 
 ## 2026-11-01 — Stránka z modelu: panel musí říct, co hlavní obraz neřekne
 
