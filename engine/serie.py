@@ -20,7 +20,7 @@ from ngm_shared import claude
 MODEL = proposals.DEFAULT_MODEL
 EFFORT = "low"
 MAX_TOKENS = 6000
-EST_IN_TOKENS, EST_OUT_TOKENS = 3_000, 1_500    # odhad, skutečnou cenu dává usage
+EST_IN_TOKENS, EST_OUT_TOKENS = 5_500, 2_500    # odhad pro 4 stránky, skutečnou cenu dává usage
 PAGE_SIZES = {"2:3": "1080x1620", "4:5": "1080x1350", "1:1": "1080x1080", "16:9": "1920x1080"}
 MAX_TITLE_TWO_LINES = 1 / 12    # dvouřádkový titulek v plné velikosti by sebral obrazu čtvrt stránky
 MAX_TITLE = 1 / 9           # podíl šířky; přijatá Studna má 120 px na stránce 1080
@@ -185,12 +185,13 @@ def pick_images(dossier: dict, proposal: dict, chosen: list[int], own: list[dict
     """({(stránka, panel): obraz}, {stránka: hlášení}). Vlastní obraz má přednost, ze stejného obrazu se v sérii nestaví dvakrát. Dobová fotka jen tam, kde návrh vlastní obraz nedal."""
     free = [i for i in dossier["images"] if i.get("ref_id") and i["role"] != "nezarazeno"]
     mine = {o["id"]: o for o in own}
+    unused = dict(mine)
     out, notes = {}, {}
     for n, page in enumerate(proposals.pages(proposal), 1):
         if n not in chosen:
             continue
         for i, panel in enumerate(page["panely"], 1):
-            image = (mine.pop(panel.get("vlastni"), None) if i == 1 else mine.get(panel.get("vlastni")))     # hlavní obraz jednou, jako malý doprovod smí znovu
+            image = unused.pop(panel.get("vlastni"), None) if i == 1 else mine.get(panel.get("vlastni"))     # hlavní obraz jednou, jako malý doprovod smí znovu a nenahradí ho fotka
             if image is None:
                 role = panel.get("predloha") or panel["druh"]
                 image = next((im for im in free if im["role"] == role), None)

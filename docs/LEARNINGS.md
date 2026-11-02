@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Dvě karty ze čtyř zmizely a žádná kontrola to neřekla
+
+Operátor schválil ukázku se čtyřmi kartami (Tesla, motor, cívka, věž), ruční text za 0 USD. V opravdovém řetězci model rozdělil témata do tří návrhů po 2, 2 a 1 stránce a vybrat jde jen jeden, takže cívka a věž vypadly a já jsem dál ladil dvě zbylé. Hlášení mluví jen o tom, co se nevešlo na vybranou stránku, ne o tom, co v sérii chybí. Operátor se musel zeptat. Před prací na dalším kole porovnej výsledek s tím, co bylo schválené, a rozdíl řekni. Návrh teď vypisuje `bez_stranky` a Studio to ukáže.
+
+- Malý vlastní obraz po hlavním použití propadl na dobovou fotku (`mine.pop` v `pick_images`). Dokud šel životopis druhý, nebylo to vidět; série začínající životopisem by na další stránce dostala fotku.
+
 ## 2026-11-02 — Vázání textu na fakta hlídá pravdu, srozumitelnost ne
 
 Zadání textů znělo „zkrať fakt“ a kontrola pustila jen čísla z faktu. Model poslušně vypsal „Smiljan u Gospiće“ a „dvě cívky v pravém úhlu, posun 90 stupňů“: všechno doložené, laik z toho nepochopí nic. Stránka prošla všemi kontrolami a operátor ji odmítl jediným čtením. Zadání teď říká, pro koho se píše a že fakt je podklad, který se vysvětluje (`serie.SYSTEM`, `proposals.PRINCIPLES`). Stroj to nezměří, každý popisek čti před odesláním jako člověk bez vzdělání v oboru.
