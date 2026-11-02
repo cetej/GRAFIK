@@ -316,7 +316,7 @@ class InfographicStore:
         if not panels.is_panel_doc(source):
             raise InfoError("rozdělit jde jen dokument s panely")
         root = self._dir(info_id)
-        pages = rozdeleni.resolve_pages(source, root, rozdeleni.make_pieces(source), wanted)
+        pages = rozdeleni.resolve_pages(source, root, rozdeleni.make_pieces(source, root), wanted)
         made: list[Path] = []
         docs = []
         try:
@@ -325,9 +325,7 @@ class InfographicStore:
                 doc = new_doc("", fields["title"], None, fields["size"])
                 target = self._dir(doc["id"])
                 made.append(target)
-                for panel in fields["panels"]:
-                    if panel["typ"] == "obraz":
-                        shutil.copytree(panels.panel_dir(root, panel["id"]), panels.panel_dir(target, panel["id"]))
+                rozdeleni.copy_pictures(fields, root, target)
                 docs.append(self.save(doc["id"], {**doc, **fields}, new=True))
             return docs
         except Exception:

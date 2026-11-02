@@ -438,7 +438,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
       {phone && urceni === 'web' && <p className="panel-warning">{phone.text}</p>}
       {split && (
         <div className="panel-format">
-          <div className="hint">Návrh: {split.length} stránek, šířka 1080 px. Všechen text zůstává, popisky přes obraz se změní na čísla a legendu. Originál se nemění.</div>
+          <div className="hint">Návrh: {split.length} stránek, šířka 1080 px. Všechen text zůstává, popisky s vodítkem jsou u obrazu, po pěti na stránku. Originál se nemění.</div>
           {split.map((page, n) => (
             <div key={n} className="split-page">
               <b>Strana {n + 1}</b> <span className="hint">{page.size.replace('x', ' × ')} · {page.slov} slov</span>
@@ -474,6 +474,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <button className="btn go" disabled={!!busy} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
         </div>
       )}
+      {doc.serie && doc.sources && <p className="hint">Zdroje pod článek: {doc.sources}</p>}
       <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />
       <ul className="panel-checks">
         {checks.map((c, i) => <li key={i} className={c.ok ? 'ok' : 'warn'}>{c.ok ? '✓' : '!'} {c.text}</li>)}

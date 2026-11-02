@@ -49,7 +49,7 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 
 **Formát.** Výchozí je 4:5 (1080 × 1350) nebo 2:3. Delší stránka než 9:16 se nevejde na jednu obrazovku telefonu. Formát 16:9 je na telefonu 360 × 202 px: jeden obraz a několik popisků, žádné panely.
 
-**Hotový dokument s panely.** Tlačítko „Rozdělit pro mobil“ (`engine/rozdeleni.py`) z něj udělá sérii: obraz na šířku stránky, popisky jako čísla a legenda, text beze změny. Chce to, když už stránka existuje. Novou sérii lépe navrhnout od začátku, protože text psaný pro stránku je kratší.
+**Hotový dokument s panely.** Tlačítko „Rozdělit pro mobil“ (`engine/rozdeleni.py`) z něj udělá sérii: velký obraz, nejvýš pět popisků s vodítkem na stránku, další na výřezu téhož obrazu, text beze změny. Chce to, když už stránka existuje. Novou sérii lépe navrhnout od začátku, protože text psaný pro stránku je kratší.
 
 **Kontrola.** `write_poster` vypíše `SAZBA: na mobilu…` a `GET …/kontrola` hlásí totéž (Engine, panely). Výchozí písmo Engine i editoru je pro velký formát a práh nesplní (`docs/plans/2026-11-01-infografika-z-tematu.md`, krok 3g), u nové stránky proto nastav velikosti podle tabulky. Před odesláním PNG zmenši na šířku 360 px a přečti: co nepřečteš, nepřečte ani čtenář. Na počítači se sloupec článku odhaduje kolem 700 px (web jsem neměřil), stránka podle tabulky tam vyjde ještě větší.
 

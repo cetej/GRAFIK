@@ -23,9 +23,9 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
 
-## 2026-11-02 — Rozdělit pro mobil: čísla v obraze a legenda
+## 2026-11-02 — Rozdělit pro mobil: popisky u obrazu, ne legenda
 
-Operátor schválil náčrt („Ano, stav to“). Hotový dokument s panely se tlačítkem rozdělí na sérii nových dokumentů, originál se nemění. Popisky přes obraz se změní na čísla a legendu, text se nepřepisuje, každé slovo zůstává. Před vytvořením jde kusy přesouvat mezi stránkami. 0 USD. Stránka má šířku 1080 a výšku podle obsahu, delší než 9:16 se ohlásí.
+Operátor schválil tlačítko, po výtkách k sérii Tesly a Studny („Využití místa a kombinace s obrázkem jsou někdy hodně pochybné“, „ty obrovské popisky o zdrojích“) první verzi s čísly a legendou odmítl a chce předělat („Ano, předělej“). Hotový dokument s panely se rozdělí na sérii nových dokumentů, originál se nemění. Popisky s vodítkem jsou u obrazu, nejvýš pět na stránku, další na výřezu téhož obrazu. Text se nepřepisuje, na stránce je jen označení AI a cizí autor, výčet zdrojů zůstává v dokumentu a patří pod článek. Před vytvořením jde kusy přesouvat. 0 USD.
 
 ## 2026-11-02 — Infografika je pro web, nebo pro tisk; výchozí je web
 

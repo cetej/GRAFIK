@@ -508,15 +508,30 @@ def test_split_keeps_every_word_and_leaves_the_source(api, settings, doc):
         for p in page["panels"]:
             x, y, w, h = p["rect"]
             assert x >= 0 and x + w <= W + 0.5 and y + h <= H + 0.5
-            assert not p.get("labels")
 
 
-def test_split_turns_labels_into_marks_and_a_legend(api, doc):
+def test_split_keeps_labels_at_the_picture_and_only_a_short_note(api, settings, doc):
     pages = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None}).json()
     hero = next(p for page in pages for p in page["panels"] if p["id"] == "hlavni")
-    assert [m["text"] for m in hero["znacky"]] == ["1"] and hero["znacky"][0]["kotva"] == "vez"
-    legend = next(p for page in pages for p in page["panels"] if p["id"].startswith("hlavni_legenda"))
-    assert legend["items"][0] == {"value": "1 Věž", "text": "z kamene"}
+    assert hero["labels"][0]["text"] == "Věž" and hero["labels"][0]["kotva"] == "vez"
+    assert hero["labels"][0]["size"] * 360 / 1080 >= 12 / 0.86 - 0.01
+    assert "Wikipedie" not in api.get(f"/api/v2/infographics/{pages[0]['id']}/svg").text and pages[0]["sources"] == "Wikipedie"
+
+
+def test_split_puts_extra_labels_on_a_crop_of_the_picture(api, settings):
+    shot(settings.library_dir / "strely" / "hlavni", ["zed"])
+    many = [label(text=f"Věc {n}", kotva=[n * 0.1, 0, 0]) for n in range(7)]
+    fields_many = {"title": "Věž", "size": "1600x2400", "sources": "Wikipedie", "panels": [
+        {"id": "hlavni", "typ": "obraz", "poradi": 1, "nazev": "Hlavní", "rect": [0, 100, 800, 400], "zdroj": {"slozka": "strely/hlavni"}, "labels": many}]}
+    doc = api.post("/api/v2/infographics/panels", json=fields_many).json()
+    before = (settings.library_dir / "infographics" / doc["id"] / "panely" / "hlavni" / "obraz.png").read_bytes()
+    pages = api.post(f"/api/v2/infographics/{doc['id']}/rozdelit", json={"stranky": None}).json()
+    views = [p for page in pages for p in page["panels"] if p["typ"] == "obraz"]
+    assert [len(v["labels"]) for v in views] == [5, 2]
+    assert sorted(lab["text"] for v in views for lab in v["labels"]) == [f"Věc {n}" for n in range(7)]
+    crop = settings.library_dir / "infographics" / next(page["id"] for page in pages if any(p["id"] == "hlavni_v2" for p in page["panels"])) / "panely" / "hlavni_v2"
+    assert (crop / "obraz.png").is_file() and json.loads((crop / "body.json").read_text(encoding="utf-8"))["res"][0] < 200
+    assert (settings.library_dir / "infographics" / doc["id"] / "panely" / "hlavni" / "obraz.png").read_bytes() == before
 
 
 def test_split_lets_the_editor_move_pieces_but_never_drop_one(api, doc):
