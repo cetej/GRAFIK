@@ -28,7 +28,8 @@ from ngm_shared.textlayer import style as st
 DEFAULT_CRAFT_HOME = "C:/Users/stock/Tools/Craft"
 RESOURCES = Path(os.environ.get("NGM_FONTS", "C:/Users/stock/Documents/000_NGM/RESOURCES/Basic Fonts"))
 FONT_DIRS = [Path("C:/Windows/Fonts"), Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft/Windows/Fonts",
-             RESOURCES / "Document fonts/Document fonts", RESOURCES / "NGS map fonts/NatGeo Bumstead"]
+             RESOURCES / "Document fonts/Document fonts", RESOURCES / "NGS map fonts/NatGeo Bumstead",
+             RESOURCES / "NGS map fonts/NatGeo Peele"]
 
 
 def _ng_font(name: str) -> Path:
@@ -44,11 +45,13 @@ FONT_FILES = {
     ("serif", True): _ng_font("NatGeoBumstead-Heavy.otf"),
 }
 PLATE_FONT = _ng_font("GeographEdit-Bold.otf")
-SVG_FONT = {"sans": f"'{st.GEO}', sans-serif", "serif": f"'{st.BUM}', serif"}
+ROMAN_FONT = _ng_font("NatGeoPeele.otf")       # svislá patková (Bumstead je šikmý); státy na tištěné mapě
+# VectorCraft čte řez jen ze jména rodiny a `dominant-baseline` nezná: SVG jmenuje celý řez a účaří počítá
+SVG_BASELINE = 0.35             # účaří pod středem písma, podíl velikosti (stejný střed jako kotva „mm“ v PNG)
 TIMEOUT_S = 300
 MAX_PARAMS = 28_000             # znaků na jedno spuštění (příkazová řádka Windows má ~32 000)
 FLAT_SHARE = 0.72               # podíl hladkých pixelů, od kterého je obrázek plochý
-LINE_MIN_PX = 38                # sytý útvar delší než tohle je čára, písmena jsou menší
+LINE_MIN_PX = 38                # sytý útvar delší než tohle je čára, písmena jsou menší (šířka do 1500 px)
 LINE_MAX_HALF = 5               # nejvyšší poloviční tloušťka čáry; plocha mapy je tlustší a musí jít smazat
 MIN_SHRINK = 0.75
 PLATE_TEXT = 0.62                # písmo na pruhu jako podíl jeho výšky
@@ -188,7 +191,7 @@ def _protected(img: np.ndarray, hsv: np.ndarray, elements: list[dict]) -> np.nda
     out = np.zeros((H, W), np.uint8)
     for i in range(1, n):
         x, y, w, h, area = stats[i]
-        if max(w, h) > LINE_MIN_PX:
+        if max(w, h) > LINE_MIN_PX * max(1.0, W / 1500):      # velká písmena skenu by se jinak vrátila z originálu
             keep = half[lab == i].max() <= LINE_MAX_HALF
         else:
             mx, my = x + w / 2, y + h / 2
@@ -211,6 +214,16 @@ def _bar_rows(hsv: np.ndarray, x0: int, x1: int, y0: int, y1: int) -> tuple[int,
 
 
 # ---------------------------------------------------------------------------- mazání
+
+def _dark_left(img: np.ndarray, clean: np.ndarray, el: dict) -> float:
+    """Podíl tmavého písma, které po mazání v rámečku zůstalo (0 = čisto); světlé popisky se takhle nezměří."""
+    if sum(st.hex_to_rgb(el["color"])) > 240:
+        return 0.0
+    x0, y0, x1, y1 = [max(int(v), 0) for v in el["box"]]
+    before = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_RGB2GRAY) < 100
+    after = cv2.cvtColor(clean[y0:y1, x0:x1], cv2.COLOR_RGB2GRAY) < 100
+    return round(float((before & after).sum()) / max(1, int(before.sum())), 3)
+
 
 def erase(img: np.ndarray, elements: list[dict]) -> tuple[np.ndarray, list[dict]]:
     """Vymaže popisky. Vrací (obraz bez textu, sazbu popisků: délka, rozteč, velikost, křivka, pruh)."""
@@ -250,6 +263,8 @@ def erase(img: np.ndarray, elements: list[dict]) -> tuple[np.ndarray, list[dict]
             strokes.append({"points": pts, "size": size, "hardness": 100, "spacing": 10})
     clean = remove(img, strokes) if strokes else img.copy()
     clean[protect > 0] = img[protect > 0]
+    for el, info in zip(elements, layout):
+        info["residue"] = _dark_left(img, clean, el)
     for el, info, col in plates:
         x0, y0, x1, y1 = [int(v) for v in el["box"]]
         y0, y1 = _bar_rows(hsv, x0, x1, y0, y1)
@@ -270,13 +285,49 @@ def erase(img: np.ndarray, elements: list[dict]) -> tuple[np.ndarray, list[dict]
 # ---------------------------------------------------------------------------- sazba
 
 def _font(el: dict, px: float, ss: int, bold: bool | None = None) -> ImageFont.FreeTypeFont:
+    if el.get("upright") and el["font"] == "serif" and not el["italic"]:
+        return ImageFont.truetype(str(ROMAN_FONT), max(6, int(round(px * ss))))
     # kurzíva NG je Bumstead (šikmý sám o sobě); Geograph Edit kurzívu nemá
     family = "serif" if el["italic"] or el.get("spaced") else el["font"]
     return ImageFont.truetype(str(FONT_FILES[family, el["bold"] if bold is None else bold]), max(6, int(round(px * ss))))
 
 
+def _svg_family(el: dict) -> str:
+    """Stejný řez jako `_font`, jménem, které najde prohlížeč i VectorCraft."""
+    if el.get("plate"):
+        return f"'{st.GEO} Bold', sans-serif"
+    if el.get("upright") and el["font"] == "serif" and not el["italic"]:
+        return "'NatGeo Peele', serif"
+    if el["italic"] or el.get("spaced") or el["font"] == "serif":
+        return f"'{st.BUM} Heavy', serif" if el["bold"] else f"'{st.BUM}', serif"
+    return f"'{st.GEO} Medium', sans-serif" if el["bold"] else f"'{st.GEO}', sans-serif"
+
+
+def _path_svg(el: dict, t0: float, end: float, px: float, ss: int) -> str:
+    """Účaří křivého popisku pro SVG: od prvního písmene (PNG text centruje), posunuté o `SVG_BASELINE` a s rezervou
+    na konci, jinak by VectorCraft písmena za koncem křivky zahodil."""
+    pts = np.array(el["path"], np.float64)
+    seg = np.hypot(*np.diff(pts, axis=0).T)
+    arc = np.concatenate([[0.0], np.cumsum(seg)])
+
+    def at(s: float) -> tuple[np.ndarray, np.ndarray]:
+        i = max(min(int(np.searchsorted(arc, s, side="right")) - 1, len(seg) - 1), 0)
+        d = (pts[i + 1] - pts[i]) / max(seg[i], 1e-6)
+        return pts[i] + d * (s - arc[i]), d
+
+    start, stop = t0 / ss, end / ss + 3 * px
+    stops = [start, *[a for a in arc[1:-1] if start < a < stop], stop]
+    out = []
+    for s in stops:
+        p, d = at(s)
+        out.append((p[0] - d[1] * SVG_BASELINE * px, p[1] + d[0] * SVG_BASELINE * px))
+    return "M" + " L".join(f"{a:.1f} {b:.1f}" for a, b in out)
+
+
 def _is_spaced(el: dict, L: float, pitch: float) -> bool:
     """Prostrkané verzálky (L H O T S E): původní text by v rámečku zabral jen část šířky."""
+    if "spaced" in el:
+        return bool(el["spaced"])
     if el["angle"] or not el["caps"]:
         return False
     font = ImageFont.truetype(str(FONT_FILES["sans", False]), max(6, int(round(pitch * 0.82))))
@@ -287,7 +338,9 @@ def _glyph(layer: Image.Image, ch: str, font, fill: str, x: float, y: float, dir
     tile = Image.new("RGBA", (int(font.size * 2.4), int(font.size * 2.4)), (0, 0, 0, 0))
     ImageDraw.Draw(tile).text((tile.width / 2, tile.height / 2), ch, font=font, fill=fill, anchor="mm")
     rot = tile.rotate(math.degrees(math.atan2(-diry, dirx)), resample=Image.Resampling.BICUBIC)
-    layer.alpha_composite(rot, (max(0, int(x - rot.width / 2)), max(0, int(y - rot.height / 2))))
+    left, top = int(x - rot.width / 2), int(y - rot.height / 2)
+    # písmeno u okraje obrázku se ořízne; posunuté na okraj by se vrstvilo přes sousední
+    layer.alpha_composite(rot, (max(0, left), max(0, top)), (max(0, -left), max(0, -top)))
 
 
 def _clear_shift(protect: np.ndarray, x0: float, y0: float, x1: float, y1: float) -> int:
@@ -307,27 +360,48 @@ def typeset(base: Image.Image, elements: list[dict], layout: list[dict], base_hr
     ss = 4 if W * H < 5_000_000 else 2
     big = Image.new("RGBA", (W * ss, H * ss), (0, 0, 0, 0))
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
-           f'<image href="{html.escape(base_href)}" x="0" y="0" width="{W}" height="{H}"/>']
+           f'<g id="Podklad"><image href="{html.escape(base_href)}" x="0" y="0" width="{W}" height="{H}"/></g>',
+           '<g id="Texty">']
     report = []
 
     def svg_text(el, x, y, px, content, ang=0.0, spacing=0.0, anchor="middle", fill=None):
         spaced = f' letter-spacing="{spacing:.2f}"' if spacing else ""
-        svg.append(f'<text font-family="{SVG_FONT[el["font"]]}" font-size="{px:.1f}" '
-                   f'font-weight="{"bold" if el["bold"] else "normal"}" fill="{fill or el["color"]}" '
-                   f'text-anchor="{anchor}" dominant-baseline="middle"{spaced} '
-                   f'transform="rotate({-ang:.1f} {x:.1f} {y:.1f})" x="{x:.1f}" y="{y:.1f}">{html.escape(content)}</text>')
+        svg.append(f'<text font-family="{_svg_family(el)}" font-size="{px:.1f}" fill="{fill or el["color"]}" '
+                   f'text-anchor="{anchor}"{spaced} transform="rotate({-ang:.1f} {x:.1f} {y:.1f})" '
+                   f'x="{x:.1f}" y="{y + SVG_BASELINE * px:.1f}">{html.escape(content)}</text>')
 
     for n, (el, info) in enumerate(zip(elements, layout)):
         rows, L, pitch = _lines(el), info["L"], info["pitch"]
         cx, cy = info["center"]
         ux, uy, vx, vy = _axis(el)
         too_long = False
-        if info["plate"]:
+        if el.get("path"):
+            px = float(el.get("size_px") or info["rot_px"] * 1.15)
+            f = _font(el, px, ss)
+            pts = np.array(el["path"], np.float32) * ss
+            seg = np.hypot(*np.diff(pts, axis=0).T)
+            arc = np.concatenate([[0.0], np.cumsum(seg)])
+            adv = [f.getlength(c) for c in rows[0]]
+            track = min(max(0.0, (arc[-1] - sum(adv)) / max(1, len(adv) - 1)), f.size * 1.6)
+            t = t0 = (arc[-1] - sum(adv) - track * (len(adv) - 1)) / 2
+            for ch, w in zip(rows[0], adv):
+                s = t + w / 2
+                i = min(int(np.searchsorted(arc, s, side="right")) - 1, len(seg) - 1)
+                i = max(i, 0)
+                d = (pts[i + 1] - pts[i]) / max(seg[i], 1e-6)
+                x, y = pts[i] + d * (s - arc[i])
+                _glyph(big, ch, f, el["color"], float(x), float(y), float(d[0]), float(d[1]))
+                t += w + track
+            svg.append(f'<path id="krivka-{n}" d="{_path_svg(el, t0, t, px, ss)}" fill="none"/>'
+                       f'<text font-family="{_svg_family(el)}" font-size="{px:.1f}" fill="{el["color"]}" '
+                       f'letter-spacing="{track / ss:.2f}">'
+                       f'<textPath href="#krivka-{n}">{html.escape(rows[0])}</textPath></text>')
+        elif info["plate"]:
             x0, y0, x1, y1 = info["plate"]
             px = (y1 - y0) * PLATE_TEXT
             f = ImageFont.truetype(str(PLATE_FONT), max(6, int(round(px * ss))))
             ImageDraw.Draw(big).text(((x0 + x1) / 2 * ss, (y0 + y1) / 2 * ss), rows[0], font=f, fill=el["color"], anchor="mm")
-            svg_text({**el, "font": "sans", "bold": True}, (x0 + x1) / 2, (y0 + y1) / 2, px, rows[0])
+            svg_text({**el, "plate": True}, (x0 + x1) / 2, (y0 + y1) / 2, px, rows[0])
         elif info["curve"]:
             fit = info["curve"]
             px = info["rot_px"] * 1.15
@@ -344,8 +418,8 @@ def typeset(base: Image.Image, elements: list[dict], layout: list[dict], base_hr
             pts = [_curve_point(fit, el, u) for u in np.linspace(fit[3], fit[4], 24)]
             path = "M" + " L".join(f"{a:.1f} {b:.1f}" for a, b in pts)
             svg.append(f'<path id="krivka-{n}" d="{path}" fill="none"/>'
-                       f'<text font-family="{SVG_FONT[el["font"]]}" font-size="{px:.1f}" fill="{el["color"]}" '
-                       f'letter-spacing="{track / ss:.2f}" dominant-baseline="middle">'
+                       f'<text font-family="{_svg_family(el)}" font-size="{px:.1f}" fill="{el["color"]}" '
+                       f'letter-spacing="{track / ss:.2f}" dy="{SVG_BASELINE * px:.1f}">'
                        f'<textPath href="#krivka-{n}">{html.escape(rows[0])}</textPath></text>')
         elif el["angle"]:
             px = info["rot_px"]
@@ -365,7 +439,7 @@ def typeset(base: Image.Image, elements: list[dict], layout: list[dict], base_hr
                 svg_text(el, lx, ly, px, row, el["angle"], track / ss)
         elif _is_spaced(el, L, pitch):
             el = {**el, "spaced": True}
-            px = info["rot_px"] * 1.15
+            px = float(el.get("size_px") or info["rot_px"] * 1.15)
             f = _font(el, px, ss)
             track = min(max(0.0, (L * ss - max(sum(f.getlength(c) for c in r) for r in rows)) / max(1, max(map(len, rows)) - 1)),
                         f.size * 1.1)
@@ -378,7 +452,7 @@ def typeset(base: Image.Image, elements: list[dict], layout: list[dict], base_hr
                     t += w + track
                 svg_text(el, cx, y, px, row, 0.0, track / ss)
         else:
-            px = pitch * (0.82 if len(el["en"].split("\n")) > 1 else 0.95)
+            px = float(el.get("size_px") or pitch * (0.82 if len(el["en"].split("\n")) > 1 else 0.95))
             f = _font(el, px, ss)
             w0 = max(f.getlength(t) for t in rows) / ss
             if w0 > L * 1.28:      # delší překlad se zmenší, jen když by přetekl o hodně
@@ -398,8 +472,8 @@ def typeset(base: Image.Image, elements: list[dict], layout: list[dict], base_hr
                                          fill=el["color"], anchor="mm")
                 svg_text({**el, "bold": False} if light else el, x, y, px, row)
         report.append({"id": el["id"], "size_px": round(px, 1), "color": el["color"], "blend": "normal",
-                       "color_measured": False, "box": [round(v) for v in el["box"]], "too_long": too_long, "residue": 0.0})
-    svg.append("</svg>")
+                       "color_measured": False, "box": [round(v) for v in el["box"]], "too_long": too_long, "residue": info.get("residue", 0.0)})
+    svg += ["</g>", "</svg>"]
     out = base.convert("RGBA")
     out.alpha_composite(big.resize((W, H), Image.Resampling.LANCZOS))
     return out.convert("RGB"), "\n".join(svg), report

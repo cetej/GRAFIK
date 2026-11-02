@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type DragEvent } from 'react'
-import { fileToB64, imageUrl, localizeApi, PaymentRequired, type LocalizeJob, type LocalizeTexts } from './api.ts'
+import { api, fileToB64, imageUrl, localizeApi, ManualEdit, PaymentRequired, type LocalizeJob, type LocalizeTexts } from './api.ts'
 import { fmtUsd, type Confirm } from './App.tsx'
 
 // Krok 2 algoritmu operátora (STOPA plán 2026-10-29): počeštěná kopie cizojazyčné infografiky nebo mapy.
@@ -25,6 +25,19 @@ export default function Localize({ selectedImage, pickRef, onOpen, setConfirm, o
   const [dirty, setDirty] = useState(false)
   const [recent, setRecent] = useState<LocalizeJob[]>([])
   const [usd, setUsd] = useState<number | null>(null)
+  const [vcAsk, setVcAsk] = useState<string | null>(null)
+  const [vcOpened, setVcOpened] = useState<string | null>(null)
+  useEffect(() => { setVcAsk(null); setVcOpened(null) }, [jobId])
+  const openVectorcraft = async (how?: 'edited' | 'new') => {
+    if (!jobId) return
+    setVcAsk(null)
+    try {
+      setVcOpened((await api.openVectorcraft(`${jobId}/0`, how)).opened)
+    } catch (e) {
+      if (e instanceof ManualEdit) setVcAsk(e.message)
+      else onError((e as Error).message)
+    }
+  }
 
   const loadRecent = useCallback(() => {
     localizeApi.jobs(RECENT).then(setRecent).catch((e: Error) => onError(e.message))
@@ -148,8 +161,17 @@ export default function Localize({ selectedImage, pickRef, onOpen, setConfirm, o
           <div className="loc-actions">
             <a className="btn" href={done.images[0]} download={`${done.job_id}-cs.png`}>Stáhnout PNG</a>
             <a className="btn" href={localizeApi.file(done.job_id, 'image-0.svg')} download={`${done.job_id}-cs.svg`}>Stáhnout SVG</a>
+            <button className="btn go" onClick={() => openVectorcraft()} title="Podklad a každý popisek zvlášť ve vrstvách">Otevřít ve VectorCraftu</button>
             <span className="loc-name">Cena: {fmtUsd(done.result?.cost_usd ?? 0)}</span>
           </div>
+          {vcAsk && (
+            <div className="row">
+              <span className="hint">{vcAsk}</span>
+              <button className="btn small" onClick={() => openVectorcraft('edited')}>Otevřít ruční úpravu</button>
+              <button className="btn small" onClick={() => openVectorcraft('new')}>Otevřít novou kopii</button>
+            </div>
+          )}
+          {vcOpened && <p className="hint">Otevřeno ve VectorCraftu: {vcOpened}</p>}
           {texts && (
             <details className="loc-texts">
               <summary>Opravit překlady ({texts.elements.length})</summary>

@@ -13,13 +13,15 @@ Opravy proti prototypu T2 (`ZZZ_TEST/algoritmus-obrazku-2026-10-29/skripty/t2b_l
 - Mapa vrátí poradní upozornění: českou mapu má postavit KARTOGRAF z dat. Nic se neblokuje.
 
 Od 2026-10-30 maže popisky PhotoCraft a sází písmo NG (`pcraft.py`), `cv2.inpaint` zůstává jen jako náhrada,
-když PhotoCraft nebo písma NG chybí; na stínovaném reliéfu poškozuje obraz.
+když PhotoCraft nebo písma NG chybí; na stínovaném reliéfu poškozuje obraz. Tištěnou mapu, kde je černá jen
+písmo, maže `tisk.py` po pixelech písma a křivé popisky sází po `path` (mapa irbisů 2026-11-01).
 
 Přečtené texty (`<stem>.texty.json`, rámečky v pixelech originálu) jde opravit a vysázet znovu zdarma:
 `localize(..., texts=upravené)`.
 """
 from __future__ import annotations
 
+import base64
 import html
 import json
 import math
@@ -33,6 +35,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ngm_shared import claude
 from ngm_shared.textlayer import pcraft
 from ngm_shared.textlayer import style as st
+from ngm_shared.textlayer import tisk
 
 READ_MODEL = "claude-opus-5-5"
 READ_EFFORT = "high"            # T2: přesný text i rámečky; mapa s 63 popisky 0,19 USD, infografika 0,11 USD
@@ -42,12 +45,14 @@ READ_TASK = """The image is {w}x{h} px. First decide what the image is: "infogra
 "poster", "photo" or "other" (a map shows geography: coastlines, borders, rivers, places).
 Then find every text element (titles, labels, legend entries, captions, credits).
 Group words that belong to one line or one multi-line block of the same style into one element.
-Return {{"kind": "...", "elements": [ ... ]}} where each element is:
+Return {{"kind": "...", "markers": [[x0, y0, x1, y1], ...], "elements": [ ... ]}}. "markers" are tight boxes around
+point symbols that must stay in the image (city stars and dots, summit crosses). Each element is:
 {{"id": n, "en": exact original text, line breaks as \\n, "cs": Czech translation with the same number of lines,
  "box": [x0, y0, x1, y1] pixel box in THIS image around ALL letters of the element (for rotated text the box
  around the whole rotated text), "angle": rotation in degrees counter-clockwise (0 = horizontal),
  "color": text colour hex, "font": "sans" or "serif", "bold": bool, "italic": bool, "caps": bool,
- "align": "left"|"center"|"right"}}
+ "align": "left"|"center"|"right", "path": for text that runs along a curve or across the map only: the baseline
+ as [[x, y], ...] pixel points from the first to the last letter, otherwise omit}}
 Czech rules: correct diacritics; established Czech exonyms for places (Greenland = Grónsko, Iceland = Island,
 Norway = Norsko...); names without a Czech form stay as they are, never make an adjective of them (Lhotse Face =
 stěna Lhotse); scientific terms in their standard Czech form. Czech readers use metric units: when a value is given
@@ -111,12 +116,17 @@ def normalize_texts(data: dict) -> dict:
             st.hex_to_rgb(color)
         except ValueError:
             color = "#000000"
-        out.append({"id": el.get("id", i + 1), "en": str(el["en"]), "cs": str(el["cs"]), "box": [round(v, 1) for v in box],
+        extra = {k: el[k] for k in ("path", "erase_path", "path_width", "size_px", "spaced", "offset") if k in el}
+        out.append({**extra, "id": el.get("id", i + 1), "en": str(el["en"]), "cs": str(el["cs"]), "box": [round(v, 1) for v in box],
                     "angle": float(el.get("angle") or 0), "color": color,
                     "font": "serif" if el.get("font") == "serif" else "sans", "bold": bool(el.get("bold")),
                     "italic": bool(el.get("italic")), "caps": bool(el.get("caps")),
                     "align": el.get("align") if el.get("align") in ("left", "center", "right") else "left"})
-    return {"kind": str(data.get("kind") or "other"), "scale": 1.0, "elements": out}
+    markers = [[float(v) / s for v in m] for m in data.get("markers") or [] if isinstance(m, list) and len(m) == 4]
+    for el in out:
+        if el.get("path") and s != 1.0:
+            el["path"] = [[float(x) / s, float(y) / s] for x, y in el["path"]]
+    return {"kind": str(data.get("kind") or "other"), "scale": 1.0, "markers": markers, "elements": out}
 
 
 # ---------------------------------------------------------------------------- mazání
@@ -341,7 +351,8 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
     W, H = base.size
     out = base.convert("RGBA")
     svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
-           f'<image href="{html.escape(base_href)}" x="0" y="0" width="{W}" height="{H}"/>']
+           f'<g id="Podklad"><image href="{html.escape(base_href)}" x="0" y="0" width="{W}" height="{H}"/></g>',
+           '<g id="Texty">']
     report = []
     for el, m in zip(elements, measured):
         box = m["box"]
@@ -381,18 +392,18 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
             out = Image.alpha_composite(out, sheet)
         anchor = "middle" if rotated else {"left": "start", "center": "middle", "right": "end"}[align]
         ax = cx if rotated else {"left": x0, "center": cx, "right": x1}[align]
-        y_first = cy - lh * (len(lines) - 1) / 2
+        y_first = cy - lh * (len(lines) - 1) / 2 + pcraft.SVG_BASELINE * px
         spans = "".join(f'<tspan x="{ax:.0f}" y="{y_first + i * lh:.0f}">{html.escape(line)}</tspan>'
                         for i, line in enumerate(lines))
         style = (' font-style="italic"' if el["italic"] else "") +             (' style="mix-blend-mode:multiply"' if m["blend"] == "multiply" else "")
         svg.append(f'<text font-family="{CSS_FONT[el["font"]]}" font-size="{px:.1f}" '
                    f'font-weight="{"bold" if el["bold"] else "normal"}"{style} fill="{m["color"]}" '
-                   f'text-anchor="{anchor}" dominant-baseline="middle" '
+                   f'text-anchor="{anchor}" '
                    f'transform="rotate({-ang:.1f} {cx:.0f} {cy:.0f})">{spans}</text>')
         report.append({"id": el["id"], "size_px": round(px, 1), "color": m["color"], "blend": m["blend"],
                        "color_measured": m["color_measured"], "box": [round(v) for v in box],
                        "too_long": too_long, "residue": m["residue"]})
-    svg.append("</svg>")
+    svg += ["</g>", "</svg>"]
     return out.convert("RGB"), "\n".join(svg), report
 
 
@@ -409,6 +420,13 @@ def warnings_for(texts: dict, report: list[dict], fallback: str | None = None) -
         out.append({"severity": "nízká", "what": "Obrázek je mapa.",
                     "fix": "Popisky leží tam, kde byly anglické, a před zveřejněním je zkontroluje člověk. "
                            "Mapu nově z dat staví KARTOGRAF."})
+        if not texts.get("markers"):
+            out.append({"severity": "střední", "what": "Na mapě nejsou chráněné značky (hvězdy a tečky měst, kóty).",
+                        "fix": "Zkontrolujte, že žádná nezmizela, a doplňte `markers` v texty.json (zdarma)."})
+        bent = [el["cs"].replace("\n", " ") for el in texts["elements"] if el["angle"] and not el.get("path")]
+        if bent:
+            out.append({"severity": "střední", "what": f"Otočené popisky bez křivky: {', '.join(bent)[:120]}.",
+                        "fix": "Doplňte jim `path` v texty.json a vysázejte znovu (zdarma)."})
     by_id = {el["id"]: el for el in texts["elements"]}
     for r in report:
         el = by_id[r["id"]]
@@ -422,6 +440,12 @@ def warnings_for(texts: dict, report: list[dict], fallback: str | None = None) -
                                                      f"písmo je zmenšené na {round(100 * MIN_SHRINK)} %.",
                         "fix": "Zkraťte překlad a vysázejte znovu (zdarma)."})
     return out
+
+
+def for_window(svg: str, base: Path) -> str:
+    """Kopie SVG pro okno VectorCraftu: podklad přímo v souboru, odkaz na sousední PNG by se v kopii přetrhl."""
+    data = base64.b64encode(base.read_bytes()).decode("ascii")
+    return svg.replace(f'href="{html.escape(base.name)}"', f'href="data:image/png;base64,{data}"')
 
 
 def localize(image: Path, out_dir: Path, *, stem: str = "image-0", texts: dict | None = None,
@@ -451,7 +475,10 @@ def localize(image: Path, out_dir: Path, *, stem: str = "image-0", texts: dict |
             raise FlatImage
         if not pcraft.ready():
             raise pcraft.PhotoCraftError("PhotoCraft nebo písma NG nejsou na tomto počítači")
-        clean, layout = pcraft.erase(np.array(src), texts["elements"])
+        if tisk.only_ink(np.array(src), texts["elements"]):
+            clean, layout = tisk.erase(np.array(src), texts["elements"], texts["markers"])
+        else:
+            clean, layout = pcraft.erase(np.array(src), texts["elements"])
         Image.fromarray(clean).save(out_dir / base_name)
         png, svg, report = pcraft.typeset(Image.fromarray(clean), texts["elements"], layout, base_name)
     except (FlatImage, pcraft.PhotoCraftError) as e:

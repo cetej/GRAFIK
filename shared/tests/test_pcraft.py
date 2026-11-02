@@ -90,7 +90,7 @@ def test_flat_image_uses_the_old_path_without_a_warning(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pcraft, "remove", forbidden)
     r = tl.localize(src, tmp_path / "o", texts=TEXTS)
-    assert [w["what"] for w in r["warnings"]] == ["Obrázek je mapa."]
+    assert not any("náhradní" in w["what"] for w in r["warnings"])
 
 
 @pytest.mark.skipif(not pcraft.ready(), reason="PhotoCraft nebo písma NG tu nejsou")
