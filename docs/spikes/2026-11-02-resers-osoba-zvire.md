@@ -109,6 +109,20 @@ Fakta jsou položka po položce stejná.
 
 Na těchto dvou tématech se ukázalo víc chyb než na Teslovi a axolotlovi dohromady (tabulka výše). Slovníky jsou ladění na čtyřech tématech. Rostlina jde cestou zvířete a neověřoval jsem ji.
 
+## Ověření ve Studiu
+
+Nejdřív Studio z větve (:5179) proti dočasnému Engine (:8319, vlastní data), po sloučení opravdové Studio (:5174) a nová instance Engine (:8300, PID 11336).
+
+| Akce v opravdovém Studiu | Výsledek |
+|---|---|
+| Průvodce → „Nikola Tesla“ → „Jen podklady · 0 USD“ | Krok Podklady ukáže průběh, po doběhu `nikola-tesla-v2`: osoba, 120 faktů, 5 rozporů nahoře, 26 obrázků, všechny stažené |
+| Filtr témat | Rozměry, Život, Dílo a vynálezy, Peníze a smlouvy, Ocenění a odkaz, Tvrzení a mýty |
+| Obrázky po rolích | Portrét, Ze života, Dílo a vynálezy, Místa, Památky a odkaz, Podpis a rukopis; u každého autor a licence nebo „autor neuveden“ |
+| `axolotl-v2`, spuštěný přes API | zvíře, 116 faktů, 2 rozpory, 24 obrázků, mapa výskytu z SVG se načetla a jde zvětšit |
+| Konzole | 33 chyb 502 z doby výpadku Engine při restartu, po znovunačtení žádná nová |
+
+Měřítko nad oběma dossiery z Engine dává stejná čísla jako výše: 28 z 35 a 34 ze 44, `cost_usd` 0.
+
 ## Co rešerše neumí
 
 - **Krok Návrhy:** prompt v `engine/proposals.py` v poli `predloha` vyjmenovává role staveb. Pole se nikde dál nepoužívá a nové role nic nerozbijí, ale návrh pro osobu může vrátit `null`. Druh tématu v celém řetězci je samostatná práce, ne tahle změna.
