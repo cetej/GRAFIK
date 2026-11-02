@@ -35,7 +35,7 @@ class FakeAsk:
 
     def __call__(self, content, system, *, what, model, effort="low", max_tokens=16000):
         self.calls.append({"what": what, "model": model, "content": content})
-        data = LOGIC if what == "kontrola logiky" else TEXTS if what == "texty stránek" else self.reply
+        data = LOGIC if what == "kontrola logiky" else self.reply
         return claude.Answer(json.dumps(data, ensure_ascii=False), model, 1000, 500, self.usd, "end_turn")
 
 
@@ -599,13 +599,48 @@ def test_loose_fact_never_wraps_into_a_narrow_column_or_shrinks_the_picture():
     wide = picture((1000, 1000), {"horni": [500, 300], "dolni": [500, 700]}, (60, 60, 940, 940))
     label = {"value": "Točivé pole", "text": "dvě cívky v pravém úhlu", "bod": "horni"}
     long = {"value": "60 000 dolarů", "text": "licence Westinghouse roku 1888 a k tomu ještě 2,50 dolaru za každou koňskou sílu, kterou motor vyrobí", "bod": None}
-    alone = sr.compose("Titulek", "Věta.", "", wide, [label], {}, "1080x1350")[0]
-    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, [label, long], {}, "1080x1350")
+    alone = sr._compose("Titulek", "Věta.", "", wide, [label], {}, "1080x1350", pn.MOBIL)[0]
+    fields, dropped, _ = sr._compose("Titulek", "Věta.", "", wide, [label, long], {}, "1080x1350", pn.MOBIL)
     width = lambda doc: next(p for p in doc["panels"] if p["typ"] == "obraz")["rect"][2]
     assert width(fields) == width(alone) and dropped == [f"{long['value']} {long['text']}"] and not [p for p in fields["panels"] if p["typ"] == "text"]
     short = {"value": "1888", "text": "licence pro Westinghouse", "bod": None}
-    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, [label, short], {}, "1080x1350")
+    fields, dropped, _ = sr._compose("Titulek", "Věta.", "", wide, [label, short], {}, "1080x1350", pn.MOBIL)
     assert not dropped and [p for p in fields["panels"] if p["typ"] == "text"]
+
+
+def test_long_labels_go_in_a_row_above_a_wide_object_and_the_picture_stays_big():
+    wide = picture((1000, 800), {"cast": [300, 300], "druha": [700, 400]}, (20, 20, 980, 780))
+    items = [{"value": "Cívky", "text": "střídavý proud v nich žene magnetické pole dokola", "bod": "cast"}, {"value": "Rotor", "text": "běží za tím polem, a tak se celý motor točí", "bod": "druha"}]
+    fields, dropped = sr.compose("Motor", "Věta.", "", wide, items, {}, "1080x1620")
+    main = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert not dropped and main["rect"][2] > 950 and all(label["nad"] for label in main["labels"])
+    k = 1080 / pn.MOBIL["jednotek"]
+    place = {"x": main["rect"][0], "y": main["rect"][1], "k": main["rect"][2] / 1000, "info": {"points": wide["_points"], "res": (1000, 800)}}
+    for label in main["labels"]:
+        (ax, ay), (bx, by) = pn.leader_points(label, place, pn.MOBIL["popisek"] * k)
+        x, y, w, h = pn._text_box(label, pn.MOBIL["popisek"] * k)
+        assert ax == bx and by >= y + h and x <= ax <= x + w and ay > by     # čára rovně dolů z vlastního textu
+
+
+def test_no_label_wraps_into_a_narrow_column():
+    wide = picture((1000, 1000), {"horni": [500, 300], "dolni": [500, 700]}, (60, 60, 940, 940))
+    long = [{"value": "Část", "text": "velmi dlouhé vysvětlení, které by se na úzkém sloupku zalomilo na mnoho krátkých řádků vedle obrazu", "bod": "horni"}]
+    fields, _ = sr.compose("Titulek", "Věta.", "", wide, long, {}, "1080x1350")
+    labels = next(p for p in fields["panels"] if p["typ"] == "obraz")["labels"]
+    assert all(len(label["small"]) <= sr.MAX_FACT_LINES for label in labels)
+
+
+def test_death_of_a_relative_is_not_a_life_fact():
+    dossier = {"facts": [{"id": "a", "tvrzeni": "Tesla died alone in 1943."}, {"id": "b", "tvrzeni": "Tesla's father died in 1879."}, {"id": "c", "tvrzeni": "Narození: 10. 7. 1856"}]}
+    assert sr.life_facts(dossier) == ["a", "c"]
+
+
+def test_no_line_ends_with_a_one_letter_word():
+    text = sr._no_orphan("Střídavý proud v nich žene pole a točí se k rotoru u osy.")
+    for chars in range(10, 40):
+        rows = pn.wrap(text, chars)
+        assert [row for row in rows[:-1] if len(row.split()[-1]) == 1] == [], chars
+        assert " ".join(rows).split() == text.split()
 
 
 def test_a_life_turn_without_a_year_keeps_the_timeline():

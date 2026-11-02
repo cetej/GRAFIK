@@ -59,7 +59,7 @@ PLAKAT = {"jednotek": 1600, "titulek": 88, "titulek_x": 50, "titulek_y": 118, "p
 # popisek s vysvětlením je hlavní nositel textu; dlouhé vodítko na telefonu nevadí (přijatá Studna, 2. 11.), popisek u věci je větší než krátká čára
 MOBIL = {**PLAKAT, "jednotek": 546, "titulek": 36.4, "titulek_x": 20, "titulek_y": 50, "podtitulek": 21, "podtitulek_od": 36, "podtitulek_krok": 26, "nadpis": 27.3, "cislo": 27.3, "vedouci": 22.75,
          "veta": 19.6, "popisek": 27.3, "pod": 21, "pod_maly": 19, "znacka": 19, "zdroj": 13.65, "zdroj_krok": 17, "zdroj_dole": 14, "okraj": 20, "osa_sloupec": None, "zalomit": True,
-         "vodidlo_median": 0.4, "vodidlo_max": 0.8, "popisek_znaku": 70}
+         "vodidlo_median": 0.5, "vodidlo_max": 0.8, "popisek_znaku": 95}
 TITLE_WIDTH = 0.52          # šířka velkého tučného znaku v em i s prostrkáním, změřeno na ukázce Tesly
 PANEL_ID = re.compile(r"[a-z0-9_]{1,40}")
 FILE_NAME = re.compile(r"[\w\-]+\.(png|jpg|json)")
@@ -114,6 +114,8 @@ def _label(where: str, raw: dict) -> dict:
     if raw.get("align", "left") not in ("left", "right"):
         raise InfoError(f"{where}: align je left nebo right")
     out = {"text": str(raw["text"]), "small": _lines(raw.get("small")), "kotva": anchor, "pos": _numbers(f"{where}: pos", raw.get("pos"), 2), "align": raw.get("align", "left")}
+    if raw.get("nad"):
+        out["nad"] = True
     if raw.get("size") is not None:
         out["size"] = _number(f"{where}: size", raw["size"])
     return out
@@ -216,19 +218,20 @@ def validate(doc: dict) -> list[dict]:
                 panel["smer"] = raw.get("smer", "radek")
             if panel["typ"] == "osa" and raw.get("pod_sebou"):
                 panel["pod_sebou"] = True
+                panel["mezera"] = _number(f"panel {pid}: mezera", raw.get("mezera", 0))
         panels.append(panel)
     return panels
 
 
 def wrap(text_: str, chars: int) -> list[str]:
     lines, cur = [], ""
-    for word in text_.split():
+    for word in re.findall(r"[\S ]+", text_):     # pevná mezera slova nedělí, do sazby jde jako obyčejná
         if cur and len(cur) + 1 + len(word) > chars:
             lines.append(cur)
             cur = word
         else:
             cur = f"{cur} {word}".strip()
-    return lines + [cur] if cur else lines
+    return [line.replace(" ", " ") for line in (lines + [cur] if cur else lines)]
 
 
 def _esc(value: str) -> str:
@@ -285,6 +288,9 @@ def to_page(place: dict, where, panel_id: str = "") -> tuple[float, float]:
 def leader_points(label: dict, place: dict, size: float, panel_id: str = "") -> list[tuple[float, float]]:
     """Od kotvy k textu: rovně, když je to skoro svisle nebo vodorovně, jinak jednou zalomené, svisle od věci a vodorovně k textu."""
     ax, ay = to_page(place, label["kotva"], panel_id)
+    if label.get("nad"):        # popisek v řadě nad objektem: čára ze spodku textu rovně dolů k věci
+        box = _text_box(label, size)
+        return [(ax, ay), (ax, box[1] + box[3] + size * 0.15)]
     px, py = label["pos"]
     end = px - 8 if label["align"] == "left" else px + 8
     ly = py + size * 0.72
@@ -577,7 +583,7 @@ class Renderer:
             first = 28 * self.k if stacked else 0.0
             body = "".join(_text(x0 + gap + 24 * self.k, y + first + j * 25 * self.k, line, small, self.t["ink"]) for j, line in enumerate(lines))
             words.append(f'<g id="{self.gid(item["value"])}">{value}{body}</g>')
-            y += panel.get("krok", (22 + 25 * max(1, len(lines))) * self.k)
+            y += size + (28 + 25 * (len(lines) - 1)) * self.k + small * 0.4 + panel["mezera"] if stacked else panel.get("krok", (22 + 25 * max(1, len(lines))) * self.k)
         axis = f'<line x1="{dots[0][0]:.1f}" y1="{dots[0][1]:.1f}" x2="{dots[-1][0]:.1f}" y2="{dots[-1][1]:.1f}" stroke="{self.t["muted"]}" stroke-width="{1.4 * self.k:.2f}"/>'
         axis += "".join(f'<circle cx="{a:.1f}" cy="{b:.1f}" r="{5 * self.k:.1f}" fill="{self.accent}"/>' for a, b in dots)
         return f'<g id="{self.gid(f"Osa {panel["nazev"]}")}">{axis}</g>', self._heading(panel) + f'<g id="{self.gid(panel["nazev"])}">{"".join(words)}</g>'
@@ -857,7 +863,7 @@ def text_height(panel: dict, f: dict, k: float) -> float:
     stacked = panel.get("pod_sebou")
     chars = int((w - (0.0 if stacked else axis_gap(panel, f, k, size)) - 24 * k) / (small * LINE_WIDTH))
     counts = [max(1, len(wrap(i["text"], chars))) for i in items]
-    steps = [panel.get("krok", (22 + 25 * n) * k) for n in counts]
+    steps = [size + (28 + 25 * (n - 1)) * k + small * 0.4 + panel["mezera"] if stacked else panel.get("krok", (22 + 25 * n) * k) for n in counts]
     return size + sum(steps[:-1]) + (counts[-1] - 1) * 25 * k + (28 * k if stacked else 0.0) + below
 
 

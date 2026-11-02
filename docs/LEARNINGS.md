@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Vázání textu na fakta hlídá pravdu, srozumitelnost ne
+
+Zadání textů znělo „zkrať fakt“ a kontrola pustila jen čísla z faktu. Model poslušně vypsal „Smiljan u Gospiće“ a „dvě cívky v pravém úhlu, posun 90 stupňů“: všechno doložené, laik z toho nepochopí nic. Stránka prošla všemi kontrolami a operátor ji odmítl jediným čtením. Zadání teď říká, pro koho se píše a že fakt je podklad, který se vysvětluje (`serie.SYSTEM`, `proposals.PRINCIPLES`). Stroj to nezměří, každý popisek čti před odesláním jako člověk bez vzdělání v oboru.
+
+- Vysvětlování má cenu: model si k faktu smí přidat běžná slova, a tím se otevírá chyba, kterou vazba na fakta nechytí. Ve zkoušce napsal o Westinghouse „výrobce elektřiny“. Text před zveřejněním musí číst člověk.
+- Delší věty změnily skladbu víc než čísla: sloupec popisků vedle motoru už se nevešel a obraz by se zmenšil. Pomohla řada nad objektem (`serie._row_above`) a limit 3 řádků na popisek.
+- `str.split()` dělí i na pevné mezeře a `panels.wrap` ji proto tiše zahazoval. Když ji začal držet, změnily se dva staré dokumenty (`o 80 %`). Pevná mezera teď jen brání zalomení a do SVG jde obyčejná, otisk SVG všech panelových dokumentů to ověří.
+
 ## 2026-11-02 — Série o Teslovi: čtyři kola výtek za jednu chybu
 
 Pokaždé jsem ladil vzhled ukázky a kontrolu spustil až na hotovém. Čísla byla v pořádku a stránka hnusná: tmavá kupole na tmavém, podloží největší, prázdný pruh, hlouček popisků. Skladatel optimalizoval jednu veličinu (velikost obrazu) a o účelu stránky nevěděl nic. Pomohlo začít otázkou, co je na stránce hlavní, a každou výtku převést na měření (`panels.empty_share`, `faint_parts`) nebo pravidlo (`docs/infografiky-zasady.md`, oddíl Logika stránky).

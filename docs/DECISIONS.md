@@ -15,6 +15,7 @@ Operátor: „Možná by se hodilo do projektů při konverzi formátů založit
 Krok 3g. Operátor k ukázkám série o Teslovi, po čtyřech kolech výtek: „Ano, to je výrazně lepší.“ Zásady a měření: `docs/infografiky-zasady.md`, oddíl Logika stránky.
 
 - **Text na stránce píše model, vázaný na fakta** (operátor „Model zkrátí fakt“). Upřesňuje „text v infografice nikdy z modelu“ z 23. 10.: položka nese id faktu a číslo, které ve faktu není, ji vyřadí a řekne to hlášení. Text v obrazu dál generátor nekreslí.
+- **Je to popularizace vědy pro laika** („Nebuď idiot - jde o popularizaci vědy“). Model fakt nepřepisuje, ale vysvětluje, co znamená. Tvrzení a čísla jen z faktu, vysvětlit pojem běžnými slovy smí.
 - **Vlastní 3D před dobovou fotkou** („proč tam dáváš staré fotky, když máme 3D figuru a modely“). Vlastní obrazy tématu popisuje `library/tema/<qid>/obrazy.json`.
 - **Člověk = životopisná stránka** („U Tesly mají být biografická data“): figura a osa života, dílo na vlastních stránkách. Narození a smrt jsou k dispozici vždy, i když je návrh nevybral.
 - **Na nové stránce žádný řádek se zdrojem, jen označení AI a cizí autor** („vykašli se na ty drobounké popisky ZDROJ“), stejně jako „Řádek Zdroj pryč“ pro ostatní dokumenty. Přijatá Studna se nepřepisuje. Zdroje jsou v dokumentu a ve Studiu pod „Zdroje pod článek“.
