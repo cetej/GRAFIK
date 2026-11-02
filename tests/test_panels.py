@@ -394,7 +394,7 @@ def test_new_document_has_phone_sizes_and_old_stays_as_it_was(api, settings, tmp
     poster = api.post("/api/v2/infographics/panels", json=fields(pismo="plakat")).json()
     assert poster["pismo"] == "plakat"
     assert "88.0" in re.findall(r'font-size="([\d.]+)"', api.get(f"/api/v2/infographics/{poster['id']}/svg").text)
-    old = {"size": "1600x1000", "title": "Dlouhý titulek starého plakátu, který se nikdy nezalomí", "ai_note": "x", "panels": [
+    old = {"size": "1600x1000", "title": "Dlouhý titulek starého plakátu, který se nikdy nezalomí", "ai_note": "Ilustrace: FLUX 3 Klein (AI)", "panels": [
         {"id": "text", "typ": "text", "rect": [0, 300, 800, 100], "titulek": "Nadpis panelu", "items": [{"value": "V", "text": "věta"}]},
         {"id": "osa", "typ": "osa", "rect": [800, 300, 800, 100], "items": [{"value": "1891", "text": "věta"}]}]}
     old["panels"] = panels.validate(old)
