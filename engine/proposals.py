@@ -24,9 +24,10 @@ MAX_FACT_TEXT = 220
 PICTURE_SOURCES = ("model", "obraz", "ilustrace", "kresba", "nic")
 
 PRINCIPLES = """\
-Jsi art director velkých infografik National Geographic. Z dossieru faktů navrhni TŘI odlišné skladby jedné infografiky.
+Jsi art director infografik National Geographic. Z dossieru faktů navrhni TŘI odlišné skladby jedné infografiky.
 
 Zásady:
+- Stránku čtenář uvidí v článku, velmi často na mobilu: zmenší se na šířku 360 px a většina lidí ji nezvětšuje. Nejmenší text má 1/30 šířky stránky a titulek 1/15, takže se vejde jeden hlavní obraz, nejvýš 3 další panely a 80 až 120 slov. Celé téma na jednu stránku nepatří: drž se jedné otázky, zbytek patří na další stránku série. Formát 4:5 nebo 2:3, formát 16:9 jen pro jeden obraz s několika popisky.
 - Čistý styl a rovnováha: jedna věc, na kterou čtenář kouká první, kolem ní jen to, co k ní patří. Žádné prázdné pásy, nic stísněného, panely se nepřekrývají.
 - Informační hodnota: každý panel odpovídá na otázku, kterou si čtenář položí, a ukazuje něco, co jiný panel neukáže. Nic jen pro výplň.
 - Co nemá doklad, do obrazu nepatří: každý panel s informací uvede id faktů z dossieru, o které se opírá. Nic si nedomýšlej.

@@ -69,6 +69,16 @@ def test_check_layout_leaves_a_heading_and_its_line_in_one_group_alone():
     assert check_layout(_labels(group("A", text(20, 100, "Nadpis", 20, "#000") + text(100, 100, "a řádek", 20, "#000")))) == []
 
 
+def test_check_layout_finds_text_too_small_on_a_phone():
+    # „velké plachty, kde hrozí titěrné písmo“ (2. 11.): stránka 1800 px, písmo 26 px = 5,2 px na telefonu
+    page = lambda size, name="A": ('<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2400" viewBox="0 0 1800 2400"><g id="Texty">'
+                                   + group(name, text(40, 200, "Kosti nejméně 20 lidí", size, "#000")) + "</g></svg>")
+    assert check_layout(page(26)) == ["na mobilu (šířka 360 px): 1 z 1 textů je pod 12 px, nejmenší 5.2 px „Kosti nejméně 20 lidí“. Větší písmo, méně textu, nebo víc menších stránek."]
+    assert check_layout(page(60)) == []
+    assert check_layout(page(45, "Zdroj")) == []     # zdroj a patička smějí být menší
+    assert check_layout(page(44, "Zdroj")) != []
+
+
 def test_vectorcraft_copy_is_new_only_when_the_page_changed(tmp_path):
     first = vectorcraft_copy(tmp_path, "x", _page(20, 40))
     older = first.with_name("x-vectorcraft-20000101-000000.svg")
