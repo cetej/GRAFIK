@@ -38,6 +38,12 @@ TEXT_SHADOW = ('<defs><filter id="stin-textu" x="-20%" y="-40%" width="140%" hei
                '<feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#000000" flood-opacity="0.75"/>'
                '<feDropShadow dx="1" dy="1.4" stdDeviation="1.2" flood-color="#000000" flood-opacity="0.85"/></filter></defs>')
 FONT = "Bahnschrift, 'Roboto Condensed', 'Arial Narrow', sans-serif"
+ALPHA_SOLID = 60            # obraz je obsazený od téhle průhlednosti, stín pod ním ne
+MAX_EMPTY = 0.2             # největší prázdný obdélník pod titulkem, podíl plochy (motor s prázdným pruhem měl 36 %)
+MIN_CONTRAST_THIN = 2.0     # kontrast tenké části obrazu proti stránce: mříž nemá plochu, vidět ji jen barva (tmavá kupole na tmavé stránce to nesplnila)
+MIN_CONTRAST_MASS = 1.2     # velkou plochu nese její obrys, stačí méně (hnědý oblek na modré)
+THIN_FILL = 0.2             # pod tímhle podílem plných pixelů je část tenká
+FAINT_BANDS = 8
 LINE_WIDTH = 0.47           # průměrná šířka znaku Bahnschrift semi-condensed v em, změřeno na patičce plakátu
 # kopie prahů z studio/src/Infographics.tsx a docs/infografiky-zasady.md
 MAX_LABELS = 10
@@ -52,7 +58,7 @@ PLAKAT = {"jednotek": 1600, "titulek": 88, "titulek_x": 50, "titulek_y": 118, "p
 # nový dokument: podíly šířky z tabulky v docs/infografiky-zasady.md. Při 546 jednotkách je 21 = 1/26 šířky, takže řádkování psané v k drží poměr k písmu
 # popisek s vysvětlením je hlavní nositel textu; dlouhé vodítko na telefonu nevadí (přijatá Studna, 2. 11.), popisek u věci je větší než krátká čára
 MOBIL = {**PLAKAT, "jednotek": 546, "titulek": 36.4, "titulek_x": 20, "titulek_y": 50, "podtitulek": 21, "podtitulek_od": 36, "podtitulek_krok": 26, "nadpis": 27.3, "cislo": 27.3, "vedouci": 22.75,
-         "veta": 19.6, "popisek": 22.75, "pod": 21, "pod_maly": 19, "znacka": 19, "zdroj": 13.65, "zdroj_krok": 17, "zdroj_dole": 14, "okraj": 20, "osa_sloupec": None, "zalomit": True,
+         "veta": 19.6, "popisek": 27.3, "pod": 21, "pod_maly": 19, "znacka": 19, "zdroj": 13.65, "zdroj_krok": 17, "zdroj_dole": 14, "okraj": 20, "osa_sloupec": None, "zalomit": True,
          "vodidlo_median": 0.4, "vodidlo_max": 0.8, "popisek_znaku": 70}
 TITLE_WIDTH = 0.52          # šířka velkého tučného znaku v em i s prostrkáním, změřeno na ukázce Tesly
 PANEL_ID = re.compile(r"[a-z0-9_]{1,40}")
@@ -208,6 +214,8 @@ def validate(doc: dict) -> list[dict]:
                 raise InfoError(f"panel {pid}: smer je radek nebo sloupec")
             if panel["typ"] == "fakta":
                 panel["smer"] = raw.get("smer", "radek")
+            if panel["typ"] == "osa" and raw.get("pod_sebou"):
+                panel["pod_sebou"] = True
         panels.append(panel)
     return panels
 
@@ -282,6 +290,78 @@ def leader_points(label: dict, place: dict, size: float, panel_id: str = "") -> 
     end = px - 8 if label["align"] == "left" else px + 8
     ly = py + size * 0.72
     return [(ax, ay), (end, ly)] if abs(ay - ly) < 8 or abs(ax - end) < 8 else [(ax, ay), (ax, ly), (end, ly)]
+
+
+class Sheet:
+    """Kde na stránce je volno: mřížka obsazených buněk s rychlým dotazem na obdélník. Obraz obsazuje jen tam, kde není průhledný."""
+    CELL = 6
+
+    def __init__(self, W: int, H: int):
+        self.W, self.H = W, H
+        self.grid = np.zeros((H // self.CELL + 2, W // self.CELL + 2), dtype=np.int32)
+        self.solid = self.grid
+        self.sums = None
+
+    def add_box(self, box: tuple) -> None:
+        x, y, w, h = (int(v) // self.CELL for v in box)
+        self.grid[max(0, y):y + h + 2, max(0, x):x + w + 2] = 1
+        self.sums = None
+
+    def over_object(self, poly: list[tuple]) -> int:
+        """Kolik bodů vodítka vede přes obraz mimo jeho konec: čára přes cizí část obrazu mate."""
+        hits = 0
+        for a, b in panels._segments(poly):
+            for i in range(25):
+                x, y = a[0] + (b[0] - a[0]) * i / 24, a[1] + (b[1] - a[1]) * i / 24
+                row, col = int(y) // self.CELL, int(x) // self.CELL
+                hits += int(0 <= row < self.solid.shape[0] and 0 <= col < self.solid.shape[1] and self.solid[row, col])
+        return hits
+
+    def add_picture(self, rect: tuple, alpha: Image.Image | None) -> None:
+        x, y, w, h = rect
+        cols, rows = max(1, int(w) // self.CELL), max(1, int(h) // self.CELL)
+        if alpha is None:
+            mask = np.ones((rows, cols), dtype=np.int32)
+        else:
+            solid = alpha.point(lambda v: 255 if v > ALPHA_SOLID else 0)       # tenké části (mříž, výboj) se průměrem neztratí
+            mask = (np.asarray(solid.resize((cols, rows), Image.BOX), dtype=np.int32) > 8).astype(np.int32)
+        top, left = max(0, int(y) // self.CELL), max(0, int(x) // self.CELL)
+        rows, cols = min(rows, self.grid.shape[0] - top), min(cols, self.grid.shape[1] - left)
+        self.grid[top:top + rows, left:left + cols] |= mask[:rows, :cols]
+        self.solid = self.grid.copy()
+        self.sums = None
+
+    def free(self, box: tuple) -> bool:
+        if self.sums is None:
+            sums = np.zeros((self.grid.shape[0] + 1, self.grid.shape[1] + 1), dtype=np.int64)
+            sums[1:, 1:] = self.grid.cumsum(0).cumsum(1)
+            self.sums = sums.tolist()       # skladba se ptá stotisíckrát, seznam je tu rychlejší než pole
+        x, y, w, h = box
+        if x < 0 or y < 0 or x + w > self.W or y + h > self.H:
+            return False
+        x0, y0, x1, y1 = int(x) // self.CELL, int(y) // self.CELL, int(x + w) // self.CELL + 1, int(y + h) // self.CELL + 1
+        s = self.sums
+        return s[y1][x1] - s[y0][x1] - s[y1][x0] + s[y0][x0] == 0
+
+    def largest_empty(self, top: float, bottom: float, margin: float) -> float:
+        """Největší prázdný obdélník v ploše pod titulkem jako podíl té plochy. Vidí prázdný pruh i prázdnou třetinu stránky."""
+        r0, r1 = int(top) // self.CELL + 1, int(bottom) // self.CELL
+        c0, c1 = int(margin) // self.CELL, int(self.W - margin) // self.CELL
+        rows = self.grid[r0:r1, c0:c1].tolist()
+        if not rows or not rows[0]:
+            return 0.0
+        heights = [0] * (c1 - c0)
+        best = 0
+        for row in rows:
+            heights = [0 if cell else h + 1 for cell, h in zip(row, heights)]
+            stack: list[tuple[int, int]] = []
+            for col, h in enumerate([*heights, 0]):
+                start = col
+                while stack and stack[-1][1] >= h:
+                    start, tall = stack.pop()
+                    best = max(best, tall * (col - start))
+                stack.append((start, h))
+        return best / ((r1 - r0) * (c1 - c0))
 
 
 class Renderer:
@@ -486,14 +566,16 @@ class Renderer:
         """Svislá osa: tečka, letopočet tučně, vedle něj věta."""
         x0, y0, w, _h = panel["rect"]
         size, small = panel.get("size", self.f["vedouci"] * self.k), panel.get("small_size", self.f["veta"] * self.k)
-        gap = axis_gap(panel, self.f, self.k, size)
+        stacked = panel.get("pod_sebou")
+        gap = 0.0 if stacked else axis_gap(panel, self.f, self.k, size)
         chars = int((w - gap - 24 * self.k) / (small * LINE_WIDTH))
         y, dots, words = y0 + size, [], []
         for item in panel["items"]:
             lines = wrap(item["text"], chars)
             dots.append((x0 + 6 * self.k, y - size * 0.36))
             value = _text(x0 + 24 * self.k, y, item["value"], size, self.accent, 700)
-            body = "".join(_text(x0 + gap + 24 * self.k, y + j * 25 * self.k, line, small, self.t["ink"]) for j, line in enumerate(lines))
+            first = 28 * self.k if stacked else 0.0
+            body = "".join(_text(x0 + gap + 24 * self.k, y + first + j * 25 * self.k, line, small, self.t["ink"]) for j, line in enumerate(lines))
             words.append(f'<g id="{self.gid(item["value"])}">{value}{body}</g>')
             y += panel.get("krok", (22 + 25 * max(1, len(lines))) * self.k)
         axis = f'<line x1="{dots[0][0]:.1f}" y1="{dots[0][1]:.1f}" x2="{dots[-1][0]:.1f}" y2="{dots[-1][1]:.1f}" stroke="{self.t["muted"]}" stroke-width="{1.4 * self.k:.2f}"/>'
@@ -630,6 +712,11 @@ def checks(doc: dict, root: Path) -> list[dict]:
     else:
         out.append({"ok": True, "text": "tisková příloha: mobil se nekontroluje"})
     out += _collisions(doc, f, page, W, H, root)
+    if f["zalomit"] and doc["panels"]:
+        share = empty_share(doc, root)
+        out.append({"ok": share <= MAX_EMPTY, "text": f"prázdná plocha {share * 100:.0f} % pod titulkem" + (": zvětšit obraz, nebo změnit formát" if share > MAX_EMPTY else "")})
+        faint = [f"{part} část: {p['nazev']}" for p in pictures if p.get("pruhledny") for part in faint_parts(p, root, THEMES.get(doc.get("template"), THEMES["dark"])["bg"])]
+        out.append({"ok": not faint, "text": f"splývá s pozadím: {', '.join(faint)}" if faint else "obraz se od pozadí odlišuje"})
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
     out.append({"ok": not overlaps, "text": f"překrývají se popisky: {', '.join(overlaps)}" if overlaps else "popisky se nepřekrývají"})
     if outside:
@@ -642,6 +729,68 @@ def checks(doc: dict, root: Path) -> list[dict]:
     out.append({"ok": True, "text": "text jen z dokumentu, ne z modelu"})
     out.append({"ok": bool(doc.get("reviewed_by")), "text": f"zkontroloval(a) {doc['reviewed_by']}" if doc.get("reviewed_by") else "před zveřejněním zkontroluje člověk"})
     return out
+
+
+def head_bottom(doc: dict, f: dict, k: float, W: int) -> float:
+    """Kde končí titulek a věta pod ním."""
+    head = doc.get("nadpis") or {}
+    below = head.get("y", f["titulek_y"] * k) + (len(title_lines(doc, f, k, W)) - 1) * head.get("size", f["titulek"] * k) * 1.08
+    lines = (doc.get("subtitle") or "").splitlines()
+    return below + (f["podtitulek_od"] + f["podtitulek_krok"] * (len(lines) - 1)) * k + 14 * k if lines else below + 22 * k
+
+
+def empty_share(doc: dict, root: Path) -> float:
+    """Největší prázdná plocha pod titulkem nové stránky, podíl. Obraz obsazuje jen tam, kde není průhledný."""
+    W, H = canvas_size(doc["size"])
+    f = fonts(doc)
+    k = doc.get("meritko") or W / f["jednotek"]
+    sheet = Sheet(W, H)
+    for panel in doc["panels"]:
+        if panel["typ"] == "obraz":
+            with Image.open(panel_dir(root, panel["id"]) / "obraz.png") as im:
+                alpha = im.getchannel("A").copy() if "A" in im.getbands() else None
+            sheet.add_picture(tuple(panel["rect"]), alpha)
+            for label in panel["labels"]:
+                sheet.add_box(_text_box(label, label.get("size", f["popisek"] * k)))
+        elif panel.get("items"):
+            sheet.add_box((panel["rect"][0], panel["rect"][1], panel["rect"][2], text_height(panel, f, k)))
+        else:
+            sheet.add_box(tuple(panel["rect"]))
+    lines, foot = footer(doc, f, k, W, H)
+    bottom = foot - f["zdroj"] * k - 6 * k if lines else H - f["okraj"] * k
+    return sheet.largest_empty(head_bottom(doc, f, k, W), bottom, f["okraj"] * k)
+
+
+def _luminance(rgb):
+    v = np.asarray(rgb, dtype=np.float32) / 255
+    v = np.where(v <= 0.03928, v / 12.92, ((v + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * v[..., 0] + 0.7152 * v[..., 1] + 0.0722 * v[..., 2]
+
+
+def faint_parts(panel: dict, root: Path, page_color: str) -> list[str]:
+    """Které části průhledného obrazu splývají se stránkou: horní, střední, dolní. Měří se po pásech jen objekt, stín ne."""
+    with Image.open(panel_dir(root, panel["id"]) / "obraz.png") as im:
+        if "A" not in im.getbands():
+            return []
+        rgba = np.asarray(im.convert("RGBA").resize((max(1, im.width // 2), max(1, im.height // 2)), Image.NEAREST))
+    solid = rgba[..., 3] > 200
+    rows = np.nonzero(solid.any(axis=1))[0]
+    cols = np.nonzero(solid.any(axis=0))[0]
+    if not len(rows):
+        return []
+    light = _luminance(rgba[..., :3])
+    page = float(_luminance(np.array([[int(page_color[i:i + 2], 16) for i in (1, 3, 5)]], dtype=np.float32))[0])
+    ratio = (np.maximum(light, page) + 0.05) / (np.minimum(light, page) + 0.05)
+    edges = np.linspace(rows[0], rows[-1] + 1, FAINT_BANDS + 1).astype(int)
+    faint = []
+    for i, (a, b) in enumerate(zip(edges, edges[1:])):
+        mask = solid[a:b, cols[0]:cols[-1] + 1]
+        if not mask.any():
+            continue
+        limit = MIN_CONTRAST_THIN if mask.mean() < THIN_FILL else MIN_CONTRAST_MASS
+        if float(np.percentile(ratio[a:b, cols[0]:cols[-1] + 1][mask], 80)) < limit:
+            faint.append(("horní", "střední", "dolní")[3 * i // FAINT_BANDS])
+    return list(dict.fromkeys(faint))
 
 
 def _picture_sizes(panel: dict, f: dict, k: float) -> list[float]:
@@ -705,10 +854,11 @@ def text_height(panel: dict, f: dict, k: float) -> float:
         counts = [len(wrap(i["text"], chars)) for i in items]
         steps = [panel.get("krok", (46 + 25 * n) * k) for n in counts]
         return size + sum(steps[:-1]) + (28 + (counts[-1] - 1) * 25) * k + below
-    chars = int((w - axis_gap(panel, f, k, size) - 24 * k) / (small * LINE_WIDTH))
+    stacked = panel.get("pod_sebou")
+    chars = int((w - (0.0 if stacked else axis_gap(panel, f, k, size)) - 24 * k) / (small * LINE_WIDTH))
     counts = [max(1, len(wrap(i["text"], chars))) for i in items]
     steps = [panel.get("krok", (22 + 25 * n) * k) for n in counts]
-    return size + sum(steps[:-1]) + (counts[-1] - 1) * 25 * k + below
+    return size + sum(steps[:-1]) + (counts[-1] - 1) * 25 * k + (28 * k if stacked else 0.0) + below
 
 
 def _on_object(panel: dict, box: tuple, root: Path) -> bool:

@@ -5,7 +5,7 @@ from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from engine import chain as ch
 from engine import panels as pn
@@ -24,7 +24,6 @@ REPLY = {"navrhy": [{"nazev": "Velký řez", "veta": "Čtenář pochopí stavbu.
                     {"nazev": "Bez panelů", "panely": []},
                     {"nazev": "Čísla", "veta": "Rozměry.", "format": "neznámý", "panely": [{**PANEL, "x": 90, "w": 50, "fakta": ["f1"]}]}]}
 LOGIC = {"souhrn": "Dává smysl.", "ucel": "Ukázat stavbu.", "problemy": [{"co": "Malé písmo", "proc": "x", "oprava": "y", "zavaznost": "nízká"}]}
-TEXTS = {"stranky": [{"stranka": 1, "titulek": "Proč stojí", "panely": [{"panel": 1, "nadpis": "Řez", "polozky": [{"fakt": "f1", "value": "Stavba", "text": "Stojí v Římě."}]}]}]}
 CHAIN_USD = pp.estimate_usd(pp.DEFAULT_MODEL) + 0.07 + sr.estimate_usd(pp.DEFAULT_MODEL)
 
 
@@ -324,7 +323,7 @@ def test_panel_keeps_only_the_picture_roles_the_dossier_has():
 
 
 @pytest.mark.parametrize("kind, sees, not_sees", [
-    ("osoba", ("portret|zivot|dilo", "Životopis po letech nestačí", "predloha portret"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
+    ("osoba", ("portret|zivot|dilo", "Životopis sám nestačí", "První stránka o člověku je životopisná", "predloha portret"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
     ("zvire", ("zvire|mapa|detail", "Mapa výskytu", "predloha zvire"), ("hlavni|rez|pudorys", "Jediný velký řez", "rekonstrukce")),
     ("vec", ("hlavni|rez|pudorys|detail|cisla|osa|text", "Jediný velký řez", "kdo věc používal"), ("portret", "Životopis")),
     (None, ("hlavni|rez|pudorys|detail|cisla|osa|text", "Jediný velký řez"), ("portret", "Životopis")),     # starší dossier druh nemá
@@ -381,19 +380,6 @@ def test_proposal_is_a_series_and_a_fact_stays_on_one_page():
     assert "stránka 2: Druhá" in pp.layout_text(proposal, [1, 2]) and "stránka 3" not in pp.layout_text(proposal, [1, 2])
 
 
-def series_lab(settings, sd, reply, texts):
-    class Ask(FakeAsk):
-        def __call__(self, content, system, *, what, model, effort="low", max_tokens=16000):
-            self.calls.append({"what": what, "model": model, "content": content})
-            data = LOGIC if what == "kontrola logiky" else texts if what == "texty stránek" else self.reply
-            return claude.Answer(json.dumps(data, ensure_ascii=False), model, 1000, 500, self.usd, "end_turn")
-    return Ask(reply=reply)
-
-
-def facts_of(c, research_id):
-    return c.get(f"/api/v2/research/{research_id}").json()["dossier"]
-
-
 def test_pick_chooses_pages_and_every_page_has_a_sketch(settings, sd):
     reply = {"navrhy": [{"nazev": "Série", "veta": "Věta.", "format": "4:5", "panely": [{**PANEL, "fakta": ["f1"]}], "dalsi_stranky": [{"nazev": "Druhá", "panely": [{**PANEL, "titulek": "Druhý řez", "fakta": ["f2"]}]}]}]}
     with TestClient(make(settings, sd, FakeAsk(reply=reply))) as c:
@@ -440,7 +426,7 @@ def test_pages_are_built_from_facts_and_each_is_checked(settings, sd):
         assert any("fakt mimo stránku" in note for note in second["hlaseni"]) and any("bez obrazu" in note for note in second["hlaseni"])
         for page in done["serie"]:
             doc = c.get(f"/api/v2/infographics/{page['doc']}").json()
-            assert doc["size"] == "1080x1350" and doc["pismo"]["jednotek"] == pn.MOBIL["jednotek"] and doc["serie"]["celkem"] == 2
+            assert doc["size"] in ("1080x1350", "1080x1620", "1080x1080") and doc["pismo"]["jednotek"] == pn.MOBIL["jednotek"] and doc["serie"]["celkem"] == 2
             found = [row for row in c.get(f"/api/v2/infographics/{page['doc']}/kontrola").json() if not row["ok"]]
             assert not [row for row in found if "mobil" in row["text"] or "zasahuje" in row["text"] or "přetéká" in row["text"]], found
             assert doc["sources"] and doc["na_strance"] == "" and doc["sources"] not in c.get(f"/api/v2/infographics/{page['doc']}/svg").text      # zdroj je v dokumentu, na stránce ne
@@ -494,7 +480,8 @@ def test_page_puts_the_callouts_next_to_the_object_and_keeps_all_on_the_page(siz
     hero = picture(res, {"horni": [res[0] // 2, res[1] // 3], "dolni": [res[0] // 2, 2 * res[1] // 3]}, solid)
     fields, dropped = sr.compose("Krátký titulek", "Jedna věta, co čtenář z obrazu pochopí.", "", hero, ITEMS, {}, {}, size)
     assert not dropped
-    W, H = (int(v) for v in size.split("x"))
+    W, H = (int(v) for v in fields["size"].split("x"))
+    assert W == 1080
     main = next(p for p in fields["panels"] if p["typ"] == "obraz")
     assert all(0 <= v for v in main["rect"]) and main["rect"][0] + main["rect"][2] <= W + 0.5 and main["rect"][1] + main["rect"][3] <= H + 0.5
     assert [label["text"] for label in main["labels"]] == ["Horní díl", "Dolní díl"] and all(label["small"] for label in main["labels"])
@@ -568,7 +555,73 @@ def test_own_3d_picture_wins_over_an_old_photo():
     def picture_of(image):
         return {"zdroj": {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {})}, "_res": (400, 400), "_alpha": alpha, "_points": {"rotor": [200, 200]}}
     fields, said = sr.page_fields(3, pp.pages(proposal)[2], {"titulek": "Muž", "uvod": "", "polozky": [{"value": "1888", "text": "patent", "bod": None, "fakt": "f3"}]}, images, SERIES_DOSSIER, picture_of)
-    assert fields["template"] == "dark" and fields["sources"] == "Wikipedia (cs)" and not said
+    assert fields["template"] == "dark" and fields["sources"] == "Wikipedia (cs)" and not [note for note in said if "Formát" not in note]
+
+
+def page_with_picture(root, rect, picture, res=(400, 800)):
+    folder = root / "panely" / "p"
+    folder.mkdir(parents=True)
+    picture.save(folder / "obraz.png")
+    (folder / "body.json").write_text(json.dumps({"res": list(res), "points": {}}), encoding="utf-8")
+    doc = {"size": "1080x1350", "title": "T", "subtitle": "Věta", "nadpis": {"y": 80, "size": 80}, "sources": "x", "ai_note": "x", "na_strance": "", "pismo": pn.MOBIL, "template": "dark",
+           "panels": [{"id": "p", "typ": "obraz", "nazev": "Obraz", "rect": rect, "zdroj": {"slozka": "x"}, "poradi": 1, "pruhledny": True}]}
+    doc["panels"] = pn.validate(doc)
+    return doc
+
+
+def test_empty_band_and_a_lattice_lost_on_the_dark_page_are_found(tmp_path):
+    """Dvě výtky operátora z 2. 11. jako měření: tmavá kupole na tmavé stránce a prázdný pruh nad motorem."""
+    picture = Image.new("RGBA", (400, 800), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(picture)
+    for x in range(0, 400, 50):
+        draw.line([(x, 0), (x, 180)], fill=(44, 47, 52, 255), width=4)
+    draw.rectangle((100, 200, 300, 800), fill=(200, 180, 150, 255))
+    doc = page_with_picture(tmp_path, [0, 800, 250, 500], picture)
+    assert pn.faint_parts({"id": "p"}, tmp_path, pn.THEMES["dark"]["bg"]) == ["horní"]
+    assert pn.empty_share(doc, tmp_path) > pn.MAX_EMPTY
+    found = [row["text"] for row in pn.checks(doc, tmp_path) if not row["ok"]]
+    assert any("prázdná plocha" in text for text in found) and any("splývá" in text for text in found)
+    full = Image.new("RGBA", (400, 800), (200, 180, 150, 255))
+    other = tmp_path / "plny"
+    other.mkdir()
+    filled = page_with_picture(other, [40, 240, 1000, 1070], full)
+    assert pn.empty_share(filled, other) < pn.MAX_EMPTY and pn.faint_parts({"id": "p"}, other, pn.THEMES["dark"]["bg"]) == []
+
+
+def test_format_follows_the_picture_instead_of_leaving_a_hole():
+    tall = picture((600, 1400), {"horni": [300, 400], "dolni": [300, 1000]}, (200, 20, 400, 1380))
+    wide = picture((1400, 700), {"horni": [500, 200], "dolni": [900, 500]}, (20, 20, 1380, 680))
+    fields, dropped = sr.compose("Věž", "Věta.", "", tall, ITEMS[:2], {}, {}, "1080x1080")
+    assert not dropped and fields["size"] == "1080x1620"
+    fields, _ = sr.compose("Stroj", "Věta.", "", wide, [], {}, {}, "1080x1620")
+    assert fields["size"] in ("1080x1080", "1080x1350")     # nízký obraz na vysoké stránce by nechal díru
+
+
+def test_life_page_has_a_timeline_and_birth_and_death_are_always_offered():
+    facts = [*FACTS, {"id": "f90", "tvrzeni": "Narození: 10. 7. 1856", "stav": "shoda", "zdroje": []}, {"id": "f91", "tvrzeni": "Tesla died alone in a hotel in 1943.", "stav": "jediny_zdroj", "zdroje": []}]
+    dossier = {**SERIES_DOSSIER, "facts": facts}
+    assert sr.life_facts(dossier) == ["f90", "f91"]
+    figure = {"id": "figura", "nazev": "Tesla, 3D figura", "kratce": "Figura", "druh": "osoba", "slozka": "x", "ai": "FLUX", "popisky": {"ruka": "Ruka"}}
+    page = {"nazev": "Život", "veta": "Kdo byl.", "format": "4:5", "panely": [series_panel("f1", vlastni="figura", druh="hlavni")]}
+    proposal = {**page, "dalsi_stranky": []}
+    images = {(1, 1): figure}
+    assert sr.is_life_page(1, page, images) and not sr.is_life_page(1, page, {(1, 1): {"id": "motor"}})
+    request = sr.request_text(dossier, proposal, [1], images)
+    assert "ŽIVOTOPISNÁ STRÁNKA" in request and "f90" in request and "f91" in request
+    answer = {"stranky": [{"stranka": 1, "titulek": "Tesla", "uvod": "Kdo byl.", "polozky": [{"fakt": "f90", "value": "1856", "text": "narozen"}]}]}
+    out = sr.write_texts(dossier, proposal, [1], ask=lambda *a, **k: claude.Answer(json.dumps(answer), "m", 1, 1, 0.0, "end_turn"), images=images)
+    assert [i["value"] for i in out["stranky"][1]["polozky"]] == ["1856"] and not out["hlaseni"][1]      # fakt o narození návrh nevybral, a přesto smí
+    answer["stranky"][0]["polozky"] = [{"fakt": "f1", "value": "Práce", "text": "bez dat ze života"}]
+    out = sr.write_texts(dossier, proposal, [1], ask=lambda *a, **k: claude.Answer(json.dumps(answer), "m", 1, 1, 0.0, "end_turn"), images=images)
+    assert any("narození ani smrt" in note for note in out["hlaseni"][1])
+    hero = picture((400, 1000), {}, (20, 20, 380, 980))
+    items = [{"value": year, "text": "událost v životě člověka", "bod": None, "fakt": "f1"} for year in ("1856", "1884", "1888", "1891", "1943")]
+    fields, dropped = sr.compose("Nikola Tesla", "Kdo byl.", "Figura: AI", hero, items, {}, {}, "1080x1350")
+    axis = next(p for p in fields["panels"] if p["typ"] == "osa")
+    W, H = (int(v) for v in fields["size"].split("x"))
+    assert not dropped and axis["pod_sebou"] and len(axis["items"]) == 5 and axis["rect"][3] > 0.6 * H      # po celé výšce, ne hromádka nahoře
+    body = next(p for p in fields["panels"] if p["typ"] == "obraz")
+    assert axis["rect"][0] >= body["rect"][0] + body["rect"][2] - 40 and axis["rect"][0] + axis["rect"][2] <= W
 
 
 def test_own_pictures_file_is_read_and_a_broken_one_stops_the_chain(settings, tmp_path):

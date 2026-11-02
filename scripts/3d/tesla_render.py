@@ -8,7 +8,7 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(REPO), str(REPO / "shared")]
 
 TIMEOUT_S = 1800
-SHOTS = ("motor", "civka", "civka-bez", "vez", "vez-nad", "hala", "turbina", "elektrarna", "transformator", "prijimac", "lod", "trubice", "trubice2")
+SHOTS = ("motor", "civka", "civka-bez", "vez", "vez-tema", "vez-nad", "hala", "turbina", "elektrarna", "transformator", "prijimac", "lod", "trubice", "trubice2")
 
 
 def main() -> int:

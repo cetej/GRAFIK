@@ -1,6 +1,6 @@
 # Realistic 3D models of Tesla's machines for scripts/plakaty/tesla_kopie.py, free, run through tesla_render.py under the heavy lock:
 #   blender -b --factory-startup -P scripts/3d/tesla_stroje.py -- SHOT OUT_DIR [--samples 96] [--res W H]
-# SHOT = motor | civka | vez | vez-nad | hala | turbina | elektrarna | transformator | prijimac | lod | trubice | trubice2. Writes OUT_DIR/SHOT/obraz.png (transparent, with a contact shadow) and body.json,
+# SHOT = motor | civka | vez | vez-tema | vez-nad | hala | turbina | elektrarna | transformator | prijimac | lod | trubice | trubice2. Writes OUT_DIR/SHOT/obraz.png (transparent, with a contact shadow) and body.json,
 # which holds the canvas position of every named point, so a label sits exactly on the machine.
 # Proportions follow the patent drawings and the sources in docs/spikes/2026-11-01-plakaty-osoba-zvire.md, details without a source are illustrative.
 import json
@@ -32,7 +32,7 @@ def opt(name, default, n=1):
 SAMPLES = int(opt("--samples", 96))
 RES = [int(v) for v in opt("--res", (1400, 1400), 2)]
 if "--res" not in args:
-    RES = {"vez": [1300, 1800], "civka": [1200, 1400], "vez-nad": [900, 1600], "hala": [1600, 700], "prijimac": [1600, 800], "lod": [1600, 700], "trubice": [1600, 500], "trubice2": [800, 1400], "elektrarna": [1300, 1560]}.get(SHOT, RES)
+    RES = {"vez": [1300, 1800], "vez-tema": [1800, 2500], "civka": [1200, 1400], "vez-nad": [900, 1600], "hala": [1600, 700], "prijimac": [1600, 800], "lod": [1600, 700], "trubice": [1600, 500], "trubice2": [800, 1400], "elektrarna": [1300, 1560]}.get(SHOT, RES)
 TWO_PI = 2 * math.pi
 POINTS = {}
 
@@ -353,7 +353,7 @@ def hall_only(brick, roof, window, stone, ground):
     return {"dir": (-0.25, -1.0, 0.1), "lens": 200, "floor": 0.25, "soft": 1.0}
 
 
-def vez(ground=True, tower=True, lab=True):
+def vez(ground=True, tower=True, lab=True, on_dark=False):
     timber = material("timber", "#a48a68", "#7f6849", 2.2, 0.75, dist=0.8, ao=0.5, bevel=0.03)
     iron = material("iron", "#3a3d40", "#2b2e31", 3.0, 0.5, 0.75, dist=0.7, ao=0.4)
     brick = material("brick", "#8c4a35", "#6e3828", 5.0, 0.8, dist=1.2, ao=0.65, bump=0.2)
@@ -365,6 +365,9 @@ def vez(ground=True, tower=True, lab=True):
     gravel = material("gravel", "#8f8069", "#6f6250", 2.4, 0.95, dist=1.0, ao=0.3)
     grass = material("grass", "#56683a", "#44552c", 2.0, 0.95, dist=0.8, ao=0.3)
     lining = material("lining", "#6f665a", "#59514a", 3.0, 0.8, dist=0.8, ao=0.5)
+    steel, rib, hoop = iron, 0.13, 0.1
+    if on_dark:         # dark iron on a dark page: the cap disappears, so the frame is bare bright steel and a little thicker
+        steel, rib, hoop = material("steel", "#e4e7ea", "#c9ced2", 3.0, 0.42, 0.55, dist=0.5, ao=0.3), 0.19, 0.15
 
     legs, levels = 8, 8
     if not tower:
@@ -390,10 +393,10 @@ def vez(ground=True, tower=True, lab=True):
     arc = [(r * math.cos(math.radians(a)), z_c + r * 0.86 * math.sin(math.radians(a))) for a in range(-25, 91, 7)]
     for i in range(ribs):
         c, s = math.cos(TWO_PI * i / ribs), math.sin(TWO_PI * i / ribs)
-        tube(f"rib{i}", [(x * c, x * s, z) for x, z in arc], 0.13, iron)
-        tube(f"strut{i}", [(arc[0][0] * c, arc[0][0] * s, arc[0][1]), (4.0 * c, 4.0 * s, h_top + 0.2)], 0.11, iron)
+        tube(f"rib{i}", [(x * c, x * s, z) for x, z in arc], rib, steel)
+        tube(f"strut{i}", [(arc[0][0] * c, arc[0][0] * s, arc[0][1]), (4.0 * c, 4.0 * s, h_top + 0.2)], hoop * 1.1, steel)
     for x, z in arc[1::3]:
-        tube(f"hoop{z:.1f}", [(x * math.cos(TWO_PI * k / 72), x * math.sin(TWO_PI * k / 72), z) for k in range(72)], 0.1, iron, cyclic=True)
+        tube(f"hoop{z:.1f}", [(x * math.cos(TWO_PI * k / 72), x * math.sin(TWO_PI * k / 72), z) for k in range(72)], hoop, steel, cyclic=True)
     if ground:
         # section block: the ground in front of the plane y = 0 is gone, so the shaft shows
         w, d_back = 28.0, 26.0
@@ -414,7 +417,7 @@ def vez(ground=True, tower=True, lab=True):
     if lab:
         hall_only(brick, roof, window, stone, ground)
     x0, y0 = 15.0, 2.0
-    POINTS.update(kopule=(r * 0.5, 0, z_c + r * 0.72), vez=corner(4, 22), dilna=(x0 + 6, y0 - 0.1, 5.5), sachta=(-2.2, -0.3, -TOWER["shaft"] * 0.6), trubka=(0.45, -0.6, -TOWER["shaft"] * 0.35),
+    POINTS.update(kopule=(r * 0.5, 0, z_c + r * 0.72), vez=corner(4, 22), dilna=(x0 + (2.5 if on_dark else 6), y0 - 0.1, 5.5), sachta=(-2.2, -0.3, -TOWER["shaft"] * 0.6), trubka=(0.45, -0.6, -TOWER["shaft"] * 0.35),
                   vrchol=(0, 0, TOWER["h"]), pata=(0, 0, 0), dno=(0, 0, -TOWER["shaft"]), zem=(-34, 0, -0.1))
     if not ground:
         return {"dir": (-0.25, -1.0, 0.1), "lens": 200, "floor": 0.0, "soft": 1.0}
@@ -860,7 +863,7 @@ def studio(camera_dir):
 def main():
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
-    info = {"motor": motor, "civka": civka, "civka-bez": civka, "vez": vez, "turbina": turbina, "elektrarna": elektrarna, "vez-nad": lambda: vez(False, True, False), "hala": lambda: vez(False, False, True),
+    info = {"motor": motor, "civka": civka, "civka-bez": civka, "vez": vez, "vez-tema": lambda: vez(on_dark=True), "turbina": turbina, "elektrarna": elektrarna, "vez-nad": lambda: vez(False, True, False), "hala": lambda: vez(False, False, True),
             "transformator": transformator, "prijimac": prijimac, "lod": lod, "trubice": trubice, "trubice2": trubice2}[SHOT]()
     scene = bpy.context.scene
     device = setup_render()

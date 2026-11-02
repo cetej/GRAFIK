@@ -53,7 +53,8 @@ KIND_RULES = {
 - Téma je víc než objekt: ukaž i kdo věc používal a co se v ní dělo.""",
     "osoba": """\
 - Téma je člověk. Každá skladba má panel s jeho podobou, i když hlavní obraz je jeho dílo: jeho 3D figura z VLASTNÍCH OBRAZŮ, a jen když tam není, dobová fotografie nebo portrét z dossieru beze změny (predloha portret, obrazek obraz). Generovaná ilustrace je jen scéna, ke které fotka není. Stroje a přístroje z jeho práce jsou realistické 3D (model).
-- Životopis po letech nestačí: ukaž, co člověk změnil, z čeho žil a co se o něm tvrdí.""",
+- První stránka o člověku je životopisná: figura a data z jeho života (narození, smrt, místa, zlomy). Dílo sem nepatří, každý vynález má vlastní stránku s vlastním obrazem.
+- Životopis sám nestačí: další stránky ukážou, co člověk změnil, z čeho žil a co se o něm tvrdí.""",
     "zvire": """\
 - Téma je živý tvor. Každá skladba má panel s celým zvířetem, realistickým, ne kresleným maskotem (predloha zvire, obrazek ilustrace). Hlavní obraz určuje myšlenka skladby, může to být i mapa. Mapa výskytu z dossieru je obraz.
 - Popis zvířete nestačí: ukaž, kde žije, co ho ohrožuje, jak se vyvíjí a co o něm zjistila věda.""",
