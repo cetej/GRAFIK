@@ -99,6 +99,9 @@ AXOLOTL = [
 ]
 
 CHECKS = {"tesla": TESLA, "axolotl": AXOLOTL}
+# Chyby Wikipedie v datech patentů podle ruční rešerše (oddíl 0): číslo a datum udělení z Google Patents.
+KNOWN_DATES = {"tesla": {"396,121": "1889-01-15", "685,012": "1901-10-22", "1,061,142": "1913-05-06", "1,061,206": "1913-05-06",
+                         "613,809": "1898-11-08", "655,838": "1900-08-14", "454,622": "1891-06-23"}}
 
 
 def fact_texts(fact: dict) -> list[str]:
@@ -110,6 +113,13 @@ def found(checks: list[tuple[str, str]], facts: list[dict]) -> dict[str, dict | 
     for name, pattern in checks:
         out[name] = next((f for f in facts if any(re.search(pattern, t, re.S | re.I) for t in fact_texts(f))), None)
     return out
+
+
+def known_dates(tema: str, facts: list[dict]) -> dict[str, bool]:
+    """Vyřešená chyba: rozpor u toho patentu, kde primární zdroj říká správné datum a nese URL."""
+    return {number: any(f["stav"] == "rozpor" and (f.get("predmet") or "").startswith(f"patent US {number} ")
+                        and any(z.get("primarni") and z.get("hodnota") == iso and z.get("url") for z in f["zdroje"]) for f in facts)
+            for number, iso in KNOWN_DATES.get(tema, {}).items()}
 
 
 def ceiling(checks: list[tuple[str, str]], pages: Path) -> set[str]:
@@ -137,6 +147,12 @@ def main() -> None:
         roles[image["role"]] = roles.get(image["role"], 0) + 1
     print(f"{args.dossier.parent.name}: {len(dossier['facts'])} faktů {states}, {len(dossier['images'])} obrázků {roles}")
     print(f"z ruční rešerše: {sum(v is not None for v in hits.values())} z {len(checks)}")
+    dates = known_dates(args.tema, dossier["facts"])
+    if dates:
+        print(f"známé chyby v datech patentů vyřešené: {sum(dates.values())} z {len(dates)}")
+        for number, ok in dates.items():
+            if not ok:
+                print(f"  nevyřešeno: US {number}")
     if args.pages:
         top = ceiling(checks, args.pages)
         print(f"strop (stojí na stažených stránkách): {len(top)} z {len(checks)}")

@@ -101,6 +101,190 @@ def test_text_conflict_survives_a_paid_extension():
     assert sum(f["stav"] == "rozpor" for f in new["facts"]) == sum(f["stav"] == "rozpor" for f in facts)
 
 
+HEAD = """<title>US1061206A - Turbine.</title><span itemprop="title">Turbine.
+   </span><dd itemprop="inventor" repeat>Nikola Tesla</dd><dd><time itemprop="priorityDate" datetime="1909-10-21">1909-10-21</time></dd>
+<dd><time itemprop="filingDate" datetime="1911-01-17">1911-01-17</time></dd><dd><time itemprop="publicationDate" datetime="1913-05-06">1913-05-06</time></dd>"""
+
+
+def record(granted, filed=None, priority=None, inventors=("Nikola Tesla",), title="Turbine"):
+    return {"udeleno": granted, "podano": filed, "priorita": priority, "vynalezci": list(inventors), "nazev": title}
+
+
+def test_patent_page_gives_dates_and_inventors():
+    assert rs.parse_patent(HEAD) == {"udeleno": "1913-05-06", "podano": "1911-01-17", "priorita": "1909-10-21", "vynalezci": ["Nikola Tesla"], "nazev": "Turbine"}
+    assert rs.parse_patent("<html>nic</html>")["udeleno"] is None
+
+
+def test_missing_patent_page_is_empty_not_an_outage(monkeypatch):
+    def not_found(req, timeout):
+        raise rs.urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, None)
+    monkeypatch.setattr(rs.urllib.request, "urlopen", not_found)
+    assert rs.get_json(rs.GOOGLE_PATENTS, {"number": "99,999,999"}) == {}
+
+
+def test_patent_number_makes_a_page_address():
+    assert rs.patent_url("1,061,206") == "https://patents.google.com/patent/US1061206/en"
+
+
+def test_person_without_patent_numbers_asks_nothing():
+    calls = []
+    numbers = rs.patent_numbers([page("She discovered polonium in 1898."), page("His British patent 6,481 of 1888 covered the motor.")])
+    assert numbers == [] and rs.check_patents(numbers, "Curie", lambda host, params: calls.append(params)) == {"cisla": 0, "zaznamy": {}, "jine_jmeno": {}}
+    assert calls == []
+
+
+def test_numbers_come_from_sentences_and_the_listing():
+    numbers = rs.patent_numbers(patent_pages())
+    assert numbers[:2] == ["454,622", "613,809"] and "1,061,206" in numbers and len(numbers) == 28
+
+
+def test_related_page_gives_only_numbers_next_to_the_name():
+    related = page("Edwin Armstrong, U.S. patent 1,113,149, Wireless receiving system.\nNikola Tesla, U.S. patent 454,622, System of Electric Lighting.", "Tesla coil", jen_s_nazvem="Tesla")
+    assert rs.patent_numbers([related]) == ["454,622"]
+
+
+def test_patent_of_someone_else_is_not_assigned():
+    pages = {"174,465": record("1876-03-07", inventors=("Alexander Graham Bell",)), "166,096": record("1875-05-11", inventors=("Elisha Gray",)),
+             "111,111": record("1871-01-17", inventors=("George A. Campbell",)), "235,199": record("1880-12-07", inventors=(), title="Alexander g"), "1,000": {}}
+    checked = rs.check_patents(list(pages), "Bell", lambda host, params: pages[params["number"]])
+    assert list(checked["zaznamy"]) == ["174,465"] and set(checked["jine_jmeno"]) == {"166,096", "111,111", "235,199"}
+    questions = rs.patent_questions(checked)
+    assert any("US 166,096" in q and "Elisha Gray" in q for q in questions)
+    assert any("neuvádí vynálezce u US 235,199" in q for q in questions) and not any("Alexander g" in q for q in questions)
+    assert any("ověřil jen 4 z 5" in q for q in questions)
+
+
+def test_listed_patent_without_inventor_keeps_its_author():
+    pages = {"568,176": record("1896-09-22", inventors=()), "174,465": record("1876-03-07", inventors=("Alexander Graham Bell",)), "382,279": record("1888-05-01", inventors=("N. Tesla",))}
+    checked = rs.check_patents(list(pages), "Tesla", lambda host, params: pages[params["number"]], {"568,176": {}, "174,465": {}})
+    assert set(checked["zaznamy"]) == {"568,176", "382,279"} and list(checked["jine_jmeno"]) == ["174,465"]     # ze seznamu, ale vynálezce je někdo jiný
+
+
+def test_outage_stops_the_check_and_says_how_far_it_got():
+    answers = iter([record("1913-05-06")])
+
+    def get(host, params):
+        try:
+            return next(answers)
+        except StopIteration:
+            raise rs.ResearchError("patents.google.com odpověděl 429") from None
+    seen = []
+    checked = rs.check_patents([f"{i},000" for i in range(100, 150)], "Tesla", lambda host, params: seen.append(params) or get(host, params))
+    assert len(seen) == 4 and list(checked["zaznamy"]) == ["100,000"]
+    assert rs.patent_questions(checked) == ["Google Patents ověřil jen 1 z 50 patentů, u ostatních je datum jen z Wikipedie."]
+
+
+def checked_tesla():
+    agreed = {f"{300 + i},000": record(f"1890-03-{i + 1:02d}", title=f"Other thing {i}") for i in range(25)}
+    return {"cisla": 28, "jine_jmeno": {}, "zaznamy": {**agreed, "1,061,206": record("1913-05-06", "1911-01-17", "1909-10-21"),
+                                                       "613,809": record("1898-11-08", "1898-07-01", "1898-07-01", title="Vessels"),
+                                                       "454,622": record("1891-06-23", title="System Of Electric Llghting")}}
+
+
+def test_primary_source_comes_first_and_the_conflict_stays_visible():
+    facts = rs.merge_facts(rs.patent_facts(patent_pages(), ["Nikola Tesla", "Tesla"], checked_tesla()), TESLA)
+    turbine = next(f for f in facts if "1,061,206" in (f["predmet"] or ""))
+    assert turbine["stav"] == "rozpor" and turbine["hodnota"] == ["1909-10-21", "1913-05-06", "1913-10-21"]
+    assert turbine["tvrzeni"] == "Patent US 1,061,206 (Turbine): uděleno 6. 5. 1913 podle Google Patents. Jiné zdroje: 21. 10. 1909 (první přihláška), 21. 10. 1913"
+    google = next(z for z in turbine["zdroje"] if z.get("primarni"))
+    assert google["hodnota"] == "1913-05-06" and google["url"] == "https://patents.google.com/patent/US1061206/en" and google["jazyk"] == "patent"
+    assert "Podáno 17. 1. 1911" in google["citace"] and {z["hodnota"] for z in turbine["zdroje"]} == {"1909-10-21", "1913-05-06", "1913-10-21"}
+    boat = next(f for f in facts if "613,809" in (f["predmet"] or ""))
+    assert "Jiné zdroje: 1. 7. 1898 (podání)" in boat["tvrzeni"]
+    assert not any("300,000" in (f["predmet"] or "") for f in facts)    # všichni se shodnou, nic to neříká
+
+
+def test_date_beside_a_single_number_names_the_patent():
+    facts = rs.merge_facts(rs.patent_facts(patent_pages(), ["Nikola Tesla", "Tesla"], checked_tesla()), TESLA)
+    coil = next(f for f in facts if "454,622" in (f["predmet"] or ""))
+    assert coil["stav"] == "rozpor" and coil["hodnota"] == ["1891-04-25", "1891-06-23"] and "uděleno 23. 6. 1891" in coil["tvrzeni"]
+    assert not any(f["predmet"] == "patent" for f in facts)     # věta bez čísla má svůj patent, poznámka už není třeba
+
+
+def test_filing_date_of_one_patent_names_it():
+    checked = checked_tesla()
+    checked["zaznamy"]["645,576"] = record("1900-03-20", "1897-09-02", "1897-09-02")
+    checked["zaznamy"]["649,621"] = record("1900-05-15", "1900-02-19", "1897-09-02")
+    listing = LISTING + "\nU.S. patent 645,576 - System - 1900 March 20 - x\nU.S. patent 649,621 - Apparatus - 1900 May 15 - y"
+    pages = [page(listing, "List of Nikola Tesla patents"), page("Tesla patented it on September 2, 1897, in New York.", "Tesla coil")]
+    facts = rs.merge_facts(rs.patent_facts(pages, ["Tesla"], checked), TESLA)
+    system = next(f for f in facts if "645,576" in (f["predmet"] or ""))
+    assert system["stav"] == "rozpor" and "2. 9. 1897 (podání)" in system["tvrzeni"]
+
+
+def test_wrong_date_only_in_the_listing_is_found():
+    checked = checked_tesla()
+    checked["zaznamy"]["300,000"] = record("1891-03-01", title="Other thing 0")
+    facts = rs.merge_facts(rs.patent_facts(patent_pages()[:1], ["Tesla"], checked), TESLA)
+    wrong = next(f for f in facts if "300,000" in (f["predmet"] or ""))
+    assert wrong["stav"] == "rozpor" and wrong["hodnota"] == ["1890-03-01", "1891-03-01"]
+
+
+def test_summary_counts_by_granted_date():
+    facts = rs.merge_facts(rs.patent_facts(patent_pages(), ["Tesla"], checked_tesla()), TESLA)
+    summary = next(f for f in facts if f["velicina"] == "počet")
+    # každý patent v jiný den: den s nejvíc patenty nic neříká
+    assert summary["tvrzeni"] == "Americké patenty podle Google Patents: 28 ověřeno z 28 v seznamu na Wikipedii. Podle roku: 1890: 25, 1891: 1, 1898: 1, 1913: 1"
+    assert {z["jazyk"] for z in summary["zdroje"]} == {"en", "patent"}
+
+
+def test_summary_names_every_day_with_the_most_patents():
+    checked = checked_tesla()
+    checked["zaznamy"]["300,000"] = record("1888-05-01")
+    checked["zaznamy"]["301,000"] = record("1888-05-01")
+    checked["zaznamy"]["302,000"] = record("1898-08-16")
+    checked["zaznamy"]["303,000"] = record("1898-08-16")
+    summary = next(f for f in rs.merge_facts(rs.patent_facts(patent_pages(), ["Tesla"], checked), TESLA) if f["velicina"] == "počet")
+    assert "Nejvíc patentů v jeden den: 2, 1. 5. 1888 (US 300,000, 301,000), 16. 8. 1898 (US 302,000, 303,000)" in summary["tvrzeni"]
+
+
+def test_verified_patents_replace_the_weakest_sentences_over_the_limit():
+    sentences = " ".join(f"In {1880 + i % 40} Tesla built motor number {i} for the plant." for i in range(100))
+    pages = [page("== Life ==\n" + sentences, "Nikola Tesla"), page(LISTING, "List of Nikola Tesla patents")]
+    entity = {"qid": "Q9036", "label": "Nikola Tesla", "druh": "osoba", "short": "Tesla", "popis": "", "url": "u", "modified": "2026-11-02", "claims": {},
+              "commons_category": None, "sitelinks": {}, "names": ["Tesla"]}
+    records = {f"{300 + i},000": record(f"1891-01-{i + 1:02d}") for i in range(25)}
+
+    def get(host, params):
+        return records.get(params["number"], {}) if host == rs.GOOGLE_PATENTS else {}
+    monkeypatched = rs.find_entity, rs.load_pages, rs.MAX_FACTS
+    rs.find_entity, rs.load_pages, rs.MAX_FACTS = (lambda *a: entity), (lambda *a: pages), 30
+    try:
+        dossier = rs.free_dossier("Nikola Tesla", images=False, get=get)
+    finally:
+        rs.find_entity, rs.load_pages, rs.MAX_FACTS = monkeypatched
+    assert len(dossier["facts"]) == 30 and sum("patent US" in (f["predmet"] or "") for f in dossier["facts"]) == 25
+
+
+def test_partial_check_says_so_in_the_summary():
+    checked = checked_tesla()
+    checked["zaznamy"] = {"1,061,206": checked["zaznamy"]["1,061,206"]}
+    facts = rs.merge_facts(rs.patent_facts(patent_pages(), ["Tesla"], checked), TESLA)
+    assert any((f["tvrzeni"]).startswith("Americké patenty podle Google Patents: 1 ověřeno z 28") for f in facts)
+    assert next(f for f in facts if f["velicina"] == "počet")["tvrzeni"].count("1909") == 0     # datum z originálu přepíše seznam
+
+
+def test_without_a_listing_named_patents_are_checked():
+    pages = [page("Bell received U.S. Patent 174,465 on March 7, 1876, for the telephone.", "Alexander Graham Bell"),
+             page("It was U.S. Patent 186,787 of January 30, 1877.", "Telephone")]
+    checked = {"cisla": 2, "jine_jmeno": {}, "zaznamy": {"174,465": record("1876-03-07", "1876-02-14", title="Improvement in telegraphy"), "186,787": record("1877-01-31", title="Telephones")}}
+    entity = {"label": "Alexander Graham Bell", "qid": "Q34286", "druh": "osoba"}
+    facts = rs.merge_facts(rs.patent_facts(pages, ["Bell"], checked), entity)
+    agreed = next(f for f in facts if "174,465" in f["predmet"])
+    assert agreed["stav"] == "shoda" and agreed["hodnota"] == "1876-03-07" and agreed["tvrzeni"] == "Patent US 174,465 (Improvement in telegraphy): 7. 3. 1876"
+    differs = next(f for f in facts if "186,787" in f["predmet"])
+    assert differs["stav"] == "rozpor" and "uděleno 31. 1. 1877" in differs["tvrzeni"] and "30. 1. 1877" in differs["tvrzeni"]
+    assert not any(f["velicina"] == "počet" for f in facts)
+
+
+def test_primary_statement_survives_a_paid_extension():
+    facts = rs.merge_facts(rs.patent_facts(patent_pages(), ["Tesla"], checked_tesla()), TESLA)
+    new = rs.extend_dossier({"tema": "t", "entita": TESLA, "facts": facts, "images": [], "zdroje": [], "otazky_bez_odpovedi": [], "cost_usd": 0.0},
+                            {"raw": [], "otazky_bez_odpovedi": [], "bez_zdroje": 0, "hledani": []}, 0.1)
+    turbine = next(f for f in new["facts"] if "1,061,206" in (f["predmet"] or ""))
+    assert "uděleno 6. 5. 1913 podle Google Patents" in turbine["tvrzeni"]
+
+
 @pytest.mark.parametrize("sentence,lang,expected", [
     ("Tesla obtained around 300 patents worldwide for his inventions.", "en", [("celek", 300.0)]),
     ("Přes 700 patentů si nechal přihlásit.", "cs", [("celek", 700.0)]),

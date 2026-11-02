@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Primární zdroje v rešerši: nejdřív podmínky, pak výběr, až pak kód
+
+- **Rozhodnutí:** do volné rešerše šel jen Google Patents. PMC a IUCN jsou změřené a zamítnuté, důvody v `docs/spikes/2026-11-02-primarni-zdroje.md`.
+- **Přístup není užitek:** Europe PMC dá plný text bez klíče, ale nejcitovanější články o axolotlovi jsou molekulární biologie, 15 z 20 vět mluví o metodě nebo studii. Rozhoduje, kdo vybírá, ne odkud se čte. Zdroj nejdřív změř s výběrem, který kód opravdu umí, ne s články od člověka.
+- **Podmínky čti přímo:** IUCN v § 3 zakazuje i použití, které „pomáhá činnosti ziskové entity“. `robots.txt` to neřekne, ten pro všechny dovoluje `/`. PMC zakazuje automatické stahování z hlavního webu, dovolené jsou jen jeho služby.
+- **Google Patents, mikrodata:** u 29 ze 111 starých patentů chybí vynálezce, u 73 datum podání, názvy jsou z OCR. Patent bez vynálezce se přiřadí jen ze seznamu osoby. `US<číslo>` bez kódu druhu funguje pro staré i nové patenty.
+- **Past v mém měření:** tabulka ruční rešerše má ve sloupci Wikipedie `=`, regex bral jen data, takže první běh porovnal 6 patentů místo 111 a vypadal v pořádku. Počet porovnaných řádků vypisuj vždy.
+
 ## 2026-11-02 — Rešerše pro osobu a zvíře: vzorek, na kterém se neladilo, našel víc než ten laděný
 
 - **Rozhodnutí:** druh tématu (osoba, zvíře, věc) určí Wikidata a volí slovníky jen v rešerši. Věc jde původním kódem, takže stavby jsou nad stejnými daty stejné; řetězec se nemění (`predloha` v promptu Návrhů zůstává na rolích staveb). Měřítko a kritérium se zapsaly před kódem ([měření](spikes/2026-11-02-resers-osoba-zvire.md)).
