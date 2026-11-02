@@ -35,6 +35,7 @@ TWO_COLUMNS = 0.3           # a o který jsou dražší dva sloupce: jeden je kl
 LEAD_WIDTH = 0.42           # běžná věta v em, změřeno na ukázce Tesly
 LIFE_FACT = re.compile(r"^(Narození|Úmrtí|Místo narození|Místo úmrtí):|\bse narodil|\bzemřel|\bwas born\b|\bdied\b", re.I)
 MAX_CALLOUTS = 4
+MAX_FACT_LINES = 3          # volný fakt zalomený na víc řádků je úzký sloupek slov (motor 2. 11.: pět řádků u „60 000 dolarů“), raději vypadne
 HEIGHTS = (1.25, 1.5, 1.0)  # stejně široké stránky: výška k šířce
 MAX_ITEMS = 5
 LATER = ("model", "ilustrace", "kresba")   # krok 3f
@@ -337,7 +338,7 @@ def _even_column(items: list[dict], x: float, margin: float, top: float, bottom:
     step = min((bottom - top - blocks[-1]) / max(1, len(items) - 1), 2.4 * max(blocks))
     total = step * (len(items) - 1) + blocks[-1]
     y = top + (bottom - top - total) / 2
-    years = all(re.match(r"\d", item["value"]) for item in items)
+    years = 2 * sum(bool(re.search(r"\d{4}", item["value"])) for item in items) >= len(items)      # zlom života bez doloženého roku osu nezruší
     return [{"id": "fakt1", "typ": "osa" if years else "text", "poradi": 11, "nazev": "Život" if years else "Fakta", "rect": [x, y, width, total], "fakta": [item["fakt"] for item in items if item.get("fakt")],
              "items": [{"value": item["value"], "text": item["text"]} for item in items], "size": size, "small_size": small, "krok": step, **({"pod_sebou": True} if years else {"sirka": chars})}]
 
@@ -375,8 +376,9 @@ def _picture_rows(items: list[dict], insets: dict, sheet: Sheet, x: float, margi
     return out
 
 
-def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, margin: float, top: float, bottom: float, f: dict, k: float, W: int) -> list[dict] | None:
-    """Fakta bez místa na obrazu, stejným písmem jako popisky a bez vodítka, do nejbližší volné plochy; ta s malým obrazem v řádcích."""
+def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, margin: float, top: float, bottom: float, f: dict, k: float, W: int) -> tuple[list[dict], list[dict]] | None:
+    """Fakta bez místa na obrazu, stejným písmem jako popisky a bez vodítka, do nejbližší volné plochy; ta s malým obrazem v řádcích.
+    Vrátí panely a co se slušně nevešlo: kvůli volnému faktu se obraz nezmenšuje. None, když se nevejdou řádky s malými obrazy."""
     size = f["popisek"] * k
     small = size * 0.86
     with_picture = [item for item in items if insets.get(item.get("obraz"))]
@@ -387,11 +389,14 @@ def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, mar
             return None
         out += rows
     x, y = near
+    skipped = []
     for i, item in enumerate((item for item in items if item not in with_picture), len(with_picture) + 1):
         placed = None
         for chars in NARROW_CHARS:
             chars = _even_chars(item["text"], chars)
             rows = panels.wrap(item["text"], chars)
+            if len(rows) > MAX_FACT_LINES:
+                continue
             width = max(len(item["value"]) * size * panels.LINE_WIDTH * 1.08, max((len(r) for r in rows), default=0) * small * panels.LINE_WIDTH)
             height = size * 1.1 + (28 + 25 * max(0, len(rows) - 1)) * k + small * 0.4
             spot = _free_block(sheet, width, height, (x, y), margin, top, bottom)
@@ -399,12 +404,13 @@ def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, mar
                 placed = (spot, width, height, chars)
                 break
         if not placed:
-            return None
+            skipped.append(item)
+            continue
         (px, py), width, height, chars = placed
         out.append(_fact_panel(i, item, [px, py, width, height], size, small, chars))
         sheet.add_box((px, py, width, height))
         x, y = px, py + height + 10 * k
-    return out
+    return out, skipped
 
 
 def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict = panels.MOBIL) -> tuple[dict, list[str]]:
@@ -441,26 +447,26 @@ def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: l
     while True:
         done = _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k)
         if done is not None:
-            return {**fields, "panels": done[0]}, dropped, done[1]
+            return {**fields, "panels": done[0]}, [*dropped, *(f"{it['value']} {it['text']}".strip() for it in done[2])], done[1]
         last = items.pop() if items else None
         if last is None:
             raise panels.InfoError("na stránku se nevejde ani obraz s titulkem")
         dropped.append(f"{last['value']} {last['text']}".strip())
 
 
-def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k) -> tuple[list[dict], float] | None:
+def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, f, k) -> tuple[list[dict], float, list[dict]] | None:
     anchored = [it for it in items if it.get("bod") and hero and it["bod"] in hero["_points"]]
     loose = [it for it in items if it not in anchored]
     if hero is None:
         sheet = Sheet(W, H)
         sheet.add_box((0, 0, W, top))
         sheet.add_box((0, bottom, W, H - bottom))
-        free = _even_column(loose, margin, margin, top, bottom, f, k, W) if loose and not any(it.get("obraz") in insets for it in loose) else _free_panels(loose, insets, sheet, (margin, top), margin, top, bottom, f, k, W)
-        if free is None:
+        got = (_even_column(loose, margin, margin, top, bottom, f, k, W), []) if loose and not any(it.get("obraz") in insets for it in loose) else _free_panels(loose, insets, sheet, (margin, top), margin, top, bottom, f, k, W)
+        if got is None or got[0] is None:
             return None
-        for panel in free:
+        for panel in got[0]:
             sheet.add_box(tuple(panel["rect"]))
-        return free, sheet.largest_empty(top, bottom, margin)
+        return got[0], sheet.largest_empty(top, bottom, margin), got[1]
     res = hero["_res"]
     alpha = hero.get("_alpha")
     mask = alpha.point(lambda v: 255 if v > panels.ALPHA_SOLID else 0) if alpha is not None else None
@@ -497,11 +503,12 @@ def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, 
                 near_x = right_labels[0]["pos"][0] if right_labels else (beside if W - margin - beside > 0.3 * W else margin)
                 near_y = max((label["pos"][1] for label in labels), default=top)
                 if loose and not labels and not any(it.get("obraz") in insets for it in loose):
-                    free = _even_column(loose, beside, margin, top, bottom, f, k, W)
+                    got_free = (_even_column(loose, beside, margin, top, bottom, f, k, W), [])
                 else:
-                    free = _free_panels(loose, insets, sheet, (near_x, near_y if right_labels else top), margin, top, bottom, f, k, W)
-                if free is None:
+                    got_free = _free_panels(loose, insets, sheet, (near_x, near_y if right_labels else top), margin, top, bottom, f, k, W)
+                if got_free is None or got_free[0] is None:
                     continue
+                free, skipped = got_free
                 for panel in free:
                     sheet.add_box(tuple(panel["rect"]))
                 empty = sheet.largest_empty(top, bottom, margin)
@@ -509,9 +516,9 @@ def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, 
                 if best is None or cost < best[0]:
                     picture = {key: value for key, value in hero.items() if not key.startswith("_")}
                     glow = {"x": x + (left + right) * s / 2, "y": y + (up + down) * s / 2, "r": max(right - left, down - up) * s * 0.62}
-                    best = (cost, [{**picture, "rect": [x, y, w, h], "labels": labels, "zar": glow, "pruhledny": True}, *free], empty)
+                    best = (cost, [{**picture, "rect": [x, y, w, h], "labels": labels, "zar": glow, "pruhledny": True}, *free], empty, skipped)
         if best:
-            return best[1], best[2]
+            return best[1], best[2], best[3]
     return None
 
 

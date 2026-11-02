@@ -27,7 +27,7 @@ Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má �
 | „Proč otrocky trváš na dlouhých řádcích třeba i ze dvou písem“ | Název a pod ním krátké vysvětlení, nikdy dvě písma na jednom řádku. Řádky vyrovnané, slovo nezůstane samo. | `serie._even_chars`, u faktů `stackedFacts` v editoru |
 | „Vykašli se na ty drobounké popisky ZDROJ.“ | Na stránce jen označení AI (licence FLUX) a cizí autor. Zdroje jdou pod článek. | `panels.short_note`, Studio „Zdroje pod článek“ |
 
-Rok nebo číslo patentu, které nepatří k části obrazu, nejsou volný lístek vedle obrazu: patří do věty pod titulkem (prompt `serie.SYSTEM`).
+Rok nebo číslo patentu, které nepatří k části obrazu, nejsou volný lístek vedle obrazu: patří do věty pod titulkem (prompt `serie.SYSTEM`). Volný fakt obraz nezmenšuje. Když by se zalomil na víc než 3 řádky nebo se nevejde, vypadne a řekne to hlášení (`serie.MAX_FACT_LINES`).
 
 **Než stránku pošleš:** prohlédni ji sám v plné velikosti a řekni si, co je na ní hlavní a jestli to tak na první pohled vypadá. Kontrola najde díru a splývání, ale ne to, že největší je podloží. Výtku převeď na měření v kódu nebo pravidlo tady, ne jen na opravu ukázky: operátor nemá vychytávat každou grafiku zvlášť.
 

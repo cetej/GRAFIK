@@ -594,6 +594,27 @@ def test_empty_band_and_a_lattice_lost_on_the_dark_page_are_found(tmp_path):
     assert pn.empty_share(filled, other) < pn.MAX_EMPTY and pn.faint_parts({"id": "p"}, other, pn.THEMES["dark"]["bg"]) == []
 
 
+def test_loose_fact_never_wraps_into_a_narrow_column_or_shrinks_the_picture():
+    """Stránka o motoru 2. 11.: „60 000 dolarů“ na pět úzkých řádků vedle obrazu."""
+    wide = picture((1000, 1000), {"horni": [500, 300], "dolni": [500, 700]}, (60, 60, 940, 940))
+    label = {"value": "Točivé pole", "text": "dvě cívky v pravém úhlu", "bod": "horni"}
+    long = {"value": "60 000 dolarů", "text": "licence Westinghouse roku 1888 a k tomu ještě 2,50 dolaru za každou koňskou sílu, kterou motor vyrobí", "bod": None}
+    alone = sr.compose("Titulek", "Věta.", "", wide, [label], {}, "1080x1350")[0]
+    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, [label, long], {}, "1080x1350")
+    width = lambda doc: next(p for p in doc["panels"] if p["typ"] == "obraz")["rect"][2]
+    assert width(fields) == width(alone) and dropped == [f"{long['value']} {long['text']}"] and not [p for p in fields["panels"] if p["typ"] == "text"]
+    short = {"value": "1888", "text": "licence pro Westinghouse", "bod": None}
+    fields, dropped = sr.compose("Titulek", "Věta.", "", wide, [label, short], {}, "1080x1350")
+    assert not dropped and [p for p in fields["panels"] if p["typ"] == "text"]
+
+
+def test_a_life_turn_without_a_year_keeps_the_timeline():
+    hero = picture((400, 1000), {}, (20, 20, 380, 980))
+    items = [{"value": value, "text": "událost v životě člověka", "bod": None, "fakt": "f1"} for value in ("1856", "Paříž", "Červen 1884", "1891", "1943")]
+    fields, _ = sr.compose("Nikola Tesla", "Kdo byl.", "", hero, items, {}, "1080x1350")
+    assert next(p for p in fields["panels"] if p["typ"] != "obraz")["typ"] == "osa"
+
+
 def test_format_follows_the_picture_instead_of_leaving_a_hole():
     tall = picture((600, 1400), {"horni": [300, 400], "dolni": [300, 1000]}, (200, 20, 400, 1380))
     wide = picture((1400, 700), {"horni": [500, 200], "dolni": [900, 500]}, (20, 20, 1380, 680))
