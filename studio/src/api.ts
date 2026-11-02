@@ -322,10 +322,16 @@ export interface InfoFact { value: string; text: string }
 export interface InfoSchema { title: string; svg: string }
 
 export type Urceni = 'web' | 'tisk'
+export interface ReformatChoice {
+  size: string
+  vynechat_panely: string[]
+  vynechat_popisky: Record<string, number[]>
+}
+
 export interface Infographic {
   id: string
   schema_version?: number
-  panels?: { id: string }[]
+  panels?: { id: string; nazev: string; labels?: { text: string }[]; items?: { value?: string; text: string }[] }[]
   pismo?: 'mobil' | 'plakat' | Record<string, unknown>
   predelano_z?: { id: string; size: string }
   urceni?: Urceni
@@ -431,7 +437,8 @@ export const localizeApi = {
 
 export const infoApi = {
   list: () => call<Infographic[]>('/api/v2/infographics?panely=true'),
-  reformat: (id: string, size: string) => post<Infographic>(`/api/v2/infographics/${id}/reformat`, { size }),
+  reformat: (id: string, body: ReformatChoice) => post<Infographic>(`/api/v2/infographics/${id}/reformat`, body),
+  reformatPreview: (id: string, body: ReformatChoice) => post<{ svg: string; size: string; hlavni: number; hlavni_bez_vynechani: number }>(`/api/v2/infographics/${id}/reformat/nahled`, body),
   checks: (id: string) => call<{ ok: boolean; text: string }[]>(`/api/v2/infographics/${id}/kontrola`),
   create: (base: string, title: string) => post<Infographic>('/api/v2/infographics', { base, title }),
   upload: (b64: string, name: string, blenderRender = false) => post<Infographic>('/api/v2/infographics/upload', { b64, name, blender_render: blenderRender }),

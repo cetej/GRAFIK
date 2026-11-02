@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Předělat na formát: co vynechat, rozhoduje editor
+
+Operátor: „Možná by se hodilo do projektů při konverzi formátů založit nástroj, který umožní editorovi rozhodnout o potlačení některých vrstev. Pokud to systém automaticky nezvládá.“
+
+- U tlačítka je seznam panelů a jejich řádků (popisky obrazu, položky textu a čísel) se zaškrtávátky, vedle živý náhled nové verze a podíl hlavního obrazu na stránce. Kód sám nic nevyhazuje. Vzniká nový dokument, originál se nemění.
+- Hlavní obraz nemá strop 75 % plochy: roste, dokud ostatní bloky nejsou menší než polovina originálu. Mění to i převod bez vynechání (Pantheon 16:9: 54 % → 66 % stránky, ostatní panely menší).
+- Zdroj: `POST …/reformat` s `vynechat_panely` a `vynechat_popisky`, náhled `POST …/reformat/nahled` bez zápisu. Vynechaný panel zmizí z patičky, označení AI u panelu, který zůstal, se nedotkne. Číslované značky a popisky pod obrazem (`pod`) se po jednom vynechat nedají, jen s celým panelem.
+
 ## 2026-11-02 — Série stránek z návrhu: logika stránky, text z faktů, vlastní 3D
 
 Krok 3g. Operátor k ukázkám série o Teslovi, po čtyřech kolech výtek: „Ano, to je výrazně lepší.“ Zásady a měření: `docs/infografiky-zasady.md`, oddíl Logika stránky.

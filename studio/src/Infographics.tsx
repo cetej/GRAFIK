@@ -458,6 +458,10 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
   const [choosing, setChoosing] = useState(false)
   const [target, setTarget] = useState('16:9')
   const [own, setOwn] = useState({ w: 1920, h: 1080 })
+  const [omitPanels, setOmitPanels] = useState<string[]>([])
+  const [omitRows, setOmitRows] = useState<Record<string, number[]>>({})
+  const [preview, setPreview] = useState<{ svg: string; hlavni: number; hlavni_bez_vynechani: number } | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [png, setPng] = useState<string | null>(null)
   const [urceni, setUrceni] = useState(doc.urceni ?? 'web')
@@ -470,8 +474,23 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
     setBusy(name)
     try { await job() } catch (e) { onError((e as Error).message) } finally { setBusy(null) }
   }
+  const choice = useMemo(() => ({ size: target === 'own' ? `${own.w}x${own.h}` : target, vynechat_panely: omitPanels, vynechat_popisky: omitRows }), [target, own, omitPanels, omitRows])
+  useEffect(() => {
+    if (!choosing) return
+    let stale = false
+    const wait = setTimeout(() => {
+      infoApi.reformatPreview(doc.id, choice)
+        .then((p) => { if (!stale) { setPreview(p); setPreviewError(null) } })
+        .catch((e) => { if (!stale) setPreviewError(e.message) })
+    }, 200)
+    return () => { stale = true; clearTimeout(wait) }
+  }, [choosing, doc.id, choice])
+  const toggleRow = (id: string, i: number) => {
+    const rows = omitRows[id] ?? []
+    setOmitRows({ ...omitRows, [id]: rows.includes(i) ? rows.filter((r) => r !== i) : [...rows, i] })
+  }
   const reformat = () => run('format', async () => {
-    setOpenId((await infoApi.reformat(doc.id, target === 'own' ? `${own.w}x${own.h}` : target)).id)
+    setOpenId((await infoApi.reformat(doc.id, choice)).id)
   })
   const changeUrceni = (value: 'web' | 'tisk') => run('urceni', async () => {
     await infoApi.save({ ...doc, urceni: value })
@@ -481,7 +500,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
   const phone = checks.find((c) => !c.ok && c.text.includes('mobilu'))
   const exportPng = () => run('png', async () => setPng((await infoApi.export(doc.id, '', 'png')).url))
   return (
-    <main className="guide-start panel-doc">
+    <main className={`guide-start panel-doc${choosing ? ' choosing' : ''}`}>
       <div className="row between">
         <button className="btn" onClick={() => setOpenId(null)}>← Zpět na seznam</button>
         <div className="row">
@@ -501,7 +520,9 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
       </div>
       {phone && urceni === 'web' && <p className="panel-warning">{phone.text}</p>}
       {png && <p className="hint">Hotovo: <a href={png} target="_blank" rel="noreferrer">otevřít PNG</a></p>}
+      {doc.sources && <p className="hint">Zdroje pod článek: {doc.sources}</p>}
       {choosing && (
+        <div className="panel-choose">
         <div className="panel-format">
           <div className="hint">Nový formát</div>
           <div className="seg wrap">
@@ -514,12 +535,38 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
               <label>Výška <input type="number" min={100} max={9999} value={own.h} onChange={(e) => setOwn({ ...own, h: Number(e.target.value) })} /></label>
             </div>
           )}
+          <div className="hint">Co v novém dokumentu nechat</div>
+          <div className="panel-keep">
+            {doc.panels?.map((p) => {
+              const on = !omitPanels.includes(p.id)
+              const rows: { value?: string; text: string }[] = p.labels ?? p.items ?? []
+              return (
+                <div key={p.id}>
+                  <label className="panel-keep-name">
+                    <input type="checkbox" checked={on} onChange={() => setOmitPanels(on ? [...omitPanels, p.id] : omitPanels.filter((x) => x !== p.id))} /> {p.nazev}
+                  </label>
+                  {on && rows.map((row, i) => (
+                    <label key={i} className="panel-keep-row">
+                      <input type="checkbox" checked={!omitRows[p.id]?.includes(i)} onChange={() => toggleRow(p.id, i)} /> {row.value || row.text}
+                    </label>
+                  ))}
+                </div>
+              )
+            })}
+          </div>
           <p className="hint">Vznikne nová infografika. Tahle zůstane beze změny. Panely se přeskládají celé, nic se neořízne.</p>
-          <button className="btn go" disabled={!!busy} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
+          <button className="btn go" disabled={!!busy || !!previewError} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
+        </div>
+        <div className="panel-choose-preview">
+          <div className="hint">Náhled nové verze</div>
+          {previewError
+            ? <p className="panel-warning">{previewError}</p>
+            : preview && <p className="panel-share">Hlavní obraz: {Math.round(preview.hlavni * 100)} % stránky, bez vynechání {Math.round(preview.hlavni_bez_vynechani * 100)} %</p>}
+          {preview ? <div className="panel-preview" dangerouslySetInnerHTML={{ __html: preview.svg }} /> : <p className="hint">Skládám náhled…</p>}
+        </div>
         </div>
       )}
-      {doc.sources && <p className="hint">Zdroje pod článek: {doc.sources}</p>}
-      <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />
+      {!choosing && <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />}
       <ul className="panel-checks">
         {checks.map((c, i) => <li key={i} className={c.ok ? 'ok' : 'warn'}>{c.ok ? '✓' : '!'} {c.text}</li>)}
       </ul>

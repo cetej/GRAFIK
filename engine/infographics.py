@@ -299,18 +299,30 @@ class InfographicStore:
             shutil.rmtree(root, ignore_errors=True)     # no half document in the list
             raise
 
-    def reformat_panels(self, info_id: str, size: str) -> dict:
-        """A new document in another format, sharing nothing with the source: its pictures are copied, its exports stay with it."""
+    def reformat_preview(self, info_id: str, size: str, panely: list[str] = [], popisky: dict[str, list[int]] = {}) -> dict:
+        """What the new document would be, with nothing written: the pictures are still the source's."""
         from engine import panels, reformat
         source = self.get(info_id)
         if not panels.is_panel_doc(source):
             raise InfoError("přeformátovat jde jen dokument s panely")
         target = reformat.target_size(size, source["size"])
-        fields = reformat.reformat(source, target)
+        return reformat.reformat(reformat.omit(source, panely, popisky), target)
+
+    def reformat_panels(self, info_id: str, size: str, panely: list[str] = [], popisky: dict[str, list[int]] = {}, make_base=None) -> dict:
+        """A new document in another format, sharing nothing with the source: its pictures are copied, its exports stay with it."""
+        from engine import panels
+        fields = self.reformat_preview(info_id, size, panely, popisky)
+        source = self.get(info_id)
+        target = fields["size"]
         doc = new_doc("", source.get("title") or "", None, target)
         root = self._dir(doc["id"])
+        kept = {p["id"] for p in fields["panels"]}
+        gone = [p["id"] for p in source["panels"] if p["id"] not in kept]
         try:
-            shutil.copytree(self._dir(info_id) / "panely", root / "panely")
+            shutil.copytree(self._dir(info_id) / "panely", root / "panely", ignore=lambda folder, _names: gone if Path(folder).name == "panely" else [])
+            hero_of = lambda d: min((p for p in d["panels"] if p["typ"] == "obraz"), key=lambda p: p["poradi"])["id"]
+            if make_base and hero_of(fields) != hero_of(source):    # the list must not show a picture the document no longer has
+                fields["base"] = make_base(panels.flat_hero(root, fields))
             keep = {k: v for k, v in fields.items() if k not in ("id", "created", "updated", "exports", "in_library", "reviewed_by", "reviewed_at")}
             return self.save(doc["id"], {**doc, **keep}, new=True)
         except Exception:
