@@ -23,6 +23,10 @@ Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry veli
 - Co se nevejde, jde na další stránku série. Každá stránka má vlastní titulek a zdroj. Souhrnný plakát vznikne navíc jen na přání, pro tisk nebo stažení.
 - Hotové plakáty se nepřepisují, pravidlo platí pro nové.
 
+## 2026-11-02 — Řádek Zdroj na infografice není, hlavní obraz má přednost
+
+Operátor: „Co jsem KURVA říkal o tom popisku ZDROJ? Zase si umenšil hlavní zajímavou grafiku na úkor debilního popisku, který měl být vyřazen.“ Renderer dokumentu s panely i editor kreslí jen označení AI a cizího autora, `sources` zůstávají v dokumentu a Studio je ukáže jako „Zdroje pod článek“. Předělat na formát dá hlavnímu obrazu co nejvíc plochy, ostatní bloky se zmenší nejvýš na polovinu.
+
 ## 2026-11-02 — Rozdělit pro mobil odstraněno
 
 Tlačítko dělilo hotový plakát na sérii stránek a zachovávalo každé slovo. Tu podmínku jsem si přidal sám. Operátor: „Často zmenšíš hlavní grafiku na úkor pitomých, blbě zalomených popisků s nulovou informační hodnotou.“ Na návrh odstranit odpověděl „Ano, odstraň“. Dobrá stránka vzniká výběrem, co čtenáři říct a co vynechat, a to pravidla rozmístění neumějí. Stránky pro web se dělají s úsudkem o obsahu (`docs/infografiky-zasady.md`, oddíl Web a mobil). Předělat na formát a volba web, nebo tisk zůstávají. Kód je v historii, GRAFIK#159.

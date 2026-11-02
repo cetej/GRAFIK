@@ -42,7 +42,7 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 **Velká plachta se dělí.** Kde by text vyšel pod práh, písmo se nezmenšuje a stránka se rozdělí na víc menších.
 - Dělí se podle otázek čtenáře: jedna stránka, jedna otázka, jeden hlavní obraz a nejvýš 3 další panely. Studna a scénáře jsou tak rozdělené už teď, jen každá z nich nese ještě dvakrát až třikrát víc textu, než se vejde.
 - Každá stránka obstojí sama: vlastní titulek a řádek se zdrojem. V článku stojí u jiného odstavce a čtenář ji může poslat dál samotnou.
-- **Zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
+- **Řádek Zdroj na stránce není (operátor 2. 11., novější než věta dál).** Renderer dokumentu i editor kreslí jen označení AI a cizího autora. Starší znění: **Zdroj je jeden krátký řádek pod obrazem** („Proč jsou tam drobným ty obrovské popisky o zdrojích“, operátor 2. 11.): autor a rok, co je AI, nejvýš jedna výhrada, která mění čtení obrazu. Licence, kresby, modely a postup patří pod článek, skript je zapíše do `zdroje.txt` vedle stránek. Vzor `scripts/plakaty/velsen_studna_mobil.py`.
 - Série drží stejné písmo, barvy a velikosti, stejný objekt vypadá na všech stránkách stejně.
 - Souhrnný plakát na jedné ploše vznikne navíc jen na přání operátora, pro tisk nebo stažení. Do článku jde série.
 - Věrná kopie husté předlohy pravidlo poruší. Řekni to operátorovi předem a navrhni rozdělení.

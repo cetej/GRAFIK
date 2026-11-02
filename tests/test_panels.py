@@ -128,7 +128,7 @@ def test_export_png_svg_pdf_with_provenance_and_knihovna(api, settings, doc):
     assert prov["ai_generated"] is False and prov["panels"][0]["labels"][0]["text"] == "Věž" and prov["panels"][2]["fakta"] == ["f1"]
     assert (d / f"{png.name}.vrstvy").is_file() and all(not n.endswith(".vrstvy") for n in api.get(f"/api/v2/infographics/{doc['id']}").json()["exports"])
     svg = next(p for p in d.glob("*.svg")).read_text(encoding="utf-8")
-    assert "data:image/png" in svg and "<script" not in svg and doc["ai_note"].split(",")[0] in svg
+    assert "data:image/png" in svg and "<script" not in svg and "Zdroj:" not in svg
     lib = api.post(f"/api/v2/infographics/{doc['id']}/exports/{png.name}/library")
     assert lib.status_code == 201 and lib.json()["created"] is True
     job_id = lib.json()["ref"].split("/")[0]
@@ -253,7 +253,8 @@ def test_ai_picture_and_foreign_painting_are_named_in_the_footer(api, settings):
     assert Image.open(root / "panely" / "gerome" / "obraz.png").size == (50, 40)
     svg = api.get(f"/api/v2/infographics/{doc['id']}/svg").text
     assert "Vítěz" in svg
-    assert re.sub(r"\s+", "", doc["ai_note"]) in re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", svg))
+    assert re.sub(r"\s+", "", panels.short_note(doc)) in re.sub(r"\s+", "", re.sub(r"<[^>]+>", "", svg))
+    assert "Scéna: FLUX 3 Klein (AI)" in panels.short_note(doc) and "Gérôme" in panels.short_note(doc)
     png = api.post(f"/api/v2/infographics/{doc['id']}/export", json={"format": "png"}).json()["file"]
     assert json.loads((root / "exports" / f"{png}.json").read_text(encoding="utf-8"))["ai_generated"] is True
     lib = api.post(f"/api/v2/infographics/{doc['id']}/exports/{png}/library").json()
@@ -473,3 +474,17 @@ def test_print_supplement_has_no_phone_finding_and_format_change_keeps_it(api, d
     assert not any("mobilu" in c["text"] and not c["ok"] for c in rows) and any("tisková příloha" in c["text"] for c in rows)
     assert api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "4:5"}).json()["urceni"] == "tisk"
     assert api.put(f"/api/v2/infographics/{doc['id']}", json={**doc, "urceni": "plakat"}).status_code == 400
+
+
+def test_page_has_no_source_line_only_the_ai_mark(api, doc):
+    svg = api.get(f"/api/v2/infographics/{doc['id']}/svg").text
+    assert "Zdroj:" not in svg and "Wikipedie" not in svg
+    assert panels.short_note({"ai_note": "Model a render: Blender, bez AI; Palec: FLUX 3 Klein (AI); Pollice Verso: Gérôme, Public domain; schéma a popisky redakční."}) == "Palec: FLUX 3 Klein (AI); Pollice Verso: Gérôme, Public domain"
+
+
+def test_reformat_gives_the_main_picture_the_most_room(api, doc):
+    new = api.post(f"/api/v2/infographics/{doc['id']}/reformat", json={"size": "16:9"}).json()
+    hero = new["panels"][0]["rect"]
+    W, H = map(int, new["size"].split("x"))
+    assert hero[2] * hero[3] == max(p["rect"][2] * p["rect"][3] for p in new["panels"])
+    assert hero[2] * hero[3] > 0.25 * W * H

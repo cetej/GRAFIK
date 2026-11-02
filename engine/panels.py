@@ -237,6 +237,16 @@ def leader_points(label: dict, place: dict, size: float, panel_id: str = "") -> 
     return [(ax, ay), (end, ly)] if abs(ay - ly) < 8 or abs(ax - end) < 8 else [(ax, ay), (ax, ly), (end, ly)]
 
 
+def short_note(doc: dict) -> str:
+    """Patička stránky: jen co je AI a cizí autor (licence). Řádek Zdroj na stránku nepatří, `sources` jdou pod článek (operátor 2. 11.)."""
+    kept = []
+    for part in (doc.get("ai_note") or "").split(";"):
+        part = part.strip()
+        if ":" in part and "bez AI" not in part:
+            kept.append(part)
+    return "; ".join(kept)
+
+
 class Renderer:
     """SVG dokumentu. `href(panel, soubor)` dá odkaz pro náhled ve Studiu; bez něj se obrázky vloží a SVG jde do exportu."""
 
@@ -455,8 +465,8 @@ class Renderer:
             txt.append(words)
         self.k = k
         foot = 17 * k
-        lines = wrap(f"{'Zdroj: ' + doc['sources'] + ' ' if doc.get('sources') else ''}{doc['ai_note']}", round((W - 100 * k) / (foot * LINE_WIDTH)))
-        top = doc.get("paticka_y") or H - 30 * k - (len(lines) - 1) * 22 * k
+        lines = wrap(short_note(doc), round((W - 100 * k) / (foot * LINE_WIDTH)))
+        top = H - 30 * k - (len(lines) - 1) * 22 * k
         txt.append(f'<g id="{self.gid("Patička")}">{"".join(_text(50 * k, top + i * 22 * k, line, foot, self.t["foot"]) for i, line in enumerate(lines))}</g>')
         return (f'<svg xmlns="{SVG_NS}" width="{W}" height="{H}" viewBox="0 0 {W} {H}" font-family="{FONT}" font-stretch="semi-condensed">{TEXT_SHADOW if self.t.get("stin") else ""}'
                 f'<g id="Grafika">{"".join(gfx)}</g><g id="Texty">{"".join(txt)}</g></svg>')

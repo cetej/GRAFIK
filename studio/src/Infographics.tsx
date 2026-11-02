@@ -162,7 +162,7 @@ export function InfoSvg({ doc, href, iw, ih, svgRef, ed }: {
   const schemaBox = !schema ? null : pruh
     ? (() => { const [, , vw, vh] = schema.viewBox.split(/[\s,]+/).map(Number); const w = 0.38 * W; return { x: W - pad - w, y: pad + 26 * k, width: w, height: (w * vh) / vw } })()
     : { x: W - pad - schemaW, y: bottomTop + 47 * k, width: schemaW, height: Math.min(200 * k, H - bottomTop - 47 * k - 30 * k) }
-  const footer = wrap(`${doc.sources ? `Zdroj: ${doc.sources} ` : ''}${doc.ai_note}`, Math.floor((W - 2 * pad) / (5.4 * k)))
+  const footer = wrap(doc.ai_note, Math.floor((W - 2 * pad) / (5.4 * k)))
   const svgPoint = (e: { clientX: number; clientY: number }) => {
     const svg = svgRef?.current
     if (!svg) return [0, 0]
@@ -440,6 +440,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <button className="btn go" disabled={!!busy} onClick={reformat}>{busy === 'format' ? 'Skládám…' : 'Vytvořit · 0 USD'}</button>
         </div>
       )}
+      {doc.sources && <p className="hint">Zdroje pod článek: {doc.sources}</p>}
       <div className="panel-preview" dangerouslySetInnerHTML={{ __html: svg }} />
       <ul className="panel-checks">
         {checks.map((c, i) => <li key={i} className={c.ok ? 'ok' : 'warn'}>{c.ok ? '✓' : '!'} {c.text}</li>)}

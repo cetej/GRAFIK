@@ -4,6 +4,8 @@ Aktualizováno 2026-11-02.
 
 ## Teď
 
+**Řádek Zdroj pryč, hlavní obraz první (2026-11-02):** dokument s panely i editor kreslí jen označení AI a cizího autora, `sources` jsou v dokumentu a Studio je ukáže jako „Zdroje pod článek“. Předělat na formát dá hlavnímu obrazu co nejvíc plochy. **Mez:** ostatní bloky pak vycházejí malé (Pantheon 16:9 nejmenší text 1,4 px na telefonu) a kontrola to hlásí, převod tím neřeší mobil.
+
 **Rozdělit pro mobil odstraněno (2026-11-02):** automat zmenšoval hlavní obraz kvůli slabým popiskům, operátor ho odmítl (DECISIONS). Série Pantheonu z něj je v koši Engine, originál beze změny.
 
 **Web, nebo tisk (2026-11-02):** přepínač „Kam to půjde“ na začátku řetězce a u dokumentu s panely, výchozí web. Tisková příloha má vlastní větu v promptu návrhů a nehlásí mobil.
