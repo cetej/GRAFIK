@@ -4,6 +4,8 @@ paths:
   - engine/infographics.py
   - engine/panels.py
   - engine/proposals.py
+  - engine/serie.py
+  - studio/src/Navrhy.tsx
   - scripts/3d/*infografika*.py
   - scripts/3d/*dokument*.py
   - scripts/3d/*plakat*.py
@@ -17,7 +19,9 @@ paths:
 
 Před změnou vzhledu infografik přečti `docs/infografiky-zasady.md` (čistý styl, rovnováha, informační hodnota, čtenářský zážitek; měřitelné prahy). Vzor nekopíruj, ale drž jeho principy: jedna písmová rodina ve dvou řezech, popisky u věci s krátkými lomenými vodítky, nadpis tam, kde má obraz místo, krátká fakta dole vlevo pod sebou, zarovnaná na prapor, výřez bez rámečku jako vyříznutý obrázek s ostrými okraji, žádné prázdné pásy. Co nemá doklad, do obrazu nepatří.
 
-Web a mobil: oddíl tamtéž, platí pro každou infografiku pro web (výchozí; jen tisková příloha `urceni: "tisk"` má volnost) a počítá se před skladbou. Čtenář je často na telefonu, stránka se zmenší na 360 px a větší plátno nepomůže. Nejmenší text aspoň 1/30 šířky stránky, titulek 1/15. Na stránku 4:5 se vejde kolem 80 slov, na 2:3 kolem 120, jeden hlavní obraz a nejvýš 3 další panely. Velkou plachtu s titěrným písmem rozděl na sérii menších stránek, každou s vlastním titulkem. Zdroj je na stránce jeden krátký řádek (autor a rok, co je AI), plný výčet patří pod článek. Porušení písma hlásí `write_poster` (`SAZBA: na mobilu…`) a `GET …/kontrola`.
+Logika stránky: oddíl tamtéž, čti první. Co má čtenář pochopit a co je hlavní? Hlavní věc má největší plochu a kontrast, okolí ustupuje, nic tmavého na tmavém. Člověk = životopisná data, dílo na vlastních stránkách. Prázdný pruh nebo třetina stránky je chyba (`panels.empty_share`, práh 20 %), formát se řídí obrazem. Popisky velké, ve výšce své věci, název a pod ním text. Výtku operátora převeď na měření v kódu, ne jen na opravu ukázky.
+
+Web a mobil: oddíl tamtéž, platí pro každou infografiku pro web (výchozí; jen tisková příloha `urceni: "tisk"` má volnost) a počítá se před skladbou. Čtenář je často na telefonu, stránka se zmenší na 360 px a větší plátno nepomůže. Nejmenší text aspoň 1/30 šířky stránky, titulek 1/15. Na stránku 4:5 se vejde kolem 80 slov, na 2:3 kolem 120, jeden hlavní obraz a nejvýš 3 další panely. Velkou plachtu s titěrným písmem rozděl na sérii menších stránek, každou s vlastním titulkem. Řádek Zdroj na stránce není: jen označení AI a cizí autor, plný výčet patří pod článek. Porušení písma hlásí `write_poster` (`SAZBA: na mobilu…`) a `GET …/kontrola`.
 
 Stránka z víc obrazů: oddíl „Stránka z víc obrazů“ tamtéž. Každý panel říká, co hlavní obraz neřekne; stavby z modelu, slavné dílo v originále, lidé z fotorealistického generátoru; postavy na zeleném plátně se stínem z originálu. Výřez kontroluj ve zvětšení.
 

@@ -35,7 +35,7 @@ const fmtValue = (v: FactSource['hodnota'], unit: string | null) => {
   return `${Array.isArray(v) ? `${num(v[0])}–${num(v[1])}` : num(v)}${unit ? ` ${unit}` : ''}`
 }
 
-const STAGE_LABEL: Record<Chain['stage'], string> = { podklady: 'dohledává podklady', navrhy: 'skládá návrhy', vyber: 'čeká na výběr návrhu', kontrola: 'kontroluje návrh', hotovo: 'návrh vybrán', stop: 'stojí, čeká na vás' }
+const STAGE_LABEL: Record<Chain['stage'], string> = { podklady: 'dohledává podklady', navrhy: 'skládá návrhy', vyber: 'čeká na výběr návrhu', stranky: 'skládá stránky', kontrola: 'kontroluje návrh', hotovo: 'návrh vybrán', stop: 'stojí, čeká na vás' }
 
 export function TopicStart({ chains, onOpen, onChain, setConfirm, onError }: {
   chains: (Workflow | Chain)[]; onOpen: (id: string) => void; onChain: (id: string) => void; setConfirm: (c: Confirm) => void; onError: (msg: string) => void

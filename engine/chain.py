@@ -1,4 +1,4 @@
-"""Průvodce „infografika“: téma nebo hotový dossier → podklady → návrhy skladby → výběr → poradní kontrola logiky.
+"""Průvodce „infografika“: téma nebo hotový dossier → podklady → návrhy skladby → výběr → poradní kontrola logiky → stránky série.
 
 Jedna cena předem na celý řetězec (402 bez `confirm_cost`), krok nad schválenou cenu se zastaví a zeptá. Každý krok je úloha
 `infografika` ve společné frontě a po doběhnutí si zařadí další, takže operátor kliká až u výběru návrhu.
@@ -12,6 +12,7 @@ workflows/<wf>.json                 stav řetězce včetně návrhů
 """
 from __future__ import annotations
 
+import json
 import re
 import threading
 
@@ -19,18 +20,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Literal
 
+from PIL import Image
 from pydantic import BaseModel
 
-from engine import infographics, proposals
+from engine import infographics, proposals, serie
+from engine.infographics import InfoError
 from engine.reflib import RefLibError
 from engine.workflows import Workflow
 from ngm_shared import claude, image_checks as ic
 from ngm_shared.research import ResearchError
 
 KIND = "infografika"
-LABEL = {"podklady": "Podklady", "navrhy": "Návrhy skladby", "kontrola": "Kontrola logiky"}
+LABEL = {"podklady": "Podklady", "navrhy": "Návrhy skladby", "kontrola": "Kontrola logiky", "stranky": "Stránky série"}
 STEPS = tuple(LABEL)
-COST_WHAT = {"podklady": "podklady: Wikidata, Wikipedia, Commons", "navrhy": "3 návrhy skladby, náčrty 0 USD", "kontrola": "poradní kontrola logiky vybraného návrhu"}
+COST_WHAT = {"podklady": "podklady: Wikidata, Wikipedia, Commons", "navrhy": "3 návrhy skladby, náčrty 0 USD", "kontrola": "poradní kontrola logiky vybraného návrhu", "stranky": "krátké české texty stránek z vybraných faktů"}
 
 
 def _usd(value: float) -> str:
@@ -50,6 +53,7 @@ class ChainIn(BaseModel):
 
 class PickIn(BaseModel):
     navrh: int
+    stranky: list[int] | None = None    # bez výběru celá série
 
 
 class ContinueIn(BaseModel):
@@ -62,6 +66,7 @@ class Chain:
         self.ask = ask                  # testy; jinak podle modelu (proposals.propose)
         self.check_ask = check_ask
         self.raster = infographics.rasterize
+        self.make_doc = None            # engine/app.py: pole stránky → dokument s panely
         self.root = settings.library_dir / "navrhy"
         self._enqueue_lock = threading.Lock()   # worker si stav přečte až po zápisu `step_job`
 
@@ -69,7 +74,7 @@ class Chain:
         return {KIND: self.run}
 
     def step_usd(self, wf: Workflow, stage: str) -> float:
-        return {"podklady": 0.0, "navrhy": proposals.estimate_usd(wf.model), "kontrola": ic.LOGIC_USD}[stage]
+        return {"podklady": 0.0, "navrhy": proposals.estimate_usd(wf.model), "kontrola": ic.LOGIC_USD, "stranky": serie.estimate_usd(wf.model)}[stage]
 
     def estimate(self, wf: Workflow, stages=STEPS) -> dict:
         items = [{"what": COST_WHAT[s] + (f" ({wf.model})" if s == "navrhy" else ""), "usd": self.step_usd(wf, s)} for s in stages]
@@ -80,7 +85,7 @@ class Chain:
             wf = self.wfs.get(req["wf"])
         stage = req["stage"]
         try:
-            return {"podklady": self._podklady, "navrhy": self._navrhy, "kontrola": self._kontrola}[stage](wf, job_id)
+            return {"podklady": self._podklady, "navrhy": self._navrhy, "kontrola": self._kontrola, "stranky": self._stranky}[stage](wf, job_id)
         except Exception as e:
             self.stop(wf, stage, f"{LABEL[stage]}: {e}")
             raise
@@ -98,7 +103,7 @@ class Chain:
             return
         with self._enqueue_lock:
             wf.stage, wf.resume_stage, wf.stop_reason = stage, None, None
-            backend = "local" if not usd else f"{proposals.vendor(wf.model)}:{wf.model}" if stage == "navrhy" else f"claude:{ic.MODEL}"
+            backend = "local" if not usd else f"{proposals.vendor(wf.model)}:{wf.model}" if stage in ("navrhy", "stranky") else f"claude:{ic.MODEL}"
             wf.step_job = self.store.add_task(KIND, wf.caller, backend, {"wf": wf.id, "stage": stage})
             self.wfs.save(wf)
 
@@ -139,7 +144,7 @@ class Chain:
         what = f"návrhy skladby ({wf.model})"
         self.log_cost({**ledger, "usd": estimate, "status": "pending", "items": [{"what": f"{what}, odhad", "usd": estimate}]})
         try:
-            out = proposals.propose(dossier, vzor=vzor, model=wf.model, ask=self.ask, urceni=wf.urceni)
+            out = proposals.propose(dossier, vzor=vzor, model=wf.model, ask=self.ask, urceni=wf.urceni, own=serie.own_pictures(self.s.library_dir, dossier))
         except claude.ClaudeError as e:
             cost = e.cost or {"usd": 0.0}
             self.log_cost({**ledger, "usd": cost["usd"], "status": "failed", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
@@ -154,7 +159,8 @@ class Chain:
         d = self.root / wf.id
         d.mkdir(parents=True, exist_ok=True)
         for proposal in out["navrhy"]:
-            (d / f"navrh-{proposal['id']}.svg").write_text(proposals.sketch(proposal), encoding="utf-8")
+            for n, page in enumerate(proposals.pages(proposal), 1):
+                (d / f"navrh-{proposal['id']}{f'-{n}' if n > 1 else ''}.svg").write_text(proposals.sketch(page), encoding="utf-8")
         wf.navrhy, wf.rozbor, wf.stage, wf.step_job = out["navrhy"], out["rozbor"], "vyber", None
         self.wfs.save(wf)
         return {"files": [], "navrhy": len(out["navrhy"]), "cost_usd": cost["usd"]}
@@ -168,7 +174,7 @@ class Chain:
             width, height = proposals.sketch_size(proposal)
             png = self.raster(proposals.sketch(proposal), width, height, "png")
             brief = f"Infografika: {wf.object}. {proposal['nazev']}: {proposal['veta']}"
-            result = ic.check_logic(png, brief, phase="plan", layout=proposals.layout_text(proposal), ask=self.check_ask)
+            result = ic.check_logic(png, brief, phase="plan", layout=proposals.layout_text(proposal, wf.stranky), ask=self.check_ask)
             wf.kontrola = {k: result[k] for k in ("summary", "purpose", "warnings")}
             status, cost = "ok", result["cost"]
         except Exception as e:      # i rozbitý převod náčrtu na obrázek: kontrola je poradní
@@ -180,6 +186,60 @@ class Chain:
         wf.stage, wf.step_job = "hotovo", None
         self.wfs.save(wf)
         return {"files": [], "cost_usd": usd}
+
+    def _stranky(self, wf: Workflow, job_id: str) -> dict:
+        """Texty za peníze, pak dokument na stránku. Stránka, která nejde složit, řekne proč; ostatní zůstanou, texty už jsou zaplacené."""
+        dossier = self.researcher.lib.dossier(wf.research_id)
+        proposal = next(p for p in wf.navrhy if p["id"] == wf.vyber)
+        estimate = self.step_usd(wf, "stranky")
+        ledger = {"job_id": job_id, "caller": wf.caller, "backend": f"{proposals.vendor(wf.model)}:texty", "n": 1}
+        what = f"texty stránek ({wf.model})"
+        self.log_cost({**ledger, "usd": estimate, "status": "pending", "items": [{"what": f"{what}, odhad", "usd": estimate}]})
+        images, notes = serie.pick_images(dossier, proposal, wf.stranky, serie.own_pictures(self.s.library_dir, dossier))
+        try:
+            written = serie.write_texts(dossier, proposal, wf.stranky, model=wf.model, ask=self.ask, images=images)
+        except claude.ClaudeError as e:
+            cost = e.cost or {"usd": 0.0}
+            self.log_cost({**ledger, "usd": cost["usd"], "status": "failed", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
+            wf.spent_usd = round(wf.spent_usd + cost["usd"], 4)
+            raise ResearchError(str(e)) from e
+        except Exception:
+            self.log_cost({**ledger, "usd": 0.0, "status": "failed", "est_usd": estimate, "items": [{"what": what, "usd": 0.0}]})
+            raise
+        cost = written["cost"]
+        self.log_cost({**ledger, "usd": cost["usd"], "status": "ok", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
+        wf.spent_usd = round(wf.spent_usd + cost["usd"], 4)
+        pages = proposals.pages(proposal)
+        done = []
+        for n in wf.stranky:
+            said = written["hlaseni"].get(n, []) + notes.get(n, [])
+            text = written["stranky"].get(n)
+            if text is None:
+                done.append({"stranka": n, "nazev": pages[n - 1]["nazev"], "doc": None, "hlaseni": [*said, "Model k téhle stránce nevrátil text."]})
+                continue
+            try:
+                fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of)
+                doc = self.make_doc({**fields, "urceni": wf.urceni, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}})
+                done.append({"stranka": n, "nazev": text["titulek"], "doc": doc["id"], "hlaseni": [*said, *more]})
+            except InfoError as e:
+                done.append({"stranka": n, "nazev": text["titulek"], "doc": None, "hlaseni": [*said, str(e)]})
+        wf.serie, wf.stage, wf.step_job = done, "hotovo", None
+        self.wfs.save(wf)
+        return {"files": [], "stranky": len(done), "cost_usd": cost["usd"]}
+
+    def picture_of(self, image: dict) -> dict:
+        """Obraz pro rozvržení: zdroj dokumentu, rozměr, průhlednost a pojmenované body."""
+        if image.get("slozka"):
+            folder = self.s.library_dir / image["slozka"]
+            path, points = folder / "obraz.png", json.loads((folder / "body.json").read_text(encoding="utf-8")).get("points", {})
+            source = {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {})}
+        else:
+            path, points, source = self.reflib.image_path(image["ref_id"]), {}, {"ref_id": image["ref_id"]}
+            meta = self.reflib.get(image["ref_id"]) or {}
+        with Image.open(path) as im:
+            alpha = im.getchannel("A").copy() if im.mode == "RGBA" else None
+            found = {"zdroj": source, "_res": im.size, "_alpha": alpha, "_points": points}
+        return {**found, "_autor": meta.get("author"), "_licence": meta.get("license")} if image.get("ref_id") and not image.get("slozka") else found
 
 
 def register(app: FastAPI, chain: Chain, workflows) -> None:
@@ -222,7 +282,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
         est = chain.estimate(draft, STEPS[1:] if body.research else STEPS)
         if not body.confirm_cost:
             return payment(est, "Řetězec")
-        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"])
+        wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"], stranky_usd=chain.step_usd(draft, "stranky"))
         chain.enqueue(wf, "navrhy" if body.research else "podklady")
         return wf
 
@@ -231,10 +291,26 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
         wf = get(wf_id)
         if wf.stage not in ("vyber", "hotovo"):     # hotovo: operátor si to rozmyslel, kontrola proběhne znovu v rámci ceny
             raise HTTPException(409, "návrh jde vybrat, až řetězec čeká na výběr")
-        if not any(p["id"] == body.navrh for p in wf.navrhy):
+        proposal = next((p for p in wf.navrhy if p["id"] == body.navrh), None)
+        if proposal is None:
             raise HTTPException(404, f"návrh {body.navrh} neexistuje")
-        wf.vyber = body.navrh
+        count = len(proposals.pages(proposal))
+        chosen = sorted(set(body.stranky)) if body.stranky is not None else list(range(1, count + 1))
+        if not chosen or chosen[0] < 1 or chosen[-1] > count:
+            raise HTTPException(400, f"vyberte aspoň jednu stránku z {count}")
+        wf.vyber, wf.stranky, wf.serie = body.navrh, chosen, []
         chain.enqueue(wf, "kontrola")
+        return workflows.get(wf_id)
+
+    @app.post("/api/v2/workflows/{wf_id}/stranky")
+    def chain_pages(wf_id: str):
+        """Složit vybrané stránky. Cena je ve schválené ceně řetězce, starší řetězec se zastaví a zeptá."""
+        wf = get(wf_id)
+        if wf.stage != "hotovo" or wf.vyber is None:
+            raise HTTPException(409, "stránky jdou složit, až je vybraný návrh a kontrola doběhla")
+        if wf.serie:
+            raise HTTPException(409, "stránky jsou složené; nová série chce nový výběr návrhu")
+        chain.enqueue(wf, "stranky")
         return workflows.get(wf_id)
 
     @app.post("/api/v2/workflows/{wf_id}/continue")
@@ -252,7 +328,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
     @app.get("/api/v2/workflows/{wf_id}/navrhy/{name}")
     def chain_sketch(wf_id: str, name: str):
         get(wf_id)
-        if not re.fullmatch(r"navrh-\d+\.svg", name):
+        if not re.fullmatch(r"navrh-\d+(-\d+)?\.svg", name):
             raise HTTPException(404, "náčrt neexistuje")
         path = chain.root / wf_id / name
         if not path.exists():

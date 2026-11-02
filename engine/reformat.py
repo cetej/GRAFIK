@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from engine.infographics import InfoError, canvas_size
-from engine.panels import LINE_WIDTH, _text_box, short_note, wrap
+from engine.panels import LINE_WIDTH, _text_box, fonts, short_note, text_height, title_lines, wrap
 
 GAP_JOIN = 6            # panely blíž než tolik (při k = 1) tvoří jeden blok
 GAP_SERIES = 40
@@ -31,7 +31,7 @@ def target_size(value: str, source: str) -> str:
 
 
 def page_k(doc: dict) -> float:
-    return doc.get("meritko") or canvas_size(doc["size"])[0] / 1600
+    return doc.get("meritko") or canvas_size(doc["size"])[0] / fonts(doc)["jednotek"]
 
 
 def _union(boxes: list[tuple]) -> tuple:
@@ -39,43 +39,16 @@ def _union(boxes: list[tuple]) -> tuple:
     return x0, y0, max(b[0] + b[2] for b in boxes) - x0, max(b[1] + b[3] for b in boxes) - y0
 
 
-def _text_extent(panel: dict, k: float) -> tuple:
-    """Kam až text panelu opravdu sahá, podle stejných vzorců jako Renderer: `rect` je jen rám, text z něj smí přetéct i nevyplnit ho."""
-    x, y, w, _h = panel["rect"]
-    size = panel.get("size", (36 if panel["typ"] == "fakta" else 26) * k)
-    small = panel.get("small_size", 21 * k)
-    below = small * 0.3     # dotažnice pod posledním řádkem
-    items = panel["items"]
-    if panel["typ"] == "fakta" and panel["smer"] == "radek":
-        step = w / len(items)
-        chars = int(panel.get("sirka", max(10, step / (small * LINE_WIDTH))))
-        rows = max(len(wrap(i["text"], chars)) for i in items)
-        return x, y, w, size * 0.9 + 32 * k + (rows - 1) * 25 * k + below
-    if panel["typ"] == "fakta":
-        step = panel.get("krok", size * 1.5)
-        offset = max(len(i["value"]) for i in items) * size * LINE_WIDTH + 12 * k
-        return x, y, offset + max(len(i["text"]) for i in items) * small * LINE_WIDTH, size + (len(items) - 1) * step + below
-    if panel["typ"] == "text":
-        chars = int(panel.get("sirka", w / (small * LINE_WIDTH)))
-        counts = [len(wrap(i["text"], chars)) for i in items]
-        steps = [panel.get("krok", (46 + 25 * n) * k) for n in counts]
-        return x, y, w, size + sum(steps[:-1]) + (28 + (counts[-1] - 1) * 25) * k + below
-    gap = panel.get("sirka", 118 * k)
-    chars = int((w - gap - 24 * k) / (small * LINE_WIDTH))
-    counts = [max(1, len(wrap(i["text"], chars))) for i in items]
-    steps = [panel.get("krok", (22 + 25 * n) * k) for n in counts]
-    return x, y, w, size + sum(steps[:-1]) + (counts[-1] - 1) * 25 * k + below
-
-
-def panel_box(panel: dict, k: float) -> tuple:
+def panel_box(panel: dict, k: float, f: dict) -> tuple:
     """Co panel na stránce opravdu zabírá, i s tím, co přesahuje `rect`."""
     pk = panel.get("k", k)
     if panel["typ"] in ("fakta", "text", "osa"):
-        boxes = [_text_extent(panel, pk)]
+        x, y, w, _h = panel["rect"]
+        boxes = [(x, y, w, text_height(panel, f, pk))]
     else:
         boxes = [tuple(panel["rect"])]
     if panel["typ"] == "obraz":
-        boxes += [_text_box(label, label.get("size", 23 * pk)) for label in panel["labels"]]
+        boxes += [_text_box(label, label.get("size", f["popisek"] * pk)) for label in panel["labels"]]
         pod = panel.get("pod")
         if pod:
             x, y, w, h = panel["rect"]
@@ -83,19 +56,20 @@ def panel_box(panel: dict, k: float) -> tuple:
     title = panel.get("titulek")
     if title and title["text"]:
         x, y = title.get("x", panel["rect"][0]), title.get("y", panel["rect"][1] - 12 * pk)
-        size = 25 * pk
+        size = f["nadpis"] * pk
         boxes.append((x, y - size, len(title["text"]) * size * 0.62, size * 1.2))
     return _union(boxes)
 
 
-def head_box(doc: dict, k: float) -> tuple:
+def head_box(doc: dict, k: float, f: dict) -> tuple:
     head = doc.get("nadpis") or {}
     hk = head.get("k", k)
-    size = head.get("size", 88 * hk)
-    x, y = head.get("x", 50 * hk), head.get("y", 118 * hk)
+    size = head.get("size", f["titulek"] * hk)
+    x, y = head.get("x", f["titulek_x"] * hk), head.get("y", f["titulek_y"] * hk)
+    rows = title_lines(doc, f, hk, canvas_size(doc["size"])[0])
     lines = [line for line in (doc.get("subtitle") or "").split("\n") if line]
-    width = max([len(doc["title"]) * size * 0.62] + [len(line) * 31 * hk * LINE_WIDTH for line in lines])
-    return x, y - size, width, size + (44 + 38 * len(lines)) * hk
+    width = max([max(len(row) for row in rows) * size * 0.62] + [len(line) * f["podtitulek"] * hk * LINE_WIDTH for line in lines])
+    return x, y - size, width, size * (1 + 1.08 * (len(rows) - 1)) + (f["podtitulek_od"] + f["podtitulek_krok"] * len(lines)) * hk
 
 
 def _touch(a: tuple, b: tuple, gap: float) -> bool:
@@ -109,10 +83,10 @@ def _same_series(a, b) -> bool:
 
 def make_blocks(doc: dict) -> list[dict]:
     """[{box, members (index panelu, nebo "nadpis"), poradi}], nejdůležitější první."""
-    k = page_k(doc)
-    items = [(i, panel_box(p, k), p["poradi"], p) for i, p in enumerate(doc["panels"])]
+    k, f = page_k(doc), fonts(doc)
+    items = [(i, panel_box(p, k, f), p["poradi"], p) for i, p in enumerate(doc["panels"])]
     if doc.get("title"):
-        items.append(("nadpis", head_box(doc, k), 0, None))
+        items.append(("nadpis", head_box(doc, k, f), 0, None))
     groups = [[it] for it in items]
     merged = True
     while merged:
@@ -321,11 +295,11 @@ def hero_share(doc: dict) -> float:
 def reformat(doc: dict, size: str) -> dict:
     """Pole nového dokumentu: stejné panely, texty a soubory, jiné plátno. Vstup se nemění."""
     W, H = canvas_size(size)
-    k = page_k(doc)
+    k, f = page_k(doc), fonts(doc)
     new_k = k * ((W * H) / (canvas_size(doc["size"])[0] * canvas_size(doc["size"])[1])) ** 0.5
     note = short_note(doc)
-    lines = wrap(note, round((W - 100 * new_k) / (17 * new_k * LINE_WIDTH)))
-    foot = 30 * new_k + len(lines) * 22 * new_k if lines else 0
+    lines = wrap(note, round((W - 2 * f["okraj"] * new_k) / (f["zdroj"] * new_k * LINE_WIDTH)))
+    foot = f["zdroj_dole"] * new_k + len(lines) * f["zdroj_krok"] * new_k if lines else 0
     blocks = make_blocks(doc)
     panels_out = list(doc["panels"])
     head = None
@@ -335,7 +309,7 @@ def reformat(doc: dict, size: str) -> dict:
             if member == "nadpis":
                 old = doc.get("nadpis") or {}
                 hk = old.get("k", k)
-                head = {"x": (old.get("x", 50 * hk) - bx) * s + nx, "y": (old.get("y", 118 * hk) - by) * s + ny, "size": old.get("size", 88 * hk) * s, "k": hk * s}
+                head = {"x": (old.get("x", f["titulek_x"] * hk) - bx) * s + nx, "y": (old.get("y", f["titulek_y"] * hk) - by) * s + ny, "size": old.get("size", f["titulek"] * hk) * s, "k": hk * s}
             else:
                 panels_out[member] = _move_panel(doc["panels"][member], s, (bx, nx), (by, ny), doc["panels"][member].get("k", k))
     for p in panels_out:

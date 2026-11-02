@@ -1,5 +1,15 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-02 — Série o Teslovi: čtyři kola výtek za jednu chybu
+
+Pokaždé jsem ladil vzhled ukázky a kontrolu spustil až na hotovém. Čísla byla v pořádku a stránka hnusná: tmavá kupole na tmavém, podloží největší, prázdný pruh, hlouček popisků. Skladatel optimalizoval jednu veličinu (velikost obrazu) a o účelu stránky nevěděl nic. Pomohlo začít otázkou, co je na stránce hlavní, a každou výtku převést na měření (`panels.empty_share`, `faint_parts`) nebo pravidlo (`docs/infografiky-zasady.md`, oddíl Logika stránky).
+
+- Kontrast měřený po třetinách obrazu tmavou kupoli neviděl, ve stejném pásu byly světlé trámy. Měří se po 8 pásech a tenká část má jiný práh než plocha, jinak hlásí oblek.
+- Skladatel se ptá mřížky na volno statisíckrát. Dotaz přes prvek pole numpy byl hlavní cena, prefix sums jako seznam seznamů to srazily na desetiny sekundy na stránku.
+- `Set-Content -Encoding UTF8` v PowerShellu 5.1 přidá BOM a nic nehlásí. Soubory projektu měnit přes Python nebo Edit.
+- Úprava souboru během testu v prohlížeči přes HMR stránku znovu načte a další klik podle souřadnic padne jinam. Klikat přes `find` a ref, kód v tu chvíli neměnit.
+- Celý řetězec jde proklikat ve Studiu za 0 USD: Engine z větve s falešným `ask` a dočasnou knihovnou na jiném portu, Studio přes `GRAFIK_STUDIO_PORT` a `GRAFIK_ENGINE_URL`.
+
 ## 2026-11-02 — Patička zkopírovaná z velkého plakátu
 
 Na každou kartu šla patička z plakátu, na šířce 1080 px v písmu 27 px z ní bylo 4 až 7 řádků, skoro polovina textu stránky. Vlastní pravidlo o tom mlčelo a žádalo „zdroj a větu o AI“ na každé stránce, přitom `~/.claude/rules/grafika-texty.md` už říká, že výhrady a citace patří do jednoho řádku pod obraz. Kontrola sazby hlídá velikost písma, délku patičky ne. Před odesláním spočítej slova patičky proti slovům stránky.
