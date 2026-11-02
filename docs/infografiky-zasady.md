@@ -89,7 +89,7 @@ Zadání: „všechny informace dostat do hlavní grafiky - přehledně a čitel
 | Výtka operátora | Pravidlo | Kdo to hlídá |
 |---|---|---|
 | „Ty jsi mé připomínky vůbec nepochopil“ (náčrt s jedním sloupcem popisků, uříznutým portikem a vypuštěnými údaji) | Výčet od operátora je závazný. Rozvrh, který vyžaduje vyhodit údaje nebo uříznout předmět, je můj výklad, ne jeho zadání. Po takové výtce nestav další vlastní verzi: otevři mu editovatelnou kopii a uč se z jeho úpravy. | člověk |
-| „Ořezal jsi to blbě“ (zem a schody useknuté okrajem renderu) | Hlavní předmět je celý a render má rezervu za jeho okrajem, aby šel obraz zmenšit a posunout bez rovné hrany. Ořez těsně u stavby se ukáže až po první ruční úpravě. | zatím jen pohled; stroj to neměří |
+| „Ořezal jsi to blbě“ (zem a schody useknuté okrajem renderu) | Hlavní předmět je celý a render má rezervu za jeho okrajem, aby šel obraz zmenšit a posunout bez rovné hrany. Ořez těsně u stavby se ukáže až po první ruční úpravě. | `panels.cut_edges`, nález v Kontrole, jen u hlavního obrazu: vedlejší smí být výřez (ruka, vzorek betonu). Na 12 dokumentech v knihovně našel jen `1c97`, `rez5` čistý |
 | „Šedý sokl“ pod portálem | Širší záběr vrací okolí. Stavba s rezervou jde s tenkou dlažbou (`thin_ground`), ne s velkou plochou země. | `lod_pantheon.py`, prohlédni stránku |
 
 Co jeho úprava ukazuje:

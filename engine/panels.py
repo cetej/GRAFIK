@@ -44,6 +44,7 @@ MIN_CONTRAST_THIN = 2.0     # kontrast tenké části obrazu proti stránce: mř
 MIN_CONTRAST_MASS = 1.2     # velkou plochu nese její obrys, stačí méně (hnědý oblek na modré)
 THIN_FILL = 0.2             # pod tímhle podílem plných pixelů je část tenká
 FAINT_BANDS = 8
+MIN_CUT = 0.02              # podíl okraje renderu, kde objekt končí rovnou hranou; špička, která se okraje dotkne, se nepočítá
 LINE_WIDTH = 0.47           # průměrná šířka znaku Bahnschrift semi-condensed v em, změřeno na patičce plakátu
 # kopie prahů z studio/src/Infographics.tsx a docs/infografiky-zasady.md
 MAX_LABELS = 10
@@ -725,6 +726,8 @@ def checks(doc: dict, root: Path) -> list[dict]:
         out.append({"ok": share <= MAX_EMPTY, "text": f"prázdná plocha {share * 100:.0f} % pod titulkem" + (": zvětšit obraz, nebo změnit formát" if share > MAX_EMPTY else "")})
         faint = [f"{part} část: {p['nazev']}" for p in pictures if p.get("pruhledny") for part in faint_parts(p, root, THEMES.get(doc.get("template"), THEMES["dark"])["bg"])]
         out.append({"ok": not faint, "text": f"splývá s pozadím: {', '.join(faint)}" if faint else "obraz se od pozadí odlišuje"})
+    cut = cut_edges(hero, root) if hero else []     # vedlejší obraz smí být výřez: ruka, vzorek betonu
+    out.append({"ok": not cut, "text": f"hlavní obraz useknutý okrajem renderu ({', '.join(cut)}): nový render s rezervou" if cut else "hlavní obraz není useknutý okrajem renderu"})
     overlaps = [f"{a[0]} × {b[0]}" for i, a in enumerate(boxes) for b in boxes[i + 1:] if a[1] < b[1] + b[3] and b[1] < a[1] + a[3] and a[2] < b[2] + b[4] and b[2] < a[2] + a[4]]
     out.append({"ok": not overlaps, "text": f"překrývají se popisky: {', '.join(overlaps)}" if overlaps else "popisky se nepřekrývají"})
     if outside:
@@ -799,6 +802,19 @@ def faint_parts(panel: dict, root: Path, page_color: str) -> list[str]:
         if float(np.percentile(ratio[a:b, cols[0]:cols[-1] + 1][mask], 80)) < limit:
             faint.append(("horní", "střední", "dolní")[3 * i // FAINT_BANDS])
     return list(dict.fromkeys(faint))
+
+
+def cut_edges(panel: dict, root: Path) -> list[str]:
+    """Na kterých okrajích renderu končí objekt rovnou hranou: dole, nahoře, vlevo, vpravo. Fotka bez průhlednosti je obdélník, tu to netýká.
+    Stín a co k okraji vybledne se nepočítá. Operátor k Pantheonu 2. 11.: „Ořezal jsi to blbě“, schody useknuté okrajem."""
+    with Image.open(panel_dir(root, panel["id"]) / "obraz.png") as im:
+        if "A" not in im.getbands():
+            return []
+        solid = np.asarray(im.getchannel("A")) > 200
+    if solid.all():
+        return []
+    sides = {"dole": solid[-1], "nahoře": solid[0], "vlevo": solid[:, 0], "vpravo": solid[:, -1]}
+    return [name for name, edge in sides.items() if edge.mean() >= MIN_CUT]
 
 
 def _picture_sizes(panel: dict, f: dict, k: float) -> list[float]:
