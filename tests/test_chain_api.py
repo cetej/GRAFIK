@@ -558,6 +558,21 @@ def test_label_of_the_picture_outranks_loose_facts_and_the_big_page_wins():
     assert fields["size"] == "1080x1620" and main["rect"][2] > 900
 
 
+def test_cards_of_one_series_have_the_same_type_sizes():
+    """Operátor 2. 11.: karty v rámci jednoho cyklu nemají mít různé velikosti písem v titulcích a popiscích."""
+    hero = picture((1000, 1000), {"cast": [500, 300]}, (300, 200, 700, 950))
+    label = {"value": "Cívky", "text": "Střídavý proud je žene dokola.", "bod": "cast"}
+    fact = {"value": "1888", "text": "Licence pro firmu.", "bod": None}
+    titles = ["Cívka", "Muž, který poháněl svět"]
+    share = sr.series_title(titles)
+    pages = [sr.compose(title, "Věta.", "", hero, [label, fact], {}, "1080x1620", title_share=share)[0] for title in titles]
+    assert pages[0]["nadpis"]["size"] == pages[1]["nadpis"]["size"] == pytest.approx(sr._title_size(titles[1], 1080, pn.MOBIL, 1080 / pn.MOBIL["jednotek"]))
+    assert sr.compose(titles[0], "Věta.", "", hero, [label], {}, "1080x1620")[0]["nadpis"]["size"] > pages[0]["nadpis"]["size"]      # sama by měla větší
+    fonts = {(panel["size"], panel["small_size"]) for page in pages for panel in page["panels"] if panel["typ"] != "obraz"}
+    assert fonts == {(pn.MOBIL["popisek"] * 1080 / pn.MOBIL["jednotek"], pn.MOBIL["popisek"] * 1080 / pn.MOBIL["jednotek"] * 0.86)}
+    assert not [label for page in pages for panel in page["panels"] for label in panel.get("labels", []) if "size" in label]     # popisky mají velikost z písma stránky
+
+
 def test_leader_to_the_text_does_not_run_across_the_object():
     tall = picture((1000, 1000), {"osa": [420, 500]}, (360, 40, 640, 960))     # válec uprostřed, bod blíž levé straně
     item = {"value": "Válec", "text": "Vysvětlení pod názvem.", "bod": "osa"}

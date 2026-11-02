@@ -210,6 +210,7 @@ class Chain:
         self.log_cost({**ledger, "usd": cost["usd"], "status": "ok", "usage": cost, "items": [{"what": what, "usd": cost["usd"]}]})
         wf.spent_usd = round(wf.spent_usd + cost["usd"], 4)
         pages = proposals.pages(proposal)
+        title_share = serie.series_title([text["titulek"] for text in written["stranky"].values()])
         done = []
         for n in wf.stranky:
             said = written["hlaseni"].get(n, []) + notes.get(n, [])
@@ -218,7 +219,7 @@ class Chain:
                 done.append({"stranka": n, "nazev": pages[n - 1]["nazev"], "doc": None, "hlaseni": [*said, "Model k téhle stránce nevrátil text."]})
                 continue
             try:
-                fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of)
+                fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of, title_share=title_share)
                 doc = self.make_doc({**fields, "urceni": wf.urceni, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}})
                 done.append({"stranka": n, "nazev": text["titulek"], "doc": doc["id"], "hlaseni": [*said, *more]})
             except InfoError as e:

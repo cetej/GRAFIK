@@ -224,6 +224,11 @@ def _title_size(title: str, W: int, f: dict, k: float) -> float:
     return least
 
 
+def series_title(titles: list[str], f: dict = panels.MOBIL) -> float:
+    """Karty jedné série mají stejně velký titulek: co dovolí nejdelší z nich. Podíl šířky stránky."""
+    return min(_title_size(title, 1080, f, 1080 / f["jednotek"]) for title in titles) / 1080
+
+
 Sheet = panels.Sheet
 
 
@@ -495,12 +500,12 @@ def _free_panels(items: list[dict], insets: dict, sheet: Sheet, near: tuple, mar
     return out, skipped
 
 
-def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict = panels.MOBIL) -> tuple[dict, list[str]]:
+def compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict = panels.MOBIL, title_share: float | None = None) -> tuple[dict, list[str]]:
     """Formát se řídí obrazem: když na návrhovém zůstane prázdná plocha nebo něco vypadne, zkusí stejně širokou stránku jiné výšky. Vrátí (pole dokumentu, hlášení)."""
     W = infographics.canvas_size(size)[0]
     tried = []
     for candidate in dict.fromkeys([size, *(f"{W}x{round(W * ratio)}" for ratio in HEIGHTS)]):
-        fields, dropped, empty = _compose(title, lead, short_note, hero, items, insets, candidate, f)
+        fields, dropped, empty = _compose(title, lead, short_note, hero, items, insets, candidate, f, title_share)
         if not dropped and empty <= panels.MAX_EMPTY:
             return fields, dropped
         lost = sum(bool(it.get("bod")) and _said(it) in dropped for it in items)
@@ -510,14 +515,14 @@ def compose(title: str, lead: str, short_note: str, hero: dict | None, items: li
     return fields, dropped
 
 
-def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict) -> tuple[dict, list[str], float]:
+def _compose(title: str, lead: str, short_note: str, hero: dict | None, items: list[dict], insets: dict, size: str, f: dict, title_share: float | None = None) -> tuple[dict, list[str], float]:
     """Stránka jako jeden obraz s informacemi na něm: titulek, věta, co největší obraz a popisky do volné plochy vedle objektu.
     Položky jsou seřazené podle důležitosti: co se nevejde ani při nejmenším dovoleném obrazu, vypadne odzadu a řekne to hlášení."""
     W, H = infographics.canvas_size(size)
     k = W / f["jednotek"]
     margin = f["okraj"] * k
     label_size = f["popisek"] * k
-    title_size = _title_size(title, W, f, k)
+    title_size = title_share * W if title_share else _title_size(title, W, f, k)
     doc = {"title": title, "nadpis": {"size": title_size}, "sources": "", "ai_note": "", "na_strance": short_note, "pismo": f, "panels": []}
     title_y = margin + title_size * 0.82
     lead_lines = panels.wrap(_no_orphan(lead), int((W - 2 * margin) / (f["podtitulek"] * k * LEAD_WIDTH))) if lead else []
@@ -603,7 +608,7 @@ def _try_page(hero, items, insets, W, H, top, bottom, room, margin, label_size, 
     return None
 
 
-def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, picture_of, template: str = "dark", accent: str = "#e0b35c") -> tuple[dict, list[str]]:
+def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, picture_of, template: str = "dark", accent: str = "#e0b35c", title_share: float | None = None) -> tuple[dict, list[str]]:
     """Pole dokumentu jedné stránky a její hlášení. `picture_of(obraz)` dá zdroj, rozměr, průhlednost a body obrazu."""
     notes = []
     pictures = []
@@ -625,7 +630,7 @@ def page_fields(n: int, page: dict, text: dict, images: dict, dossier: dict, pic
     ai_names = [picture["nazev"] for picture in shown if picture["zdroj"].get("ai")]
     credits = [panels.credit(picture["nazev"], picture.get("_autor"), picture.get("_licence")) for picture in shown if picture["zdroj"].get("ref_id")]
     short = "; ".join([*([f"{', '.join(ai_names)}: AI"] if ai_names else []), *credits])
-    fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, insets, PAGE_SIZES[page["format"]])
+    fields, dropped = compose(text["titulek"], text.get("uvod") or "", short, hero, items, insets, PAGE_SIZES[page["format"]], title_share=title_share)
     notes += [f"Nevešlo se: {d}" for d in dropped]
     if hero and hero["_points"] and not any(panel.get("labels") for panel in fields["panels"]):
         notes.append("Hlavní obraz nemá žádný popisek.")
