@@ -13,7 +13,7 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 
 ## Logika stránky (série o Teslovi, 2. 11., výtky operátora)
 
-Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má čtenář pochopit a co je na obraze hlavní. Operátor: „Zkus si z toho brát zkušenosti a zapracovat na logice vytváření infografik.“ Proto má každá výtka níž pravidlo a tam, kde to jde, měření v kódu. Laťka: [série o Teslovi](spikes/img/2026-11-02-serie-tesla-3d.png), operátor: „Ano, to je výrazně lepší.“ Měření v [spiku](spikes/2026-11-02-serie-mobil.md).
+Stránka nezačíná tím, kam se vejdou popisky, ale dvěma otázkami: co má čtenář pochopit a co je na obraze hlavní. Operátor: „Zkus si z toho brát zkušenosti a zapracovat na logice vytváření infografik.“ Proto má každá výtka níž pravidlo a tam, kde to jde, měření v kódu. Laťka: [ručně psaná ukázka série o Teslovi](spikes/img/2026-11-02-serie-tesla-3d.png), operátor: „Ano, to je výrazně lepší.“ Stejná série s texty od modelu pro laika: [čtyři karty](spikes/img/2026-11-02-serie-tesla-4-karty.png), operátor: „Jo vypadá to pěkně.“ Měření v [spiku](spikes/2026-11-02-serie-mobil.md).
 
 | Výtka operátora | Pravidlo | Kdo to hlídá |
 |---|---|---|

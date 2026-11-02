@@ -2,7 +2,37 @@
 
 Co vzniklo: z vybraného návrhu série stránek. Text přepisuje model z faktů dossieru, rozvržení počítá kód, obraz je vlastní 3D. Zásady: [`docs/infografiky-zasady.md`](../infografiky-zasady.md), oddíl Logika stránky.
 
-![Série o Teslovi na šířce telefonu](img/2026-11-02-serie-tesla-3d.png)
+![Čtyři karty z opravdového běhu](img/2026-11-02-serie-tesla-4-karty.png)
+
+## Opravdový běh na `nikola-tesla-v3`
+
+Řetězec `20261102-213008-7012`, karty v kroku Stránky opravdového Studia.
+
+| Karta | Formát | Titulek | Popisek a text | Prázdná plocha | Nález o mobilu | Co se nevešlo |
+|---|---|---|---|---|---|---|
+| Kdo byl Tesla? | 1080 × 1620 | 82,8 px | 54 a 46 px | 5 % | žádný | nic |
+| Muž, který poháněl svět | 1080 × 1620 | 82,8 px | 54 a 46 px | 9 % | žádný | Niagara, 1888 |
+| Teslova cívka | 1080 × 1620 | 82,8 px | 54 a 46 px | 13 % | žádný | 1891 |
+| Věž Wardenclyffe | 1080 × 1620 | 82,8 px | 54 a 46 px | 16 % | žádný | Došly peníze, Marné prosby |
+
+**Co stálo peníze, ze schválených 0,30 USD:**
+
+| Krok | USD |
+|---|---|
+| Návrhy, Sonnet, 11 596 a 3 245 tokenů | 0,0556 |
+| Kontrola logiky, Opus, dvakrát | 0,0472 + 0,0611 |
+| Texty 2 stránek, zadání „zkrať fakt“, stránky v koši | 0,0134 |
+| Texty 4 stránek, dva běhy | 0,0230 + 0,0234 |
+| Tři přímé zkoušky textů mimo ledger Engine | 0,0455 |
+| **Celkem** | **0,2692** |
+
+Co jsem udělal ručně a neprošlo řetězcem:
+
+- Vybraný návrh měl jen motor a životopis. Cívku a věž jsem do něj přidal v `workflows/<id>.json` z faktů, které model vybral do jiného návrhu. Kontrola logiky je neviděla.
+- Poslední složení je stejný kód (`serie.write_texts`, `page_fields`, `POST /infographics/panels`) nad texty posledního placeného běhu, 0 USD. Tlačítko by stálo odhadem 0,036 USD a překročilo by schválenou cenu. Naostro běželo dvakrát, před poslední opravou skladatele.
+- Názvy částí cívky (`obrazy.json`) a bod věže (`vez/body.json`) v knihovně jsem změnil přímo, bez nového renderu. Totéž dělá `scripts/3d/tesla_tema.py`.
+
+**Zadání návrhů pro 4 stránky** běželo jen přes subagenta (Sonnet, placené API ne, jeden běh): 3 návrhy po 4 stránkách, první stránka s figurou, každá stránka má vlastní hlavní obraz, neznámá a opakovaná fakta 0, 29 kB JSON, asi 10 000 tokenů výstupu. Podle toho je odhad návrhů 0,134 USD a řetězce 0,24 USD. Skutečná cena placeného běhu není změřená.
 
 ## Ukázka, ruční text, 0 USD
 
