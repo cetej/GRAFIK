@@ -29,7 +29,7 @@ dossier: Patent US 1,061,206 (Turbine): uděleno 6. 5. 1913 podle Google Patents
 | Rozpory | 5 | 9 |
 | Fakta | 120 | 120, čtyři nejslabší věty ustoupily ověřeným patentům |
 | Souhrn po letech | 1888: 14, 1889: 12, 1900: 4, 1901: 6, 1909: 2, 1913: 0 | 1888: 13, 1889: 13, 1900: 3, 1901: 7, 1913: 2, tedy přesně tabulka ruční rešerše |
-| Čas navíc | | 111 dotazů po 1 s pauze, měřeno níž |
+| Čas dossieru bez obrázků | 12 s | **147 s**, tedy 135 s navíc (limit 3 minuty) |
 
 Měřítko: `python scripts/research_kontrola.py tesla <dossier.json>`, nově vypisuje i známé chyby.
 
@@ -52,7 +52,7 @@ Vyřešilo se i to, co dřív zůstalo jen jako poznámka bez čísla patentu: 2
 | Thomas Edison | 5 | US 223,898 ověřený; US 90,646 bez vynálezce nepřiřazený, 3 čísla bez dat; otázka to říká |
 | Marie Curie | 0 | fakta položka po položce stejná jako starý kód |
 
-**Co to neřeší:** seznam Edisonových patentů má na Wikipedii jiný tvar, takže se ověří jen čísla z vět. Jméno se porovnává jen podle příjmení; nositel stejného příjmení by prošel, kdyby ho věta na stránce osoby jmenovala. Ostatní chyby z ruční rešerše (věk na desce, datum elektrárny Adams, pověst o rozsudku) patenty neopraví. Rozpor 278 až 300 patentů zůstává.
+**Co to neřeší:** Engine má jednu frontu úloh, takže u osoby s dlouhým seznamem patentů čekají ostatní úlohy o 2 minuty déle. Seznam Edisonových patentů má na Wikipedii jiný tvar, takže se ověří jen čísla z vět. Jméno se porovnává jen podle příjmení; nositel stejného příjmení by prošel, kdyby ho věta na stránce osoby jmenovala. Ostatní chyby z ruční rešerše (věk na desce, datum elektrárny Adams, pověst o rozsudku) patenty neopraví. Rozpor 278 až 300 patentů zůstává.
 
 **Stavby:** starý kód (`origin/master`) a nový nad stejnými uloženými odpověďmi API: Pantheon 84 faktů a 33 obrázků, Koloseum 44 a 32, položka po položce stejné, stejné i otázky a zdroje. Axolotl beze změny, 34 ze 44.
 

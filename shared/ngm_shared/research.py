@@ -832,7 +832,7 @@ def _kind_page_facts(page: dict, names: list[str], kind: str, fewer: int = 0) ->
                     by_section.setdefault(path[-1] if path else "", []).append(
                         (score, {"tvrzeni": sentence, "hodnota": None, "jednotka": None, "predmet": part, "velicina": None, "zdroj": source}))
     limits = prof["text_limits"]
-    return raw + _pick_texts(by_section, limits["podobná"] if related else limits[f"hlavní {page['lang']}"] - (fewer if page["lang"] == "en" else 0) if page["lang"] in TEXT_LANGS else 0)
+    return raw + _pick_texts(by_section, limits["podobná"] if related else max(0, limits[f"hlavní {page['lang']}"] - (fewer if page["lang"] == "en" else 0)) if page["lang"] in TEXT_LANGS else 0)
 
 
 def _patent_listing(pages: list[dict]) -> tuple[dict[str, dict], dict | None]:
