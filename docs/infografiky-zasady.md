@@ -16,6 +16,7 @@ Operátor 2026-10-23: nejde o kopírování vzoru, ale o pochopení čistého gr
 **Skladba**
 - Než se začne skládat, napiš ke každému panelu otázku čtenáře, na kterou hlavní obraz neodpoví (`otazka`). Když je odpověď „totéž zblízka“, panel na stránku nepatří. Co jde říct přímo na hlavním obraze (kdo kde seděl), patří tam: číslované značky a legenda, ne další řez.
 - Téma je víc než objekt. U stavby i to, co se v ní dělo a kdo v ní byl: Koloseum bez gladiátorů „nedává smysl“.
+- U osoby a zvířete má každá skladba panel s jejich podobou (portrét, celé zvíře). Hlavní obraz určuje myšlenka skladby, může to být stroj nebo mapa.
 
 **Odkud obraz vznikne**
 - Stavby a stroje: model z dílů v Blenderu.
