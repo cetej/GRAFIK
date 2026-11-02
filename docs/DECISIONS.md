@@ -2,6 +2,10 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-02 — Série Studny pro mobil přijatá
+
+Operátor po náhledu v šířce telefonu vedle starého plakátu: „Ano, do Knihovny“. Tři stránky 1080 × 1620 jsou v Knihovně jako nové položky, přijatý plakát zůstal. Velikosti z tabulky v `docs/infografiky-zasady.md` tím prošly první zkouškou; na opravdovém telefonu je zatím nikdo neviděl.
+
 ## 2026-11-02 — Infografika se navrhuje pro web a mobil
 
 Operátor k plakátům o vojákovi ve studni: „Velikosti písma a poměry velikosti při zobrazování na webu a velmi často na mobilu - to je potřeba zohlednit a infografiku koncipovat odpovídajícím způsobem a velké plachty, kde hrozí titěrné písmo spíše rozdělit na menší infografiky.“
