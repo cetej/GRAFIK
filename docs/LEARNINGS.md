@@ -656,3 +656,4 @@ Detail: `docs/spikes/2026-08-14-inpaint-4k.md`.
 ## 2026-11-01 — Proč se „vyřešené“ počeštění znovu pokazilo
 
 Oprava z 30. 10. prošla na jedné mapě a STAV ji popsal obecně. Prahy byly z mapy Everestu (šířka 769 px), rastr skenu oklamal test ploché mapy (`textured`), takže sken šel na štětec PhotoCraftu, a `residue` bylo natvrdo 0. Dokud nepřišel jiný druh mapy, nic z toho nebylo vidět. Ověření patří zapsat i s tím, na čem proběhlo, a skutečný případ držet jako test.
+- **Sketchfab na httpx vrací `202` s prázdným tělem, urllib projde (2026-11-03).** Stejný dotaz `/v3/search` z httpx dostal `202 text/html` a 0 bajtů i s jiným User-Agentem a `Accept: application/json`; z urllib `200` a JSON. Pozná klienta jinak než hlavičkami. `engine/hotove3d.py` i `ngm_shared.research` proto volají Sketchfab přes urllib.
