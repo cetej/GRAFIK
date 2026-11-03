@@ -83,8 +83,8 @@
     {"grapheme": "Wardenclyffe", "alias": "Vórdnklif", "type": "toponym", "note": "Teslova věž na Long Islandu"},
     {"grapheme": "Westinghouse", "alias": "Vestinghaus", "type": "other", "note": "americká elektrotechnická firma"},
     {"grapheme": "Buffalo", "alias": "Bafelou", "type": "toponym", "note": "město v USA (nesklonné)"},
-    {"grapheme": "Mark Twain", "alias": "Mark Tvén", "type": "other", "note": "americký spisovatel"},
-    {"grapheme": "Twain", "alias": "Tvén", "type": "name", "kmen": true, "note": "Mark Twain v pádech (Marka Twaina, Twainem); v Teslově komentáři OmniVoice řekl špatně (operátor 2026-11-03)"},
+    {"grapheme": "Mark Twain", "alias": "Mark Tvejn", "type": "other", "note": "americký spisovatel; „Tvén“ OmniVoice čte špatně, „Tvejn“ vybral operátor poslechem variant (2026-11-03)"},
+    {"grapheme": "Twain", "alias": "Tvejn", "type": "name", "kmen": true, "note": "Mark Twain v pádech (Marka Twaina, Twainem); „Tvejn“ vybral operátor poslechem (2026-11-03)"},
     {"grapheme": "Coloradu", "alias": "Koloradu", "type": "toponym", "note": "americký stát, 6. pád"}
   ]
 }
