@@ -72,7 +72,7 @@ export default function PohybDialog({ start, onClose, onError }: { start: PohybI
             </div>
             <label className="hint" htmlFor="pohyb-sdeleni">Co má animace sdělit (nepovinné, jde do zadání POHYBu)</label>
             <textarea id="pohyb-sdeleni" className="full" rows={2} value={sdeleni} onChange={(e) => setSdeleni(e.target.value)}
-              placeholder="Římského vojáka někdo zabil, spustil do studny a zatížil kameny." />
+              placeholder="Jednou dvěma větami: co má divák z animace pochopit." />
             <div className="hint">Formát videa</div>
             <div className="seg">
               {FORMATS.map((f) => <button key={f} className={(format || preview?.format) === f ? 'on' : ''} onClick={() => setFormat(f)}>{f}</button>)}
