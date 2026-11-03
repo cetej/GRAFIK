@@ -144,6 +144,7 @@ def test_send_builds_a_new_bundle_every_time_and_pohyb_gets_it_whole(api, settin
         manifest = json.loads(z.read("manifest.json"))
         assert manifest["format"] == "grafik-predavka" and manifest["verze"] == 1 and manifest["sdeleni"] == "Kdo ho zabil"
         assert manifest["format_videa"] == "16:9" and manifest["nazev"] == "Muž na dně studny"
+        assert manifest["komentar"] is True
         page = manifest["stranky"][0]
         for key in ("hotovo", "vrstvy", "bez_textu", "puvod"):
             assert page[key] in names, key
@@ -236,3 +237,11 @@ def test_picture_without_a_model_or_with_a_missing_one_goes_without_glb(api, set
     with zipfile.ZipFile(io.BytesIO(pohyb.received[0])) as z:
         assert not any(n.endswith(".glb") for n in z.namelist())
         assert all("model" not in p for p in json.loads(z.read("manifest.json"))["stranky"][0]["panely"])
+
+
+def test_without_commentary_the_brief_says_so(api, pohyb):
+    ref = upload_page(api, "Muž na dně studny", poster())
+    r = api.post("/api/v2/pohyb", json={"polozky": [{"obrazek": ref}], "komentar": False})
+    assert r.status_code == 201, r.text
+    with zipfile.ZipFile(io.BytesIO(pohyb.received[0])) as z:
+        assert json.loads(z.read("manifest.json"))["komentar"] is False
