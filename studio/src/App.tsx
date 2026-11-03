@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
-  api, fileToB64, groupStyles, imageUrl, infoApi, isCzech, onlyTranslation, PaymentRequired, refsApi, stylesApi,
+  api, fileToB64, groupStyles, imageUrl, infoApi, isCzech, jobRefs, onlyTranslation, PaymentRequired, refsApi, stylesApi,
   type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type KnihovnaImage, type KnihovnaItem, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
@@ -13,6 +13,7 @@ import Infographics from './Infographics.tsx'
 import Localize from './Localize.tsx'
 import Models3d from './Models3d.tsx'
 import Scenes3d from './Scenes3d.tsx'
+import Library from './Library.tsx'
 import { BatchPanel, BatchRow } from './Batch.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
@@ -117,7 +118,7 @@ export default function App() {
   }, [refresh])
 
   const doneImages = useMemo(
-    () => jobs.filter((j) => j.status === 'done').flatMap((j) => j.images.map((_, i) => ({ ref: `${j.job_id}/${i}`, job: j }))),
+    () => jobs.filter((j) => j.status === 'done').flatMap((j) => jobRefs(j).map((ref) => ({ ref, job: j }))),
     [jobs],
   )
   useEffect(() => {
@@ -335,15 +336,9 @@ export default function App() {
           onInfographicDoc={(id) => { setInfoId(id); setTab('info') }}
           onUseRef={(m) => { pickRef(m); setTab('studio'); setToast(`${m.title} je v předlohách.`) }} />
       ) : tab === 'library' ? (
-        <main className="library">
-          {doneImages.length === 0 && <p className="empty">Knihovna je prázdná.</p>}
-          {doneImages.map(({ ref, job }) => (
-            <figure key={ref} onClick={() => { setSelected(ref); setTab('studio') }} title="Otevřít ve studiu">
-              <img src={imageUrl(ref, 384)} loading="lazy" alt="" />
-              <figcaption>{(job.request.edit?.instruction ?? job.request.prompt).slice(0, 90)}</figcaption>
-            </figure>
-          ))}
-        </main>
+        <Library reloadKey={`${doneImages.length}:${doneImages[0]?.ref}`} onError={setToast}
+          onOpen={(ref) => { setSelected(ref); setTab('studio') }}
+          onDeleted={(ref) => { if (selected === ref) setSelected(null); refresh() }} />
       ) : (
         <main className="studio">
           <section className="card left">

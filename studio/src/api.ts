@@ -25,7 +25,7 @@ export interface ImageRequest {
 
 export interface Job {
   job_id: string
-  status: 'queued' | 'running' | 'done' | 'failed' | 'cancelled'
+  status: 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'deleted'
   caller: string
   backend: string
   position: number | null
@@ -35,8 +35,12 @@ export interface Job {
   started: number | null
   finished: number | null
   request: ImageRequest & { refs: { role: Role; source?: string; text?: string }[] }
-  result: { files: string[]; cost_usd: number; prompt_sent: string; seeds: (number | null)[] } | null
+  result: { files: string[]; cost_usd: number; prompt_sent: string; seeds: (number | null)[]; deleted?: number[] } | null
 }
+
+// Refs '<job>/<n>' of a finished job's pictures, without those moved to the trash
+export const jobRefs = (j: Job) =>
+  j.images.map((_, i) => `${j.job_id}/${i}`).filter((_, i) => !j.result?.deleted?.includes(i))
 
 export interface CostItem { what: string; usd: number; kind?: string }
 
@@ -113,6 +117,8 @@ export const api = {
   backends: () => call<Backend[]>('/api/v2/backends'),
   jobs: (limit = 60) => call<Job[]>(`/api/v2/jobs?limit=${limit}`),
   job: (id: string) => call<Job>(`/api/v2/jobs/${id}`),
+  library: (offset: number, limit: number) => call<{ total: number; offset: number; items: Job[] }>(`/api/v2/library?offset=${offset}&limit=${limit}`),
+  deleteImage: (ref: string) => call<{ moved_to: string }>(`/api/v2/jobs/${ref.replace('/', '/images/')}`, { method: 'DELETE' }),
   estimate: (req: ImageRequest) => post<Estimate>('/api/v2/estimate', req),
   submit: (req: ImageRequest) => post<{ job_id: string }>('/api/v2/images', req),
   repeat: (id: string, n: number, confirm = false) => post<{ job_id: string }>(`/api/v2/jobs/${id}/repeat`, { n, confirm_cost: confirm }),

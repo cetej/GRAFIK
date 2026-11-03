@@ -142,11 +142,22 @@ dd { margin: 0; overflow-wrap: anywhere; }
 .tag.ok { background: #e2f4ea; color: var(--ok); }
 pre.prompt { white-space: pre-wrap; font-size: 12px; background: #f6f5f1; border-radius: 6px; padding: 8px; max-height: 220px; overflow: auto; }
 
-main.library { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; padding: 12px; }
-main.library figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; }
-main.library figure:hover { border-color: var(--accent); }
-main.library img { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; background: #e9e7e1; display: block; }
-main.library figcaption { padding: 6px 9px; font-size: 12px; color: var(--muted); }
+main.library-page { padding: 12px; }
+.library-count { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.pager { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.pager span { padding: 0 8px; font-size: 13px; }
+.library { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.library.stale { opacity: .45; pointer-events: none; }
+.library figure { margin: 0; display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.library-open { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+@media (hover: hover) and (pointer: fine) { .library figure:has(.library-open:hover) { border-color: var(--accent); } }
+.library img { width: 100%; aspect-ratio: 16 / 10; object-fit: contain; background: #e9e7e1; display: block; }
+.library figcaption { flex: 1; display: grid; gap: 2px; padding: 6px 9px; font-size: 12px; color: var(--muted); }
+.library figcaption small { font-size: 11px; }
+.library-act { display: flex; align-items: center; gap: 6px; padding: 0 9px 8px; font-size: 12px; }
+.library-act span { margin-right: auto; color: #8a2a1e; }
+.btn.del { background: #b3261e; border-color: #b3261e; color: #fff; }
+@media (hover: hover) and (pointer: fine) { .btn.del:hover:not(:disabled) { background: #8f1d17; border-color: #8f1d17; } }
 .empty { color: var(--muted); }
 
 .modal, .lightbox { position: fixed; inset: 0; background: rgba(20, 22, 26, .6); display: flex; align-items: center; justify-content: center; z-index: 10; }
