@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api, fileToB64, m3dApi, PaymentRequired,
-  type Estimate3d, type Job3d, type Model3dVersion, type RefIn, type RefMeta, type View3d,
+  type Estimate3d, type Hotovy3d, type Job3d, type Model3dVersion, type RefIn, type RefMeta, type View3d,
 } from './api.ts'
 import RefPicker from './RefPicker.tsx'
 import Viewer3d, { DEFAULT_VIEW, type Cam3d, type ViewerHandle } from './Viewer3d.tsx'
@@ -81,6 +81,10 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
   const [glb, setGlb] = useState<{ name: string; b64: string } | null>(null)
   const [est, setEst] = useState<Estimate3d | null>(null)
   const [sending, setSending] = useState(false)
+  const [hledani, setHledani] = useState('')
+  const [nalez, setNalez] = useState<{ kandidati: Hotovy3d[]; chyby: string[]; sketchfab_stazeni: boolean } | null>(null)
+  const [hledam, setHledam] = useState(false)
+  const [beru, setBeru] = useState<string | null>(null)
   const [editing, setEditing] = useState<View3d | null>(null)
   const [picker, setPicker] = useState<View3d | null>(null)
   const [stretchOpen, setStretchOpen] = useState(false)
@@ -113,12 +117,14 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
   }, [openId, onError])
 
   const isUpload = method === 'upload'
+  const isHotove = method === 'hotove'
   const filled = slots.filter((s) => s.cutout)
   useEffect(() => {
+    if (isHotove) { setEst(null); return }
     if (isUpload) { setEst({ method: 'upload', recommended: 'upload', items: [], total_usd: 0, eta_s: 40, label: 'Nahrát GLB' }); return }
     if (!filled.length) { setEst(null); return }
     m3dApi.estimate({ method, refs: filled.map((s) => ({ view: s.view })) }).then(setEst).catch((e) => { setEst(null); onError(String(e.message)) })
-  }, [method, isUpload, filled.map((s) => s.view).join(','), onError]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [method, isUpload, isHotove, filled.map((s) => s.view).join(','), onError]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // -- refs and their cutouts (Q2: shown before anything is sent, eraser to fix) ----------------
   const setSlot = (view: View3d, patch: Partial<Slot> | null) =>
@@ -152,7 +158,27 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
   }
 
   const newModel = () => {
-    setTarget(null); setTitle(''); setSlots([]); setGlb(null); setMethod(null)
+    setTarget(null); setTitle(''); setSlots([]); setGlb(null); setMethod(null); setNalez(null)
+  }
+
+  // -- hotový model zdarma (engine/hotove3d.py): Smithsonian a Sketchfab dřív, než se platí za generování --------
+  const hledat = async () => {
+    const q = (hledani || title).trim()
+    if (!q) { onError('Napište, co hledat (anglicky najde víc, např. woolly mammoth).'); return }
+    setHledam(true)
+    try { setNalez(await m3dApi.hotove(q)) } catch (e) { onError(String((e as Error).message)) } finally { setHledam(false) }
+  }
+  const prevzit = async (k: Hotovy3d) => {
+    setBeru(k.id)
+    try {
+      const r = await m3dApi.prevzit({ zdroj: k.zdroj, id: k.id, title: title || k.nazev, model_id: target })
+      setOpenId(r.model_id); setVer(r.version); newModel()
+      load()
+    } catch (e) {
+      onError(String((e as Error).message))
+    } finally {
+      setBeru(null)
+    }
   }
   const newVersionOf = async (m: Model3dVersion) => {
     setTarget(m.id); setTitle(m.title); setGlb(null); setMethod(m.method === 'fal-trellis2' || m.method === 'fal-hunyuan3d' || m.method === 'fal-hunyuan31pro' ? m.method : null)
@@ -267,7 +293,7 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
               {thumbOf(m) ? <img src={thumbOf(m)!} alt="" /> : <span className="ph">—</span>}
               <span>
                 {m.title} · {m.version}
-                <small>{METHOD_LABEL[m.method] ?? m.method}{m.refs.length ? ` · ${m.refs.length} ${m.refs.length === 1 ? 'předloha' : 'předlohy'}` : ''} · {fmtUsd(m.cost_usd)}</small>
+                <small>{m.zdroj ? `převzatý · ${m.license}` : METHOD_LABEL[m.method] ?? m.method}{m.refs.length ? ` · ${m.refs.length} ${m.refs.length === 1 ? 'předloha' : 'předlohy'}` : ''} · {fmtUsd(m.cost_usd)}</small>
               </span>
             </button>
           ))}
@@ -276,7 +302,7 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
         <button className="btn small" onClick={newModel}>+ Nový model</button>
 
         <h3>{target ? `Nová verze: ${title}` : 'Nový model: předlohy'}</h3>
-        {!isUpload && (
+        {!isUpload && !isHotove && (
           <>
             <div className="slots">
               {SLOTS.map(({ view, label }) => {
@@ -313,9 +339,42 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
             <span className="hint">{glb ? glb.name : 'z Blenderu, skriptu nebo dřívějšího běhu'}</span>
           </div>
         )}
+        {isHotove && (
+          <div className="hot">
+            <div className="row">
+              <input className="title-in" placeholder="Co hledat (např. woolly mammoth)" value={hledani}
+                onChange={(e) => setHledani(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') hledat() }} />
+              <button className="btn small" disabled={hledam} onClick={hledat}>{hledam ? 'Hledám…' : 'Hledat'}</button>
+            </div>
+            {nalez && (
+              <div className="hot-list">
+                {nalez.kandidati.map((k) => (
+                  <div key={`${k.zdroj}:${k.id}`} className="hot-row">
+                    {k.nahled ? <img src={k.nahled} alt="" /> : <span className="ph">{k.zdroj === 'smithsonian' ? 'Smithsonian' : 'bez náhledu'}</span>}
+                    <span className="hot-txt">
+                      <b>{k.nazev}</b>
+                      <small className={k.lze_stahnout ? '' : 'bad'}>
+                        {k.zdroj === 'smithsonian' ? 'Smithsonian' : 'Sketchfab'}{k.autor ? ` · ${k.autor}` : ''} · {k.proc_ne ?? k.licence}
+                        {k.stranka && <> · <a href={k.stranka} target="_blank" rel="noreferrer">otevřít na webu</a></>}
+                      </small>
+                    </span>
+                    {!k.lze_stahnout ? <span className="hint">jen předloha</span>
+                      : k.zdroj === 'sketchfab' && !nalez.sketchfab_stazeni ? <span className="hint">chce token</span>
+                      : <button className="btn small" disabled={beru !== null} onClick={() => prevzit(k)}>{beru === k.id ? 'Stahuji…' : 'Převzít · 0 USD'}</button>}
+                  </div>
+                ))}
+                {!nalez.kandidati.length && <p className="hint">Nic nenalezeno. Zkuste anglický nebo latinský název.</p>}
+                {nalez.chyby.map((c) => <p key={c} className="hint bad">{c}</p>)}
+              </div>
+            )}
+            <p className="hint">Do knihovny jde jen CC0 a CC BY; licence se ověří znovu těsně před stažením, autor se uloží k modelu.
+              {nalez && !nalez.sketchfab_stazeni && ' Převzetí ze Sketchfabu chce SKETCHFAB_API_TOKEN v .env.'}</p>
+          </div>
+        )}
         <input className="title-in" placeholder="Název modelu (např. Tatra 87)" value={title} onChange={(e) => setTitle(e.target.value)} />
         <div className="seg method">
           {[
+            { id: 'hotove', label: 'Hotový model · zdarma' },
             { id: 'fal-hunyuan3d', label: `Hunyuan3D v3${filled.length > 1 ? ` · ${filled.length} předlohy` : ''}` },
             { id: 'fal-trellis2', label: 'TRELLIS 2' },
             { id: 'fal-hunyuan31pro', label: `Hunyuan 3.1 Pro${filled.length > 1 ? ` · ${filled.length} předlohy` : ''}` },
@@ -325,19 +384,22 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
             return <button key={o.id} className={on ? 'on' : ''} onClick={() => setMethod(o.id)}>{o.label}</button>
           })}
         </div>
-        {!isUpload && est && (
+        {!isUpload && !isHotove && est && (
           <p className="hint">{method === null || method === est.recommended
             ? `Doporučeno: ${filled.length > 1 ? 'máte víc než jednu předlohu.' : 'jedna předloha.'}`
             : `Doporučeno by bylo ${METHOD_LABEL[est.recommended]}.`}</p>
         )}
-        <button className="btn primary" disabled={!canCreate} onClick={create}>{sending ? 'Odesílám…' : btnLabel}</button>
-        <p className="hint">Kliknutí je souhlas s cenou. Nahraný GLB je zdarma.</p>
+        {!isHotove && <button className="btn primary" disabled={!canCreate} onClick={create}>{sending ? 'Odesílám…' : btnLabel}</button>}
+        {!isHotove && <p className="hint">Kliknutí je souhlas s cenou. Nahraný GLB je zdarma.</p>}
       </aside>
 
       <section className="card m3d-views">
         {!cur ? <p className="empty">Vyberte model vlevo, nebo založte nový.</p> : (
           <>
             <h3>{cur.title} · {cur.version} · model (jen tvar, barvy dodá generátor)</h3>
+            {cur.zdroj && (
+              <p className="hint">Převzato: {cur.author} · {cur.license}{cur.source_url && <> · <a href={cur.source_url} target="_blank" rel="noreferrer">zdroj</a></>}</p>
+            )}
             <div className="row m3d-viewbar">
               <div className="seg">
                 {NAMED.map((n) => <button key={n.label} disabled={!cur.viewer} onClick={() => viewer.current?.view(n.az, n.el)}>{n.label}</button>)}

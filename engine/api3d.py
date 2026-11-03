@@ -12,9 +12,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 from PIL import Image
 
+from pydantic import BaseModel
+
+from engine import hotove3d
 from engine import models3d as m3d
 from engine.models3d import (ELEVATIONS, PARTS, CameraIn, CutoutIn, Model3dError, Model3dIn, Models3d, ReviewIn,
                              StretchIn, ViewsIn)
+
+
+class HotoveIn(BaseModel):
+    zdroj: str                      # smithsonian | sketchfab
+    id: str                         # balíček Smithsonianu / uid Sketchfabu
+    title: str = ""
+    model_id: str | None = None     # nová verze existujícího modelu
+    caller: str = "studio"
 
 
 def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
@@ -81,6 +92,16 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
         png = call(m3d.decode_png, body.b64)
         return {"b64": base64.b64encode(m3d.cutout(png)).decode("ascii")}
 
+    def store_glb(glb: bytes, model_id: str | None, title: str, origin: str | None, caller: str, **extra) -> dict:
+        """Hotový GLB do knihovny jako metoda upload (0 USD) a hned náhled v prohlížeči."""
+        if not m3d.is_glb(glb):
+            raise HTTPException(400, "soubor není GLB (binární glTF)")
+        meta = call(lib.new_version, model_id, title, method="upload", backend=None,
+                    origin=origin, request_id=None, status="model", glb_bytes=len(glb), **extra)
+        (lib.vdir(meta["id"], meta["version"]) / "model.glb").write_bytes(glb)
+        job_id = models3d.enqueue("viewer3d", caller, "blender", {"model_id": meta["id"], "version": meta["version"]})
+        return {"model_id": meta["id"], "version": meta["version"], "job_id": job_id, "estimate_usd": 0.0}
+
     @app.post("/api/v2/models3d", status_code=202)
     def models3d_create(body: Model3dIn):
         est = estimate(body)
@@ -89,14 +110,7 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
                 glb = base64.b64decode(body.glb_b64.split(",", 1)[-1], validate=True)
             except ValueError as e:
                 raise HTTPException(400, f"GLB: neplatné base64 ({e})") from e
-            if not m3d.is_glb(glb):
-                raise HTTPException(400, "nahraný soubor není GLB (binární glTF)")
-            meta = call(lib.new_version, body.model_id, body.title, method="upload", backend=None,
-                        origin=body.origin or None, request_id=None, status="model", glb_bytes=len(glb))
-            (lib.vdir(meta["id"], meta["version"]) / "model.glb").write_bytes(glb)
-            job_id = models3d.enqueue("viewer3d", body.caller, "blender",
-                                      {"model_id": meta["id"], "version": meta["version"]})
-            return {"model_id": meta["id"], "version": meta["version"], "job_id": job_id, "estimate_usd": 0.0}
+            return store_glb(glb, body.model_id, body.title, body.origin or None, body.caller)
         if est["method"] == "upload":
             raise HTTPException(400, "nahrání bez souboru: pošlete glb_b64")
         if not body.confirm_cost:
@@ -116,6 +130,23 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
         job_id = models3d.enqueue("model3d", body.caller, f"fal:{backend.endpoint}",
                                   {"model_id": meta["id"], "version": meta["version"], "caller": body.caller})
         return {"model_id": meta["id"], "version": meta["version"], "job_id": job_id, "estimate_usd": est["total_usd"]}
+
+    @app.get("/api/v2/models3d/hotove")
+    def models3d_hotove_search(q: str):
+        """Hotové modely zdarma (Smithsonian, Sketchfab) dřív, než se generuje; jen nabídka, nic nestahuje."""
+        if not q.strip():
+            raise HTTPException(400, "prázdný dotaz")
+        return hotove3d.search(q.strip())
+
+    @app.post("/api/v2/models3d/hotove", status_code=202)
+    def models3d_hotove_import(body: HotoveIn):
+        """Stáhne vybraný model po ověření licence (jen CC0 a CC BY) a uloží ho s autorem, licencí a odkazem."""
+        try:
+            glb, info = hotove3d.fetch(body.zdroj, body.id)
+        except hotove3d.Hotove3dError as e:
+            raise HTTPException(400, str(e)) from e
+        return store_glb(glb, body.model_id, body.title or info["nazev"], info["origin"], body.caller,
+                         license=info["licence"], author=info["autor"], source_url=info["stranka"], zdroj=body.zdroj)
 
     @app.get("/api/v2/models3d/{model_id}")
     def models3d_get(model_id: str):
@@ -236,7 +267,10 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
         `cam` = a render from the viewer's camera (POST …/camera), otherwise a sheet view."""
         meta = call(lib.read, model_id, version)
         require_review(meta)
-        lic = sorted({r["license"] for r in meta["refs"] if r.get("license")})
+        # Převzatý model nese licenci a autora sám (CC BY chce uvést autora i u odvozeného obrazu)
+        lic = sorted({r["license"] for r in meta["refs"] if r.get("license")} | ({meta["license"]} if meta.get("license") else set()))
+        if meta.get("author"):
+            lic = [f"{x}, autor {meta['author']}" if x == meta.get("license") else x for x in lic]
         if cam:
             info_path = file_of(model_id, version, f"camera/{cam}.json")
             c = json.loads(info_path.read_text(encoding="utf-8"))

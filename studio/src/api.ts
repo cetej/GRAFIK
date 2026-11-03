@@ -499,6 +499,14 @@ export interface Model3dVersion {
   rozmer_zdroj?: string
   legacy?: { dir: string }
   versions?: number
+  license?: string          // převzatý hotový model (engine/hotove3d.py): licence, autor a odkaz na zdroj
+  author?: string
+  source_url?: string
+  zdroj?: 'smithsonian' | 'sketchfab'
+}
+export interface Hotovy3d {
+  zdroj: 'smithsonian' | 'sketchfab'; id: string; nazev: string; autor: string | null; licence: string
+  stranka: string | null; nahled: string | null; trojuhelniky?: number | null; lze_stahnout: boolean; proc_ne: string | null
 }
 export interface Estimate3d { method: string; recommended: string; items: CostItem[]; total_usd: number; eta_s: number; label: string }
 export interface Job3d extends Omit<Job, 'request'> { kind: string; request: { model_id: string; version: string; elevation?: number; recover?: boolean } }
@@ -534,6 +542,9 @@ export const m3dApi = {
     call<{ path: string; role: Role; source: string; license: string | null }>(`${m3}/${id}/${v}/as-ref?azimuth=${azimuth}&elevation=${elevation}`),
   file: (id: string, v: string, name: string, w?: number) => `${m3}/${id}/${v}/files/${name}${w ? `?w=${w}` : ''}`,
   glb: (id: string, v: string) => `${m3}/${id}/${v}/model.glb`,
+  hotove: (q: string) => call<{ kandidati: Hotovy3d[]; chyby: string[]; sketchfab_stazeni: boolean }>(`${m3}/hotove?q=${encodeURIComponent(q)}`),
+  prevzit: (body: { zdroj: string; id: string; title?: string; model_id?: string | null }) =>
+    post<{ model_id: string; version: string; job_id: string; estimate_usd: number }>(`${m3}/hotove`, body),
 }
 
 // -- 3D scenes (engine/api_scenes3d.py, docs/plans/2026-10-27-3d-sceny.md) ---------------------------------

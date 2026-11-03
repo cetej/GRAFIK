@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-03 — Hotový 3D model zdarma před generováním: Smithsonian a Sketchfab, jen CC0 a CC BY
+
+Operátor zvolil krok 3 rozboru STOPA (`outputs/2026-11-03-provazani-projektu-a-3d-kodem.md`) a schválil náčrt panelu („Ano, podle náčrtu“).
+
+- **Co:** ve Studiu u 3D modelů první volba „Hotový model · zdarma“: hledání v Smithsonian 3D a na Sketchfabu, karty s autorem, licencí a odkazem, tlačítko „Převzít · 0 USD“. Engine `engine/hotove3d.py`, `GET/POST /api/v2/models3d/hotove`; model jde do knihovny jako `upload` s poli `license`, `author`, `source_url`, `zdroj`.
+- **Licence:** do knihovny jen CC0 a CC BY. NC a ND ne (NG je komerční), ShareAlike taky ne: odvozený obraz by musel nést stejnou licenci, model zůstane jen jako předloha s odkazem. Licence se ověřuje znovu těsně před stažením (Smithsonian přes Open Access API `usage.access`, Sketchfab přes detail modelu). U CC BY jde autor do textu předlohy z modelu (`as-ref`).
+- **Pokrytí (měření 2026-11-03 na 12 objektech knihovny):** Smithsonian má skutečný model jen u mamuta a trilobita, jinde náhodné shody slov. Sketchfab má CC0/CC BY model ke stažení skoro ke všemu (Koloseum, Pantheon, loď, Doryforos CC0 z SMK, amfora), chybí Tatra 87; kvalita kolísá, vybírá operátor.
+- **Přístup:** Smithsonian bez účtu, kontrola licence s `SI_API_KEY` z api.data.gov, jinak `DEMO_KEY` (nízký hodinový limit). Sketchfab hledá bez účtu, stahuje jen s `SKETCHFAB_API_TOKEN` účtu operátora; bez něj karta ukáže „chce token“.
+- **Proč urllib:** Sketchfab odpovídá httpx prázdným `202` (ochrana proti botům), urllib projde (LEARNINGS).
+
 ## 2026-11-03 — Tlačítko „Animace v POHYBu“: balík podkladů, zadání čeká v POHYBu
 
 Operátor: „Další funkcionalita by měla přidat tlačítko, které pošle grafiku ke zpracování i s podklady do projektu Pohyb k vytvoření animované formy sdělení.“ Náčrt formátu a dialogu schválil: „Ano, stav to“.

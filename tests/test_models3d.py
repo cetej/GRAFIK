@@ -244,6 +244,28 @@ def test_upload_rejects_non_glb(api):
     assert r.status_code == 400 and "GLB" in r.json()["detail"]
 
 
+def test_hotove_import_keeps_author_licence_and_link(api, monkeypatch):
+    from engine import hotove3d
+
+    info = {"nazev": "Mammuthus primigenius", "autor": "Smithsonian Institution, NMNH", "licence": "CC0",
+            "stranka": "https://3d-api.si.edu/voyager/3d_package:x", "origin": "Smithsonian 3D: Mammuthus primigenius, …"}
+    monkeypatch.setattr(hotove3d, "fetch", lambda zdroj, mid: (GLB, info))
+    r = api.post("/api/v2/models3d/hotove", json={"zdroj": "smithsonian", "id": "x"})
+    assert r.status_code == 202, r.text
+    assert wait(api, r.json()["job_id"])["status"] == "done"
+    meta = api.get(f"/api/v2/models3d/{r.json()['model_id']}").json()["versions"][0]
+    assert meta["title"] == "Mammuthus primigenius" and meta["method"] == "upload" and meta["cost_usd"] == 0.0
+    assert (meta["license"], meta["author"], meta["source_url"], meta["zdroj"]) == ("CC0", info["autor"], info["stranka"], "smithsonian")
+
+    def refused(zdroj, mid):
+        raise hotove3d.Hotove3dError("Sketchfab: nekomerční licence (NC), NG ji použít nesmí")
+
+    monkeypatch.setattr(hotove3d, "fetch", refused)
+    r = api.post("/api/v2/models3d/hotove", json={"zdroj": "sketchfab", "id": "y"})
+    assert r.status_code == 400 and "NC" in r.json()["detail"]
+    assert api.get("/api/v2/models3d/hotove", params={"q": " "}).status_code == 400
+
+
 def test_migrate_legacy_copies(tmp_path):
     old = tmp_path / "3d" / "tatra87-hunyuan3d"
     old.mkdir(parents=True)
