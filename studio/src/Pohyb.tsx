@@ -35,7 +35,7 @@ export default function PohybDialog({ start, onClose, onError }: { start: PohybI
     try { setSent(await pohybApi.send(chosen, sdeleni, format || preview?.format || '')) } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
   }
   const why = !pages ? '' : !pages.pohyb_bezi ? `POHYB neběží (${pages.pohyb_url}). Spusťte start-pohyb.bat a otevřete dialog znovu.` : !chosen.length ? 'Vyberte aspoň jednu stránku.' : ''
-  const total = preview?.stranky.reduce((a, s) => ({ objekty: a.objekty + s.objekty, popisky: a.popisky + s.popisky, panely: a.panely + s.panely }), { objekty: 0, popisky: 0, panely: 0 })
+  const total = preview?.stranky.reduce((a, s) => ({ objekty: a.objekty + s.objekty, popisky: a.popisky + s.popisky, panely: a.panely + s.panely, modely: a.modely + s.modely }), { objekty: 0, popisky: 0, panely: 0, modely: 0 })
 
   return (
     <div className="modal" onClick={onClose}>
@@ -83,6 +83,7 @@ export default function PohybDialog({ start, onClose, onError }: { start: PohybI
                 <li>{preview.stranky.length} {preview.stranky.length === 1 ? 'stránka' : preview.stranky.length < 5 ? 'stránky' : 'stránek'}: hotový obraz{preview.stranky.some((s) => s.vrstvy) ? ', vrstvy, obraz bez textu' : ''}{total.objekty ? `, ${total.objekty} objektů zvlášť` : ''}</li>
                 {total.popisky > 0 && <li>{total.popisky} popisků s místem a kotvou</li>}
                 {total.panely > 0 && <li>{total.panely} panelů s body.json</li>}
+                {total.modely > 0 && <li>{total.modely} {total.modely === 1 ? '3D model' : total.modely < 5 ? '3D modely' : '3D modelů'} (GLB) k rozpohybování</li>}
                 {preview.predlohy > 0 && <li>{preview.predlohy} předloh s autorem a licencí</li>}
                 {preview.reserse.length > 0 && <li>rešerše {preview.reserse.join(', ')}, {preview.fakta} faktů se zdroji</li>}
                 <li>zdroje a výhrady (AI, model, licence)</li>

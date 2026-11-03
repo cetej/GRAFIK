@@ -2,6 +2,8 @@
 #   blender -b --factory-startup -P scripts/3d/tesla_stroje.py -- SHOT OUT_DIR [--samples 96] [--res W H]
 # SHOT = motor | civka | vez | vez-tema | vez-nad | hala | turbina | elektrarna | transformator | prijimac | lod | trubice | trubice2. Writes OUT_DIR/SHOT/obraz.png (transparent, with a contact shadow) and body.json,
 # which holds the canvas position of every named point, so a label sits exactly on the machine.
+# With --glb (motor, civka, vez-tema) it writes OUT_DIR/SHOT/model.glb instead: one mesh per part of PARTS, its origin is the pivot, extras say how it moves,
+# empties kotva-<point> mark the label points. POHYB reads the parts by name, so names and pivots stay as they are.
 # Proportions follow the patent drawings and the sources in docs/spikes/2026-11-01-plakaty-osoba-zvire.md, details without a source are illustrative.
 import json
 import math
@@ -29,6 +31,7 @@ def opt(name, default, n=1):
     return default
 
 
+GLB = "--glb" in args      # instead of the render OUT_DIR/SHOT/model.glb with named parts for POHYB, see PARTS
 SAMPLES = int(opt("--samples", 96))
 RES = [int(v) for v in opt("--res", (1400, 1400), 2)]
 if "--res" not in args:
@@ -37,7 +40,27 @@ TWO_PI = 2 * math.pi
 POINTS = {}
 
 
+def plain(name, rgb, rough=0.5, metal=0.0, glow=0.0):
+    """--glb: glTF nese jen Principled BSDF bez šumu, barva je lineární."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (*rgb, 1)
+    bsdf.inputs["Roughness"].default_value, bsdf.inputs["Metallic"].default_value = rough, metal
+    if glow:
+        bsdf.inputs["Emission Color"].default_value = (*rgb, 1)
+        bsdf.inputs["Emission Strength"].default_value = glow
+    return m
+
+
+def linear(hex_color):
+    c = [int(hex_color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    return tuple(v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4 for v in c)
+
+
 def material(name, a, b=None, scale=200.0, rough=0.5, metal=0.0, dist=0.05, ao=0.6, bump=0.0, bevel=0.0):
+    if GLB:
+        return plain(name, linear(a), rough, metal)
     m, t, bsdf = pm.new_mat(name, rough, metal)
     co = pm.coords(t)
     fac = pm.noise_of(t, co, scale)
@@ -52,6 +75,8 @@ def material(name, a, b=None, scale=200.0, rough=0.5, metal=0.0, dist=0.05, ao=0
 
 
 def emission(name, color, strength):
+    if GLB:
+        return plain(name, color, glow=strength)
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     t = m.node_tree
@@ -860,11 +885,83 @@ def studio(camera_dir):
         sun.rotation_quaternion = Vector((math.cos(a) * math.cos(e), math.sin(a) * math.cos(e), math.sin(e))).to_track_quat("Z", "Y")
 
 
+# --glb: parts in the order they claim objects (regex on the object name), the last one takes the rest.
+# pohyb: otaceni = turns about `osa` through the pivot, vyboj = discharge that flickers, zare = glows; pivot and axis in Blender coordinates, None = centre of the part.
+PARTS = {
+    "motor": [("rotor", r"^(rotor|bar\d+|end_[fb]|shaft|pulley|key)$", "otaceni", (0, 1, 0), (0, 0.06, 0), "Rotor na hřídeli, točí se v poli statoru"),
+              ("civky", r"^(coil|pole|shoe)\d", "zare", None, None, "Cívky statoru, točivé magnetické pole"),
+              ("svorky", r"^(block|post\d|lead\d)", None, None, None, "Svorky dvou fází"),
+              ("kostra", r"", None, None, None, "Kostra, stator a podstavec")],
+    "civka": [("vyboje", r"^arc\d", "vyboj", None, (0, 0, 0.945), "Výboje z prstence na vrcholu"),
+              ("jiskra", r"^gap_arc$", "vyboj", None, None, "Jiskra v jiskřišti"),
+              ("vrchol", r"^(torus|web|cap)$", None, None, None, "Prstenec na vrcholu"),
+              ("sekundar", r"^(secondary|wire|collar)$", "zare", None, None, "Vysoká sekundární cívka"),
+              ("primar", r"^(primary|rib\d|leg\d)$", None, None, None, "Spodní primární cívka"),
+              ("kondenzatory", r"^(jar_|lead)", None, None, None, "Leydenské láhve a přívody"),
+              ("jiskriste", r"^gap_", None, None, None, "Jiskřiště"),
+              ("podstavec", r"", None, None, None, "Dřevěný podstavec")],
+    "vez-tema": [("kopule", r"^(rib|strut|hoop)", "zare", None, (0, 0, 57.0), "Ocelová kupole"),
+                 ("vez", r"^(leg\d|x\d|ring\d|mast|deck)", None, None, None, "Dřevěná věž"),
+                 ("zem", r"^(earth|shaft|pipe|rung)", None, None, None, "Podloží a šachta v řezu"),
+                 ("dilna", r"", None, None, None, "Cihlová dílna")],
+}
+
+
+def export_glb():
+    """Each part is one mesh with its origin at the pivot; transforms and modifiers are applied, so the GLB has no negative scale."""
+    import re
+    scene = bpy.context.scene
+    objs = [o for o in scene.objects if o.type in ("MESH", "CURVE")]
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.convert(target="MESH")
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    left = {o.name: o for o in scene.objects if o.type == "MESH"}
+    to_gltf = lambda v: [round(v[0], 5), round(v[2], 5), round(-v[1], 5)]      # noqa: E731  Blender Z up -> glTF Y up
+    for name, pattern, motion, axis, pivot, popis in PARTS[SHOT]:
+        mine = [o for n, o in left.items() if re.match(pattern, n)]
+        for o in mine:
+            del left[o.name]
+        if not mine:
+            raise SystemExit(f"part {name}: no object")
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in mine:
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = mine[0]
+        if len(mine) > 1:
+            bpy.ops.object.join()
+        part = bpy.context.view_layer.objects.active
+        part.name = part.data.name = name
+        if pivot is None:
+            pts = [part.matrix_world @ Vector(c) for c in part.bound_box]
+            pivot = sum(pts, Vector()) / 8
+        pivot = Vector(pivot)
+        part.data.transform(Matrix.Translation(-pivot))
+        part.matrix_world = Matrix.Translation(pivot)
+        part["cast"], part["popis"] = name, popis
+        if motion:
+            part["pohyb"] = motion
+        if axis:
+            part["osa"] = to_gltf(axis)
+    for k, p in POINTS.items():
+        e = link(bpy.data.objects.new(f"kotva-{k}", None))
+        e.location = p
+        e["kotva"] = k
+    OUT.mkdir(parents=True, exist_ok=True)
+    bpy.ops.export_scene.gltf(filepath=str(OUT / "model.glb"), export_format="GLB", export_extras=True, export_apply=True, export_yup=True,
+                              export_cameras=False, export_lights=False)
+    print("STATS", json.dumps({"shot": SHOT, "glb": str(OUT / "model.glb"), "parts": [p[0] for p in PARTS[SHOT]], "points": sorted(POINTS)}))
+
+
 def main():
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
     info = {"motor": motor, "civka": civka, "civka-bez": civka, "vez": vez, "vez-tema": lambda: vez(on_dark=True), "turbina": turbina, "elektrarna": elektrarna, "vez-nad": lambda: vez(False, True, False), "hala": lambda: vez(False, False, True),
             "transformator": transformator, "prijimac": prijimac, "lod": lod, "trubice": trubice, "trubice2": trubice2}[SHOT]()
+    if GLB:
+        return export_glb()
     scene = bpy.context.scene
     device = setup_render()
     d = Vector(info["dir"]).normalized()
