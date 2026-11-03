@@ -14,8 +14,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 import re
 import shutil
+import struct
 import subprocess
 import threading
 import time
@@ -147,6 +149,11 @@ class StretchIn(BaseModel):
     source: str = ""                # where the dimensions come from
 
 
+class RotateIn(BaseModel):
+    axis: str                       # x | y | z (glTF, Y nahoru)
+    deg: int                        # 90 | -90 | 180
+
+
 class CutoutIn(BaseModel):
     b64: str
 
@@ -252,6 +259,28 @@ def _now() -> str:
 
 def is_glb(data: bytes) -> bool:
     return data[:4] == b"glTF"
+
+
+def rotate_glb(glb: bytes, axis: str, deg: int) -> bytes:
+    """Otočí celý model kolem osy glTF (Y nahoru) přidáním nadřazeného uzlu s rotací; binární data (i Draco) zůstanou."""
+    if len(glb) < 20 or not is_glb(glb):
+        raise Model3dError("soubor není GLB")
+    json_len, json_type = struct.unpack_from("<II", glb, 12)
+    if json_type != 0x4E4F534A:
+        raise Model3dError("GLB nemá JSON na začátku")
+    doc = json.loads(glb[20:20 + json_len])
+    rest = glb[20 + json_len:]  # BIN chunk beze změny
+    half = math.radians(deg) / 2
+    q = [0.0, 0.0, 0.0, math.cos(half)]
+    q["xyz".index(axis)] = math.sin(half)
+    scene = doc["scenes"][doc.get("scene", 0)]
+    doc.setdefault("nodes", []).append({"name": f"otoceni_{axis}{deg:+d}", "rotation": [round(v, 9) for v in q],
+                                        "children": scene.get("nodes", [])})
+    scene["nodes"] = [len(doc["nodes"]) - 1]
+    body = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    body += b" " * (-len(body) % 4)
+    out = struct.pack("<II", len(body), 0x4E4F534A) + body + rest
+    return struct.pack("<4sII", b"glTF", 2, 12 + len(out)) + out
 
 
 class Model3dLibrary:

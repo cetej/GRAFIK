@@ -266,6 +266,48 @@ def test_hotove_import_keeps_author_licence_and_link(api, monkeypatch):
     assert api.get("/api/v2/models3d/hotove", params={"q": " "}).status_code == 400
 
 
+def _glb(doc: dict, bin_: bytes = b"\x01\x02\x03\x04") -> bytes:
+    import struct
+
+    body = json.dumps(doc).encode()
+    body += b" " * (-len(body) % 4)
+    chunks = struct.pack("<II", len(body), 0x4E4F534A) + body + struct.pack("<II", len(bin_), 0x004E4942) + bin_
+    return struct.pack("<4sII", b"glTF", 2, 12 + len(chunks)) + chunks
+
+
+def test_rotate_glb_wraps_scene_and_keeps_binary():
+    import struct
+
+    from engine.models3d import rotate_glb
+
+    src = _glb({"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0, 1]}], "nodes": [{"mesh": 0}, {"mesh": 1}]})
+    out = rotate_glb(src, "z", 90)
+    json_len = struct.unpack_from("<I", out, 12)[0]
+    doc = json.loads(out[20:20 + json_len])
+    assert struct.unpack_from("<I", out, 8)[0] == len(out) and json_len % 4 == 0
+    assert out.endswith(b"\x01\x02\x03\x04") and doc["scenes"][0]["nodes"] == [2]
+    root = doc["nodes"][2]
+    assert root["children"] == [0, 1] and root["rotation"] == pytest.approx([0, 0, 0.707106781, 0.707106781])
+    with pytest.raises(Model3dError):
+        rotate_glb(b"not a glb", "x", 90)
+
+
+def test_rotate_endpoint_makes_new_version_with_licence(api, monkeypatch):
+    from engine import hotove3d
+
+    glb = _glb({"asset": {"version": "2.0"}, "scenes": [{"nodes": [0]}], "nodes": [{"mesh": 0}]})
+    monkeypatch.setattr(hotove3d, "fetch", lambda zdroj, mid: (glb, {"nazev": "Mamut", "autor": "SI", "licence": "CC0",
+                                                                     "stranka": "https://si", "origin": "Smithsonian 3D: Mamut"}))
+    r = api.post("/api/v2/models3d/hotove", json={"zdroj": "smithsonian", "id": "x"}).json()
+    wait(api, r["job_id"])
+    rot = api.post(f"/api/v2/models3d/{r['model_id']}/v1/rotate", json={"axis": "x", "deg": -90})
+    assert rot.status_code == 202, rot.text
+    assert wait(api, rot.json()["job_id"])["status"] == "done"
+    v2 = api.get(f"/api/v2/models3d/{r['model_id']}").json()["versions"][1]
+    assert (v2["method"], v2["parent"], v2["rotate"], v2["license"], v2["author"]) == ("rotate", "v1", {"axis": "x", "deg": -90}, "CC0", "SI")
+    assert api.post(f"/api/v2/models3d/{r['model_id']}/v1/rotate", json={"axis": "w", "deg": 45}).status_code == 400
+
+
 def test_migrate_legacy_copies(tmp_path):
     old = tmp_path / "3d" / "tatra87-hunyuan3d"
     old.mkdir(parents=True)
