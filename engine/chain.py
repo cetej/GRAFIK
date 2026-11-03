@@ -233,7 +233,8 @@ class Chain:
         if image.get("slozka"):
             folder = self.s.library_dir / image["slozka"]
             path, points = folder / "obraz.png", json.loads((folder / "body.json").read_text(encoding="utf-8")).get("points", {})
-            source = {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {})}
+            source = {"slozka": image["slozka"], **({"ai": image["ai"]} if image.get("ai") else {}),
+                      **({k: image["model"][k] for k in ("model_id", "version")} if image.get("model") else {})}     # model za obrazem jde s předávkou do POHYBu
         else:
             path, points, source = self.reflib.image_path(image["ref_id"]), {}, {"ref_id": image["ref_id"]}
             meta = self.reflib.get(image["ref_id"]) or {}

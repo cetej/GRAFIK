@@ -14,7 +14,7 @@ import pytest
 from PIL import Image
 
 from engine.pohyb import split_layers
-from tests.test_panels import api, doc, settings  # noqa: F401  (fixtures)
+from tests.test_panels import api, doc, fields, settings, shot  # noqa: F401  (fixtures)
 
 
 def png(size=(40, 60), color=(200, 120, 40, 255)) -> bytes:
@@ -124,7 +124,7 @@ def test_preview_counts_what_goes_and_writes_nothing(api, settings, pohyb):
     r = api.post("/api/v2/pohyb/nahled", json={"polozky": [{"obrazek": ref}, {"obrazek": plain}]})
     assert r.status_code == 200, r.text
     p = r.json()
-    assert p["stranky"][0] == {"nazev": "Muž na dně studny", "vrstvy": True, "objekty": 1, "popisky": 1, "panely": 0}
+    assert p["stranky"][0] == {"nazev": "Muž na dně studny", "vrstvy": True, "objekty": 1, "popisky": 1, "panely": 0, "modely": 0}
     assert p["stranky"][1]["vrstvy"] is False and p["format"] == "9:16"
     assert any("Bez vrstev" in n for n in p["upozorneni"]) and any("předlohy ani rešerši" in n for n in p["upozorneni"])
     assert not (settings.library_dir / "pohyb").exists()
@@ -181,3 +181,55 @@ def test_panel_document_sends_its_panels_with_anchors(api, settings, doc, pohyb)
         assert hero["obraz"] in names and hero["body"] in names and hero["vrstvy"] == ["stranky/1/panely/hlavni/vrstva-zed.png"]
         assert page["hlavni"] == [0, 100, 800, 400]
         assert any(t["role"] == "popisek" and t["kotva"] for t in page["texty"])
+
+
+def glb(nodes: list[dict]) -> bytes:
+    """Nejmenší GLB: jen kus JSON s uzly, jako ho píše scripts/3d/tesla_stroje.py --glb."""
+    text = json.dumps({"asset": {"version": "2.0"}, "nodes": nodes}).encode()
+    text += b" " * (-len(text) % 4)
+    return b"glTF" + (2).to_bytes(4, "little") + (20 + len(text)).to_bytes(4, "little") + len(text).to_bytes(4, "little") + b"JSON" + text
+
+
+def model(settings, model_id: str, nodes: list[dict]) -> None:
+    folder = settings.library_dir / "3d" / model_id / "v1"
+    folder.mkdir(parents=True)
+    (folder / "model.glb").write_bytes(glb(nodes))
+    (folder / "model.json").write_text(json.dumps({"id": model_id, "version": "v1", "title": model_id, "method": "upload"}), encoding="utf-8")
+
+
+def test_models_behind_panels_go_along_with_their_moving_parts(api, settings, pohyb):
+    """Tesla 3. 11.: obraz tématu (`slozka`) ukazoval na model jen přes obrazy.json a předávka GLB vynechala."""
+    rotor = {"name": "rotor", "translation": [0, 0, -0.06], "extras": {"cast": "rotor", "pohyb": "otaceni", "osa": [0, 0, -1], "popis": "Rotor"}}
+    model(settings, "motor-test", [rotor, {"name": "kotva-rotor", "extras": {"kotva": "rotor"}}])
+    model(settings, "civka-test", [{"name": "vyboje", "extras": {"cast": "vyboje", "pohyb": "vyboj"}}])
+    shot(settings.library_dir / "tema" / "Q1" / "obrazy" / "motor", ["zed"])
+    shot(settings.library_dir / "strely" / "detail")
+    (settings.library_dir / "tema" / "Q1" / "obrazy.json").write_text(json.dumps({"obrazy": [
+        {"id": "motor", "nazev": "Motor", "slozka": "tema/Q1/obrazy/motor", "model": {"model_id": "motor-test", "version": "v1"}}]}), encoding="utf-8")
+    body = fields()
+    body["panels"][0]["zdroj"] = {"slozka": "tema/Q1/obrazy/motor"}                                  # starý dokument: model jen v obrazy.json
+    body["panels"][1]["zdroj"] = {"slozka": "strely/detail", "model_id": "civka-test", "version": "v1"}     # nový dokument: model ve zdroji
+    doc = api.post("/api/v2/infographics/panels", json=body).json()
+    item = {"polozky": [{"infografika": doc["id"]}]}
+    assert api.post("/api/v2/pohyb/nahled", json=item).json()["stranky"][0]["modely"] == 2
+    r = api.post("/api/v2/pohyb", json=item)
+    assert r.status_code == 201, r.text
+    with zipfile.ZipFile(io.BytesIO(pohyb.received[0])) as z:
+        names = set(z.namelist())
+        found = {p["id"]: p for p in json.loads(z.read("manifest.json"))["stranky"][0]["panely"]}
+        hero, detail = found["hlavni"], found["detail"]
+        assert hero["model"] == "stranky/1/modely/hlavni.glb" and hero["model"] in names and hero["model_id"] == "motor-test"
+        assert hero["casti"] == [{"uzel": "rotor", "stred": [0, 0, -0.06], "cast": "rotor", "pohyb": "otaceni", "osa": [0, 0, -1], "popis": "Rotor"}]
+        assert z.read(hero["model"]) == (settings.library_dir / "3d" / "motor-test" / "v1" / "model.glb").read_bytes()
+        assert detail["model_id"] == "civka-test" and detail["casti"][0]["pohyb"] == "vyboj" and detail["model"] in names
+        assert "stranky/1/modely/hlavni.json" in names
+
+
+def test_picture_without_a_model_or_with_a_missing_one_goes_without_glb(api, settings, doc, pohyb):
+    (settings.library_dir / "strely" / "obrazy.json").write_text(json.dumps({"obrazy": [
+        {"id": "hlavni", "nazev": "Věž", "slozka": "strely/hlavni", "model": {"model_id": "smazany", "version": "v1"}}]}), encoding="utf-8")
+    r = api.post("/api/v2/pohyb", json={"polozky": [{"infografika": doc["id"]}]})
+    assert r.status_code == 201, r.text
+    with zipfile.ZipFile(io.BytesIO(pohyb.received[0])) as z:
+        assert not any(n.endswith(".glb") for n in z.namelist())
+        assert all("model" not in p for p in json.loads(z.read("manifest.json"))["stranky"][0]["panely"])

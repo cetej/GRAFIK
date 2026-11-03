@@ -603,7 +603,7 @@ export const scenesApi = {
 export interface PohybItem { obrazek?: string; infografika?: string }
 export interface PohybPages { nabidka: { polozka: PohybItem; nazev: string; nahled: string | null }[]; vybrane: PohybItem[]; pohyb_bezi: boolean; pohyb_url: string }
 export interface PohybPreview {
-  stranky: { nazev: string; vrstvy: boolean; objekty: number; popisky: number; panely: number }[]
+  stranky: { nazev: string; vrstvy: boolean; objekty: number; popisky: number; panely: number; modely: number }[]
   predlohy: number
   reserse: string[]
   fakta: number

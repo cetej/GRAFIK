@@ -17,6 +17,8 @@ MARGIN = 24
 SOLID = 200             # alpha of the object itself, the contact shadow is below it
 FIGURE_AI = "Hunyuan 3.1 Pro a FLUX 3 Klein"
 SOURCE = {"vez": "vez-tema"}    # picture id -> render folder, where the page needs another render than the poster
+# picture id -> 3D model in library/3d, goes with the page to POHYB (engine/pohyb.py); machines: tesla_stroje.py --glb, uploaded as method upload
+MODELS = {"motor": "tesluv-indukcni-motor", "civka": "teslova-civka", "vez": "vez-wardenclyffe", "postava": "nikola-tesla-postava-v-obleku"}
 SHAFT_M = 37.0
 SOIL_M = 5.0            # the ground under the tower fades out within this depth
 SHAFT_FADE_M = (9.0, 17.0)      # the shaft goes on below it and disappears here, the label gives the real depth
@@ -47,6 +49,10 @@ def prepared(im: Image.Image) -> tuple[Image.Image, tuple[int, int]]:
     soft = crop[..., 3] < SOLID
     crop[..., 3] = np.where(soft, crop[..., 3] * edge, crop[..., 3])
     return Image.fromarray(crop.astype(np.uint8), "RGBA"), (x0, y0)
+
+
+def model(shot: str) -> dict:
+    return {"model": {"model_id": MODELS[shot], "version": "v1"}} if shot in MODELS else {}
 
 
 def smooth(v):
@@ -94,7 +100,7 @@ def main() -> int:
         picture.save(folder / "obraz.png")
         points = {k: [u - dx, v - dy] for k, (u, v) in kept.items()}
         (folder / "body.json").write_text(json.dumps({"res": list(picture.size), "points": points}, ensure_ascii=False, indent=1), encoding="utf-8")
-        obrazy.append({"id": shot, "nazev": name, "slozka": folder.relative_to(library).as_posix(), "popisky": labels})
+        obrazy.append({"id": shot, "nazev": name, "slozka": folder.relative_to(library).as_posix(), "popisky": labels, **model(shot)})
     folder = root / "obrazy" / "postava"
     folder.mkdir(parents=True, exist_ok=True)
     with Image.open(figure) as im:
@@ -102,7 +108,7 @@ def main() -> int:
     picture = rgba.crop(rgba.getchannel("A").getbbox())
     picture.save(folder / "obraz.png")
     (folder / "body.json").write_text(json.dumps({"res": list(picture.size), "points": {}}), encoding="utf-8")
-    obrazy.append({"id": "postava", "nazev": "Nikola Tesla, 3D figura", "kratce": "Figura", "druh": "osoba", "slozka": folder.relative_to(library).as_posix(), "ai": FIGURE_AI})
+    obrazy.append({"id": "postava", "nazev": "Nikola Tesla, 3D figura", "kratce": "Figura", "druh": "osoba", "slozka": folder.relative_to(library).as_posix(), "ai": FIGURE_AI, **model("postava")})
     (root / "obrazy.json").write_text(json.dumps({"obrazy": obrazy}, ensure_ascii=False, indent=1), encoding="utf-8")
     print(root, len(obrazy))
     return 0

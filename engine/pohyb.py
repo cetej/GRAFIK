@@ -169,6 +169,21 @@ def video_format(width: int, height: int) -> str:
     return "9:16" if height > width * 1.1 else "16:9" if width > height * 1.1 else "1:1"
 
 
+def glb_parts(glb: Path) -> list[dict]:
+    """Pojmenované části modelu, které se mají hýbat: uzly GLB s `extras.cast` (scripts/3d/tesla_stroje.py --glb).
+    Střed otáčení je poloha uzlu, osa a druh pohybu jsou v extras, souřadnice glTF (Y nahoru, metry)."""
+    data = glb.read_bytes()
+    if data[:4] != b"glTF" or data[16:20] != b"JSON":
+        return []
+    length = int.from_bytes(data[12:16], "little")
+    try:
+        gltf = json.loads(data[20:20 + length])
+    except ValueError:
+        return []
+    return [{"uzel": n.get("name"), "stred": n.get("translation", [0, 0, 0]), **n["extras"]}
+            for n in gltf.get("nodes", []) if isinstance(n.get("extras"), dict) and n["extras"].get("cast")]
+
+
 def zip_dir(folder: Path) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
@@ -271,7 +286,8 @@ class Bundler:
             out.append({"nazev": page["nazev"], "vrstvy": layers is not None,
                         "objekty": len(layers["objekty"]) if layers else 0,
                         "popisky": sum(t["role"] == "popisek" for t in layers["texty"]) if layers else 0,
-                        "panely": len(doc.get("panels") or []) if doc else 0})
+                        "panely": len(doc.get("panels") or []) if doc else 0,
+                        "modely": sum(bool(self.model_source(p.get("zdroj") or {})) for p in (doc or {}).get("panels") or [])})
             if layers is None:
                 notes.append(f"„{page['nazev']}“ nemá vrstvy: pojede jen hotový obraz s textem")
         extras = self._extras(pages)
@@ -436,8 +452,8 @@ class Bundler:
                 item.update(obraz=rel(folder / "obraz.png"), vrstvy=[rel(p) for p in sorted(folder.glob("vrstva-*.png"))])
             if (folder / "body.json").is_file():
                 item["body"] = rel(folder / "body.json")
-            source = panel.get("zdroj") or {}
-            if source.get("model_id"):
+            source = self.model_source(panel.get("zdroj") or {})
+            if source:
                 try:
                     model = self.model_dir(source)
                 except Exception:       # noqa: BLE001  model smazaný nebo neplatné id: panel jede bez GLB
@@ -447,10 +463,26 @@ class Bundler:
                     target = out / "modely" / f"{panel['id']}.glb"
                     target.parent.mkdir(exist_ok=True)
                     shutil.copy2(glb, target)
-                    item["model"] = rel(target)
+                    item.update(model=rel(target), model_id=source["model_id"], casti=glb_parts(glb))
                     if (model / "model.json").is_file():
                         shutil.copy2(model / "model.json", target.with_suffix(".json"))
             entry["panely"].append(item)
+
+    def model_source(self, source: dict) -> dict | None:
+        """Model za obrazem panelu: přímo `model_id`, nebo vlastní obraz tématu (`slozka`), který obrazy.json spojuje s modelem (`model`)."""
+        if source.get("model_id"):
+            return source
+        if not source.get("slozka"):
+            return None
+        for parent in Path(source["slozka"]).parents:
+            listing = self.s.library_dir / parent / "obrazy.json"
+            if listing.is_file():
+                try:
+                    pictures = json.loads(listing.read_text(encoding="utf-8"))["obrazy"]
+                except (OSError, ValueError, KeyError, TypeError):
+                    return None
+                return next((o["model"] for o in pictures if o.get("slozka") == source["slozka"] and o.get("model")), None)
+        return None
 
     # -- POHYB --------------------------------------------------------------------
     def pohyb_running(self) -> bool:
