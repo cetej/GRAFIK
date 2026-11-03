@@ -174,6 +174,21 @@ def test_usd_from_usage_and_unknown_model_at_the_top_price():
     assert claude.usd_for("neznámý", 1_000_000, 0) == 10.0
 
 
+def test_flat_typeset_takes_size_and_offset():
+    """Položky legendy stejně velké (size_px) a nadpis odsazený od řádku pod ním (offset), jako tisk.py."""
+    img = Image.new("RGB", (400, 120), (150, 165, 135))
+    box = _text(img, (200, 60), "Legend", 24, (255, 255, 255))
+    base = np.array(img)
+    plain = _el(box, en="Legend", cs="Legenda", color="#ffffff")
+    tuned = _el(box, en="Legend", cs="Legenda", color="#ffffff", size_px=19, offset=[0, -6])
+    _, measured, _ = L.erase(base, [plain])
+    _, svg_a, rep_a = L.typeset(Image.fromarray(base), [plain], measured, "x.png")
+    _, svg_b, rep_b = L.typeset(Image.fromarray(base), [tuned], measured, "x.png")
+    assert rep_b[0]["size_px"] == 19 and rep_a[0]["size_px"] != 19
+    y = lambda svg: float(svg.split('<tspan')[1].split('y="')[1].split('"')[0])  # noqa: E731
+    assert y(svg_a) - y(svg_b) == pytest.approx(6, abs=1.5)
+
+
 def test_parse_json_takes_the_object_out_of_prose():
     assert claude.parse_json('Tady: {"a": 1} hotovo', "x") == {"a": 1}
     with pytest.raises(claude.ClaudeError, match="není JSON"):
