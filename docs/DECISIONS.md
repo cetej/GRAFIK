@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-03 — Tlačítko „Animace v POHYBu“: balík podkladů, zadání čeká v POHYBu
+
+Operátor: „Další funkcionalita by měla přidat tlačítko, které pošle grafiku ke zpracování i s podklady do projektu Pohyb k vytvoření animované formy sdělení.“ Náčrt formátu a dialogu schválil: „Ano, stav to“.
+
+- **Kde:** u hotového obrázku z Knihovny a u dokumentu s panely. Dialog nabídne stránky a předvybere sérii: u dokumentu podle `serie.wf`, u obrázků z Knihovny ty nahrané do minuty spolu, v pořadí „N ze M“ z popisku. Pořadí určuje operátor klikáním.
+- **Co pojede:** balík `library/pohyb/<id>/` s `manifest.json` (`grafik-predavka` verze 1) a kopiemi souborů, nic se nepřepisuje. Z vrstev rendereru (`Grafika`, `Texty`) vznikne obraz bez textu, každý objekt jako PNG s polohou, popisky s místem, kotvou a barvou, značky a oblast hlavního obrazu, která se nesmí oříznout. Dokument s panely přidá panely s `body.json` a vrstvami renderu, GLB modelu, předlohy s autorem a licencí, dossier rešerše a použitá fakta se zdroji. Důvod: přesně tohle se u ručního klipu k vojákovi ve studni (POHYB `spikes/velsen`) dodělávalo ručně.
+- **Jak:** Engine pošle zip na POHYB `POST /api/predavky` (`Settings.pohyb_url`). Nejdřív se zeptá, jestli POHYB běží; když ne, vrátí 503 a nezapíše nic. POHYB z balíku udělá zakázku ve stavu `zadani`, která nic nespustí. Zip místo cesty na disk, aby ani jeden projekt nesahal do složek druhého.
+- **Obrázek z Knihovny** (třeba série Studny) nemá v GRAFIKu odkaz na předlohy ani rešerši, pojedou jen zdroje z vrstvy Zdroj; dialog to řekne. Mapka si nese vlastní názvy uvnitř objektu, v obrazu bez textu zůstanou a manifest to hlásí.
+- 0 USD, headless Chromium jako u exportu (bez zámku těžké práce, stejně jako `rasterize`).
+
 ## 2026-11-03 — Infografika ve vrstvách objektů, obraz s podklady z Pinterestu
 
 Operátor: „Převezmi do instrukcí projektu, že všechny infografiky se koncipují ve vrstvách objektů tak, aby šly kdykoli přeformátovat na jiný rozměr obrázku. Při vytváření obrázků se zpravidla posílají kromě textového promptu i vhodné obrazové podklady - zpravidla z Pinterest.“

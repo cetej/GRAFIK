@@ -496,3 +496,18 @@ ul.exports li { display: flex; gap: 8px; align-items: center; margin-bottom: 4px
 .panel-facts { margin-bottom: 8px; font-size: 13px; }
 .rozbor { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 @media (max-width: 720px) { .picked { grid-template-columns: minmax(0, 1fr); } }
+
+/* --- předávka do POHYBu (náčrt schválený 2026-11-03) --- */
+.dialog.pohyb { width: min(760px, 94vw); max-height: 90vh; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.dialog.pohyb h2 { margin: 0; }
+.dialog.pohyb textarea { width: 100%; font: inherit; font-size: 16px; padding: 6px 8px; border: 1px solid #b9bcc3; border-radius: 8px; resize: vertical; }
+.pohyb-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; max-height: 340px; overflow: auto; padding: 2px; }
+.pohyb-page { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 4px; background: #fff; border: 1px solid #cfd1d6; border-radius: 8px; cursor: pointer; text-align: left; font: inherit; }
+.pohyb-page img, .pohyb-page .ph { width: 100%; aspect-ratio: 2 / 3; object-fit: contain; background: #2b2e34; border-radius: 5px; display: block; }
+.pohyb-page.on { border: 2px solid var(--accent); padding: 3px; background: #e8effc; }
+.pohyb-page:active { transform: translateY(1px); }
+.pohyb-page .n { position: absolute; top: 8px; left: 8px; min-width: 22px; height: 22px; border-radius: 11px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.pohyb-page .nm { font-size: 12px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (hover: hover) and (pointer: fine) { .pohyb-page:hover { border-color: #8d929b; } }
+.pohyb-what { margin: 0; padding-left: 18px; font-size: 13px; }
+.pohyb-what .warn { margin: 0; }

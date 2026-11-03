@@ -585,3 +585,23 @@ export const scenesApi = {
   file: (id: string, v: string, name: string) => `${sc3}/${id}/${v}/files/${name}`,
   figureGlb: `${sc3}/figure.glb`,
 }
+
+// -- předávka do POHYBu (engine/pohyb.py): balík podkladů jako zadání animace, 0 USD --------------------------
+export interface PohybItem { obrazek?: string; infografika?: string }
+export interface PohybPages { nabidka: { polozka: PohybItem; nazev: string; nahled: string | null }[]; vybrane: PohybItem[]; pohyb_bezi: boolean; pohyb_url: string }
+export interface PohybPreview {
+  stranky: { nazev: string; vrstvy: boolean; objekty: number; popisky: number; panely: number }[]
+  predlohy: number
+  reserse: string[]
+  fakta: number
+  format: string
+  upozorneni: string[]
+}
+export interface PohybSent { id: string; slozka: string; stranky: number; upozorneni: string[]; pohyb: { id: string; url: string } }
+
+export const pohybKey = (it: PohybItem) => it.obrazek ?? `info:${it.infografika}`
+export const pohybApi = {
+  pages: (it: PohybItem) => call<PohybPages>(`/api/v2/pohyb/stranky?${it.obrazek ? `obrazek=${encodeURIComponent(it.obrazek)}` : `infografika=${encodeURIComponent(it.infografika ?? '')}`}`),
+  preview: (polozky: PohybItem[]) => post<PohybPreview>('/api/v2/pohyb/nahled', { polozky }),
+  send: (polozky: PohybItem[], sdeleni: string, format: string) => post<PohybSent>('/api/v2/pohyb', { polozky, sdeleni, format }),
+}

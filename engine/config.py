@@ -81,6 +81,8 @@ class Settings:
     gltf_transform_timeout_s: float = 120.0
     # Q1 measured 2026-10-27 (docs/spikes/2026-10-27-3d-t1.md): Cycles on the CPU, 0 MB of VRAM.
     render_cpu: bool = field(default_factory=lambda: _env("RENDER_CPU", "1") != "0")
+    # POHYB (motion grafika), kam tlačítko „Animace v POHYBu“ posílá balík podkladů (engine/pohyb.py)
+    pohyb_url: str = field(default_factory=lambda: _env("POHYB_URL", "http://127.0.0.1:8340"))
 
     @property
     def library_dir(self) -> Path:
