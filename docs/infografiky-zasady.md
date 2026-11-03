@@ -82,6 +82,19 @@ Mez 12 px je hranice mobilního auditu [Lighthouse](https://developer.chrome.com
 
 **Vzor série.** `scripts/plakaty/velsen_studna_mobil.py`: plakát Muž na dně studny (239 slov) jako tři stránky 1080 × 1620 po 72, 42 a 45 slovech bez zdroje. Fakta zůstala všechna, zmizel jen metrový pruh, který hloubky na okraji nahrazují. Co bylo na plakátu malé, je na stránce velké a vady jsou vidět: pánev a výřez chtěly nový render ve větší velikosti, hladké kameny hrubší povrch (`velsen_studna.py --zblizka`). Výřez z renderu plakátu nestačí.
 
+## Vrstvy pro jiný formát (operátor 3. 11., platí pro každou infografiku)
+
+Operátor: „všechny infografiky se koncipují ve vrstvách objektů tak, aby šly kdykoli přeformátovat na jiný rozměr obrázku.“ Stejná grafika půjde do článku na výšku, na web na šířku, na sociální sítě jako čtverec nebo 9:16 a do POHYBu k animaci. Každý takový převod skládá stránku ze stejných vrstev a nic nekreslí znovu od začátku.
+
+- **Zdrojem je SVG s vrstvami, PNG a PDF jsou jen export.** Každý objekt (stavba, stroj, postava, mapka, výřez) má vlastní skupinu `<g id="…">` pojmenovanou podle obsahu. Je v ní vlastní obrázek s průhledným pozadím, oříznutý na svůj obsah. Pozadí, objekty, vodítka a značky, texty a označení AI jsou oddělené. Vzor: `lod_pantheon.py --vrstvy` s `pantheon_plakat.py`, `sazba.group`, vrstvy Grafika a Texty v rendereru.
+- **Text je vždy živý text v SVG.** Nikdy není v rastru ani v obrazu z generátoru, jinak by se při převodu nezalomil znovu a nezvětšil podle tabulky Web a mobil.
+- **Popisek míří na bod objektu, ne na pixel stránky.** Kotvy jsou v `body.json` nebo jako [x, y, z] v metrech, ruční skript si bod uloží v souřadnicích objektu. Při převodu se objekt zmenší a posune a vodítko se dopočítá.
+- **Obraz z generátoru je vrstva jednoho objektu.** Scénu, kterou bude potřeba přeskládat, generuj po objektech, ne jako jednu plochou malbu: postavy na zeleném plátně (`grafik_client.figures`), pozadí zvlášť. Render z Blenderu dělej po objektech přes `is_holdout`.
+- **Rezerva na jiný formát.** Hlavní předmět je celý a render má rezervu za okrajem (oddíl Přepis na šířku). Rozlišení stačí na největší plánovaný formát, aby převod nepotřeboval nový render.
+- **Převod je nová verze.** Dokument s panely převádí `POST …/reformat` a editor zaškrtne, co vynechat (DECISIONS 2. 11.). Plakát ze skriptu: stejný skript s jiným rozměrem do nové složky. Originál ani ruční úpravu operátora nepřepisuj.
+
+**Kontrola před odevzdáním:** otevři SVG ve VectorCraftu. Každý objekt musí být ve vlastní vrstvě a texty musí jít upravit jako text. Plochý obrázek bez vrstev se ještě neodevzdává.
+
 ## Přepis na šířku (Pantheon 16:9, 2. 11., ruční úprava operátora)
 
 Zadání: „všechny informace dostat do hlavní grafiky - přehledně a čitelně - zvětšit ji a na ty ostatní grafické prvky se vykašlal“. Moje pokusy operátor odmítl („odezdikezdismus“, „nechápe proporce“, u náčrtu „vůbec nepochopil“) a stránku upravil sám („Není to ideální, ale aspoň takhle“). Platná verze je `library/infographics/20261102-212616-1c97/vectorcraft/20261102-225452-5385-cely-render.svg`: jeho texty a rozmístění, nový obraz.

@@ -2,6 +2,15 @@
 
 Všechny tři cesty končí ve **Schránce předloh** (`refs/library/`, `GET /api/v2/refs`). Ve studiu: Předlohy → „Schránka předloh“. Obrázky z Pinterestu mají licenci „neznámá — jen předloha“: slouží jako předloha pro generování, ne jako součást hotového obrázku.
 
+## K zadání obrázku patří obrazové podklady (operátor 3. 11.)
+
+Operátor: „Při vytváření obrázků se zpravidla posílají kromě textového promptu i vhodné obrazové podklady - zpravidla z Pinterest.“
+
+- Než něco vygeneruješ, najdi přes operátorův Chrome (Claude in Chrome) piny k tomu, jak má obraz vypadat: skladba, pohled, světlo, materiál. Ulož je do Schránky předloh nebo k dossieru (níž) a pošli je se zadáním v `refs`. Zadání jen textem je výjimka a řekni ji operátorovi.
+- Tvar a stavbu nese vlastní render nebo model v roli `geometry`. Pin jde jako `subject` nebo `scene`, to jsou role, které jdou do generátoru jako obraz. Role `style` jde jen slovy: připiš k ní `text`, jinak ji Engine popíše přes Claude API.
+- Lokální FLUX snese všechny obrazové předlohy dohromady kolem 1,1 MP (LEARNINGS 2026-10-23), Engine jich vezme nejvýš 10 (`MAX_IMAGE_REFS`). Vyber pár nejlepších pinů, ne celou zeď.
+- Z pinu se berou skladba a vzhled, fakta nikdy. Oděv a výbava historických postav jdou nejdřív z pramene.
+
 ## K podkladům tématu
 
 Dossier nese `pinterest`: hotové dotazy z anglického názvu (`3D reconstruction`, `construction model`, `infographic`, `cross section`). Engine sám na Pinterest nemůže, bez přihlášení dostane jen zeď. Claude in Chrome v operátorově prohlížeči projde výsledky a vybrané piny pošle k dossieru:

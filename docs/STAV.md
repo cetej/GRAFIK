@@ -1,8 +1,10 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-11-02.
+Aktualizováno 2026-11-03.
 
 ## Teď
+
+**Vrstvy a obrazové podklady v instrukcích (2026-11-03):** operátor rozhodl, že se každá infografika skládá ve vrstvách objektů, aby šla kdykoli převést na jiný rozměr, a že zadání obrázku jde s obrazovými podklady, zpravidla s piny z Pinterestu. Zapsáno v `CLAUDE.md`, `.claude/rules/infografiky.md`, `docs/infografiky-zasady.md` (oddíl Vrstvy pro jiný formát), `docs/pinterest.md` a `docs/DECISIONS.md`. **Meze:** zatím jen pokyn, kód to nekontroluje. Hotové stránky jsem neprošel, kolik jich má objekty ve vlastních vrstvách, nevím. Tlačítko, které pošle grafiku s podklady do POHYBu k animaci, staví samostatná session.
 
 **Série o Teslovi: čtyři karty v opravdovém Studiu (2026-11-02, krok 3g hotový):** Průvodce → řetězec `20261102-213008-7012` → krok Stránky ukáže karty Kdo byl Tesla?, Muž, který poháněl svět, Teslova cívka a Věž Wardenclyffe (`20261102-235547-5600`, `-235549-8b4b`, `-235551-55bb`, `-235551-a64c`), každou s náhledem 360 px a kontrolou. Všechny 1080 × 1620, stejný titulek 82,8 px, popisek 54 a 46 px, kontrola bez nálezu o mobilu, operátor: „Jo vypadá to pěkně“ (k verzi před posledním sjednocením písma). Nasazeno: Engine :8300 PID 8868 z `600839d`, konzole Studia bez chyb kromě dvou 502 z restartu. Staré dokumenty beze změny, otisk SVG 12 z 12. Testy 689 passed, 2 skipped. Placené 0,2692 USD ze schválených 0,30 USD, [rozpis a měření](spikes/2026-11-02-serie-mobil.md). **Meze:** cívku a věž jsem do vybraného návrhu přidal ručně, kontrola logiky je neviděla. Poslední složení neproběhlo tlačítkem, ale stejným kódem z textů posledního placeného běhu, protože odhad tlačítka by přesáhl schválenou cenu; tlačítko běželo naostro dvakrát před poslední opravou skladatele. Nové zadání návrhů (série o 4 stránkách) ověřené jen subagentem, placený model ho neběžel. Vlastní obrazy má jen Tesla, prahy jsou z jedné série. Srozumitelnost stroj nezměří, text musí před zveřejněním přečíst člověk, na opravdovém telefonu to nikdo neviděl. Turbína, elektrárna, přijímač a loď stránku nemají, Studio je u návrhu vypíše. **Další krok:** řetězec z tématu jiné osoby nebo zvířete, odhad 0,24 USD, až ho operátor schválí.
 
