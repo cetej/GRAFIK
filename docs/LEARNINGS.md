@@ -1,5 +1,14 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-03 — Počeštění: bílé písmo na zelené ploše vyšlo zelené a nesmazané
+
+Půdorys gymnasionu v Mieze (plochá infografika, bílé popisky na zelené). `_background` počítal jen s tmavým písmem: uzavření napřed zalilo zelené mezery mezi bílými písmeny, slovo se slilo do bílé skvrny a otevření ji nesmazalo. Podklad tak vyšel bílý, za „písmo“ se změřila zelená mezi písmeny (`color_measured` přebil správnou bílou od Claude), mazání skoro nic nesmazalo a česká sazba dostala barvu plochy. Ve VectorCraftu proto byly jen prázdné rámečky. Kontrola zbytků hlásila 0 %, protože hledala zbytky té špatné zelené.
+
+- Pořadí morfologie se teď volí podle pixelů (`_is_light`): vyhraje pořadí, jehož podklad pod rámečkem odpovídá ploše kolem rámečku. Barva od Claude rozhodovat nesmí, šedá na zelené mu vychází světlejší, i když je písmo tmavší (testy T2 to chytily).
+- Ověřeno nezávisle: v rámečcích po mazání nezůstal ani jeden bílý pixel (`tests/test_pocesteni_realne.py`). Slabé obrysy písmen zůstávají nejvýš +4 úrovně jasu z 255; širší maska je nesmazala.
+- Testy z `tests/` ve worktree braly `ngm_shared` z hlavního checkoutu (editable instalace), takže prošly bez ověření změny. `tests/conftest.py` teď dává na cestu i vlastní `shared/`.
+- Moje první odpověď operátorovi tvrdila „nic se nerozbilo“ jen podle existence souborů. Výsledek počeštění se posuzuje až po prohlídce obrazu, ne podle seznamu souborů.
+
 ## 2026-11-02 — Pantheon na šířku: vlastní pravidlo místo zadání a ořez, který vyjde najevo až po úpravě
 
 Operátor chtěl všechny údaje v hlavní grafice. Já jsem si na výtku „odezdikezdismus“ vymyslel rozvrh s jedním sloupcem, uřízl portik a půlku údajů vyhodil, a ještě jsem to zapsal do paměti jako pravidlo. Odmítl to a stránku upravil sám. Výklad výtky není zadání, a dokud ho operátor nepotvrdí, do pravidel nepatří. Pravidlo je v `docs/infografiky-zasady.md`, oddíl Přepis na šířku.
