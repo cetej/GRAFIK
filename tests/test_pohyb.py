@@ -202,6 +202,7 @@ def test_models_behind_panels_go_along_with_their_moving_parts(api, settings, po
     rotor = {"name": "rotor", "translation": [0, 0, -0.06], "extras": {"cast": "rotor", "pohyb": "otaceni", "osa": [0, 0, -1], "popis": "Rotor"}}
     model(settings, "motor-test", [rotor, {"name": "kotva-rotor", "extras": {"kotva": "rotor"}}])
     model(settings, "civka-test", [{"name": "vyboje", "extras": {"cast": "vyboje", "pohyb": "vyboj"}}])
+    (settings.library_dir / "3d" / "motor-test" / "v1" / "ref-front.png").write_bytes(b"front")     # čelní předloha: POHYB podle ní obarví síť
     shot(settings.library_dir / "tema" / "Q1" / "obrazy" / "motor", ["zed"])
     shot(settings.library_dir / "strely" / "detail")
     (settings.library_dir / "tema" / "Q1" / "obrazy.json").write_text(json.dumps({"obrazy": [
@@ -223,6 +224,8 @@ def test_models_behind_panels_go_along_with_their_moving_parts(api, settings, po
         assert z.read(hero["model"]) == (settings.library_dir / "3d" / "motor-test" / "v1" / "model.glb").read_bytes()
         assert detail["model_id"] == "civka-test" and detail["casti"][0]["pohyb"] == "vyboj" and detail["model"] in names
         assert "stranky/1/modely/hlavni.json" in names
+        assert hero["predloha"] == "stranky/1/modely/hlavni.ref-front.png" and z.read(hero["predloha"]) == b"front"
+        assert "predloha" not in detail
 
 
 def test_picture_without_a_model_or_with_a_missing_one_goes_without_glb(api, settings, doc, pohyb):

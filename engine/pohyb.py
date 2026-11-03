@@ -466,6 +466,10 @@ class Bundler:
                     item.update(model=rel(target), model_id=source["model_id"], casti=glb_parts(glb))
                     if (model / "model.json").is_file():
                         shutil.copy2(model / "model.json", target.with_suffix(".json"))
+                    if (model / "ref-front.png").is_file():     # čelní předloha: podle ní POHYB obarví holou síť (figura)
+                        front = target.with_name(f"{panel['id']}.ref-front.png")
+                        shutil.copy2(model / "ref-front.png", front)
+                        item["predloha"] = rel(front)
             entry["panely"].append(item)
 
     def model_source(self, source: dict) -> dict | None:
