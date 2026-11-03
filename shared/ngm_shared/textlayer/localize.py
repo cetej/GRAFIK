@@ -375,7 +375,8 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
         box = m["box"]
         x0, y0, x1, y1 = box
         lines = _cs_lines(el)
-        px, too_long = font_size(el, el["box"], m["frame"])
+        # size_px: rovnocenné popisky (položky legendy) stejně velké, i když jeden překlad je delší
+        px, too_long = (float(el["size_px"]), False) if el.get("size_px") else font_size(el, el["box"], m["frame"])
         f = _font(el, px)
         tw = max(f.getlength(line) for line in lines)
         lh = px * LINE
@@ -392,6 +393,8 @@ def typeset(base: Image.Image, elements: list[dict], measured: list[dict], base_
         if rotated:
             layer = layer.rotate(ang, expand=True, resample=Image.Resampling.BICUBIC)
         cx, cy = m["center"] if rotated else ((x0 + x1) / 2, (y0 + y1) / 2)
+        dx, dy = el.get("offset") or (0, 0)     # popisek, který by se česky srazil se sousedem (jako tisk.py)
+        x0, x1, cx, cy = x0 + dx, x1 + dx, cx + dx, cy + dy
         if align == "left" and not rotated:
             pos = (int(x0 - 4), int(cy - layer.height / 2))
         elif align == "right" and not rotated:
