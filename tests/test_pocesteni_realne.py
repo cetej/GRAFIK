@@ -37,6 +37,23 @@ def test_printed_scan_keeps_area_borders_and_markers():
     assert sorted(el["en"] for el, m in zip(texts["elements"], layout) if m["residue"] > lz.RESIDUE_WARN) == ["Hindu Kush", "Tien Shan"]
 
 
+def test_white_text_on_flat_plan_is_erased_and_stays_white():
+    # půdorys gymnasionu v Mieze (2026-11-03): bílé písmo na zelené ploše vyšlo zelené a nesmazané
+    job = Path("C:/Users/stock/Documents/000_NGM/GRAFIK/library/2026-11/20261103-223712-0fd24a")
+    original = Path("C:/Users/stock/Documents/000_NGM/GRAFIK/run/uploads/e8767fdf4096a293.png")
+    if not (job / "image-0.texty.json").is_file() or not original.is_file():
+        pytest.skip("půdorys gymnasionu není na tomhle počítači")
+    with Image.open(original) as im:
+        img = np.array(im.convert("RGB"))
+    texts = lz.normalize_texts(json.loads((job / "image-0.texty.json").read_text(encoding="utf-8")))
+    clean, measured, _ = lz.erase(img, texts["elements"])
+    assert {m["color"] for m in measured} == {"#FFFFFF"}
+    for el in texts["elements"]:
+        x0, y0, x1, y1 = (int(v) for v in el["box"])
+        white = lambda a: int((a[y0:y1, x0:x1].astype(int).sum(axis=2) > 600).sum())  # noqa: E731
+        assert white(img) > 100 and white(clean) == 0, el["en"]
+
+
 def test_relief_map_stays_on_the_photocraft_path():
     work = next((p for p in sorted(EVEREST.glob("*")) if (p / "texty.json").is_file()), None) if EVEREST.is_dir() else None
     if work is None:

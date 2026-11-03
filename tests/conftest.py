@@ -11,9 +11,12 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) in sys.path:
-    sys.path.remove(str(ROOT))
-sys.path.insert(0, str(ROOT))
+# shared/ too: the editable install of ngm_shared points at the main checkout, so a worktree's tests
+# imported its old textlayer and passed without testing the change (2026-11-03)
+for p in (ROOT / "shared", ROOT):
+    if str(p) in sys.path:
+        sys.path.remove(str(p))
+    sys.path.insert(0, str(p))
 
 # The real termdb (BIOLIB/termdb.db) must not leak into tests; tests/test_termdb.py builds its own.
 os.environ["GRAFIK_TERMDB"] = ""

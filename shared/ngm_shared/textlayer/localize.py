@@ -136,12 +136,28 @@ def _odd(v: float, lo: int, hi: int) -> int:
     return k if k % 2 else k + 1
 
 
-def _background(win: np.ndarray, k: int) -> np.ndarray:
+def _background(win: np.ndarray, k: int, light: bool = False) -> np.ndarray:
     """Obraz bez tenkých tahů (písma): uzavření smaže tmavé tahy, otevření světlé, po kanálech, takže zmizí
     i šedé písmo na zelené ploše stejného jasu. Hrany ploch (pobřeží, hranice území) zůstanou; medián okolí
-    je na rozeklaném pobřeží bral za písmo a mazal kusy země."""
+    je na rozeklaném pobřeží bral za písmo a mazal kusy země.
+    Pořadí podle písma: uzavření napřed u světlého písma zalije mezery mezi písmeny a slije slovo do bílé
+    skvrny, kterou otevření už nesmaže (gymnasion v Mieze 2026-11-03: podklad bílý, písmo „zelené“)."""
     se = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
-    return cv2.morphologyEx(cv2.morphologyEx(win, cv2.MORPH_CLOSE, se), cv2.MORPH_OPEN, se).astype(np.float32)
+    first, second = (cv2.MORPH_OPEN, cv2.MORPH_CLOSE) if light else (cv2.MORPH_CLOSE, cv2.MORPH_OPEN)
+    return cv2.morphologyEx(cv2.morphologyEx(win, first, se), second, se).astype(np.float32)
+
+
+def _is_light(win: np.ndarray, inner: np.ndarray, k: int) -> bool:
+    """Písmo je světlejší než plocha (bílé popisky na zelené). Rozhodují pixely, ne barva od Claude (šedá na
+    zelené mu vychází světlejší, i když je písmo tmavší): špatné pořadí slije slovo do skvrny barvy písma,
+    takže podklad pod rámečkem se od plochy kolem rámečku liší víc než u správného pořadí."""
+    ring = ~inner
+    if not ring.any() or not inner.any():
+        return False
+    luma = np.array([0.299, 0.587, 0.114], np.float32)
+    around = float((win[ring] @ luma).mean())
+    dev = {light: abs(float((_background(win, k, light)[inner] @ luma).mean()) - around) for light in (False, True)}
+    return dev[True] < dev[False]
 
 
 def _mix(px: np.ndarray, bg: np.ndarray, expect: np.ndarray, mix: float, tol: float, slack: float) -> np.ndarray:
@@ -219,11 +235,12 @@ def _measure(img: np.ndarray, el: dict) -> dict:
     X1, Y1 = int(min(W, x1 + pad)), int(min(H, y1 + pad))
     win = np.ascontiguousarray(img[Y0:Y1, X0:X1])
     k = _odd(0.35 * lh, 5, 41)          # širší než tah písma
-    bg = _background(win, k)
+    inner = np.zeros(win.shape[:2], bool)
+    inner[int(y0 - Y0):int(y1 - Y0), int(x0 - X0):int(x1 - X0)] = True
+    light = _is_light(win, inner, k)
+    bg = _background(win, k, light)
     px = win.astype(np.float32)
     d_bg = np.linalg.norm(px - bg, axis=2)
-    inner = np.zeros(d_bg.shape, bool)
-    inner[int(y0 - Y0):int(y1 - Y0), int(x0 - X0):int(x1 - X0)] = True
     # barva písma: od Claude, nebo změřená z jádra tahů (horní polovina odchylek od podkladu), podle toho, která
     # vysvětlí víc výrazných pixelů; změřená musí vyhrát o polovinu (v rámečku bývají i ostrůvky a hranice)
     color, measured = np.array(st.hex_to_rgb(el["color"]), np.float32), False
@@ -259,7 +276,7 @@ def _measure(img: np.ndarray, el: dict) -> dict:
     near = cv2.dilate(ink.astype(np.uint8), np.ones((join, join), np.uint8)) > 0
     return {"window": (X0, Y0, X1, Y1), "mask": mask, "near": near, "ink_px": int(ink.sum()), "box": box,
             "frame": frame, "center": center, "color": st.rgb_to_hex(color), "color_measured": measured, "blend": blend,
-            "ink_color": color, "k": k}
+            "ink_color": color, "k": k, "light": light}
 
 
 def _residue(clean: np.ndarray, m: dict) -> float:
@@ -268,7 +285,7 @@ def _residue(clean: np.ndarray, m: dict) -> float:
         return 0.0
     X0, Y0, X1, Y1 = m["window"]
     win = np.ascontiguousarray(clean[Y0:Y1, X0:X1])
-    left = _ink(win.astype(np.float32), _background(win, m["k"]), m["ink_color"], 0.5, 0.2, 0) & m["near"]
+    left = _ink(win.astype(np.float32), _background(win, m["k"], m["light"]), m["ink_color"], 0.5, 0.2, 0) & m["near"]
     return float(left.sum()) / m["ink_px"]
 
 

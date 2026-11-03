@@ -22,6 +22,7 @@ Oprava z 30. 10. se ověřila na jediné mapě (Everest, reliéf, šířka 769 p
 | stínovaný reliéf, barevné popisky | `pcraft` (PhotoCraft) | Everest, 2026-10-30 |
 | tištěný sken, černé písmo | `tisk` | irbis, 2026-11-01 |
 | plochá infografika | `cv2.inpaint` | T2, 2026-10-29 |
+| plochá infografika, světlé písmo na tmavší ploše | `cv2.inpaint` | půdorys gymnasionu v Mieze, 2026-11-03 |
 
 - Druh mimo tabulku je neověřený: ber výsledek jako pokus a řekni to operátorovi, i když kód doběhne bez varování.
 - Po ověření nového druhu přidej řádek sem a případ do `tests/test_pocesteni_realne.py`. Stávající případy musí dál procházet.
