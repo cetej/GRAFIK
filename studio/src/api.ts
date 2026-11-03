@@ -622,5 +622,5 @@ export const pohybKey = (it: PohybItem) => it.obrazek ?? `info:${it.infografika}
 export const pohybApi = {
   pages: (it: PohybItem) => call<PohybPages>(`/api/v2/pohyb/stranky?${it.obrazek ? `obrazek=${encodeURIComponent(it.obrazek)}` : `infografika=${encodeURIComponent(it.infografika ?? '')}`}`),
   preview: (polozky: PohybItem[]) => post<PohybPreview>('/api/v2/pohyb/nahled', { polozky }),
-  send: (polozky: PohybItem[], sdeleni: string, format: string) => post<PohybSent>('/api/v2/pohyb', { polozky, sdeleni, format }),
+  send: (polozky: PohybItem[], sdeleni: string, format: string, komentar: boolean) => post<PohybSent>('/api/v2/pohyb', { polozky, sdeleni, format, komentar }),
 }

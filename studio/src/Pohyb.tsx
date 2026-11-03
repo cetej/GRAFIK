@@ -10,6 +10,7 @@ export default function PohybDialog({ start, onClose, onError }: { start: PohybI
   const [preview, setPreview] = useState<PohybPreview | null>(null)
   const [sdeleni, setSdeleni] = useState('')
   const [format, setFormat] = useState('')
+  const [komentar, setKomentar] = useState(true)
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState<PohybSent | null>(null)
 
@@ -32,7 +33,7 @@ export default function PohybDialog({ start, onClose, onError }: { start: PohybI
   const toggle = (it: PohybItem) => setChosen((c) => (c.some((x) => pohybKey(x) === pohybKey(it)) ? c.filter((x) => pohybKey(x) !== pohybKey(it)) : [...c, it]))
   const send = async () => {
     setBusy(true)
-    try { setSent(await pohybApi.send(chosen, sdeleni, format || preview?.format || '')) } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
+    try { setSent(await pohybApi.send(chosen, sdeleni, format || preview?.format || '', komentar)) } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
   }
   const why = !pages ? '' : !pages.pohyb_bezi ? `POHYB neběží (${pages.pohyb_url}). Spusťte start-pohyb.bat a otevřete dialog znovu.` : !chosen.length ? 'Vyberte aspoň jednu stránku.' : ''
   const total = preview?.stranky.reduce((a, s) => ({ objekty: a.objekty + s.objekty, popisky: a.popisky + s.popisky, panely: a.panely + s.panely, modely: a.modely + s.modely }), { objekty: 0, popisky: 0, panely: 0, modely: 0 })
@@ -76,6 +77,11 @@ export default function PohybDialog({ start, onClose, onError }: { start: PohybI
             <div className="hint">Formát videa</div>
             <div className="seg">
               {FORMATS.map((f) => <button key={f} className={(format || preview?.format) === f ? 'on' : ''} onClick={() => setFormat(f)}>{f}</button>)}
+            </div>
+            <div className="hint">Mluvený komentář</div>
+            <div className="seg">
+              <button className={komentar ? 'on' : ''} aria-pressed={komentar} onClick={() => setKomentar(true)}>S komentářem</button>
+              <button className={komentar ? '' : 'on'} aria-pressed={!komentar} onClick={() => setKomentar(false)}>Bez komentáře</button>
             </div>
             <div className="hint">Co pojede s ním</div>
             {preview && total ? (

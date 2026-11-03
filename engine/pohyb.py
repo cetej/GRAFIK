@@ -52,6 +52,7 @@ class PohybIn(BaseModel):
     nazev: str = ""
     sdeleni: str = ""                   # co má animace sdělit, slovy operátora
     format: str = ""                    # formát videa; prázdný = podle první stránky
+    komentar: bool = True               # video s mluveným komentářem; POHYB bez komentáře hlásí chybu (POHYB#92)
 
 
 def _tag(el: ET.Element) -> str:
@@ -428,7 +429,7 @@ class Bundler:
             notes.append("u obrázků z Knihovny GRAFIK nezná předlohy ani rešerši, zdroje jsou z vrstvy Zdroj")
         manifest = {"format": FORMAT, "verze": VERZE, "id": bundle_id, "vytvoreno": datetime.now().isoformat(timespec="seconds"),
                     "odkud": "GRAFIK", "nazev": body.nazev.strip() or written[0]["nazev"], "sdeleni": body.sdeleni.strip(),
-                    "format_videa": body.format or video_format(*written[0]["rozmer"]),
+                    "format_videa": body.format or video_format(*written[0]["rozmer"]), "komentar": body.komentar,
                     "stranky": written, "predlohy": refs, "reserse": research, "fakta": extras["fakta"], "upozorneni": notes}
         (folder / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         return manifest
