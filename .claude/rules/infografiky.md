@@ -25,6 +25,8 @@ Logika stránky: oddíl tamtéž, čti první. Co má čtenář pochopit a co je
 
 Web a mobil: oddíl tamtéž, platí pro každou infografiku pro web (výchozí; jen tisková příloha `urceni: "tisk"` má volnost) a počítá se před skladbou. Čtenář je často na telefonu, stránka se zmenší na 360 px a větší plátno nepomůže. Nejmenší text aspoň 1/30 šířky stránky, titulek 1/15. Na stránku 4:5 se vejde kolem 80 slov, na 2:3 kolem 120, jeden hlavní obraz a nejvýš 3 další panely. Velkou plachtu s titěrným písmem rozděl na sérii menších stránek, každou s vlastním titulkem. Řádek Zdroj na stránce není: jen označení AI a cizí autor, plný výčet patří pod článek. Porušení písma hlásí `write_poster` (`SAZBA: na mobilu…`) a `GET …/kontrola`.
 
+Vrstvy pro jiný formát: oddíl tamtéž, platí pro každou infografiku (operátor 3. 11.). Zdroj je SVG, každý objekt ve vlastní `<g id>` s průhledným pozadím, text živý a nikdy v rastru, popisek míří na bod objektu. Scénu k přeskládání generuj po objektech. Převod na jiný rozměr je nová verze ze stejných vrstev. Obraz z generátoru jde se zadáním i s obrazovými podklady, zpravidla s piny z Pinterestu (`docs/pinterest.md`).
+
 Přepis na šířku a ruční úprava: oddíl tamtéž. Výčet údajů od operátora je závazný, hlavní předmět celý a render s rezervou za okrajem. Po výtce „nepochopil“ žádná další vlastní verze: editovatelná kopie a učit se z jeho úpravy. Jeho soubor se nepřepisuje.
 
 Stránka z víc obrazů: oddíl „Stránka z víc obrazů“ tamtéž. Každý panel říká, co hlavní obraz neřekne; stavby z modelu, slavné dílo v originále, lidé z fotorealistického generátoru; postavy na zeleném plátně se stínem z originálu. Výřez kontroluj ve zvětšení.

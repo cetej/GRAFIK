@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-03 — Infografika ve vrstvách objektů, obraz s podklady z Pinterestu
+
+Operátor: „Převezmi do instrukcí projektu, že všechny infografiky se koncipují ve vrstvách objektů tak, aby šly kdykoli přeformátovat na jiný rozměr obrázku. Při vytváření obrázků se zpravidla posílají kromě textového promptu i vhodné obrazové podklady - zpravidla z Pinterest.“
+
+- Zdrojem infografiky je SVG s vrstvami: každý objekt ve vlastní skupině s průhledným pozadím, text živý, popisky na body objektu. Převod na jiný rozměr je nová verze ze stejných vrstev. Postup a kontrola: `docs/infografiky-zasady.md`, oddíl Vrstvy pro jiný formát.
+- Zadání generátoru jde s obrazovými podklady, zpravidla s piny z Pinterestu přes operátorův Chrome. Zadání jen textem je výjimka. Role předloh a rozpočet: `docs/pinterest.md`.
+- Ve stejné zprávě operátor zadal tlačítko, které pošle grafiku i s podklady do POHYBu k animaci. Staví ho samostatná session.
+
 ## 2026-11-02 — Předělat na formát: co vynechat, rozhoduje editor
 
 Operátor: „Možná by se hodilo do projektů při konverzi formátů založit nástroj, který umožní editorovi rozhodnout o potlačení některých vrstev. Pokud to systém automaticky nezvládá.“
