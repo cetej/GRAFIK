@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, imageUrl, isCzech, ManualEdit, type Box, type EditAction, type Estimate, type ImageRequest, type Job } from './api.ts'
 import { fmtTime, priceLabel } from './App.tsx'
+import PohybDialog from './Pohyb.tsx'
 
 const ACTIONS: { id: EditAction; label: string; hint: string }[] = [
   { id: 'add', label: 'Přidat', hint: 'co má v rámečku přibýt' },
@@ -33,6 +34,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   const [finished, setFinished] = useState(false)
   const [vcAsk, setVcAsk] = useState<string | null>(null)
   const [vcOpened, setVcOpened] = useState<string | null>(null)
+  const [toPohyb, setToPohyb] = useState(false)
   useEffect(() => {
     setLayered(false)
     setFinished(false)
@@ -84,7 +86,9 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
         {layered && <button className="btn go" onClick={() => openVectorcraft()} title="Celý obrázek, každý popisek a objekt zvlášť ve vrstvách">Otevřít ve VectorCraftu</button>}
         {!layered && <button className="btn go" onClick={() => onInfographic(selected)}>→ Infografika</button>}
         <button className="btn" onClick={() => onLocalize(selected)}>→ Počeštit</button>
+        {finished && <button className="btn" onClick={() => setToPohyb(true)} title="Hotová grafika i s vrstvami a podklady jako zadání animace">→ Animace v POHYBu</button>}
       </div>
+      {toPohyb && <PohybDialog start={{ obrazek: selected }} onClose={() => setToPohyb(false)} onError={onError} />}
       {vcAsk && (
         <div className="row">
           <span className="hint">{vcAsk}</span>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from 'react'
 import { fileToB64, imageUrl, infoApi, ManualEdit, PaymentRequired, termsApi, type Infographic, type InfoLabel, type ManualEditFile, type TermResult } from './api.ts'
+import PohybDialog from './Pohyb.tsx'
 
 // G5 — editor infografiky podle náčrtu schváleného 2026-10-23 (docs/spikes/img/g5-nacrt-*.png) a vzoru
 // models/flux3-klein/overlay_quinq3.html: ~5 popisků s tenkou čarou mimo objekt, 3 fakta, vektorové schéma,
@@ -465,6 +466,7 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
   const [busy, setBusy] = useState<string | null>(null)
   const [png, setPng] = useState<string | null>(null)
   const [urceni, setUrceni] = useState(doc.urceni ?? 'web')
+  const [toPohyb, setToPohyb] = useState(false)
   const svgUrl = `/api/v2/infographics/${doc.id}/svg`
   useEffect(() => {
     fetch(svgUrl).then((r) => r.text()).then(setSvg).catch((e) => onError(e.message))
@@ -507,8 +509,10 @@ function PanelDoc({ doc, setOpenId, onError }: { doc: Infographic; setOpenId: (i
           <a className="btn" href={svgUrl} target="_blank" rel="noreferrer">Otevřít ve velkém</a>
           <button className="btn" disabled={!!busy} onClick={exportPng}>{busy === 'png' ? 'Exportuji…' : 'Export PNG'}</button>
           <button className="btn go" onClick={() => setChoosing(!choosing)}>Předělat na formát · 0 USD</button>
+          <button className="btn" onClick={() => setToPohyb(true)} title="Dokument i s panely a podklady jako zadání animace">→ Animace v POHYBu</button>
         </div>
       </div>
+      {toPohyb && <PohybDialog start={{ infografika: doc.id }} onClose={() => setToPohyb(false)} onError={onError} />}
       <h2>{doc.title || 'bez nadpisu'}</h2>
       <p className="hint">Dokument s panely · {doc.size.replace('x', '×')} · {doc.panels?.length} panelů{doc.predelano_z && ` · předěláno z ${doc.predelano_z.size.replace('x', '×')}`}</p>
       <div className="row">

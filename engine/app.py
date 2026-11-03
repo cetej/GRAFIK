@@ -24,7 +24,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, reformat, research, scenes3d
+from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, pohyb, reformat, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -758,6 +758,9 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         if not j or not 0 <= n < len(files):
             return None
         return json.loads(Path(files[n]).with_suffix(".json").read_text(encoding="utf-8"))
+
+    pohyb.register(app, pohyb.Bundler(s, store, infos, reflib, workflows, researcher.lib, _prov,
+                                      lambda src: models3d.lib.vdir(src.get("model_id"), src.get("version"))))
 
     def _info_or_404(info_id: str) -> dict:
         try:
