@@ -79,6 +79,12 @@
     {"grapheme": "shora", "alias": "zhora", "type": "other", "note": "čte se „zhora“, OmniVoice řekl „schora“ (operátor POHYB Velsen 2026-11-02)"},
     {"grapheme": "Harz", "alias": "Harc", "type": "toponym", "note": "německé pohoří"},
     {"grapheme": "Driessen", "alias": "Drísen", "type": "name", "note": "Mark Driessen, archeolog, Leiden"},
-    {"grapheme": "dani", "alias": "daňi", "type": "other", "note": "měkké ni, OmniVoice ho čte tvrdě (jako hostitel a buňku); poslechem neověřeno"}
+    {"grapheme": "dani", "alias": "daňi", "type": "other", "note": "měkké ni, OmniVoice ho čte tvrdě (jako hostitel a buňku); poslechem neověřeno"},
+    {"grapheme": "Wardenclyffe", "alias": "Vórdnklif", "type": "toponym", "note": "Teslova věž na Long Islandu"},
+    {"grapheme": "Westinghouse", "alias": "Vestinghaus", "type": "other", "note": "americká elektrotechnická firma"},
+    {"grapheme": "Buffalo", "alias": "Bafelou", "type": "toponym", "note": "město v USA (nesklonné)"},
+    {"grapheme": "Mark Twain", "alias": "Mark Tvén", "type": "other", "note": "americký spisovatel"},
+    {"grapheme": "Twain", "alias": "Tvén", "type": "name", "kmen": true, "note": "Mark Twain v pádech (Marka Twaina, Twainem); v Teslově komentáři OmniVoice řekl špatně (operátor 2026-11-03)"},
+    {"grapheme": "Coloradu", "alias": "Koloradu", "type": "toponym", "note": "americký stát, 6. pád"}
   ]
 }
