@@ -476,7 +476,7 @@ export interface Model3dVersion {
   title: string
   created: string
   status: 'queued' | 'generating' | 'model' | 'viewer' | 'rendering' | 'stretching' | 'ready' | 'failed'
-  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch'
+  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch' | 'rotate'
   backend: string | null
   refs: { view: View3d; file: string; source: string | null; license: string | null }[]
   cost_usd: number
@@ -524,6 +524,8 @@ export const m3dApi = {
   review: (id: string, v: string, reviewed: boolean) => post<Model3dVersion>(`${m3}/${id}/${v}/review`, { reviewed, by: 'operátor' }),
   stretch: (id: string, v: string, dims: number[], part: string, source: string) =>
     post<{ version: string; job_id: string }>(`${m3}/${id}/${v}/stretch`, { dims, part, source }),
+  rotate: (id: string, v: string, axis: 'x' | 'y' | 'z', deg: number) =>
+    post<{ model_id: string; version: string; job_id: string }>(`${m3}/${id}/${v}/rotate`, { axis, deg }),
   recover: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/recover`, {}),
   viewer: (id: string, v: string, optimizeOnly = false) =>
     post<{ job_id: string }>(`${m3}/${id}/${v}/viewer${optimizeOnly ? '?optimize_only=true' : ''}`, {}),

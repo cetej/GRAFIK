@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from engine import hotove3d
 from engine import models3d as m3d
 from engine.models3d import (ELEVATIONS, PARTS, CameraIn, CutoutIn, Model3dError, Model3dIn, Models3d, ReviewIn,
-                             StretchIn, ViewsIn)
+                             RotateIn, StretchIn, ViewsIn)
 
 
 class HotoveIn(BaseModel):
@@ -212,6 +212,20 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
         job_id = models3d.enqueue("camera3d", "studio", "blender", {
             "model_id": model_id, "version": version, "key": key, "camera": body.model_dump()})
         return {"key": key, "job_id": job_id, "file": f"camera/{key}.png"}
+
+    @app.post("/api/v2/models3d/{model_id}/{version}/rotate", status_code=202)
+    def models3d_rotate(model_id: str, version: str, body: RotateIn):
+        """Narovná model (třeba převzatý, který leží na boku): nová verze s rotací, 0 USD, původní zůstane."""
+        if body.axis not in ("x", "y", "z") or body.deg not in (90, -90, 180):
+            raise HTTPException(400, "osa x, y nebo z a úhel 90, -90 nebo 180")
+        src = has_glb(model_id, version)
+        glb = call(m3d.rotate_glb, (lib.vdir(model_id, version) / "model.glb").read_bytes(), body.axis, body.deg)
+        keep = {k: src[k] for k in ("license", "author", "source_url", "zdroj", "origin") if src.get(k)}
+        meta = call(lib.new_version, model_id, src["title"], method="rotate", parent=version, refs=src["refs"],
+                    status="model", glb_bytes=len(glb), rotate={"axis": body.axis, "deg": body.deg}, **keep)
+        (lib.vdir(model_id, meta["version"]) / "model.glb").write_bytes(glb)
+        job_id = models3d.enqueue("viewer3d", "studio", "blender", {"model_id": model_id, "version": meta["version"]})
+        return {"model_id": model_id, "version": meta["version"], "job_id": job_id}
 
     @app.post("/api/v2/models3d/{model_id}/{version}/stretch", status_code=202)
     def models3d_stretch(model_id: str, version: str, body: StretchIn):

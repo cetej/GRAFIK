@@ -25,8 +25,15 @@ const num = (x: number, d = 0) => x.toLocaleString('cs-CZ', { maximumFractionDig
 // the tab unmounts on the way to Studio; the last sent ref stays visible when the operator comes back
 type LastRef = { url: string; source: string; model: string }
 let lastRefMemo: LastRef | null = null
+const NAROVNAT: { label: string; axis: 'x' | 'y' | 'z'; deg: number; title: string }[] = [
+  { label: 'Překlopit dopředu', axis: 'x', deg: 90, title: 'o 90° kolem vodorovné osy zleva doprava' },
+  { label: 'Překlopit dozadu', axis: 'x', deg: -90, title: 'o 90° zpět kolem vodorovné osy' },
+  { label: 'Na levý bok', axis: 'z', deg: 90, title: 'o 90° kolem osy, která míří do obrazu' },
+  { label: 'Na pravý bok', axis: 'z', deg: -90, title: 'o 90° na druhou stranu' },
+  { label: 'Vzhůru nohama', axis: 'x', deg: 180, title: 'o 180°' },
+]
 const METHOD_LABEL: Record<string, string> = {
-  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry', parts: 'z dílů',
+  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry', rotate: 'otočený', parts: 'z dílů',
 }
 const STATUS: Record<Model3dVersion['status'], { label: string; cls: string }> = {
   queued: { label: 've frontě', cls: '' }, generating: { label: 'model se tvoří', cls: 'ai' }, model: { label: 'bez prohlížeče', cls: 'ai' },
@@ -216,6 +223,11 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
       try { await m3dApi.views(cur.id, cur.version, e); load() } catch (err) { onError(String((err as Error).message)) }
     }
   }
+  // narovnat model, který leží na boku (typicky převzatý ze Smithsonianu): nová verze, 0 USD, původní zůstane
+  const narovnat = async (axis: 'x' | 'y' | 'z', deg: number) => {
+    if (!cur) return
+    try { const r = await m3dApi.rotate(cur.id, cur.version, axis, deg); setVer(r.version); load() } catch (e) { onError(String((e as Error).message)) }
+  }
   const toggleReview = async (on: boolean) => {
     if (!cur) return
     try { await m3dApi.review(cur.id, cur.version, on); load() } catch (e) { onError(String((e as Error).message)) }
@@ -301,7 +313,7 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
         </div>
         <button className="btn small" onClick={newModel}>+ Nový model</button>
 
-        <h3>{target ? `Nová verze: ${title}` : 'Nový model: předlohy'}</h3>
+        <h3>{target ? `Nová verze: ${title}` : isHotove ? 'Nový model: hotový zdarma' : 'Nový model: předlohy'}</h3>
         {!isUpload && !isHotove && (
           <>
             <div className="slots">
@@ -461,6 +473,14 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
                 </button>
                 <button className="btn small" onClick={() => setStretchOpen(true)}>Natáhnout na rozměry…</button>
                 <button className="btn small" onClick={() => newVersionOf(cur)}>Nová verze</button>
+              </div>
+            )}
+            {cur.viewer && (
+              <div className="row narovnat">
+                <span className="hint">Narovnat (nová verze · 0 USD):</span>
+                <div className="seg">
+                  {NAROVNAT.map((n) => <button key={n.label} onClick={() => narovnat(n.axis, n.deg)} title={n.title}>{n.label}</button>)}
+                </div>
               </div>
             )}
             {Object.keys(cur.views).length > 0 && (
