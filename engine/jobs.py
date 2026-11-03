@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import shutil
 import sqlite3
 import threading
 import time
@@ -135,6 +136,31 @@ class JobStore:
                                    (*(kinds or ()), limit)).fetchall()
         return [self._public(r, None) for r in rows]
 
+    def library(self, offset: int = 0, limit: int = 48) -> tuple[int, list[dict]]:
+        """Finished pictures for the Knihovna tab, newest first, with the total for paging (one row = one job)."""
+        where = "FROM jobs WHERE status='done' AND COALESCE(kind, 'image')='image'"
+        with self._lock:
+            total = self.db.execute(f"SELECT COUNT(*) {where}").fetchone()[0]
+            rows = self.db.execute(f"SELECT * {where} ORDER BY seq DESC LIMIT ? OFFSET ?", (limit, offset)).fetchall()
+        return total, [self._public(r, None) for r in rows]
+
+    def delete_image(self, job_id: str, n: int, trash: Path) -> str:
+        """Moves picture n with its record and thumbnails to the trash; a job without pictures becomes 'deleted'.
+        The index stays reserved, so refs '<job>/<k>' of the other pictures keep pointing where they did."""
+        with self._lock:
+            row = self.db.execute("SELECT status, result FROM jobs WHERE id=?", (job_id,)).fetchone()
+            result = json.loads(row["result"])
+            src = Path(result["files"][n])
+            dest = trash / f"{datetime.now():%Y%m%d-%H%M%S}-{job_id}-{n}"
+            dest.mkdir(parents=True, exist_ok=True)
+            for p in [*src.parent.glob(f"{src.stem}.*"), *src.parent.glob(f"thumb-{src.stem}-*")]:
+                shutil.move(str(p), str(dest / p.name))
+            result["deleted"] = sorted({*result.get("deleted", []), n})
+            status = "deleted" if len(result["deleted"]) == len(result["files"]) else row["status"]
+            self.db.execute("UPDATE jobs SET status=?, result=? WHERE id=?",
+                            (status, json.dumps(result, ensure_ascii=False), job_id))
+        return str(dest)
+
     def raw_request(self, job_id: str) -> dict | None:
         """The full stored request, refs' b64 included (for repeating a job)."""
         with self._lock:
@@ -145,8 +171,10 @@ class JobStore:
         """'<job_id>/<n>' -> PNG path of a finished image, else None."""
         job_id, _, n = ref.partition("/")
         job = self.get(job_id)
-        files = ((job or {}).get("result") or {}).get("files", [])
-        return Path(files[int(n)]) if n.isdigit() and int(n) < len(files) else None
+        result = (job or {}).get("result") or {}
+        files = result.get("files", [])
+        ok = n.isdigit() and int(n) < len(files) and int(n) not in result.get("deleted", [])
+        return Path(files[int(n)]) if ok else None
 
     def lineage(self, ref: str) -> list[dict]:
         """The whole version tree the image belongs to: walk up to the root, then all descendants."""

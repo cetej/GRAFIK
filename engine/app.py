@@ -435,6 +435,18 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     def jobs(limit: int = 50):
         return store.list(limit)
 
+    @app.get("/api/v2/library")
+    def library(offset: int = 0, limit: int = 48):
+        """The Knihovna tab page by page: /api/v2/jobs gives only the newest jobs (the queue polls it every 2 s)."""
+        total, items = store.library(max(offset, 0), max(1, min(limit, 200)))
+        return {"total": total, "offset": max(offset, 0), "items": items}
+
+    @app.delete("/api/v2/jobs/{job_id}/images/{n}")
+    def image_delete(job_id: str, n: int):
+        if store.image_path(f"{job_id}/{n}") is None:
+            raise HTTPException(404, "obrázek neexistuje")
+        return {"moved_to": store.delete_image(job_id, n, s.library_dir / ".trash")}
+
     @app.get("/api/v2/jobs/{job_id}")
     def job(job_id: str):
         j = store.get(job_id)
