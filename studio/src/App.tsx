@@ -4,16 +4,16 @@ import {
   type Backend, type Batch, type Estimate, type Health, type ImageRequest, type Job, type KnihovnaImage, type KnihovnaItem, type RefIn, type RefMeta, type Role, type StyleCard,
 } from './api.ts'
 import Stage from './Stage.tsx'
-import { HistoryPanel, Lightbox, PanelBoundary } from './panels.tsx'
+import { HistoryPanel, Lightbox, PanelBoundary, type LbItem, type OpenImage } from './panels.tsx'
 import RefPicker, { KIND_LABEL, storeDrop, type PickerTab } from './RefPicker.tsx'
 import Wizard from './Wizard.tsx'
 import Settings from './Settings.tsx'
 import Styles, { Swatches } from './Styles.tsx'
 import Infographics from './Infographics.tsx'
+import Library, { libraryItem } from './Library.tsx'
 import Localize from './Localize.tsx'
 import Models3d from './Models3d.tsx'
 import Scenes3d from './Scenes3d.tsx'
-import Library from './Library.tsx'
 import { BatchPanel, BatchRow } from './Batch.tsx'
 
 // ~1 MP per format, all multiples of 16 (Engine requirement)
@@ -67,7 +67,11 @@ export default function App() {
   const [picker, setPicker] = useState<PickerTab | null>(null)
   const [inboxNew, setInboxNew] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
-  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [lightbox, setLightbox] = useState<{ items: LbItem[]; start: number } | null>(null)
+  const openImage: OpenImage = useCallback((src, items) => {
+    const list = items?.length ? items : [{ src }]
+    setLightbox({ items: list, start: Math.max(0, list.findIndex((x) => x.src === src)) })
+  }, [])
   const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -117,6 +121,7 @@ export default function App() {
     return () => clearInterval(t)
   }, [refresh])
 
+  const imageDeleted = useCallback((ref: string) => { setSelected((s) => (s === ref ? null : s)); refresh() }, [refresh])
   const doneImages = useMemo(
     () => jobs.filter((j) => j.status === 'done').flatMap((j) => jobRefs(j).map((ref) => ({ ref, job: j }))),
     [jobs],
@@ -325,20 +330,20 @@ export default function App() {
         <Infographics openId={infoId} setOpenId={setInfoId} selectedImage={selected}
           recentImages={doneImages.map((d) => d.ref)} onError={setToast} />
       ) : tab === 'localize' ? (
-        <Localize selectedImage={selected} pickRef={localizeRef} onOpen={setLightbox} setConfirm={setConfirm} onError={setToast} />
+        <Localize selectedImage={selected} pickRef={localizeRef} onOpen={openImage} setConfirm={setConfirm} onError={setToast} />
       ) : tab === 'styles' ? (
-        <Styles onError={setToast} onOpen={setLightbox} onSubmit={submitForStyle} selectedImage={selected}
+        <Styles onError={setToast} onOpen={openImage} onSubmit={submitForStyle} selectedImage={selected}
           openDetect={detectOpen} onDetectOpen={() => setDetectOpen(true)} onDetectClosed={() => setDetectOpen(false)}
           onUse={(slug) => { setStyleSel(slug); setTab('studio') }} />
       ) : tab === 'guide' ? (
-        <Wizard jobs={jobs} onOpen={setLightbox} onSubmit={submit} setConfirm={setConfirm} onError={setToast}
+        <Wizard jobs={jobs} onOpen={openImage} onSubmit={submit} setConfirm={setConfirm} onError={setToast}
           onOpenInStudio={(ref) => { setSelected(ref); setTab('studio') }} onInfographic={openInfographic}
           onInfographicDoc={(id) => { setInfoId(id); setTab('info') }}
           onUseRef={(m) => { pickRef(m); setTab('studio'); setToast(`${m.title} je v předlohách.`) }} />
       ) : tab === 'library' ? (
-        <Library reloadKey={`${doneImages.length}:${doneImages[0]?.ref}`} onError={setToast}
+        <Library reloadKey={`${doneImages.length}:${doneImages[0]?.ref}`} onError={setToast} onZoom={openImage}
           onOpen={(ref) => { setSelected(ref); setTab('studio') }}
-          onDeleted={(ref) => { if (selected === ref) setSelected(null); refresh() }} />
+          onDeleted={imageDeleted} />
       ) : (
         <main className="studio">
           <section className="card left">
@@ -445,7 +450,7 @@ export default function App() {
           <Stage
             selected={selected}
             job={selJob}
-            onOpen={setLightbox}
+            onOpen={(src) => openImage(src, doneImages.map(({ ref, job }) => libraryItem(ref, job, imageDeleted, { label: 'Vybrat ve Studiu', run: () => setSelected(ref) })))}
             onUseAsRef={useAsRef}
             onSubmit={submit}
             onVariant={variant}
@@ -485,7 +490,7 @@ export default function App() {
         </main>
       ))} /></PanelBoundary>
 
-      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
+      {lightbox && <Lightbox items={lightbox.items} start={lightbox.start} onClose={() => setLightbox(null)} />}
       {picker && <RefPicker initialTab={picker} onPick={pickRef} onPickKnihovna={pickKnihovna} onError={setToast} onClose={() => { setPicker(null); countInbox() }} />}
       {confirm && <ConfirmDialog c={confirm} onClose={() => setConfirm(null)} />}
       {toast && <div className="toast" onClick={() => setToast(null)}>{toast} <b>×</b></div>}

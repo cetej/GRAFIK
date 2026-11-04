@@ -4,6 +4,30 @@ import {
   type Chain, type Dossier, type DossierImage, type Fact, type FactSource, type Pin, type RefMeta, type ResearchRow, type ResearchState, type Workflow,
 } from './api.ts'
 import { fmtUsd, type Confirm } from './App.tsx'
+import type { LbItem, OpenImage } from './panels.tsx'
+
+const refSrc = (refId: string) => `/api/v2/refs/${refId}/image`
+// the reference library keeps every picture as PNG, whatever the source file was
+const downloadName = (name: string) => `${name.replace(/^(File|Soubor):/i, '').replace(/\.\w{2,4}$/, '').trim() || 'obrazek'}.png`
+
+/** ⤓ and 🗑 under a picture; deleting asks first. */
+function CardTools({ item }: { item: LbItem }) {
+  const [asking, setAsking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  if (asking) return (
+    <div className="row tight">
+      <span className="hint">Smazat z podkladů?</span>
+      <button className="btn small del" disabled={busy} onClick={async () => { setBusy(true); try { await item.onDelete!() } finally { setBusy(false); setAsking(false) } }}>Smazat</button>
+      <button className="btn small" disabled={busy} onClick={() => setAsking(false)}>Ne</button>
+    </div>
+  )
+  return (
+    <>
+      <a className="btn small" href={item.src} download={item.download ?? ''} title="Stáhnout obrázek">⤓</a>
+      {item.onDelete && <button className="btn small" onClick={() => setAsking(true)} title={item.deleteLabel}>🗑</button>}
+    </>
+  )
+}
 
 // Infografika z tématu, krok Podklady (engine/research.py). Rozpory nahoře, nic se nerozhoduje potichu; placené hledání je jen tlačítko s cenou.
 const THEMES = {
@@ -156,19 +180,19 @@ export function FactRow({ fact }: { fact: Fact }) {
   )
 }
 
-function ImageCard({ img, title, onOpen, onUseRef, onInfographicDoc, onError }: {
-  img: DossierImage; title: string; onOpen: (src: string) => void; onUseRef: (m: RefMeta) => void; onInfographicDoc: (id: string) => void; onError: (msg: string) => void
+function ImageCard({ img, title, item, onZoom, onUseRef, onInfographicDoc, onError }: {
+  img: DossierImage; title: string; item?: LbItem; onZoom: () => void; onUseRef: (m: RefMeta) => void; onInfographicDoc: (id: string) => void; onError: (msg: string) => void
 }) {
   const [busy, setBusy] = useState(false)
-  if (!img.ref_id) return <figure className="doc-img"><div className="ph">Nestáhlo se</div><figcaption title={img.chyba}>{img.nazev}</figcaption></figure>
-  const src = `/api/v2/refs/${img.ref_id}/image`
+  if (!img.ref_id || !item) return <figure className="doc-img"><div className="ph">Nestáhlo se</div><figcaption title={img.chyba}>{img.nazev}</figcaption></figure>
+  const src = item.src
   const meta: RefMeta = {
     id: img.ref_id, origin: 'commons', title: img.nazev, source_url: img.url, page_url: img.stranka, author: img.autor, license: img.licence,
     width: img.sirka ?? 0, height: img.vyska ?? 0, added: '', seen: true, image: src,
   }
   return (
     <figure className="doc-img">
-      <button className="zoomable" onClick={() => onOpen(src)} title={`Zvětšit: ${img.nazev}`}><img src={`${src}?w=384`} alt={img.nazev} loading="lazy" /></button>
+      <button className="zoomable" onClick={onZoom} title={`Zvětšit: ${img.nazev}`}><img src={`${src}?w=384`} alt={img.nazev} loading="lazy" /></button>
       <figcaption>
         <a href={img.stranka ?? undefined} target="_blank" rel="noreferrer" title={img.nazev}>{img.autor || 'autor neuveden'}</a> · {img.licence || 'licence neuvedena'}
       </figcaption>
@@ -179,27 +203,40 @@ function ImageCard({ img, title, onOpen, onUseRef, onInfographicDoc, onError }: 
             setBusy(true)
             try { onInfographicDoc((await infoApi.fromRef(img.ref_id!, title)).id) } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
           }}>→ Infografika</button>
+        <CardTools item={item} />
       </div>
     </figure>
   )
 }
 
-function PinCard({ pin, onOpen, onUseRef }: { pin: Pin; onOpen: (src: string) => void; onUseRef: (m: RefMeta) => void }) {
-  const src = `/api/v2/refs/${pin.ref_id}/image`
+function PinCard({ pin, item, onZoom, onUseRef }: { pin: Pin; item: LbItem; onZoom: () => void; onUseRef: (m: RefMeta) => void }) {
+  const src = item.src
   const meta: RefMeta = {
     id: pin.ref_id, origin: 'pinterest', title: pin.nazev || pin.dotaz, source_url: null, page_url: pin.pin, author: null, license: pin.licence,
     width: pin.sirka, height: pin.vyska, added: '', seen: true, image: src,
   }
   return (
     <figure className="doc-img">
-      <button className="zoomable" onClick={() => onOpen(src)} title={`Zvětšit: ${pin.nazev}`}><img src={`${src}?w=384`} alt={pin.nazev} loading="lazy" /></button>
+      <button className="zoomable" onClick={onZoom} title={`Zvětšit: ${pin.nazev}`}><img src={`${src}?w=384`} alt={pin.nazev} loading="lazy" /></button>
       <figcaption><a href={pin.pin} target="_blank" rel="noreferrer" title={pin.nazev}>pin na Pinterestu</a> · jen předloha</figcaption>
-      <div className="row tight"><button className="btn small" onClick={() => onUseRef(meta)} title="Do předloh ve Studiu">→ Předloha</button></div>
+      <div className="row tight"><button className="btn small" onClick={() => onUseRef(meta)} title="Do předloh ve Studiu">→ Předloha</button><CardTools item={item} /></div>
     </figure>
   )
 }
 
-function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onError, onUseRef, onInfographicDoc, onChain }: ResearchProps & { state: ResearchState; dossier: Dossier; onChain?: (id: string) => void }) {
+function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onError, onUseRef, onInfographicDoc, onChain, onChanged }: ResearchProps & { state: ResearchState; dossier: Dossier; onChain?: (id: string) => void; onChanged: () => void }) {
+  const roles = KIND_ROLES[dossier.entita.druh ?? 'vec']
+  // arrows walk the pictures in the order the page shows them; deleting hides a picture from the project, dossier.json stays
+  const imgItems = new Map<string, LbItem>(roles.flatMap((role) => dossier.images.filter((i) => i.role === role && i.ref_id)).map((img) => [img.file, {
+    src: refSrc(img.ref_id!), title: `${img.nazev} · ${img.autor || 'autor neuveden'} · ${img.licence || 'licence neuvedena'}`, download: downloadName(img.nazev),
+    deleteLabel: 'Smazat z podkladů projektu (ve Schránce předloh zůstane)',
+    onDelete: async () => { await researchApi.removeImage(state.id, img.file); onChanged() },
+  }]))
+  const pinItems = new Map<string, LbItem>(state.inspirace.map((pin) => [pin.pin, {
+    src: refSrc(pin.ref_id), title: `${pin.nazev || pin.dotaz} · pin z Pinterestu, jen předloha`, download: downloadName(pin.nazev || 'pin'),
+    deleteLabel: 'Smazat z inspirace projektu (ve Schránce předloh zůstane)',
+    onDelete: async () => { await researchApi.removePin(state.id, pin.pin); onChanged() },
+  }]))
   const facts = dossier.facts
   const conflicts = facts.filter((f) => f.stav === 'rozpor')
   const others = facts.filter((f) => f.stav !== 'rozpor')
@@ -288,14 +325,15 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
 
       <section className="card">
         <h3>Obrázky po rolích ({dossier.images.length})</h3>
-        {KIND_ROLES[dossier.entita.druh ?? 'vec'].map((role) => {
+        {roles.map((role) => {
           const imgs = dossier.images.filter((i) => i.role === role)
           return (
             <div className="role-row" key={role}>
               <b>{ROLES[role]}</b>
               {imgs.length ? (
                 <div className="role-imgs">
-                  {imgs.map((img) => <ImageCard key={img.file} img={img} title={dossier.entita.label} onOpen={onOpen} onUseRef={onUseRef} onInfographicDoc={onInfographicDoc} onError={onError} />)}
+                  {imgs.map((img) => <ImageCard key={img.file} img={img} title={dossier.entita.label} item={imgItems.get(img.file)}
+                    onZoom={() => onOpen(imgItems.get(img.file)!.src, [...imgItems.values()])} onUseRef={onUseRef} onInfographicDoc={onInfographicDoc} onError={onError} />)}
                 </div>
               ) : <span className="hint">Nic se nenašlo.</span>}
             </div>
@@ -312,7 +350,8 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
             <div className="role-row" key={dotaz}>
               <b>{dotaz || 'Bez dotazu'}</b>
               <div className="role-imgs">
-                {state.inspirace.filter((p) => p.dotaz === dotaz).map((pin) => <PinCard key={pin.pin} pin={pin} onOpen={onOpen} onUseRef={onUseRef} />)}
+                {state.inspirace.filter((p) => p.dotaz === dotaz).map((pin) => <PinCard key={pin.pin} pin={pin} item={pinItems.get(pin.pin)!}
+                  onZoom={() => onOpen(pinItems.get(pin.pin)!.src, [...pinItems.values()])} onUseRef={onUseRef} />)}
               </div>
             </div>
           ))}
@@ -336,7 +375,7 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
 
 export interface ResearchProps {
   onOpenVersion: (id: string) => void
-  onOpen: (src: string) => void
+  onOpen: OpenImage
   setConfirm: (c: Confirm) => void
   onError: (msg: string) => void
   onUseRef: (m: RefMeta) => void
@@ -371,7 +410,7 @@ export function ResearchBody({ id, onBack, onChain, ...props }: ResearchProps & 
           {onBack && <button className="btn" onClick={onBack}>Zpět na zadání</button>}
         </section>
       )}
-      {state?.dossier && <DossierView key={state.id} state={state} dossier={state.dossier} onChain={onChain} {...props} />}
+      {state?.dossier && <DossierView key={state.id} state={state} dossier={state.dossier} onChain={onChain} onChanged={load} {...props} />}
     </>
   )
 }

@@ -1,12 +1,25 @@
 import { useEffect, useState } from 'react'
 import { api, imageUrl, jobRefs, type Job } from './api.ts'
+import type { LbItem, OpenImage } from './panels.tsx'
 
 const PAGE = 48
 
+const caption = (job: Job) => job.request.edit?.instruction ?? job.request.prompt
+const fileName = (ref: string) => `grafik-${ref.replace('/', '-')}.png`
+
+/** A finished picture in the enlarged view: download, delete to library/.trash, open in Studio. */
+export function libraryItem(ref: string, job: Job, onDeleted: (ref: string) => void, open: LbItem['open']): LbItem {
+  return {
+    src: imageUrl(ref), title: caption(job), download: fileName(ref), open, deleteLabel: 'Přesunout do koše',
+    onDelete: async () => { await api.deleteImage(ref); onDeleted(ref) },
+  }
+}
+
 // The Knihovna tab: every finished picture page by page (Engine /api/v2/library), deleting moves to library/.trash.
-export default function Library({ reloadKey, onOpen, onDeleted, onError }: {
+export default function Library({ reloadKey, onOpen, onZoom, onDeleted, onError }: {
   reloadKey: string   // the newest finished pictures changed: reload the page
   onOpen: (ref: string) => void
+  onZoom: OpenImage
   onDeleted: (ref: string) => void
   onError: (msg: string) => void
 }) {
@@ -46,6 +59,9 @@ export default function Library({ reloadKey, onOpen, onDeleted, onError }: {
     </nav>
   )
 
+  const deleted = (ref: string) => { onDeleted(ref); setTick((t) => t + 1) }
+  const items = data ? data.items.flatMap((job) => jobRefs(job).map((ref) => libraryItem(ref, job, deleted, { label: 'Otevřít ve Studiu', run: () => onOpen(ref) }))) : []
+
   if (!data) return <main className="library-page"><p className="empty">Načítám knihovnu…</p></main>
   return (
     <main className="library-page">
@@ -54,11 +70,11 @@ export default function Library({ reloadKey, onOpen, onDeleted, onError }: {
       <div className={`library${stale ? ' stale' : ''}`}>
         {data.items.flatMap((job) => jobRefs(job).map((ref) => (
           <figure key={ref}>
-            <button className="library-open" onClick={() => onOpen(ref)} title="Otevřít ve studiu">
+            <button className="library-open" onClick={() => onZoom(imageUrl(ref), items)} title="Zvětšit, šipkami na další">
               <img src={imageUrl(ref, 384)} loading="lazy" alt="" />
             </button>
             <figcaption>
-              <span>{(job.request.edit?.instruction ?? job.request.prompt).slice(0, 90)}</span>
+              <span>{caption(job).slice(0, 90)}</span>
               <small>{new Date(job.created * 1000).toLocaleString('cs-CZ', { dateStyle: 'short', timeStyle: 'short' })}</small>
             </figcaption>
             <div className="library-act">
@@ -69,7 +85,11 @@ export default function Library({ reloadKey, onOpen, onDeleted, onError }: {
                   <button className="btn small" disabled={busy} onClick={() => setAsking(null)}>Ne</button>
                 </>
               ) : (
-                <button className="btn small" onClick={() => setAsking(ref)}>Smazat…</button>
+                <>
+                  <button className="btn small" onClick={() => onOpen(ref)}>Otevřít ve Studiu</button>
+                  <a className="btn small" href={imageUrl(ref)} download={fileName(ref)} title="Stáhnout PNG">⤓</a>
+                  <button className="btn small" onClick={() => setAsking(ref)} title="Přesunout do koše">🗑</button>
+                </>
               )}
             </div>
           </figure>

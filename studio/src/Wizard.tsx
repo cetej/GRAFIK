@@ -1,3 +1,4 @@
+import type { OpenImage } from './panels.tsx'
 import { useCallback, useEffect, useState } from 'react'
 import {
   api, imageUrl, onlyTranslation, PaymentRequired, refsApi, wfApi,
@@ -16,7 +17,7 @@ const BACKGROUNDS: Record<string, string> = { studio: 'tmavÃ© studio', sea: 'moÅ
 
 interface Props {
   jobs: Job[]
-  onOpen: (src: string) => void
+  onOpen: OpenImage
   onSubmit: (req: ImageRequest, what: string) => Promise<void>
   setConfirm: (c: Confirm) => void
   onError: (msg: string) => void
