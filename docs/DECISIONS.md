@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-04 — Vrstvy objektů v generované ilustraci
+
+Operátor: „může náš systém umět chytré mapování objektů (vrstev) v obrázku, jejich odmazávání, měnění a dogenerovávání podkladu?“; pak „Generované ilustrace“, „Vrstvy“ a po náčrtu panelu „Ano, postav to“ (hledání přes SAM-3).
+
+- **Co:** u vygenerovaného obrázku ve Studiu tlačítko „◧ Vrstvy objektů“. Claude objekty pojmenuje, SAM-3 je obtáhne, lokální FLUX pod nimi dokreslí podklad. Objekt jde smazat, posunout tažením, změnit pokynem a doplnit rámečkem. Uložení je nový obrázek v Knihovně, každý objekt ve vlastní vrstvě pro VectorCraft a POHYB. Originál se nemění.
+- **Cena:** hledání do 0,04 USD (Claude 0,01 + SAM-3 0,005 za objekt, nejvýš 6). Původně jsem slíbil 0,005 USD za obrázek: víc rámečků v jednom volání SAM-3 vrací jen jednu masku, takže jedno volání na objekt. Změna objektu 0,005 USD (+0,01 USD za překlad české věty), smazat a posunout 0 USD.
+- **Proč vrstvy a ne plochá úprava:** operátor chce objekty později přesouvat a vypínat, stejně jako u infografik (DECISIONS 2026-11-03).
+
 ## 2026-11-04 — Sklad na D: pro náměty videí a 3D zdroje, F1 náměty
 
 Operátor: „Docela rád bych všechny tyhle náměty stáhl a uložil třeba do nového dedikovaného adresáře na disku D: a propojil ho s projekty Klapka a Pohyb … Podobně bych rád začal stahovat 3D modely“, „Ty 3D modely jsou i pro projekt Grafik“; na návrh STOPA `outputs/2026-11-04-sklad-namety-a-3d-modely.md` odpověděl „Ano, spusť F1“ (výchozí volby: `D:\NGM-SKLAD`, náhledy stahovat, textury 1k).

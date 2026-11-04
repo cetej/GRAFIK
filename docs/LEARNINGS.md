@@ -1,5 +1,13 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-04 — Vrstvy objektů: co SAM-3, Claude a FLUX dělají jinak, než čekáš
+
+- **SAM-3 s víc rámečky v jednom volání vrátí jen jednu masku** (sonda na sklenici, lupě a papírech: 3 rámečky, 1 maska lupy). Na každý objekt jedno volání.
+- **Rámečky od Claude Haiku jsou posunuté:** u racka rámeček pod ptákem (SAM obtáhl kus nebe), u domku jen kolem střechy. SAM proto hledá objekt podle anglického názvu (`prompt`, `return_multiple_masks`) a rámeček jen vybere výskyt (`pick_mask`). Rámeček operátora je přesný, tam jde box.
+- **FLUX s jedním rámečkem přes všechny objekty maják nechal stát**, loď odstranil. Podklad se dělá po jednom objektu odpředu, každý s vlastním rámečkem a maskou.
+- **Široký lem vrstvy (16 px) nesl při posunu pruh původního pozadí** a uřízl skály ostrova svislou hranou. Lem je teď `base` (≈ 0,3 % delší strany), podklad se přepisuje v 2× širší ploše; prstenec mezi nimi ukazuje dokreslený podklad.
+- Kontrola výsledku ve 100 % ukázala všechny tři vady, zmenšený náhled žádnou.
+
 ## 2026-11-03 — Počeštění: bílé písmo na zelené ploše vyšlo zelené a nesmazané
 
 Půdorys gymnasionu v Mieze (plochá infografika, bílé popisky na zelené). `_background` počítal jen s tmavým písmem: uzavření napřed zalilo zelené mezery mezi bílými písmeny, slovo se slilo do bílé skvrny a otevření ji nesmazalo. Podklad tak vyšel bílý, za „písmo“ se změřila zelená mezi písmeny (`color_measured` přebil správnou bílou od Claude), mazání skoro nic nesmazalo a česká sazba dostala barvu plochy. Ve VectorCraftu proto byly jen prázdné rámečky. Kontrola zbytků hlásila 0 %, protože hledala zbytky té špatné zelené.

@@ -98,6 +98,19 @@ export interface FormatPreview {
   expand_usd: number
 }
 
+// Vrstvy objektů v generované ilustraci (engine/objekty.py)
+export interface ObjektVerze { vrstva: string; maska: string; pokyn: string | null }
+export interface Objekt {
+  id: string; nazev: string; en: string; box: number[]; plocha: number; viditelny: boolean; posun: number[]
+  verze: ObjektVerze[]; vrstva_url: string
+}
+export interface ObjektyDoc {
+  ref: string; size?: number[]; objects: Objekt[]; find_usd: number; add_usd?: number
+  podklad: { file: string; job: string; url: string; zastaraly: boolean } | null
+  ulohy: { job: string; op: 'podklad' | 'zmena'; object?: string; status: string | null; error: string | null }[]
+}
+const objektyUrl = (ref: string, tail = '') => `/api/v2/jobs/${ref.replace('/', '/images/')}/objekty${tail}`
+
 export class PaymentRequired extends Error {
   constructor(public estimate: number, public items: CostItem[]) {
     super(`Placená operace ~${estimate} USD`)
@@ -143,6 +156,15 @@ export const api = {
     post<FormatPreview>(`/api/v2/jobs/${ref.replace('/', '/images/')}/format/nahled`, body),
   formatMake: (ref: string, body: { size: string; objekt: number[] | null; zpusob: 'orez' | 'rozsirit'; confirm_cost: boolean }) =>
     post<{ ref: string; method: string; usd: number; size: number[] }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/format`, body),
+  objekty: (ref: string) => call<ObjektyDoc>(objektyUrl(ref)),
+  objektyFind: (ref: string) => post<ObjektyDoc>(objektyUrl(ref), { confirm_cost: true }),
+  objektyAdd: (ref: string, box: number[], nazev: string) => post<ObjektyDoc>(objektyUrl(ref, '/pridat'), { box, nazev, confirm_cost: true }),
+  objektyPlate: (ref: string) => post<{ job_id: string }>(objektyUrl(ref, '/podklad'), {}),
+  objektyEdit: (ref: string, oid: string, body: { viditelny?: boolean; posun?: number[] }) =>
+    call<ObjektyDoc>(objektyUrl(ref, `/${oid}`), { method: 'PATCH', body: JSON.stringify(body) }),
+  objektyChange: (ref: string, oid: string, instruction: string) =>
+    post<{ job_id: string }>(objektyUrl(ref, `/${oid}/zmenit`), { instruction, confirm_cost: true }),
+  objektyDone: (ref: string) => post<{ ref: string }>(objektyUrl(ref, '/hotovo'), {}),
   expand: (text: string, confirm: boolean) => post<{ prompt: string; usd: number }>('/api/v2/prompt/expand', { text, confirm_cost: confirm }),
   costs: () => call<{ total_usd: number; entries: { ts: string; usd: number }[] }>('/api/v2/costs?limit=500'),
 }

@@ -3,6 +3,7 @@ import { api, imageUrl, isCzech, ManualEdit, type Box, type EditAction, type Est
 import { fmtTime, priceLabel } from './App.tsx'
 import PohybDialog from './Pohyb.tsx'
 import FormatDialog from './Format.tsx'
+import ObjektyPanel from './Objekty.tsx'
 
 const ACTIONS: { id: EditAction; label: string; hint: string }[] = [
   { id: 'add', label: 'Přidat', hint: 'co má v rámečku přibýt' },
@@ -26,7 +27,7 @@ interface Props {
   footer: ReactNode
 }
 
-type Mode = 'view' | 'compare' | 'box'
+type Mode = 'view' | 'compare' | 'box' | 'vrstvy'
 
 export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, onCreated, onError, footer }: Props) {
   const [mode, setMode] = useState<Mode>('view')
@@ -79,6 +80,8 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
     <section className="stage">
       <div className="toolbar">
         {!finished && <button className={`btn ${mode === 'box' ? 'active' : ''}`} onClick={() => setMode(mode === 'box' ? 'view' : 'box')}>▭ Upravit v rámečku</button>}
+        {!finished && <button className={`btn ${mode === 'vrstvy' ? 'active' : ''}`} onClick={() => setMode(mode === 'vrstvy' ? 'view' : 'vrstvy')}
+          title="Rozložit na objekty: smazat, posunout, změnit, dokreslit podklad">◧ Vrstvy objektů</button>}
         <button className={`btn ${mode === 'compare' ? 'active' : ''}`} disabled={!before}
           title={before ? 'Posuvníkem porovnáte s předchozí verzí nebo předlohou' : 'Tenhle obrázek nemá předchozí verzi ani předlohu'}
           onClick={() => setMode(mode === 'compare' ? 'view' : 'compare')}>⇔ Porovnat před/po</button>
@@ -106,6 +109,8 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
       <div className="canvas">
         {mode === 'compare' && before ? (
           <Compare before={before} after={src} />
+        ) : mode === 'vrstvy' ? (
+          <ObjektyPanel selected={selected} src={src} onError={onError} onCreated={onCreated} />
         ) : mode === 'box' ? (
           <BoxEditor src={src} selected={selected} onSubmit={onSubmit} onDone={() => setMode('view')} />
         ) : (

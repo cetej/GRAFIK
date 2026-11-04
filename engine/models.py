@@ -71,6 +71,8 @@ class EditSpec(BaseModel):
     bbox: list[int]                       # [top, left, bottom, right], 0–1000
     target_bbox: list[int] | None = None  # move only
     instruction: str = Field(min_length=1)
+    # PNG maska (L) místo obdélníku pro paste-back; jen pro Engine (engine/objekty.py), API ji odmítne
+    mask: str | None = None
 
     @field_validator("bbox", "target_bbox")
     @classmethod

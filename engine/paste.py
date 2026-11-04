@@ -14,6 +14,8 @@ FEATHER_PX = 6
 
 
 def edit_mask(size: tuple[int, int], edit: EditSpec) -> Image.Image:
+    if edit.mask:       # tvar objektu, rozšířený a změkčený už při uložení (engine/objekty.py)
+        return Image.open(edit.mask).convert("L").resize(size, Image.BILINEAR)
     w, h = size
     m = round(MARGIN * max(w, h))
     mask = Image.new("L", size, 0)
