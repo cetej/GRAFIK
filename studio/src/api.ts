@@ -85,6 +85,7 @@ export interface Provenance {
   reviewed_at?: string
   vectorcraft_svg?: string
   source?: string   // stored from a file, not made by a generator
+  manual_edit?: { file: string; modified: string }   // a version taken over from a manual edit in VectorCraft
 }
 
 // GRAFIK#150: boxes are [top, left, bottom, right] in 0–1000, subject null = the machine is not sure
@@ -152,6 +153,10 @@ export const api = {
   review: (ref: string, who: string) => post<Provenance>(`/api/v2/jobs/${ref.replace('/', '/images/')}/review`, { reviewed_by: who }),
   openVectorcraft: (ref: string, mode?: 'edited' | 'new') =>
     post<{ opened: string; path: string; created: boolean }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/vectorcraft`, { mode }),
+  vectorcraftState: (ref: string) =>
+    call<{ available: boolean; edits: { file: string; modified: string; version: string | null }[] }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/vectorcraft`),
+  vectorcraftVersion: (ref: string, file: string) =>
+    post<{ ref: string; source: string; created: boolean; warnings: string[] }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/vectorcraft/verze`, { file }),
   formatPreview: (ref: string, body: { size: string; objekt: number[] | null }) =>
     post<FormatPreview>(`/api/v2/jobs/${ref.replace('/', '/images/')}/format/nahled`, body),
   formatMake: (ref: string, body: { size: string; objekt: number[] | null; zpusob: 'orez' | 'rozsirit'; confirm_cost: boolean }) =>

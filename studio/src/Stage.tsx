@@ -4,6 +4,7 @@ import { fmtTime, priceLabel } from './App.tsx'
 import PohybDialog from './Pohyb.tsx'
 import FormatDialog from './Format.tsx'
 import ObjektyPanel from './Objekty.tsx'
+import { useVcVersions } from './vcVersions.ts'
 
 const ACTIONS: { id: EditAction; label: string; hint: string }[] = [
   { id: 'add', label: 'Přidat', hint: 'co má v rámečku přibýt' },
@@ -23,13 +24,14 @@ interface Props {
   onInfographic: (ref: string) => void
   onLocalize: (ref: string) => void
   onCreated: (ref: string) => void
+  onSelect: (ref: string) => void
   onError: (msg: string) => void
   footer: ReactNode
 }
 
 type Mode = 'view' | 'compare' | 'box' | 'vrstvy'
 
-export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, onCreated, onError, footer }: Props) {
+export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, onCreated, onSelect, onError, footer }: Props) {
   const [mode, setMode] = useState<Mode>('view')
   // a finished picture with its own layers opens whole in VectorCraft, without a 16:9 document around it
   const [layered, setLayered] = useState(false)
@@ -39,13 +41,21 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   const [vcOpened, setVcOpened] = useState<string | null>(null)
   const [toPohyb, setToPohyb] = useState(false)
   const [formatting, setFormatting] = useState(false)
+  // this picture is a version taken over from a manual edit: its parent is the previous version
+  const [fromEdit, setFromEdit] = useState<string | null>(null)
   useEffect(() => {
     setLayered(false)
     setFinished(false)
     setVcAsk(null)
     setVcOpened(null)
-    if (selected) api.provenance(selected).then((p) => { setLayered(!!p.vectorcraft_svg); setFinished(!!p.source) }).catch(() => setLayered(false))
+    setFromEdit(null)
+    if (selected) api.provenance(selected).then((p) => {
+      setLayered(!!p.vectorcraft_svg)
+      setFinished(!!p.source)
+      setFromEdit(p.manual_edit && p.parent ? p.parent : null)
+    }).catch(() => setLayered(false))
   }, [selected])
+  const vc = useVcVersions(selected, layered, onError)
   const parent = job?.request.parent ?? null
   // "before" = the parent version, else the first image reference (image-to-image)
   const firstImageRef = job?.request.refs.findIndex((r) => r.role !== 'style') ?? -1
@@ -105,7 +115,20 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
           <button className="btn small" onClick={() => openVectorcraft('new')}>Otevřít novou kopii</button>
         </div>
       )}
-      {vcOpened && <p className="hint">Otevřeno ve VectorCraftu: {vcOpened}</p>}
+      {vcOpened && !vc.created && <p className="hint">Otevřeno ve VectorCraftu: {vcOpened}. Hlídám uložení (Ctrl+S)…</p>}
+      {vc.busy && <p className="hint">Převádím uloženou úpravu na novou verzi…</p>}
+      {vc.created && (
+        <div className="row">
+          <span className="hint">✔ Uložená úprava je v Knihovně jako nová verze.</span>
+          <button className="btn small go" onClick={() => onCreated(vc.created!)}>Ukázat novou verzi</button>
+        </div>
+      )}
+      {fromEdit && (
+        <div className="row">
+          <span className="hint">Verze z ruční úpravy ve VectorCraftu.</span>
+          <button className="btn small" onClick={() => onSelect(fromEdit)} title="Tahle verze zůstane, jen se vrátíte k obrázku před úpravou">← Předchozí verze</button>
+        </div>
+      )}
       <div className="canvas">
         {mode === 'compare' && before ? (
           <Compare before={before} after={src} />

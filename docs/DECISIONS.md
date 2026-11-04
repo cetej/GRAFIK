@@ -10,6 +10,13 @@ Operátor: „může náš systém umět chytré mapování objektů (vrstev) v 
 - **Cena:** hledání do 0,04 USD (Claude 0,01 + SAM-3 0,005 za objekt, nejvýš 6). Původně jsem slíbil 0,005 USD za obrázek: víc rámečků v jednom volání SAM-3 vrací jen jednu masku, takže jedno volání na objekt. Změna objektu 0,005 USD (+0,01 USD za překlad české věty), smazat a posunout 0 USD.
 - **Proč vrstvy a ne plochá úprava:** operátor chce objekty později přesouvat a vypínat, stejně jako u infografik (DECISIONS 2026-11-03).
 
+## 2026-11-04 — Uložená ruční úprava z VectorCraftu je nová verze, sama
+
+Operátor (session NG-ROBOT, kontrola infografik): „v Grafikovi se verze otevřená a opravená ve Vectorcraftu nezapisuje jako nová verze do projektu a to by měla.“ Na náčrt dvou možností (samo, nebo tlačítkem) vybral „Samo“.
+
+- **Co:** obrázek z Knihovny nebo počeštění otevřený ve VectorCraftu Studio hlídá (každé 4 s `GET /api/v2/jobs/<job>/images/<n>/vectorcraft`). Každá uložená úprava (Ctrl+S nebo Uložit jako vedle kopie) se převezme `POST …/vectorcraft/verze`: VectorCraft bez okna a pod zámkem těžké práce udělá PNG, PDF a SVG s živým textem, vznikne nový obrázek v Knihovně s `parent` = původní obrázek (Historie verzí „ruční úprava ve VectorCraftu“, Porovnat před/po). Původní obrázek ani soubor úpravy se nemění; tatáž úprava podruhé vrátí tutéž verzi (`<job>/vectorcraft-verze.json`). U nové verze je „← Předchozí verze“.
+- **Proč:** úpravy ležely ve složce `vectorcraft/` a nic je nečetlo (4. 11. pět obrázků s uloženou úpravou bez verze). Editor infografik má dál „Převzít do exportů“, beze změny.
+
 ## 2026-11-04 — Sklad na D: pro náměty videí a 3D zdroje, F1 náměty
 
 Operátor: „Docela rád bych všechny tyhle náměty stáhl a uložil třeba do nového dedikovaného adresáře na disku D: a propojil ho s projekty Klapka a Pohyb … Podobně bych rád začal stahovat 3D modely“, „Ty 3D modely jsou i pro projekt Grafik“; na návrh STOPA `outputs/2026-11-04-sklad-namety-a-3d-modely.md` odpověděl „Ano, spusť F1“ (výchozí volby: `D:\NGM-SKLAD`, náhledy stahovat, textury 1k).
@@ -173,6 +180,7 @@ Na otázku „Mají se stavby dělat z dílů s modelem Terra?“ po tabulce mě
 K rozpočtu měření operátor: „Klidně navyš rozpočet na dokončení“. Celkem 1,5248 USD.
 
 Sochy, plachty a lidi v obraze chce operátor výslovně („malí lidičkové tomu také dodají hned lepší náboj“), takže model je smí obsahovat i bez doložené polohy. V popisu je napsané, co je oživení a co pramen; do rozměrů ani kontroly kontaktu se to nepočítá.
+
 ## 2026-11-01 — Jeden slovník výslovnosti v `ngm_shared`
 
 Operátor slyšel v POHYB „mitokondrie“ a zeptal se, jestli jde výslovnost ošetřit obecně. Oprava slova má platit všude, proto jeden soubor místo dvou slovníků v NG-ROBOT a jednoho v POHYB.

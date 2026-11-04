@@ -8,6 +8,12 @@
 - **Široký lem vrstvy (16 px) nesl při posunu pruh původního pozadí** a uřízl skály ostrova svislou hranou. Lem je teď `base` (≈ 0,3 % delší strany), podklad se přepisuje v 2× širší ploše; prstenec mezi nimi ukazuje dokreslený podklad.
 - Kontrola výsledku ve 100 % ukázala všechny tři vady, zmenšený náhled žádnou.
 
+## 2026-11-04 — Ruční úprava z VectorCraftu nikam nevedla a `add_done` neplnil sloupec parent
+
+- Otevření ve VectorCraftu (`vc_copy`) je jednosměrné: uložená úprava zůstane ve `<job>/vectorcraft/` a pozná ji jen `vc_state` (sha256 jiné než v `copies.json`). Převzetí musí být vlastní krok; u obrázků z Knihovny chybělo úplně.
+- Strom verzí (`JobStore.lineage`) čte sloupec `parent`, ne `request.parent`. `add_done` ho dřív nezapisoval, takže nahraný obrázek s rodičem v Historii verzí chyběl, i když Porovnat před/po fungovalo.
+- Do složky `vectorcraft/` nepiš vlastní soubory: `vc_state` bere každý soubor kromě `copies.json` jako ruční úpravu. Evidence převzetí je proto vedle, `vectorcraft-verze.json`.
+
 ## 2026-11-03 — Počeštění: bílé písmo na zelené ploše vyšlo zelené a nesmazané
 
 Půdorys gymnasionu v Mieze (plochá infografika, bílé popisky na zelené). `_background` počítal jen s tmavým písmem: uzavření napřed zalilo zelené mezery mezi bílými písmeny, slovo se slilo do bílé skvrny a otevření ji nesmazalo. Podklad tak vyšel bílý, za „písmo“ se změřila zelená mezi písmeny (`color_measured` přebil správnou bílou od Claude), mazání skoro nic nesmazalo a česká sazba dostala barvu plochy. Ve VectorCraftu proto byly jen prázdné rámečky. Kontrola zbytků hlásila 0 %, protože hledala zbytky té špatné zelené.
@@ -177,6 +183,7 @@ Na každou kartu šla patička z plakátu, na šířce 1080 px v písmu 27 px z 
 - **Obrázek od operátora po kompakci nevidím, jen svůj popis.** Leží v transkriptu jako `attachment.prompt[]` s base64, ne v řádku `user`. Popis z paměti nestačí: až síť po metrech přes jeho řez odhalila, že jsem patra odhadoval špatně.
 - **Odečítání ze sítě.** Řez nebo půdorys s čarami po 5 m dá rozměry, které text neuvádí, a jde je zapsat jako `z řezu`. Zdroj má být obrázek, který jsem přeměřil, ne dojem z něj.
 - **Zámek těžké práce drží i ostatní projekty, klidně minuty.** Testy se skutečným Blenderem se pak přeskočí (`s` ve výstupu pytestu). Přeskočené je neměřené, pusť je znovu a ukaž `passed`.
+
 ## 2026-11-01 — Slovník výslovnosti: co Whisper mění, i když to zní stejně
 
 - **Zpětný přepis se liší i u správně namluvené věty.** Deset vět buňky (OmniVoice, Whisper small na CPU): bunka, Rybozome, výdou, Sou, douznovu, Vjádře, toho to, na jednou. Porovnání proto stírá diakritiku, i/y a j před s, d, spojuje slovo rozdělené nebo slepené přepisem a nebere rozdíl jen v koncovce. Těchto deset vět pak nedá žádného kandidáta a mitokondrie, orkerst a inustracie zůstanou nálezem.

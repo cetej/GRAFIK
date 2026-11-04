@@ -60,4 +60,5 @@ Nesplněný bod se řekne operátorovi. Mapa, která neprojde, se neodevzdává 
 
 - SVG musí v okně vypadat jako PNG. VectorCraft čte řez jen ze jména rodiny (`_svg_family`, `NatGeo Bumstead Heavy`) a nezná `dominant-baseline` (účaří počítá `SVG_BASELINE`). Text za koncem křivky zahodí, proto má křivka rezervu (`_path_svg`).
 - Vrstvy: `<g id="Podklad">` a `<g id="Texty">`, podklad přímo v kopii (`localize.for_window`). Otevírá `POST /api/v2/jobs/<job>/images/0/vectorcraft`, ruční úprava se nepřepisuje (409, volba otevřít úpravu nebo novou kopii).
+- Uložená úprava se sama převezme jako nová verze v Knihovně (`POST …/vectorcraft/verze`, Studio `vcVersions.ts`, DECISIONS 2026-11-04).
 - Po změně sazby ověř export z VectorCraftu proti PNG, ne jen v prohlížeči.
