@@ -18,3 +18,4 @@ os.environ["NGM_KNIHOVNA"] = tempfile.mkdtemp(prefix="ngm-shared-tests-knihovna-
 def _own_knihovna(tmp_path, monkeypatch):
     """No test may touch the operator's shared library (KNIHOVNA)."""
     monkeypatch.setenv("NGM_KNIHOVNA", str(tmp_path / "knihovna"))
+    monkeypatch.setenv("NGM_SKLAD", str(tmp_path / "sklad"))

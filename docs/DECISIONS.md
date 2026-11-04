@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-04 — Sklad na D: pro náměty videí a 3D zdroje, F1 náměty
+
+Operátor: „Docela rád bych všechny tyhle náměty stáhl a uložil třeba do nového dedikovaného adresáře na disku D: a propojil ho s projekty Klapka a Pohyb … Podobně bych rád začal stahovat 3D modely“, „Ty 3D modely jsou i pro projekt Grafik“; na návrh STOPA `outputs/2026-11-04-sklad-namety-a-3d-modely.md` odpověděl „Ano, spusť F1“ (výchozí volby: `D:\NGM-SKLAD`, náhledy stahovat, textury 1k).
+
+- **Co:** nový modul `ngm_shared.sklad`, kořen `NGM_SKLAD` (výchozí `D:/NGM-SKLAD`). F1 stahuje náměty: prompty, metadata a náhledy ze sbírek awesome-opus5-5-videos (MIT) a awesome-claude-5-5-videos (CC BY 4.0), jeden index, jeden záznam na příspěvek na X. Videa se nestahují. Náhledy jsou jen lokální reference, do výstupu nesmí.
+- **Proč D::** C: je plný na 87 % (volno 128 GB), D: má volno 1,4 TB; 3D sklad bude o řády větší než náměty (20 MB).
+- **3D:** sklad bude jen zásoba. Do výroby jde model jen přes `library/3d` GRAFIKu (převzetí s licencí), POHYB a KLAPKA ho berou dál odtud. Fáze F2–F5 v návrhu STOPA.
+
 ## 2026-11-03 — Hotový 3D model zdarma před generováním: Smithsonian a Sketchfab, jen CC0 a CC BY
 
 Operátor zvolil krok 3 rozboru STOPA (`outputs/2026-11-03-provazani-projektu-a-3d-kodem.md`) a schválil náčrt panelu („Ano, podle náčrtu“).

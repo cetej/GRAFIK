@@ -1,8 +1,10 @@
 # Stav GRAFIK
 
-Aktualizováno 2026-11-03.
+Aktualizováno 2026-11-04.
 
 ## Teď
+
+**Sklad na D:, náměty videí (2026-11-04, F1, DECISIONS):** `ngm_shared.sklad` stáhl do `D:\NGM-SKLAD\namety` 1103 námětů (703 s promptem, 873 s náhledem, 20 MB; 24 příspěvků je v obou sbírkách, index je spojí). Druhé stažení nestáhlo nic nového, chyb náhledů 0. Hledání `python -m ngm_shared.sklad hledej <slova>`; prompty jsou anglicky nebo čínsky, české slovo je nenajde. 153 náhledů z claude55-videos je WebP s příponou `.jpg` (tak jsou v repu sbírky). Dál: F2 stránka Náměty v POHYBu a náměty do režiséra POHYBu a plánovače KLAPKY, F3 Poly Haven (521 modelů, 997 HDRI). Testy `shared/tests/test_sklad.py`.
 
 **Knihovna se stránkováním a mazáním (2026-11-03):** záložka Knihovna brala obrázky jen z posledních 60 úloh fronty (`/api/v2/jobs?limit=60`, které Studio čte každé 2 s), ze 1071 hotových prací tak ukazovala zlomek. Nově vlastní `GET /api/v2/library?offset=&limit=` (celkový počet, strany po 48 úlohách, nejnovější první) a tlačítko „Smazat…“ s potvrzením u každého obrázku: `DELETE /api/v2/jobs/<id>/images/<n>` přesune obrázek, jeho záznam a náhledy do `library/.trash/<čas>-<úloha>-<n>/`, index zůstane obsazený (odkazy `<úloha>/<k>` na ostatní obrázky dál platí), úloha bez obrázků dostane stav `deleted`. Infografika nebo dokument, který smazaný obrázek používal, ho po smazání nenačte; obnovit jde jen ručně z koše. Testy `tests/test_library.py`.
 
