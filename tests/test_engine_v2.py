@@ -449,6 +449,19 @@ def test_client_ensure_engine_starts_it_in_background(monkeypatch, tmp_path):
     assert cwd == str(tmp_path) and (tmp_path / "logs" / "engine.log").exists()
 
 
+def test_client_ensure_engine_hidden_console_not_detached(monkeypatch, tmp_path):
+    """Bez konzole (DETACHED_PROCESS) by py.exe → python.exe a další děti Engine otevřely viditelné okno."""
+    gc, _ = _ensure_setup(monkeypatch, tmp_path, up_after=3)
+    flags = []
+    monkeypatch.setattr(gc.sys, "platform", "win32")
+    monkeypatch.setattr(gc.subprocess, "CREATE_NO_WINDOW", 0x08000000, raising=False)
+    monkeypatch.setattr(gc.subprocess, "DETACHED_PROCESS", 0x8, raising=False)
+    monkeypatch.setattr(gc.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200, raising=False)
+    monkeypatch.setattr(gc.subprocess, "Popen", lambda cmd, **kw: flags.append(kw["creationflags"]) or _FakeProc(None))
+    gc.ensure_engine()
+    assert flags == [0x08000200]
+
+
 def test_client_ensure_engine_leaves_running_engine_alone(monkeypatch, tmp_path):
     gc, started = _ensure_setup(monkeypatch, tmp_path, up_after=0)
     gc.ensure_engine()

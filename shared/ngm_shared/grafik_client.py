@@ -145,7 +145,9 @@ def ensure_engine(timeout: float = 90) -> None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         flags = 0
         if sys.platform == "win32":
-            flags = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            # Skrytá konzole, ne DETACHED_PROCESS: proces bez konzole otevře každému konzolovému dítěti
+            # nové viditelné okno (py.exe → python.exe, git, …). Se skrytou konzolí ji děti zdědí.
+            flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP
         with open(log_path, "ab") as out:
             proc = subprocess.Popen([python, "-m", "uvicorn", "engine.app:app", "--host", "127.0.0.1",
                                      "--port", str(urlparse(ENGINE_URL).port or 8300), "--access-log"],
