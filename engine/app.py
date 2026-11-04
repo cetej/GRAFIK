@@ -5,7 +5,10 @@ Run: python -m uvicorn engine.app:app --port 8300
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
+import shutil
+import tempfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from io import BytesIO
@@ -30,7 +33,7 @@ from engine import commons
 from engine.reflib import RefLibError, RefLibrary
 from engine.styles import StyleError, StyleLibrary, palette, slugify
 from engine.infographics import (BACKEND_NAMES, InfoError, InfographicStore, VectorCraftEdited, clean_svg, fitting_size, for_vectorcraft,
-                                 open_in_window, vc_copy)
+                                 open_in_window, vc_copy, vc_edits, vc_render)
 from engine.termdb import TermDB
 from engine.translate import Translator
 from engine.variants import PAGE, VariantsIn, VariantStore, plan, waiting_page
@@ -1066,14 +1069,72 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         doc = _info_or_404(info_id)
         return _open_in_vectorcraft(lambda: infos.vectorcraft_file(info_id, _doc_svg(doc, body.svg), body.mode))
 
-    @app.post("/api/v2/jobs/{job_id}/images/{n}/vectorcraft")
-    def image_vectorcraft(job_id: str, n: int, body: ImageVectorCraft):
-        """A finished picture that came with its own layers (/library/upload `svg`): whole, in its own format."""
+    def _image_layers(job_id: str, n: int) -> tuple[dict, Path]:
         job = store.get(job_id) or {}
         files = (job.get("result") or {}).get("files", [])
         layers = Path(files[n]).with_suffix(".svg") if 0 <= n < len(files) else None
         if layers is None or not layers.exists():
             raise HTTPException(404, "Tenhle obrázek nemá vrstvy pro VectorCraft.")
+        return job, layers
+
+    def _taken(layers: Path) -> tuple[Path, dict]:
+        """Manual edits already taken over as a new version: {sha256: ref}, next to the copies (not among them)."""
+        p = layers.parent / "vectorcraft-verze.json"
+        return p, json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+
+    @app.get("/api/v2/jobs/{job_id}/images/{n}/vectorcraft")
+    def image_vectorcraft_state(job_id: str, n: int):
+        _job, layers = _image_layers(job_id, n)
+        taken = _taken(layers)[1]
+        return {"available": find_desktop_app() is not None,
+                "edits": [{"file": f.name, "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
+                           "version": taken.get(hashlib.sha256(f.read_bytes()).hexdigest())}
+                          for f in vc_edits(layers.parent / "vectorcraft")]}
+
+    @app.post("/api/v2/jobs/{job_id}/images/{n}/vectorcraft/verze", status_code=201)
+    def image_vectorcraft_version(job_id: str, n: int, body: InfoManualExport):
+        """A manual edit saved in VectorCraft becomes a new version in the Knihovna tab, with this picture as its
+        parent; this picture and the edit stay as they are. The same edit taken twice gives the same version."""
+        _job, layers = _image_layers(job_id, n)
+        ref = f"{job_id}/{n}"
+        edits = vc_edits(layers.parent / "vectorcraft")
+        if not edits:
+            raise HTTPException(400, "Ruční úprava neexistuje: nejdřív ji ve VectorCraftu uložte (Ctrl+S).")
+        src = edits[0] if body.file is None else next((f for f in edits if f.name == body.file), None)
+        if src is None:
+            raise HTTPException(400, f"{body.file} není ruční úprava tohoto obrázku")
+        taken_path, taken = _taken(layers)
+        sha = hashlib.sha256(src.read_bytes()).hexdigest()
+        if sha in taken and store.image_path(taken[sha]) is not None:
+            return JSONResponse(status_code=200, content={"ref": taken[sha], "source": src.name, "created": False, "warnings": []})
+        if find_cli() is None:
+            raise HTTPException(503, "VectorCraft není nainstalovaný (složka Tools/Craft/vectorcraft, CRAFT_HOME).")
+        prov = _prov(ref) or {}
+        with tempfile.TemporaryDirectory(prefix="grafik-verze-") as tmp:
+            try:   # live texts in the layers: the new version opens in VectorCraft again as it was saved
+                out = vc_render(src, Path(tmp), s.gpu_lock_path, f"obrázek {ref}", outline=False)
+            except InfoError as e:
+                raise HTTPException(400, str(e)) from e
+            except HeavyBusy as e:
+                raise HTTPException(503, f"{e} Zkuste to za chvíli.") from e
+            except VectorCraftError as e:
+                raise HTTPException(502, f"VectorCraft export nedokončil ({e}).") from e
+            title = (store.get(job_id) or {}).get("request", {}).get("prompt") or job_id
+            new_id = _store_upload(
+                InfoUpload(b64=base64.b64encode((Path(tmp) / "e.png").read_bytes()).decode(), name=src.name, title=title,
+                           svg=(Path(tmp) / "e.svg").read_text(encoding="utf-8")), "image",
+                {"prompt": title, "refs": [], "source": f"ruční úprava {src.name} ve VectorCraftu", "parent": ref},
+                {**{k: prov[k] for k in ("backend", "render", "credit", "author", "license", "page_url", "infographic") if prov.get(k)},
+                 "ai_generated": prov.get("ai_generated", True), "reviewed_by": None, "parent": ref,
+                 "text_by": "redakce (ruční úprava ve VectorCraftu)", "texts": out["texts"], "manual_edit": out["manual_edit"]})
+            shutil.copy2(Path(tmp) / "e.pdf", store.image_path(f"{new_id}/0").with_suffix(".pdf"))
+        taken_path.write_text(json.dumps({**taken, sha: f"{new_id}/0"}, indent=2), encoding="utf-8")
+        return {"ref": f"{new_id}/0", "source": src.name, "created": True, "warnings": out["warnings"]}
+
+    @app.post("/api/v2/jobs/{job_id}/images/{n}/vectorcraft")
+    def image_vectorcraft(job_id: str, n: int, body: ImageVectorCraft):
+        """A finished picture that came with its own layers (/library/upload `svg`): whole, in its own format."""
+        job, layers = _image_layers(job_id, n)
         make = layers.read_bytes
         if job.get("kind") == localize.KIND:        # SVG počeštění odkazuje na podklad vedle sebe
             base = Path(job["result"]["base"])

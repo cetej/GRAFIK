@@ -2,6 +2,13 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-04 — Uložená ruční úprava z VectorCraftu je nová verze, sama
+
+Operátor (session NG-ROBOT, kontrola infografik): „v Grafikovi se verze otevřená a opravená ve Vectorcraftu nezapisuje jako nová verze do projektu a to by měla.“ Na náčrt dvou možností (samo, nebo tlačítkem) vybral „Samo“.
+
+- **Co:** obrázek z Knihovny nebo počeštění otevřený ve VectorCraftu Studio hlídá (každé 4 s `GET /api/v2/jobs/<job>/images/<n>/vectorcraft`). Každá uložená úprava (Ctrl+S nebo Uložit jako vedle kopie) se převezme `POST …/vectorcraft/verze`: VectorCraft bez okna a pod zámkem těžké práce udělá PNG, PDF a SVG s živým textem, vznikne nový obrázek v Knihovně s `parent` = původní obrázek (Historie verzí „ruční úprava ve VectorCraftu“, Porovnat před/po). Původní obrázek ani soubor úpravy se nemění; tatáž úprava podruhé vrátí tutéž verzi (`<job>/vectorcraft-verze.json`). U nové verze je „← Předchozí verze“.
+- **Proč:** úpravy ležely ve složce `vectorcraft/` a nic je nečetlo (4. 11. pět obrázků s uloženou úpravou bez verze). Editor infografik má dál „Převzít do exportů“, beze změny.
+
 ## 2026-11-04 — Sklad na D: pro náměty videí a 3D zdroje, F1 náměty
 
 Operátor: „Docela rád bych všechny tyhle náměty stáhl a uložil třeba do nového dedikovaného adresáře na disku D: a propojil ho s projekty Klapka a Pohyb … Podobně bych rád začal stahovat 3D modely“, „Ty 3D modely jsou i pro projekt Grafik“; na návrh STOPA `outputs/2026-11-04-sklad-namety-a-3d-modely.md` odpověděl „Ano, spusť F1“ (výchozí volby: `D:\NGM-SKLAD`, náhledy stahovat, textury 1k).

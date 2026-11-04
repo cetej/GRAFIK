@@ -32,6 +32,7 @@ export class PanelBoundary extends Component<
 
 function nodeLabel(n: LineageNode, i: number) {
   if (n.request.edit) return `${ACTION_LABEL[n.request.edit.action]}: ${n.request.edit.instruction}`
+  if (n.parent && (n.request as { source?: string }).source?.startsWith('ruční úprava')) return 'ruční úprava ve VectorCraftu'
   if (n.parent) return n.request.supersample ? 'varianta · drobné detaily' : 'varianta'
   return i === 0 ? 'zadání' : n.request.prompt ?? ''
 }

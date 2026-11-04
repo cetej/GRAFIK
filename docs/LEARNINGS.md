@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-04 — Ruční úprava z VectorCraftu nikam nevedla a `add_done` neplnil sloupec parent
+
+- Otevření ve VectorCraftu (`vc_copy`) je jednosměrné: uložená úprava zůstane ve `<job>/vectorcraft/` a pozná ji jen `vc_state` (sha256 jiné než v `copies.json`). Převzetí musí být vlastní krok; u obrázků z Knihovny chybělo úplně.
+- Strom verzí (`JobStore.lineage`) čte sloupec `parent`, ne `request.parent`. `add_done` ho dřív nezapisoval, takže nahraný obrázek s rodičem v Historii verzí chyběl, i když Porovnat před/po fungovalo.
+- Do složky `vectorcraft/` nepiš vlastní soubory: `vc_state` bere každý soubor kromě `copies.json` jako ruční úpravu. Evidence převzetí je proto vedle, `vectorcraft-verze.json`.
+
 ## 2026-11-03 — Počeštění: bílé písmo na zelené ploše vyšlo zelené a nesmazané
 
 Půdorys gymnasionu v Mieze (plochá infografika, bílé popisky na zelené). `_background` počítal jen s tmavým písmem: uzavření napřed zalilo zelené mezery mezi bílými písmeny, slovo se slilo do bílé skvrny a otevření ji nesmazalo. Podklad tak vyšel bílý, za „písmo“ se změřila zelená mezi písmeny (`color_measured` přebil správnou bílou od Claude), mazání skoro nic nesmazalo a česká sazba dostala barvu plochy. Ve VectorCraftu proto byly jen prázdné rámečky. Kontrola zbytků hlásila 0 %, protože hledala zbytky té špatné zelené.
