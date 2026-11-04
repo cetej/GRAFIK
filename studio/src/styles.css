@@ -47,6 +47,13 @@ main.guide-start.panel-doc.choosing { max-width: 1500px; }
 .panel-choose .panel-format { margin: 0; }
 .panel-choose-preview { position: sticky; top: 8px; }
 .panel-choose-preview .panel-preview { margin: 4px 0 0; }
+/* GRAFIK#150: náhled ořezu ilustrace, klepnutím se určí hlavní objekt */
+.format-choose { margin: 8px 0; grid-template-columns: minmax(0, 1fr); }
+.format-choose .panel-choose-preview { position: static; }
+.format-preview { position: relative; display: inline-block; max-width: 100%; margin-top: 4px; cursor: crosshair; line-height: 0; overflow: hidden; }
+.format-preview img { max-width: 100%; max-height: 46vh; display: block; }
+.format-crop { position: absolute; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); outline: 3px solid #2e9e4f; pointer-events: none; }
+.format-subject { position: absolute; outline: 2px dashed #d23b2a; pointer-events: none; }
 @media (max-width: 800px) { .panel-choose { grid-template-columns: minmax(0, 1fr); } .panel-choose-preview { position: static; } }
 .panel-keep { display: grid; gap: 6px; font-size: 14px; width: 100%; }
 .panel-keep input { width: auto; }

@@ -87,6 +87,17 @@ export interface Provenance {
   source?: string   // stored from a file, not made by a generator
 }
 
+// GRAFIK#150: boxes are [top, left, bottom, right] in 0–1000, subject null = the machine is not sure
+export interface FormatPreview {
+  size: string
+  crop: number[]
+  cuts_subject: boolean
+  subject: number[] | null
+  subject_from: 'operator' | 'saliency' | null
+  expand: { canvas: number[]; place: number[]; original: number[] } | null
+  expand_usd: number
+}
+
 export class PaymentRequired extends Error {
   constructor(public estimate: number, public items: CostItem[]) {
     super(`Placená operace ~${estimate} USD`)
@@ -128,6 +139,10 @@ export const api = {
   review: (ref: string, who: string) => post<Provenance>(`/api/v2/jobs/${ref.replace('/', '/images/')}/review`, { reviewed_by: who }),
   openVectorcraft: (ref: string, mode?: 'edited' | 'new') =>
     post<{ opened: string; path: string; created: boolean }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/vectorcraft`, { mode }),
+  formatPreview: (ref: string, body: { size: string; objekt: number[] | null }) =>
+    post<FormatPreview>(`/api/v2/jobs/${ref.replace('/', '/images/')}/format/nahled`, body),
+  formatMake: (ref: string, body: { size: string; objekt: number[] | null; zpusob: 'orez' | 'rozsirit'; confirm_cost: boolean }) =>
+    post<{ ref: string; method: string; usd: number; size: number[] }>(`/api/v2/jobs/${ref.replace('/', '/images/')}/format`, body),
   expand: (text: string, confirm: boolean) => post<{ prompt: string; usd: number }>('/api/v2/prompt/expand', { text, confirm_cost: confirm }),
   costs: () => call<{ total_usd: number; entries: { ts: string; usd: number }[] }>('/api/v2/costs?limit=500'),
 }

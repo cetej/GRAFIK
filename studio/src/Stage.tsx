@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { api, imageUrl, isCzech, ManualEdit, type Box, type EditAction, type Estimate, type ImageRequest, type Job } from './api.ts'
 import { fmtTime, priceLabel } from './App.tsx'
 import PohybDialog from './Pohyb.tsx'
+import FormatDialog from './Format.tsx'
 
 const ACTIONS: { id: EditAction; label: string; hint: string }[] = [
   { id: 'add', label: 'Přidat', hint: 'co má v rámečku přibýt' },
@@ -20,13 +21,14 @@ interface Props {
   onVariant: (ref: string) => void
   onInfographic: (ref: string) => void
   onLocalize: (ref: string) => void
+  onCreated: (ref: string) => void
   onError: (msg: string) => void
   footer: ReactNode
 }
 
 type Mode = 'view' | 'compare' | 'box'
 
-export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, onError, footer }: Props) {
+export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onReuse, onVariant, onInfographic, onLocalize, onCreated, onError, footer }: Props) {
   const [mode, setMode] = useState<Mode>('view')
   // a finished picture with its own layers opens whole in VectorCraft, without a 16:9 document around it
   const [layered, setLayered] = useState(false)
@@ -35,6 +37,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   const [vcAsk, setVcAsk] = useState<string | null>(null)
   const [vcOpened, setVcOpened] = useState<string | null>(null)
   const [toPohyb, setToPohyb] = useState(false)
+  const [formatting, setFormatting] = useState(false)
   useEffect(() => {
     setLayered(false)
     setFinished(false)
@@ -86,8 +89,11 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
         {layered && <button className="btn go" onClick={() => openVectorcraft()} title="Celý obrázek, každý popisek a objekt zvlášť ve vrstvách">Otevřít ve VectorCraftu</button>}
         {!layered && <button className="btn go" onClick={() => onInfographic(selected)}>→ Infografika</button>}
         <button className="btn" onClick={() => onLocalize(selected)}>→ Počeštit</button>
+        <button className={`btn ${formatting ? 'active' : ''}`} onClick={() => setFormatting(!formatting)} title="Nový obrázek v jiném poměru stran, tenhle zůstane">Předělat na formát</button>
         {finished && <button className="btn" onClick={() => setToPohyb(true)} title="Hotová grafika i s vrstvami a podklady jako zadání animace">→ Animace v POHYBu</button>}
       </div>
+      {formatting && <FormatDialog selected={selected} src={src} onClose={() => setFormatting(false)} onError={onError}
+        onCreated={(ref) => { setFormatting(false); onCreated(ref) }} />}
       {toPohyb && <PohybDialog start={{ obrazek: selected }} onClose={() => setToPohyb(false)} onError={onError} />}
       {vcAsk && (
         <div className="row">
