@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from engine.backends import (EXPAND_USD, LABELS_USD, STYLE_CARD_MAX_IMAGES, STYLE_DESCRIBE_USD, BackendError,
                              describe_style_card, estimate_usd, expand_prompt, make_backends, suggest_labels)
@@ -23,8 +23,8 @@ from engine.config import Settings
 from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
-from engine.models import ImageRequest, Ref
-from engine import api3d, api_knihovna, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, pohyb, reformat, research, scenes3d
+from engine.models import ImageRequest, Ref, check_box
+from engine import api3d, api_knihovna, image_format, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, pohyb, reformat, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -152,6 +152,18 @@ class InfoPanels(BaseModel):
 
 class ImageVectorCraft(BaseModel):
     mode: str | None = None         # after 409: "edited" opens the manual edit, "new" a new copy of the picture's layers
+
+
+class ImageFormat(BaseModel):
+    size: str                               # cílový poměr stran, třeba "16:9"
+    zpusob: str = "orez"                    # "orez" zdarma, "rozsirit" placené (fal bria expand)
+    objekt: list[int] | None = None         # hlavní objekt [top, left, bottom, right] 0–1000 od operátora; jinak saliency
+    confirm_cost: bool = False
+
+    @field_validator("objekt")
+    @classmethod
+    def _box(cls, v):
+        return check_box(v)
 
 
 class InfoManualExport(BaseModel):
@@ -1067,6 +1079,67 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             base = Path(job["result"]["base"])
             make = lambda: localize.tl.for_window(layers.read_text(encoding="utf-8"), base).encode("utf-8")     # noqa: E731
         return _open_in_vectorcraft(lambda: vc_copy(layers.parent / "vectorcraft", make, body.mode))
+
+    def _format_plan(job_id: str, n: int, body: ImageFormat) -> tuple[Path, dict]:
+        path = store.image_path(f"{job_id}/{n}")
+        if path is None:
+            raise HTTPException(404, "obrázek neexistuje")
+        if body.zpusob not in ("orez", "rozsirit"):
+            raise HTTPException(400, f"neznámý způsob {body.zpusob!r}: orez nebo rozsirit")
+        try:
+            target = image_format.ratio(body.size)
+            with Image.open(path) as im:
+                subject = body.objekt or image_format.find_subject(im.convert("RGB"))
+                layout = image_format.plan(im.width, im.height, target, subject)
+        except image_format.FormatError as e:
+            raise HTTPException(400, str(e)) from e
+        return path, {**layout, "size": body.size, "subject": subject,
+                      "subject_from": "operator" if body.objekt else ("saliency" if subject else None),
+                      "expand_usd": image_format.EXPAND_USD if layout["expand"] else 0.0}
+
+    @app.post("/api/v2/jobs/{job_id}/images/{n}/format/nahled")
+    def image_format_preview(job_id: str, n: int, body: ImageFormat):
+        """What the new format would be, nothing written: crop (0 USD) and the price of expanding (GRAFIK#150)."""
+        return _format_plan(job_id, n, body)[1]
+
+    @app.post("/api/v2/jobs/{job_id}/images/{n}/format", status_code=201)
+    def image_format_make(job_id: str, n: int, body: ImageFormat):
+        """A finished picture in another aspect ratio as a new picture in the Knihovna tab; the original stays."""
+        path, fields = _format_plan(job_id, n, body)
+        paid = body.zpusob == "rozsirit" and fields["expand"] is not None
+        if paid and not body.confirm_cost:
+            return JSONResponse(status_code=402, content={
+                "detail": "Rozšíření obrazu je placené — nic nespuštěno. Pošlete znovu s confirm_cost=true.",
+                "backend": f"fal:{image_format.EXPAND_ENDPOINT}", "estimate_usd": image_format.EXPAND_USD})
+        with Image.open(path) as im:
+            rgb = im.convert("RGB")
+        try:
+            out = image_format.expand(rgb, fields["expand"], image_format.fal_expand) if paid else image_format.crop(rgb, fields["crop"])
+        except image_format.FormatError as e:
+            raise HTTPException(502, str(e)) from e
+        except Exception as e:   # fal_client raises its own error types
+            raise HTTPException(502, f"rozšíření obrazu selhalo: {type(e).__name__}: {e}") from e
+        buf = BytesIO()
+        out.save(buf, "PNG")
+        src = _prov(f"{job_id}/{n}") or {}
+        title = f"{(store.get(job_id) or {}).get('request', {}).get('prompt') or job_id} · {body.size}"
+        usd = image_format.EXPAND_USD if paid else 0.0
+        new_id = _store_upload(InfoUpload(b64=base64.b64encode(buf.getvalue()).decode(), name=path.name, title=title), "image",
+                               {"prompt": title, "refs": [], "source": f"{job_id}/{n} → {body.size}"},
+                               {"backend": src.get("backend"), **({"render": src["render"]} if src.get("render") else {}),
+                                "ai_generated": bool(src.get("ai_generated")) or paid, "reviewed_by": src.get("reviewed_by"),
+                                "format_of": f"{job_id}/{n}", "format": {"size": body.size, "method": "rozsirit" if paid else "orez",
+                                "subject": fields["subject"], "subject_from": fields["subject_from"],
+                                **({"expand_backend": f"fal:{image_format.EXPAND_ENDPOINT}"} if paid else {})},
+                                "cost_usd": usd})
+        if paid:
+            s.library_dir.mkdir(parents=True, exist_ok=True)
+            with open(s.costs_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), "job_id": new_id, "caller": "studio",
+                                    "backend": f"fal:{image_format.EXPAND_ENDPOINT}", "n": 1, "usd": usd,
+                                    "items": [{"what": f"rozšíření obrazu na {body.size}", "usd": usd}]}, ensure_ascii=False) + "\n")
+        return {"ref": f"{new_id}/0", "method": "rozsirit" if paid else "orez", "usd": usd, "size": list(out.size),
+                "cuts_subject": fields["cuts_subject"] and not paid}
 
     @app.post("/api/v2/infographics/{info_id}/vectorcraft/export", status_code=201)
     def info_vectorcraft_export(info_id: str, body: InfoManualExport):

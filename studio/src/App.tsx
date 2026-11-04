@@ -451,6 +451,7 @@ export default function App() {
             onVariant={variant}
             onInfographic={(ref) => openInfographic(ref, (selJob?.request.edit ? '' : selJob?.request.prompt ?? '').slice(0, 60))}
             onLocalize={(ref) => { setLocalizeRef(ref); setTab('localize') }}
+            onCreated={(ref) => { setSelected(ref); refresh() }}
             onError={setToast}
             onReuse={(j) => {
               setPrompt(j.request.prompt)
