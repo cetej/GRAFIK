@@ -106,22 +106,76 @@ export function HistoryPanel({ selected, jobs, onSelect }: {
   )
 }
 
-export function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+/** One picture in the enlarged view; the arrows walk the list the opener passed. */
+export interface LbItem {
+  src: string
+  title?: string
+  download?: string                       // file name for ⤓ Stáhnout
+  onDelete?: () => Promise<void>          // no delete button without it
+  deleteLabel?: string
+  open?: { label: string; run: () => void }
+}
+export type OpenImage = (src: string, items?: LbItem[]) => void
+
+export function Lightbox({ items: initial, start, onClose }: { items: LbItem[]; start: number; onClose: () => void }) {
+  const [items, setItems] = useState(initial)
+  const [i, setI] = useState(start)
   const [fit, setFit] = useState(true)
+  const [asking, setAsking] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const n = items.length
+  const go = (d: number) => {
+    const k = i + d
+    if (k < 0 || k >= n) return
+    setI(k); setAsking(false); setError(null)
+  }
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const k = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'Escape') { if (asking) setAsking(false); else onClose() }
+      else if (e.key === 'ArrowLeft') go(-1)
+      else if (e.key === 'ArrowRight') go(1)
+    }
     window.addEventListener('keydown', k)
     return () => window.removeEventListener('keydown', k)
-  }, [onClose])
+  })
+  const item = items[i]
+  const remove = async () => {
+    setBusy(true)
+    try {
+      await item.onDelete!()
+      const left = items.filter((_, k) => k !== i)
+      if (!left.length) { onClose(); return }
+      setItems(left); setI(Math.min(i, left.length - 1)); setAsking(false)
+    } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
   return (
     <div className="lightbox" onClick={onClose}>
-      <div className="lb-bar" onClick={(e) => e.stopPropagation()}>
-        <button className="btn small" onClick={() => setFit(!fit)}>{fit ? '1:1 (skutečná velikost)' : 'Přizpůsobit oknu'}</button>
-        <button className="btn small" onClick={onClose}>Zavřít (Esc)</button>
+      <div className="lb-top" onClick={(e) => e.stopPropagation()}>
+        <span className="lb-info">{n > 1 && <b>{i + 1} / {n}</b>}{item.title && <span title={item.title}>{item.title}</span>}</span>
+        <div className="lb-bar">
+          {item.open && <button className="btn small" onClick={() => { item.open!.run(); onClose() }}>{item.open.label}</button>}
+          <a className="btn small" href={item.src} download={item.download ?? ''} title="Stáhnout obrázek v plné velikosti">⤓ Stáhnout</a>
+          {item.onDelete && (asking ? (
+            <>
+              <span className="lb-ask">{item.deleteLabel ?? 'Smazat'}?</span>
+              <button className="btn small del" disabled={busy} onClick={remove}>Ano, smazat</button>
+              <button className="btn small" disabled={busy} onClick={() => setAsking(false)}>Ne</button>
+            </>
+          ) : <button className="btn small" onClick={() => setAsking(true)} title={item.deleteLabel ?? 'Smazat'}>🗑 Smazat…</button>)}
+          <button className="btn small" onClick={() => setFit(!fit)}>{fit ? '1:1 (skutečná velikost)' : 'Přizpůsobit oknu'}</button>
+          <button className="btn small" onClick={onClose}>Zavřít (Esc)</button>
+        </div>
       </div>
+      {error && <p className="lb-error" onClick={(e) => e.stopPropagation()}>{error}</p>}
       <div className={`lb-img ${fit ? 'fit' : 'full'}`} onClick={(e) => e.stopPropagation()}>
-        <img src={src} alt="" onClick={() => setFit(!fit)} />
+        <img key={item.src} src={item.src} alt={item.title ?? ''} onClick={() => setFit(!fit)} />
       </div>
+      {n > 1 && <>
+        <button className="lb-arrow prev" disabled={i === 0} onClick={(e) => { e.stopPropagation(); go(-1) }} title="Předchozí (←)" aria-label="Předchozí obrázek">‹</button>
+        <button className="lb-arrow next" disabled={i === n - 1} onClick={(e) => { e.stopPropagation(); go(1) }} title="Další (→)" aria-label="Další obrázek">›</button>
+      </>}
     </div>
   )
 }

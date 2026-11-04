@@ -432,6 +432,8 @@ export const researchApi = {
   estimate: (paid: boolean) => call<{ total_usd: number; items: CostItem[] }>(`/api/v2/research/estimate?paid=${paid}`),
   start: (topic: string, qid?: string) => post<{ id: string; job_id: string }>('/api/v2/research', { topic, qid }),
   extend: (id: string, confirm: boolean) => post<{ id: string; job_id: string }>('/api/v2/research', { extends: id, confirm_cost: confirm }),
+  removeImage: (id: string, file: string) => call<{ vyrazeno: string }>(`/api/v2/research/${id}/obrazky/${encodeURIComponent(file)}`, { method: 'DELETE' }),
+  removePin: (id: string, pin: string) => call<{ celkem: number }>(`/api/v2/research/${id}/inspirace?pin=${encodeURIComponent(pin)}`, { method: 'DELETE' }),
 }
 
 // -- počeštění cizí infografiky nebo mapy (engine/localize.py) ---------------------------------------------

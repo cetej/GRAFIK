@@ -228,3 +228,18 @@ def test_image_used_directly_has_its_author_and_licence_in_the_footer(lab):
     prov = lab.get("/api/v2/jobs/" + doc["base"].replace("/", "/images/") + "/provenance").json()
     assert prov["ai_generated"] is False and prov["license"] == "CC BY-SA 4.0" and prov["cost_usd"] == 0
     assert lab.post("/api/v2/infographics/from-ref", json={"ref_id": "neni"}).status_code == 404
+
+
+def test_deleting_a_picture_or_pin_from_podklady_keeps_dossier_json(lab, settings):
+    wait_done(lab, lab.post("/api/v2/research", json={"topic": "Pantheon, Řím"}).json()["id"])
+    d = settings.library_dir / "research" / "pantheon-rim-v1"
+    before = (d / "dossier.json").read_bytes()
+    files = [i["file"] for i in lab.get("/api/v2/research/pantheon-rim-v1").json()["dossier"]["images"]]
+    assert files
+    assert lab.delete(f"/api/v2/research/pantheon-rim-v1/obrazky/{files[0]}").json() == {"vyrazeno": files[0]}
+    left = [i["file"] for i in lab.get("/api/v2/research/pantheon-rim-v1").json()["dossier"]["images"]]
+    assert left == files[1:] and (d / "dossier.json").read_bytes() == before
+    assert lab.delete(f"/api/v2/research/pantheon-rim-v1/obrazky/{files[0]}").status_code == 404
+    (d / "inspirace.json").write_text(json.dumps([{"pin": "https://cz.pinterest.com/pin/1/"}, {"pin": "https://cz.pinterest.com/pin/2/"}]), encoding="utf-8")
+    assert lab.delete("/api/v2/research/pantheon-rim-v1/inspirace", params={"pin": "https://cz.pinterest.com/pin/1/"}).json() == {"celkem": 1}
+    assert lab.delete("/api/v2/research/pantheon-rim-v1/inspirace", params={"pin": "https://cz.pinterest.com/pin/1/"}).status_code == 404

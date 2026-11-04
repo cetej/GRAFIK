@@ -8,6 +8,7 @@ library/research/<slug>-v<n>/dossier.json   výsledek; nepřepisuje se, nový b�
 library/research/<slug>-v<n>/pages/*.txt    stažené texty stránek pro kontrolu faktů proti zdroji
 library/research/<slug>-v<n>/podklady.html  přehled obrázků (ngm_shared.variants_page) s kopiemi obrázků vedle sebe
 library/research/<slug>-v<n>/inspirace.json piny z Pinterestu; přibývají k hotovému dossieru, ten se nemění
+library/research/<slug>-v<n>/vyrazene.json  obrázky, které operátor z podkladů smazal; `dossier()` je vynechá, dossier.json zůstane
 
 Obrázky jdou do knihovny předloh s autorem a licencí, z Commons přes `engine.commons`, náhledy modelů ze Sketchfabu přímo. V Schránce se
 nehlásí jako nové: operátor je vidí v dossieru. Neúspěšné stažení jednoho obrázku běh nezastaví, u obrázku zůstane `chyba`.
@@ -92,8 +93,28 @@ class ResearchStore:
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
 
     def dossier(self, research_id: str) -> dict | None:
+        """Dossier bez obrázků, které operátor z podkladů smazal; dossier.json na disku zůstává beze změny."""
         p = self._dir(research_id) / "dossier.json"
-        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+        if not p.exists():
+            return None
+        dossier = json.loads(p.read_text(encoding="utf-8"))
+        removed = set(self.removed_images(research_id))
+        if removed:
+            dossier["images"] = [i for i in dossier["images"] if i["file"] not in removed]
+        return dossier
+
+    def removed_images(self, research_id: str) -> list[str]:
+        p = self._dir(research_id) / "vyrazene.json"
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+    def remove_image(self, research_id: str, file: str) -> None:
+        with self._lock:
+            rows = self.removed_images(research_id)
+            if file not in rows:
+                d = self._dir(research_id)
+                tmp = d / "vyrazene.json.tmp"
+                tmp.write_text(json.dumps([*rows, file], ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp.replace(d / "vyrazene.json")
 
     def finish(self, research_id: str, dossier: dict) -> None:
         d = self._dir(research_id)
@@ -318,6 +339,23 @@ def register(app: FastAPI, researcher: Researcher, store) -> None:
         if lib.dossier(research_id) is None:
             raise HTTPException(404, f"dossier {research_id} neexistuje")
         return researcher.add_pins(research_id, body.piny)
+
+    @app.delete("/api/v2/research/{research_id}/obrazky/{file}")
+    def research_remove_image(research_id: str, file: str):
+        dossier = lib.dossier(research_id)
+        if dossier is None or not any(i["file"] == file for i in dossier["images"]):
+            raise HTTPException(404, "obrázek v podkladech není")
+        lib.remove_image(research_id, file)
+        return {"vyrazeno": file}
+
+    @app.delete("/api/v2/research/{research_id}/inspirace")
+    def research_remove_pin(research_id: str, pin: str):
+        rows = lib.inspiration(research_id)
+        left = [r for r in rows if r["pin"] != pin]
+        if len(left) == len(rows):
+            raise HTTPException(404, "pin v inspiraci není")
+        lib.save_inspiration(research_id, left)
+        return {"celkem": len(left)}
 
     @app.get("/api/v2/research/{research_id}/{name}")
     def research_file(research_id: str, name: str):
