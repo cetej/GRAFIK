@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-04 — Vrstvy objektů v generované ilustraci
+
+Operátor: „může náš systém umět chytré mapování objektů (vrstev) v obrázku, jejich odmazávání, měnění a dogenerovávání podkladu?“; pak „Generované ilustrace“, „Vrstvy“ a po náčrtu panelu „Ano, postav to“ (hledání přes SAM-3).
+
+- **Co:** u vygenerovaného obrázku ve Studiu tlačítko „◧ Vrstvy objektů“. Claude objekty pojmenuje, SAM-3 je obtáhne, lokální FLUX pod nimi dokreslí podklad. Objekt jde smazat, posunout tažením, změnit pokynem a doplnit rámečkem. Uložení je nový obrázek v Knihovně, každý objekt ve vlastní vrstvě pro VectorCraft a POHYB. Originál se nemění.
+- **Cena:** hledání do 0,04 USD (Claude 0,01 + SAM-3 0,005 za objekt, nejvýš 6). Původně jsem slíbil 0,005 USD za obrázek: víc rámečků v jednom volání SAM-3 vrací jen jednu masku, takže jedno volání na objekt. Změna objektu 0,005 USD (+0,01 USD za překlad české věty), smazat a posunout 0 USD.
+- **Proč vrstvy a ne plochá úprava:** operátor chce objekty později přesouvat a vypínat, stejně jako u infografik (DECISIONS 2026-11-03).
+
 ## 2026-11-04 — Uložená ruční úprava z VectorCraftu je nová verze, sama
 
 Operátor (session NG-ROBOT, kontrola infografik): „v Grafikovi se verze otevřená a opravená ve Vectorcraftu nezapisuje jako nová verze do projektu a to by měla.“ Na náčrt dvou možností (samo, nebo tlačítkem) vybral „Samo“.
@@ -172,6 +180,7 @@ Na otázku „Mají se stavby dělat z dílů s modelem Terra?“ po tabulce mě
 K rozpočtu měření operátor: „Klidně navyš rozpočet na dokončení“. Celkem 1,5248 USD.
 
 Sochy, plachty a lidi v obraze chce operátor výslovně („malí lidičkové tomu také dodají hned lepší náboj“), takže model je smí obsahovat i bez doložené polohy. V popisu je napsané, co je oživení a co pramen; do rozměrů ani kontroly kontaktu se to nepočítá.
+
 ## 2026-11-01 — Jeden slovník výslovnosti v `ngm_shared`
 
 Operátor slyšel v POHYB „mitokondrie“ a zeptal se, jestli jde výslovnost ošetřit obecně. Oprava slova má platit všude, proto jeden soubor místo dvou slovníků v NG-ROBOT a jednoho v POHYB.

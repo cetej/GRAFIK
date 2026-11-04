@@ -27,7 +27,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref, check_box
-from engine import api3d, api_knihovna, image_format, api_scenes3d, archive, chain, checks, localize, models3d as m3d, panels, parts3d, pohyb, reformat, research, scenes3d
+from engine import api3d, api_knihovna, image_format, api_scenes3d, archive, chain, checks, localize, models3d as m3d, objekty, panels, parts3d, pohyb, reformat, research, scenes3d
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -301,6 +301,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             elif req.style_id:
                 raise HTTPException(404, f"styl {req.style_id} v knihovně neexistuje")
         if req.edit:
+            if req.edit.mask:
+                raise HTTPException(400, "edit.mask nastavuje jen Engine (vrstvy objektů)")
             parent = store.image_path(req.parent)
             if parent is None:
                 raise HTTPException(404, f"upravovaný obrázek {req.parent} neexistuje")
@@ -956,6 +958,17 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
             "created": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False, indent=2), encoding="utf-8")
         store.finish(job_id, {"files": [str(path)], "dir": str(job_dir), "cost_usd": 0.0})
         return job_id
+
+    def _objekty_upload(png: bytes, svg: str, title: str, origin: dict) -> str:
+        src = _prov(origin["objekty_of"]) or {}
+        return _store_upload(InfoUpload(b64=base64.b64encode(png).decode(), name="image-0.png", title=title, svg=svg), "image",
+                             {"prompt": title, "refs": [], "source": f"vrstvy objektů {origin['objekty_of']}"},
+                             {"backend": src.get("backend"), "model": src.get("model"), "ai_generated": True,
+                              "reviewed_by": None, **origin})
+
+    objekty_lib = objekty.Objekty(s, store, worker, worker._log_cost)
+    worker.handlers.update(objekty_lib.handlers())
+    objekty.register(app, objekty_lib, _objekty_upload)
 
     @app.post("/api/v2/infographics/upload", status_code=201)
     def info_upload(body: InfoUpload):
