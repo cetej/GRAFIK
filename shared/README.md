@@ -172,6 +172,10 @@ knihovna.trash("style", "stary-styl")             # → KNIHOVNA/.trash/styles/<
 - Prázdný nebo rozepsaný soubor zámku se 10 s počítá jako obsazený.
 - `holder()` vrací držitele pro UI; GRAFIK Engine ho ukazuje v `GET /api/v2/health` → `heavy_lock`.
 
+## UI: tlačítko vs. informace
+
+`ngm_shared.ui` (GRAFIK#81): `tokens.md` = společné názvy CSS proměnných (`--bg`, `--surface`, `--fg`, `--accent`, `--focus`, `--ok`/`--warn`/`--bad` …), `base.css` = tlačítko hlavní / vedlejší / nebezpečné (`.ui-btn`, `.ui-primary`, `.ui-danger`), informace (`.ui-info`, `.ui-tag`), stav (`.ui-state` + `.ui-run` / `.ui-done` / `.ui-fail`) a náhled se zvětšením (`.ui-thumb`, `.ui-lightbox`). Sdílí se význam, ne vzhled: aplikace definuje tokeny svými barvami a písmy na `:root`, `base.css` servíruje z `ui.css_path()` (bez kopie). `base.css` nesmí obsahovat barvu ani písmo natvrdo (test `tests/test_ui.py`).
+
 ## Testy
 
 ```bash

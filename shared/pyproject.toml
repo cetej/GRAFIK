@@ -21,7 +21,8 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["ngm_shared", "ngm_shared.textlayer"]
+packages = ["ngm_shared", "ngm_shared.textlayer", "ngm_shared.ui"]
 
 [tool.setuptools.package-data]
 ngm_shared = ["vyslovnost_cz.json"]
+"ngm_shared.ui" = ["base.css", "tokens.md"]
