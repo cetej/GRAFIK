@@ -417,6 +417,75 @@ def test_manual_export_refusals(api, settings, edited, monkeypatch):
     assert api.get(f"/api/v2/infographics/{doc['id']}").json()["exports"] == []
 
 
+def _layered_picture(api):
+    buf = BytesIO()
+    Image.new("RGB", (64, 48), (20, 50, 110)).save(buf, "PNG")
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="48"><text x="4" y="20">Mapa Evropy</text></svg>'
+    return api.post("/api/v2/library/upload", json={"b64": base64.b64encode(buf.getvalue()).decode(), "name": "mapa.png",
+                                                     "title": "Mapa", "svg": svg}).json()["ref"]
+
+
+def test_manual_edit_of_a_library_picture_becomes_a_new_version(api, settings, vc_window, monkeypatch):
+    """Operator 4 Nov: a picture edited and saved in VectorCraft did not show up in GRAFIK as a new version."""
+    FakeVectorCraft.seen = []
+    monkeypatch.setattr("engine.infographics.VectorCraft", FakeVectorCraft)
+    monkeypatch.setattr("engine.app.find_cli", lambda: Path("vectorcraft-cli.exe"))
+    ref = _layered_picture(api)
+    url = "/api/v2/jobs/" + ref.replace("/", "/images/") + "/vectorcraft"
+    copy = vc_window[0] if api.post(url, json={}).status_code == 200 else None
+    assert copy is not None and api.get(url).json() == {"available": True, "edits": []}
+    none = api.post(f"{url}/verze", json={})
+    assert none.status_code == 400 and "uložte" in none.json()["detail"]
+
+    text = copy.read_text(encoding="utf-8").replace("Mapa Evropy", "Mapa Čech")
+    copy.write_text(text, encoding="utf-8")   # Ctrl+S in the window
+    assert [e["file"] for e in api.get(url).json()["edits"]] == [copy.name] and api.get(url).json()["edits"][0]["version"] is None
+
+    r = api.post(f"{url}/verze", json={})
+    assert r.status_code == 201, r.text
+    new = r.json()["ref"]
+    assert new != ref and r.json()["created"] is True
+    job = next(j for j in api.get("/api/v2/jobs").json() if j["job_id"] == new.split("/")[0])
+    assert job["request"]["parent"] == ref and job["request"]["prompt"] == "Mapa"   # Porovnat před/po has the older version
+    assert [(x["ref"], x["parent"]) for x in api.get(f"/api/v2/lineage/{new}").json()] == [(ref, None), (new, ref)]   # Historie verzí
+    prov = api.get("/api/v2/jobs/" + new.replace("/", "/images/") + "/provenance").json()
+    assert prov["parent"] == ref and prov["manual_edit"]["sha256"] == hashlib.sha256(text.encode()).hexdigest()
+    assert "Mapa Čech" in prov["texts"] and prov["vectorcraft_svg"] and prov["ai_generated"] is False
+    assert Image.open(BytesIO(api.get("/api/v2/jobs/" + new.replace("/", "/images/")).content)).size == (1920, 1080)
+    assert FakeVectorCraft.seen[0]["lock_path"] == settings.gpu_lock_path
+
+    # the older version and the edit stay as they were and the older one still opens
+    assert copy.read_text(encoding="utf-8") == text
+    assert Image.open(BytesIO(api.get("/api/v2/jobs/" + ref.replace("/", "/images/")).content)).size == (64, 48)
+    assert api.get(url).json()["edits"][0]["version"] == new
+    again = api.post(f"{url}/verze", json={})
+    assert again.status_code == 200 and again.json() == {"ref": new, "source": copy.name, "created": False, "warnings": []}
+    assert len(FakeVectorCraft.seen) == 1
+    # the new version opens in VectorCraft from its own layers
+    assert api.post("/api/v2/jobs/" + new.replace("/", "/images/") + "/vectorcraft", json={}).status_code == 200
+
+
+def test_new_version_refusals(api, settings, vc_window, monkeypatch):
+    monkeypatch.setattr("engine.infographics.VectorCraft", FakeVectorCraft)
+    monkeypatch.setattr("engine.app.find_cli", lambda: Path("vectorcraft-cli.exe"))
+    ref = _layered_picture(api)
+    url = "/api/v2/jobs/" + ref.replace("/", "/images/") + "/vectorcraft"
+    api.post(url, json={})
+    vc_window[0].write_text("<svg>úprava</svg>", encoding="utf-8")
+    assert api.post(f"{url}/verze", json={"file": "../image-0.json"}).status_code == 400
+
+    class Busy(FakeVectorCraft):
+        def __init__(self, **kw):
+            raise HeavyBusy("Stroj je obsazený těžkou prací (gpu pro grafik-engine).")
+
+    monkeypatch.setattr("engine.infographics.VectorCraft", Busy)
+    assert api.post(f"{url}/verze", json={}).status_code == 503
+    monkeypatch.setattr("engine.app.find_cli", lambda: None)
+    assert api.post(f"{url}/verze", json={}).status_code == 503
+    assert api.get(url).json()["edits"][0]["version"] is None
+    assert api.post("/api/v2/jobs/neni/images/0/vectorcraft/verze", json={}).status_code == 404
+
+
 @pytest.mark.skipif(not os.environ.get("GRAFIK_VECTORCRAFT_TESTS"), reason="skutečný VectorCraft, GRAFIK_VECTORCRAFT_TESTS=1")
 def test_manual_export_with_the_real_vectorcraft(api, settings, vc_window, monkeypatch):
     from ngm_shared.textlayer.vc_client import VectorCraft

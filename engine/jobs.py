@@ -90,10 +90,10 @@ class JobStore:
         with self._lock:
             seq = self.db.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM jobs").fetchone()[0]
             self.db.execute(
-                "INSERT INTO jobs (id, seq, status, caller, backend, request, result, created, finished, kind) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO jobs (id, seq, status, caller, backend, request, result, created, finished, kind, parent) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (job_id, seq, "done", caller, "local", json.dumps(request, ensure_ascii=False),
-                 json.dumps(result, ensure_ascii=False), now, now, kind))
+                 json.dumps(result, ensure_ascii=False), now, now, kind, request.get("parent")))
         return job_id
 
     def next_queued(self) -> sqlite3.Row | None:

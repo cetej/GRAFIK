@@ -203,6 +203,34 @@ def vc_copy(d: Path, make, mode: str | None = None) -> dict:
     return {"path": d / name, "file": name, "created": True}
 
 
+def vc_edits(d: Path) -> list[Path]:
+    """Saved manual edits in folder d that VectorCraft can open again, newest first."""
+    return [f for f in vc_state(d)[1] if f.suffix.lower() in MANUAL_SOURCES]
+
+
+def vc_render(src: Path, out: Path, lock_path: Path, caller: str, outline: bool) -> dict:
+    """Opens a saved manual edit headless and exports e.png, e.pdf and e.svg into out, the way the window shows it.
+    The source is only opened, never saved. outline=True turns the texts into paths (same look without the fonts)."""
+    sha = _sha256(src)
+    with VectorCraft(lock_owner="grafik-infografiky", caller=caller, lock_wait_s=MANUAL_LOCK_WAIT_S, lock_path=lock_path) as vc:
+        opened = vc.tool("open_file", path=str(src))
+        if opened.get("missingLinks"):
+            raise InfoError(f"v úpravě chybí propojené soubory: {', '.join(map(str, opened['missingLinks']))}")
+        texts = _canvas_texts(vc.tool("inspect_document"))
+        vc.tool("export", path=str(out / "e.png"))
+        vc.tool("export", path=str(out / "e.pdf"))
+        vc.tool("export", path=str(out / "e.svg"), **({"outlineText": True} if outline else {}))
+    if _sha256(src) != sha:
+        raise InfoError(f"{src.name} se během převzetí změnil, zkuste to znovu")
+    for fmt in FORMATS:
+        if not (out / f"e.{fmt}").is_file() or (out / f"e.{fmt}").stat().st_size == 0:
+            raise InfoError(f"VectorCraft nevytvořil {fmt.upper()}")
+    return {"sha256": sha, "texts": texts, "warnings": opened.get("warnings", []),
+            "manual_edit": {"file": src.name, "sha256": sha,
+                            "modified": datetime.fromtimestamp(src.stat().st_mtime).isoformat(timespec="seconds"),
+                            "vectorcraft": vc.server.get("version"), "warnings": opened.get("warnings", [])}}
+
+
 def _footer_note(doc: dict) -> str:
     """What must stay visible: a panel document shows only the AI mark and foreign authors, the editor's document its whole note."""
     if doc.get("schema_version"):
@@ -430,25 +458,12 @@ class InfographicStore:
         src = edited[0] if file is None else next((f for f in edited if f.name == file), None)
         if src is None:
             raise InfoError(f"{file} není ruční úprava této infografiky")
-        sha = _sha256(src)
         with tempfile.TemporaryDirectory(prefix="grafik-rucni-") as tmp:
             out = Path(tmp)
-            with VectorCraft(lock_owner="grafik-infografiky", caller=f"infografika {info_id}",
-                             lock_wait_s=MANUAL_LOCK_WAIT_S, lock_path=lock_path) as vc:
-                opened = vc.tool("open_file", path=str(src))
-                if opened.get("missingLinks"):
-                    raise InfoError(f"v úpravě chybí propojené soubory: {', '.join(map(str, opened['missingLinks']))}")
-                texts = _canvas_texts(vc.tool("inspect_document"))
-                if re.sub(r"\s+", "", _footer_note(doc)) not in re.sub(r"\s+", "", "".join(texts)):
-                    raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{_footer_note(doc)}“. Nic se neuložilo.")
-                vc.tool("export", path=str(out / "e.png"))
-                vc.tool("export", path=str(out / "e.pdf"))
-                vc.tool("export", path=str(out / "e.svg"), outlineText=True)   # same look without the fonts, as NG-ROBOT
-            if _sha256(src) != sha:
-                raise InfoError(f"{src.name} se během převzetí změnil, zkuste to znovu")
-            for fmt in FORMATS:
-                if not (out / f"e.{fmt}").is_file() or (out / f"e.{fmt}").stat().st_size == 0:
-                    raise InfoError(f"VectorCraft nevytvořil {fmt.upper()}")
+            r = vc_render(src, out, lock_path, f"infografika {info_id}", outline=True)   # same look without the fonts, as NG-ROBOT
+            texts = r["texts"]
+            if re.sub(r"\s+", "", _footer_note(doc)) not in re.sub(r"\s+", "", "".join(texts)):
+                raise InfoError(f"V ruční úpravě chybí na plátně označení AI v patičce. Musí zůstat viditelná věta „{_footer_note(doc)}“. Nic se neuložilo.")
             with Image.open(out / "e.png") as im:
                 size = f"{im.width}x{im.height}"
             svg = clean_svg((out / "e.svg").read_text(encoding="utf-8"), allow_data_images=True)
@@ -467,13 +482,11 @@ class InfographicStore:
                     "ai_note": doc["ai_note"], "ai_note_checked": True, "ai_generated": doc.get("ai_generated", not (base_prov or {}).get("render")),
                     "text_by": "redakce (ruční úprava ve VectorCraftu)",
                     "texts": texts,
-                    "manual_edit": {"file": src.name, "sha256": sha,
-                                    "modified": datetime.fromtimestamp(src.stat().st_mtime).isoformat(timespec="seconds"),
-                                    "vectorcraft": vc.server.get("version"), "warnings": opened.get("warnings", [])},
+                    "manual_edit": r["manual_edit"],
                     "reviewed_by": None, "document_reviewed_by": doc.get("reviewed_by"), "created": now}
             (ex / f"{name}.json").write_text(json.dumps(prov, ensure_ascii=False, indent=2), encoding="utf-8")
             files.append({"file": name, "format": fmt, "bytes": (ex / name).stat().st_size})
-        return {"source": src.name, "files": files, "warnings": opened.get("warnings", [])}
+        return {"source": src.name, "files": files, "warnings": r["warnings"]}
 
     def vectorcraft_file(self, info_id: str, svg: str, mode: str | None = None) -> dict:
         doc = self.get(info_id)

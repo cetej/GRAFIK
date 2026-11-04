@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type DragEvent } from 'react'
 import { api, fileToB64, imageUrl, localizeApi, ManualEdit, PaymentRequired, type LocalizeJob, type LocalizeTexts } from './api.ts'
 import { fmtUsd, type Confirm } from './App.tsx'
+import { useVcVersions } from './vcVersions.ts'
 
 // Krok 2 algoritmu operátora (STOPA plán 2026-10-29): počeštěná kopie cizojazyčné infografiky nebo mapy.
 // Engine: engine/localize.py. Čtení textu je placené (dialog s cenou), oprava překladu a nová sazba zdarma.
@@ -113,6 +114,7 @@ export default function Localize({ selectedImage, pickRef, onOpen, setConfirm, o
 
   const original = job ? localizeApi.file(job.job_id, 'original') : source?.preview
   const done = job?.status === 'done' ? job : null
+  const vc = useVcVersions(done ? `${done.job_id}/0` : null, !!done, onError)
   const onDrop = (e: DragEvent) => { e.preventDefault(); addFile(e.dataTransfer.files[0]) }
 
   return (
@@ -171,7 +173,14 @@ export default function Localize({ selectedImage, pickRef, onOpen, setConfirm, o
               <button className="btn small" onClick={() => openVectorcraft('new')}>Otevřít novou kopii</button>
             </div>
           )}
-          {vcOpened && <p className="hint">Otevřeno ve VectorCraftu: {vcOpened}</p>}
+          {vcOpened && !vc.created && <p className="hint">Otevřeno ve VectorCraftu: {vcOpened}. Hlídám uložení (Ctrl+S)…</p>}
+          {vc.busy && <p className="hint">Převádím uloženou úpravu na novou verzi…</p>}
+          {vc.created && (
+            <div className="row">
+              <span className="hint">✔ Uložená úprava je v Knihovně jako nová verze.</span>
+              <button className="btn small go" onClick={() => onOpen(imageUrl(vc.created!))}>Ukázat novou verzi</button>
+            </div>
+          )}
           {texts && (
             <details className="loc-texts">
               <summary>Opravit překlady ({texts.elements.length})</summary>
