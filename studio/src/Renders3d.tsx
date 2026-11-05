@@ -14,10 +14,13 @@ export default function Renders3d({ model, onError, onDoc }: {
   onDoc: (id: string) => void
 }) {
   const renders = model.renders ?? []
-  const colour = renders.filter((r) => !r.pozadavek?.hlina && Object.keys(r.vrstvy ?? {}).length > 0)
+  // render v hlíně: má to v požadavku, nebo (starší render bez uloženého požadavku) už posloužil jako předloha textury
+  const usedAsClay = new Set((model.textury ?? []).map((t) => t.predloha))
+  const isClay = (r: Render3d) => !!r.pozadavek?.hlina || usedAsClay.has(r.id)
+  const colour = renders.filter((r) => !isClay(r) && Object.keys(r.vrstvy ?? {}).length > 0)
   const [sel, setSel] = useState<string | null>(null)
   const render: Render3d | undefined = colour.find((r) => r.id === sel) ?? colour[colour.length - 1]
-  const clay = renders.filter((r) => r.pozadavek?.hlina && render && r.res.join() === render.res.join())
+  const clay = renders.filter((r) => isClay(r) && render && r.res.join() === render.res.join())
   const textury = (model.textury ?? []).filter((t) => t.render === render?.id)
   const textura = textury[textury.length - 1]
   const layers = Object.keys(render?.vrstvy ?? {})
@@ -104,8 +107,8 @@ export default function Renders3d({ model, onError, onDoc }: {
           </figure>
         ))}
         <div className="r3d-add">
-          <button className="btn" disabled={busy === 'hlina'} onClick={clayRender}>{busy === 'hlina' ? 'Zadávám…' : 'Render v hlíně · 0 USD'}</button>
-          <span className="hint">stejná kamera jako {render?.id}, asi 40 s</span>
+          <button className="btn" disabled={busy === 'hlina' || !render?.pozadavek} onClick={clayRender}>{busy === 'hlina' ? 'Zadávám…' : 'Render v hlíně · 0 USD'}</button>
+          <span className="hint">{render?.pozadavek ? `stejná kamera jako ${render.id}, asi 40 s` : `${render?.id} je starší render bez uložené kamery, hlínu k němu udělej přes API`}</span>
         </div>
       </div>
 
