@@ -34,6 +34,10 @@ export default function Renders3d({ model, onError, onDoc }: {
   const [popisky, setPopisky] = useState<Record<string, string>>({})
   const [points, setPoints] = useState<string[]>([])
   const [docs, setDocs] = useState<{ id: string; size: string }[]>([])
+  const [hotovo, setHotovo] = useState<string | null>(null)
+  const [qid, setQid] = useState('')
+  const [nazev, setNazev] = useState('')
+  const [tema, setTema] = useState<string | null>(null)
 
   useEffect(() => {
     if (!render) return
@@ -47,6 +51,8 @@ export default function Renders3d({ model, onError, onDoc }: {
   useEffect(() => {
     setPick(textura ? Object.fromEntries(Object.entries(textura.vrstvy).map(([n, v]) => [n, v.doporuceny])) : {})
     setDocs([])
+    setHotovo(null)
+    setTema(null)
   }, [textura?.id])
   useEffect(() => { if (!titulek) setTitulek(model.title) }, [model.title]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -77,11 +83,23 @@ export default function Renders3d({ model, onError, onDoc }: {
     const formaty = FORMATY.find((f) => f.id === format)!.formaty
     if (!Object.values(popisky).some((t) => t.trim())) { onError('Napiš aspoň jeden popisek k bodu modelu.'); return }
     run('stranka', async () => {
-      const hotovo = await m3dApi.texturaVyber(model.id, model.version, textura.id, { seedy: pick, na_vysku: formaty.includes('9:16') })
-      const out = await m3dApi.stranka(model.id, model.version, textura.id, {
-        hotovo: hotovo.dir.split('/').pop()!, titulek, popisky, nazvy_vrstev: {}, formaty,
-      })
+      const picked = await m3dApi.texturaVyber(model.id, model.version, textura.id, { seedy: pick, na_vysku: formaty.includes('9:16') })
+      const done = picked.dir.split('/').pop()!
+      const out = await m3dApi.stranka(model.id, model.version, textura.id, { hotovo: done, titulek, popisky, nazvy_vrstev: {}, formaty })
+      setHotovo(formaty.includes('9:16') ? done : null)     // řetězec skládá i stránku na výšku
       setDocs(out.dokumenty)
+    })
+  }
+  // do řetězce: názvy částí jsou první řádky popisků, texty k nim napíše řetězec z faktů dossieru
+  const names = Object.fromEntries(Object.entries(popisky).map(([p, t]) => [p, t.split('\n')[0].trim()]).filter(([, t]) => t))
+  const toTopic = () => {
+    if (!textura) return
+    if (!/^Q\d+$/.test(qid.trim())) { onError('Napiš položku Wikidaty tématu, např. Q81214 pro vorvaně.'); return }
+    if (!nazev.trim() || !Object.keys(names).length) { onError('Napiš, co obraz ukazuje, a aspoň jeden popisek k bodu modelu.'); return }
+    run('tema', async () => {
+      const done = hotovo ?? (await m3dApi.texturaVyber(model.id, model.version, textura.id, { seedy: pick, na_vysku: true })).dir.split('/').pop()!
+      setHotovo(done)
+      setTema((await m3dApi.tema(model.id, model.version, textura.id, { qid: qid.trim(), hotovo: done, nazev: nazev.trim(), popisky: names })).id)
     })
   }
 
@@ -173,6 +191,16 @@ export default function Renders3d({ model, onError, onDoc }: {
             {docs.map((d) => <button key={d.id} className="btn" onClick={() => onDoc(d.id)}>Otevřít {d.size}</button>)}
           </div>
           {docs.length > 0 && <p className="hint">Hotovo: stránky jsou v záložce Infografiky, ruční úprava přes „Otevřít ve VectorCraftu“ u dokumentu.</p>}
+
+          <h3>4 · Do řetězce infografiky</h3>
+          <p className="hint">Tvor se stane vlastním obrazem tématu. Průvodce → infografika k tomu tématu ho dá do návrhů jako hlavní obraz a stránku složí z těchto vrstev, popisky napíše z faktů k bodům, které tu mají název (první řádek popisku).</p>
+          <div className="row">
+            <input value={qid} onChange={(e) => setQid(e.target.value)} placeholder="Wikidata, např. Q81214" style={{ width: '13em' }} />
+            <input className="grow" value={nazev} onChange={(e) => setNazev(e.target.value)} placeholder="Co obraz ukazuje, např. Vorvaň s průhledem do trávicí trubice, potápěč v měřítku" />
+            <button className="btn" disabled={busy === 'tema'} onClick={toTopic}>{busy === 'tema' ? 'Ukládám…' : 'Dát do řetězce · 0 USD'}</button>
+          </div>
+          <p className="hint">Body s názvem: {Object.values(names).join(', ') || 'zatím žádný'}</p>
+          {tema && <p className="hint">Uloženo jako vlastní obraz „{tema}“ tématu {qid.trim()}.</p>}
         </>
       )}
 

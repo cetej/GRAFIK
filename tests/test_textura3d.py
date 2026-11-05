@@ -161,6 +161,41 @@ def test_page_goes_to_infographics_in_both_formats_without_credit(api, settings,
     assert "Zeď" in svg and "(AI)" not in svg and "AI)" not in svg
 
 
+def test_creature_goes_to_the_topic_and_the_chain_builds_its_page_from_layers(api, settings, renders, flux):
+    from engine import serie
+    from engine.chain import Chain
+    from engine.workflows import Workflow
+    wait(api, texture(api).json()["job_id"])
+    hotovo = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/vyber", json={"seedy": {}, "na_vysku": True}).json()["dir"].split("/")[-1]
+    body = {"qid": "Q81214", "hotovo": hotovo, "nazev": "Věž s průhledem dovnitř", "popisky": {"zed": "Zeď", "podlaha": " "}}
+    r = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/tema", json=body)
+    assert r.status_code == 201, r.text
+    assert api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/tema", json={**body, "nazev": "Věž znovu"}).status_code == 201
+    own = serie.own_pictures(settings.library_dir, {"entita": {"qid": "Q81214"}})
+    assert [o["nazev"] for o in own] == ["Věž znovu"]       # stejný model a textura přepíše svůj řádek
+    assert own[0]["popisky"] == {"zed": "Zeď"} and own[0]["tvor3d"]["hotovo"] == hotovo and own[0]["druh"] == "zvire"
+    # stránka řetězce: položka s bodem jde na 3D obraz, bez bodu se ohlásí; na výšku první
+    chain = api.app.state.chain
+    wf = Workflow(id="wf-test", kind="infografika", urceni="web", stranky=[1])
+    text = {"titulek": "Věž zevnitř", "polozky": [{"value": "Zeď", "text": "pískovec, 2 m", "bod": "zed"}, {"value": "1850", "text": "postavena", "bod": None}]}
+    page = Chain._page_3d(chain, wf, 1, own[0]["tvor3d"], text, ["dřívější hlášení"])
+    assert [d["size"] for d in page["dokumenty"]] == ["1080x1920", "1920x1080"] and page["doc"] == page["dokumenty"][0]["id"]
+    assert page["hlaseni"] == ["dřívější hlášení", "Na 3D obraz se nevešlo: 1850 postavena"]
+    doc = api.get(f"/api/v2/infographics/{page['doc']}").json()
+    assert doc["serie"] == {"wf": "wf-test", "stranka": 1, "celkem": 1} and doc["na_strance"] == ""
+    assert [lb["kotva"] for lb in doc["panels"][0]["labels"]] == ["zed"] and doc["panels"][0]["orez"] == {"vnitrek": "kuze"}
+    empty = Chain._page_3d(chain, wf, 1, own[0]["tvor3d"], {"titulek": "x", "polozky": [text["polozky"][1]]}, [])
+    assert empty["doc"] is None and "nemíří na bod" in empty["hlaseni"][-1]
+
+
+@pytest.mark.parametrize("over, message", [({"qid": "vorvan"}, "Wikidaty"), ({"popisky": {"neni": "Nic"}}, "bodům"), ({"nazev": " "}, "co obraz ukazuje"), ({"hotovo": "hotovo-9"}, "obraz.png")])
+def test_bad_topic_request_says_what_is_wrong(api, renders, flux, over, message):
+    wait(api, texture(api).json()["job_id"])
+    api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/vyber", json={"seedy": {}})
+    r = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/tema", json={"qid": "Q81214", "hotovo": "hotovo-1", "nazev": "Věž", "popisky": {"zed": "Zeď"}, **over})
+    assert r.status_code == 400 and message in r.json()["detail"]
+
+
 @pytest.mark.parametrize("body, status, message", [
     ({"hotovo": "hotovo-9", "titulek": "x", "popisky": {"zed": "Zeď"}}, 400, "obraz.png"),
     ({"hotovo": "../x", "titulek": "x", "popisky": {"zed": "Zeď"}}, 400, "hotovo"),

@@ -251,7 +251,7 @@ export const wfApi = {
 export interface ProposalPanel { titulek: string; co: string; druh: string; x: number; y: number; w: number; h: number; poradi: number; fakta: string[]; predloha: string | null }
 export interface ProposalPage { nazev: string; veta: string; format: string; panely: ProposalPanel[] }
 export interface Proposal extends ProposalPage { id: number; vzhled: string; fakta: number; neznama_fakta: number; neznama_predloha?: number; rozpory: string[]; dalsi_stranky?: ProposalPage[]; opakovana_fakta?: number; bez_stranky?: string[] }
-export interface SeriesPage { stranka: number; nazev: string; doc: string | null; hlaseni: string[] }
+export interface SeriesPage { stranka: number; nazev: string; doc: string | null; hlaseni: string[]; dokumenty?: { id: string; size: string }[] }
 export interface ChainWarning { severity: string; what: string; why: string; fix: string }
 export interface Chain {
   id: string
@@ -619,6 +619,8 @@ export const m3dApi = {
     post<{ dir: string; seedy: Record<string, number>; vrstvy: string[]; na_vysku?: string }>(`${m3}/${id}/${v}/textura/${tid}/vyber`, body),
   stranka: (id: string, v: string, tid: string, body: { hotovo: string; titulek: string; popisky: Record<string, string>; nazvy_vrstev: Record<string, string>; formaty: string[] }) =>
     post<{ dokumenty: { id: string; size: string; title: string }[] }>(`${m3}/${id}/${v}/textura/${tid}/stranka`, body),
+  tema: (id: string, v: string, tid: string, body: { qid: string; hotovo: string; nazev: string; popisky: Record<string, string> }) =>
+    post<{ id: string; slozka: string }>(`${m3}/${id}/${v}/textura/${tid}/tema`, body),
 }
 
 // -- 3D scenes (engine/api_scenes3d.py, docs/plans/2026-10-27-3d-sceny.md) ---------------------------------

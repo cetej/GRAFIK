@@ -42,9 +42,15 @@ Zkouška každé fáze: vorvaň znovu udělaný přes Engine musí odpovídat ru
 - Vorvaň: obě stránky projdou kontrolami (`GET …/kontrola`) bez nálezu, kromě „před zveřejněním zkontroluje člověk“.
 - Vynechané proti ruční stránce: malé srovnání jícnu s člověkem (zvláštnost vorvaně) a editor popisků ve Studiu (úprava ve VectorCraftu).
 
-## Fáze 3b — krok „3D scéna“ v řetězci (čeká)
+## Fáze 3b — 3D tvor v řetězci (hotovo)
 
-- Krok mezi Návrhy a Stránky v `engine/chain.py`; návrh zvířete s pojmy „vnitřek“, „figura v měřítku“.
-- Panelový dokument s vrstvami kůže, vnitřku a postavy: vnitřek oříznutý obrysem těla, záře postavy, popisky na `body.json`.
-- 16:9 i 9:16 ze stejných vrstev; záznam v Infografikách, VectorCraft, bez zdroje a kreditu na stránce (DECISIONS 2026-11-05).
+- Hotový tvor se dá tématu: Studio 3D, krok „4 · Do řetězce infografiky“, nebo `POST …/textura/<t>/tema` s QID, názvem a názvy bodů.
+  Zapíše řádek do `library/tema/<qid>/obrazy.json` s `tvor3d` (model, textura, `hotovo-<k>`, vrstvy); stejný model řádek přepíše.
+- Návrhy ho vidí ve VLASTNÍCH OBRAZECH jako „(3D tvor)“ a pravidlo zvířete z něj dělá hlavní obraz stránky o těle, velikosti
+  nebo vnitřku (`proposals.KIND_RULES["zvire"]`).
+- Krok Stránky (`chain._page_3d`): stránka, jejíž hlavní obraz je 3D tvor, se skládá z jeho vrstev přes `textura3d.make_pages`
+  (vnitřek v obrysu kůže, záře postavy, popisky u bodů), 9:16 první a 16:9 vedle (`serie[].dokumenty`); položka textů bez bodu
+  na takové stránce nemá místo a řekne to hlášení. Bez kreditu na stránce jako 3a.
+- Neřeší: model nového zvířete pořád staví člověk podle `scripts/3d/dily/vorvan.py` (popis dílů jako data); samostatný krok
+  řetězce, který by tvora postavil z předloh, je další práce.
 - Dnes stránky ze skriptů (`sazba.py nahraj`) jdou jen do Knihovny, do Infografik žádná cesta nevede.
