@@ -542,3 +542,7 @@ Operátor odmítl náčrt s jedním sloupcem popisků, uříznutým portikem a v
 ## 2026-11-05: Na stránce ani kredit AI
 
 Operátor u vorvaně: „Vyser se na tu popisku zdroje, ta přijde do popisků na webu“ a „Flux a ty další … budou v kreditu na webu, do obrázku to nechci“. Na stránce infografiky není řádek se zdrojem ani označení AI, generátoru, 3D modelu nebo autora; vše jde do `zdroje.txt` a odtud do popisků na webu. Mění rozhodnutí z 2. 11. („jen označení AI a cizí autor“). `sazba.write_poster` hlásí zdroj nebo kredit na stránce. Renderer dokumentu s panely a kontrola věty o AI při exportu z VectorCraftu se mají změnit stejně.
+
+## 2026-11-05: Legionář do póz jako postava s kostrou
+
+Operátor vybral ze tří cest k bojovým a pohybovým pózám postavu s kostrou. Kostra do dnešního modelu v15 by ohýbala se srostlým štítem a pilem i paži a zbroj. Generovat každou pózu zvlášť by stálo kolem USD 0,90 za pózu a pak hodně ruční práce. Základ je nový model `rimsky-legionar-v-a-poze-zaklad-pro-kostru` v A-póze z podkladu **B bez zbraní** (holý opasek, prázdné ruce). Štít, pilum, gladius s pochvou a pugio budou samostatné díly připnuté ke kostem, aby zůstaly tuhé a meč šel tasit. Kostru udělat lokálně v Blenderu, ne přes Mixamo: licence podkladu je neznámá.
