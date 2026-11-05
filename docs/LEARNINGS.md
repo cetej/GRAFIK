@@ -1,5 +1,10 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Textura FLUXem: vnitřnosti tvar předlohy drží jen někdy, kůže skoro vždy
+
+- Na vorvani z dílů dala kůže IoU 0,97–0,987 ve všech třech seedech, vnitřnosti 0,977, 0,68 a 0,251. Bez měření obrysu by se nepovedený seed dostal na stránku. Proto úloha `textura3d` měří IoU u každého seedu a doporučuje nejlepší; `tvar_drzi` je pod 0,9 nepravda.
+- Pokusy FLUXu, které operátor nevybírá jako obrázek, nepatří do Knihovny (30 zelených obrázků vorvaně ji zaplavilo a hotové stránky vypadaly ztracené). Uvnitř vlastní úlohy spouštěj FLUX přes `Worker.process`, ne `store.add`.
+
 ## 2026-11-05 — Skript zapsal do library/3d složku bez model.json a Engine se přestal spouštět
 
 - `Model3dLibrary.list()` čte `model.json` nejnovější verze; skript vorvaně nechal v `library/3d/vorvan-lod/v1` a `v2` jen `model.glb`. `mark_interrupted()` při startu spadl na `Model3dError` → *Application startup failed*, okno `start-grafik.bat` se samo zavřelo a operátor viděl jen „nejde restartovat“. Oprava: `list()` takovou složku přeskočí (#212).
