@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Legionář: generátor dá tvar a barvy, kov a díly se dodělávají v Blenderu
+
+- Postava z operátorova podkladu se 4 pohledy (Hunyuan3D v3 multi-view) sedí tvarem i barvami; FLUX předlohy reálie nedržely. Vyráběné díly (pilum, gladius, puklice) generátor rozmaže, vymodelovat a položit přes původní tvar. Postup a pasti: [`3d-postava-postup.md`](3d-postava-postup.md).
+- Masky materiálů v textuře generátoru: barva nestačí (mosaz = odstín obličeje), oblast kreslená jen v UV bodech vrcholů dělá „písek“ (rozšířit o ~7 px), vertex dirt má medián ~0,06 (práh z percentilů, atribut `FLOAT_COLOR`).
+- Promítnutí fotek podkladu na hotovou síť dává z boků smouhy („jako by to barvil opilý“); obarvení generátorem za 0,525 USD je čisté.
+
 ## 2026-11-05 — 3D stránka z řetězce: kontroly prošly, laťku nedržela
 
 - První stránka, kterou řetězec složil z 3D vorvaně, prošla všemi kontrolami, a přesto byla horší než ruční. Na šířku zabíral tvor 41 % šířky, protože popisky ve třech řádcích sebraly výšku. Popisek u tlamy měl nadpis „Krakatice“: model nadepsal bod potravou, a pravidlo „pojmenuj část“ hlídal jen prompt. Na výšku vedlo vodítko přes celou hlavu ke sloupci vlevo. A u sporného faktu (10–15 proti 30–40 cm) model dopsal závěr „člověk neprojde“.

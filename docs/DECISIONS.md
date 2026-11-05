@@ -2,6 +2,13 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-05 — 3D postava: podklad operátora, obarvení generátorem, vyráběné díly vymodelovat
+
+Operátor 5. 11. v STOPA session k legionáři: FLUX předlohy „všechny ty obrázky jsou nepřesné, vkládám raději vlastní podklad“; obarvení promítnutím „vypadá to, že ten, kdo to barvil, se ožral“, obarvený model z Hunyuanu „Ano, za 0,525 USD“; detaily „Ano, nahraď je“; v6 „Prima, ulož tuto verzi“; opotřebení „nedělej příliš plošně“; „zkušenosti ulož do dokumentace“.
+
+- **Co:** u postavy s historickými reáliemi je výchozí podklad od operátora (4 pohledy), ne FLUX. Barvy dává generátor (Hunyuan3D v3 `Normal`), ne promítnutí fotek. Vyráběné díly (zbraně, puklice, kování) se modelují v Blenderu a kladou přes tvar z generátoru. Opotřebení je místní (záhyby, ostrůvky prachu, bláto u země), ne plošné.
+- **Legionář:** `library/3d/rimsky-legionar-trajanova-doba`, v6 schválená (čistý), v7 opotřebovaný na tažení. Postup: [`3d-postava-postup.md`](3d-postava-postup.md).
+
 ## 2026-11-05 — 3D sklad na D:, propojení s GRAFIKem a POHYBem, kopie zkontrolovaných modelů
 
 Operátor 5. 11.: „v samostatné session rozjeť dobudování skladu a jeho propojení s projekty“; na náčrt odpověděl „Ano, podle náčrtu“, k našim modelům zvolil „Kopie při schválení“, disk D: připojil.
