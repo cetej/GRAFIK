@@ -18,12 +18,13 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from engine.models3d import Model3dError, Models3d, _now, is_glb, opaque_share
+from engine.models3d import Model3dError, Model3dLibrary, Models3d, _now, is_glb, opaque_share
 from engine.parts_spec import CUT_FACES, CUTS, MAX_METRES, NAME, SpecError, validate
 
 BLENDER_DIR = Path(__file__).resolve().parent / "blender"
 PARTS_SCRIPT = BLENDER_DIR / "lod_parts.py"
 RENDER_SCRIPT = BLENDER_DIR / "render_parts.py"
+FIGURE = Path(__file__).resolve().parent / "assets" / "postava-172.glb"
 POHLEDY = ("celek", "rez", "ctvrt", "pudorys", "pruceli", "bok", "rozklad")   # kopie klíčů VIEWS z render_parts.py, hlídá test
 MAX_LAYERS = 12     # víc dílů dá render_parts.py dohromady podle materiálu
 RENDER_DIR = re.compile(r"r-(\d+)")
@@ -46,6 +47,17 @@ class Odkryv(BaseModel):
     azimut: tuple[float, float]
 
 
+class Okno(BaseModel):
+    stred: tuple[float, float]      # [x, z] v metrech, pohled z boku
+    poloosy: tuple[float, float]
+
+
+class Pruhledne(BaseModel):
+    dily: list[str]
+    okno: Okno
+    zbyva: float = 0.14     # krytí kůže mimo okno
+
+
 class RenderIn(BaseModel):
     pohled: str = "celek"
     res: tuple[int, int] = (1920, 1080)
@@ -59,7 +71,25 @@ class RenderIn(BaseModel):
     sokl: Sokl | None = None        # jen pohled ctvrt
     odkryv: list[Odkryv] = []       # výseky dílů odebrané v tomhle obraze, třeba podlaha arény nad podzemím
     zaber: list[list[float]] | None = None      # [[x, y, z], [x, y, z]]: kvádr, na který se kamera zaměří, jinak celý model
+    perspektiva: bool = False       # kamera 50 mm místo pravoúhlé: bližší konec větší (hlava vorvaně k divákovi)
+    pruhledne: Pruhledne | None = None
+    samostatne: bool = False        # každá vrstva sama, bez ostatních (kůže zvlášť od vnitřností za ní)
     caller: str = "studio"
+
+
+def model_files(spec: dict, lib: Model3dLibrary) -> dict:
+    """Díl `model` dostane cestu ke GLB (vestavěná postava, nebo model z knihovny 3D), Blender pak jen načte soubor."""
+    for part in spec["dily"]:
+        if part["typ"] == "model":
+            if part["model"] == "postava":
+                glb = FIGURE
+            else:
+                mid, ver = part["model"].split("/")
+                glb = lib.vdir(mid, ver) / "model.glb"
+            if not glb.is_file():
+                raise Model3dError(f"{part['nazev']}: model {part['model']} nemá model.glb")
+            part["soubor"] = str(glb)
+    return spec
 
 
 def part_names(spec: dict) -> list[str]:
@@ -106,7 +136,19 @@ def check_render(body: RenderIn, spec: dict) -> dict:
                 raise Model3dError(f"odkryv dílu {name!r}: takový díl model nemá")
     if body.zaber is not None and (len(body.zaber) != 2 or any(len(c) != 3 or any(abs(v) > MAX_METRES for v in c) for c in body.zaber) or body.zaber[0] == body.zaber[1]):
         raise Model3dError("záběr jsou dva rohy kvádru [[x, y, z], [x, y, z]] v metrech")
+    if body.pruhledne is not None:
+        for name in body.pruhledne.dily:
+            if name not in names:
+                raise Model3dError(f"průhledný díl {name!r}: takový díl model nemá")
+        if min(body.pruhledne.okno.poloosy) <= 0 or not 0 <= body.pruhledne.zbyva <= 1:
+            raise Model3dError("průhledné okno chce kladné poloosy a zbyva 0 až 1")
     out = {"pohled": body.pohled, "res": list(body.res), "samples": body.samples, "posuny": body.posuny, "rez": body.rez, "bez": body.bez}
+    if body.perspektiva:
+        out["perspektiva"] = True
+    if body.pruhledne is not None:
+        out["pruhledne"] = body.pruhledne.model_dump()
+    if body.samostatne:
+        out["samostatne"] = True
     if body.zaber is not None:
         out["zaber"] = body.zaber
     if body.kamera:
@@ -133,6 +175,7 @@ class Parts3d:
         return {"parts3d": self.run_parts, "render3d": self.run_render}
 
     def create(self, body: PartsIn, spec: dict) -> dict:
+        spec = model_files(spec, self.lib)
         meta = self.lib.new_version(body.model_id, body.title or spec["nazev"], method="parts", backend=None, request_id=None)
         d = self.lib.vdir(meta["id"], meta["version"])
         (d / "popis.json").write_text(json.dumps(spec, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -1,5 +1,17 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Skript zapsal do library/3d složku bez model.json a Engine se přestal spouštět
+
+- `Model3dLibrary.list()` čte `model.json` nejnovější verze; skript vorvaně nechal v `library/3d/vorvan-lod/v1` a `v2` jen `model.glb`. `mark_interrupted()` při startu spadl na `Model3dError` → *Application startup failed*, okno `start-grafik.bat` se samo zavřelo a operátor viděl jen „nejde restartovat“. Oprava: `list()` takovou složku přeskočí (#212).
+- Stránky skládané skriptem (`scripts/plakaty/sazba.py nahraj`) jdou jen do Knihovny jako obrázek s SVG, do záložky Infografiky žádná cesta nevede. Operátor je tam čekal. Knihovnu navíc zaplavilo 30 obrázků FLUX ze stejné práce, takže stránky vypadaly ztracené. Než řekneš „smazáno“ nebo „nebylo tam“, změř disk, API a log (`DELETE` v `logs/engine.log`).
+
+## 2026-11-05 — Vorvaň z obecných dílů: co musí sedět, aby výsledek odpovídal ručnímu modelu
+
+- Ruční `lod_vorvan.py` jde přepsat na obecné díly beze ztráty: tělo z profilu se rozloží na průřezy už v Engine (`parts_spec.body_sections`), Blender je jen spojí. Zvláštnosti vorvaně (čelist odečtená z břicha, hrb jen ve střední čáře, zploštění u ocasu, hranatost hlavy) jsou tabulky a pole v popisu. Kontrola proti siluetě dala stejná čísla jako ruční model (IoU 0,57; 3,56 / 3,8 / 4,44 %).
+- Tabulky po délce interpoluj smoothstepem, ne přímkou: přechody ve vorvani byly `smooth()` mezi dvěma body a tabulka o dvou řádcích je pak přesná.
+- Model z knihovny (potápěč z TRELLIS) leží v GLB podél osy y; bez otočení na x stojí v záběru svisle. Ležící model (nejdelší y) se položí podél x, stojící postava (nejdelší z) zůstane stát; směr hlavy určuje `natoceni` v popisu.
+- Vrstvy pro stránku chtějí `samostatne` (skrýt ostatní), ne holdout: s holdoutem by vnitřnosti vyřízly díru do vrstvy kůže a průsvitné okno by nešlo složit.
+
 ## 2026-11-05 — Řetězec infografiky skončil u otázky a vzor nečetl
 
 - **Téma jako otázka („Spolkl by vorvaň člověka?“) Wikidata jako heslo nenajde**, rešerše spadla a řetězec stál dřív, než vzor kdokoli otevřel (vzor četl až krok Návrhy). Samotné „vorvaň“ najde Q81214 se 132 fakty.

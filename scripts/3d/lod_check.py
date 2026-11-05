@@ -143,10 +143,13 @@ def main() -> int:
     glb = a.glb or a.out / "model.glb"
     spec = None
     if a.parts:
+        from engine.config import Settings
+        from engine.models3d import Model3dError, Model3dLibrary
+        from engine.parts3d import model_files
         from engine.parts_spec import DECOR, SpecError, validate
         try:
-            spec = validate(json.loads(a.parts.read_text(encoding="utf-8")))
-        except (SpecError, ValueError) as e:
+            spec = model_files(validate(json.loads(a.parts.read_text(encoding="utf-8"))), Model3dLibrary(Settings().library_dir / "3d"))
+        except (SpecError, Model3dError, ValueError) as e:
             print(f"popis nejde postavit: {e}")
             return 2
         (a.out / "spec.json").write_text(json.dumps(spec, ensure_ascii=False, indent=1), encoding="utf-8")

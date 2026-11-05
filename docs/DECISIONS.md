@@ -2,6 +2,12 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-05 — 3D infografika jako vorvaň se dělá přímo v Grafikovi, ne skripty v konverzaci
+
+- **Co:** postup vorvaně (model z průřezů podle předloh, průsvitná kůže s vnitřnostmi, postava v měřítku, textura FLUXem, stránka 16:9 a 9:16) se převede na obecné úlohy Engine a Studia ve třech fázích (`docs/plans/2026-11-05-3d-infografika-tvor.md`). Co je u vorvaně zvláštní, patří do dat popisu, ne do kódu. Fáze 1 je hotová.
+- **Proč:** operátor: „potřebujeme, aby šlo vytvářet infografiky v 3D podobně i přímo v Grafikovi … zkušenost z konverzace přenést do projektu“ a „tady se asi úplně ztrácí úspora za levnější řešení“. Drahé nebyly kroky (Blender a lokální FLUX 0 USD), ale ladění silným modelem v chatu, které zůstalo ve skriptech s natvrdo zapsanými čísly.
+- **Odkud:** session 5. 11. po zjištění, že stránky vorvaně nejsou v Infografikách (vedly jen do Knihovny), operátor „Ano, začni fází 1“.
+
 ## 2026-11-05 — Infografika „Spolkl by vorvaň člověka?“: hlavní obraz je předmět otázky, ne doplňky
 
 - **Co:** dominuje vorvaň s průsvitným tělem a 3D vnitřnostmi a potápěč ve skutečném poměru (samec 16 m). Srovnání jícnu s člověkem (dva kruhy a obrys) do stránky patří, ale malé. Scény zevnitř a detaily typu zobáky olihní jsou podružné, „nemusí se to s nimi přehánět“. Hlavní verze je 16:9, k ní 9:16 se zrcadlově prohozeným obrazem a popisky a mírná perspektiva (hlava blíž, ocas dál).

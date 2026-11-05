@@ -5,6 +5,11 @@ Osy: x podél delší strany, y napříč, z nahoru, střed stavby v počátku, 
 
 Tvar vznikl zobecněním `scripts/3d/lod_pantheon.py` (rotunda, kupole s kazetami, portik, sloupy, zeď) a přidáním elipsy,
 arkád a hlediště. Každé číslo patří do `dim` nebo do dílu, u ne-doložených rozměrů to řeší `zdroje`: co nemá fakt z dossieru, je `odhad`.
+
+Tvor (zobecnění `scripts/3d/lod_vorvan.py` a `vorvan_scena.py`, 3D infografika vorvaně 5. 11.): `telo` z profilu změřeného
+na předlohách (`engine/silueta.py`), obecný loft `prurezy`, `elipsoid` (ploutve), `deska` (ocasní ploutev), `zuby`, `trubice`
+(vnitřnosti jako jeden souvislý tvar) a `model` (postava v měřítku z knihovny 3D). Co je u vorvaně zvláštní, je v datech
+popisu (`scripts/3d/dily/vorvan.py`), ne tady. Tělo se rozloží na průřezy už tady, Blender je jen spojí.
 """
 from __future__ import annotations
 
@@ -14,12 +19,16 @@ import re
 MAX_PARTS = 240
 MAX_COUNT = 400
 MAX_METRES = 2000.0
-SOLID = ("prstenec", "hlediste", "kopule", "kvadr", "disk", "rada", "pricky")
+ORGANIC = ("telo", "prurezy", "elipsoid", "deska", "zuby")
+SOLID = ("prstenec", "hlediste", "kopule", "kvadr", "disk", "rada", "pricky") + ORGANIC
 LOOSE = ("sloupy", "portik")
-DECOR = ("sochy", "lide", "plachty", "zdvihadla")     # oživení obrazu: do rozměrů ani do kontroly kontaktu se nepočítá
+# oživení obrazu a co je uvnitř nebo vedle (vnitřnosti, postava v měřítku): do rozměrů ani do kontroly kontaktu se nepočítá
+DECOR = ("sochy", "lide", "plachty", "zdvihadla", "trubice", "model")
 CUTS = ("arkady", "vyrez", "ochoz", "schodiste", "sachty", "otvory", "dutina")
 KINDS = SOLID + LOOSE + DECOR + CUTS
-MATERIALS = ("travertin", "tuf", "cihla", "beton", "mramor", "zula", "bronz", "strecha", "pisek", "kamen", "drevo", "omitka", "platno", "zemina", "freska")
+MATERIALS = ("travertin", "tuf", "cihla", "beton", "mramor", "zula", "bronz", "strecha", "pisek", "kamen", "drevo", "omitka", "platno", "zemina", "freska",
+             "kuze", "kuze_tmava", "tkan", "sval", "sliznice", "strevo", "zub", "dutina")
+MODEL_REF = re.compile(r"postava|[a-z0-9-]{1,80}/v\d{1,4}")    # vestavěná postava 1,72 m, nebo model z knihovny 3D
 CUT_FACES = ("kamen", "cerna", "tmava")     # plocha řezu: z čeho je zeď, černá jako v architektonickém řezu, tmavý zásyp pod ní
 NAME = re.compile(r"[a-z0-9_]{1,40}")
 
@@ -309,7 +318,196 @@ def _lifts(name: str, raw: dict) -> dict:
             "z0": start, "z1": end, "sirka": _num(name, "sirka", raw.get("sirka"), 0.1, 50), "delka": _num(name, "delka", raw.get("delka"), 0.1, 50)}
 
 
-BUILDERS = {"sachty": _shafts, "ochoz": _vault, "schodiste": _stairs, "prstenec": _ring, "hlediste": _seating, "kopule": _dome, "kvadr": _box, "disk": _disc, "sloupy": _columns, "portik": _portico, "arkady": _arcade, "vyrez": _cut,
+def _smooth(t: float) -> float:
+    t = min(max(t, 0.0), 1.0)
+    return t * t * (3 - 2 * t)
+
+
+def table_at(table: list[list[float]], x: float) -> float:
+    """Hodnota tabulky [[x, hodnota], ...] v bodě x; mezi body plynule (smoothstep), mimo ni krajní hodnota."""
+    if x <= table[0][0]:
+        return table[0][1]
+    for (x0, y0), (x1, y1) in zip(table, table[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * _smooth((x - x0) / (x1 - x0)) if x1 > x0 else y1
+    return table[-1][1]
+
+
+def _linear(xs: list[float], ys: list[float], x: float) -> float:
+    if x <= xs[0]:
+        return ys[0]
+    for i in range(1, len(xs)):
+        if x <= xs[i]:
+            return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - xs[i - 1]) / (xs[i] - xs[i - 1])
+    return ys[-1]
+
+
+def _table(name: str, raw: dict, key: str, default: float, lo: float, hi: float) -> list[list[float]]:
+    rows = raw.get(key, [[0.0, default], [1.0, default]])
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 200:
+        raise SpecError(f"{name}: {key} je tabulka [[x, hodnota], ...]")
+    out = [[_num(name, key, r[0], 0.0, 1.0), _num(name, key, r[1], lo, hi)] for r in (_pair(name, key, row) for row in rows)]
+    if any(b[0] < a[0] for a, b in zip(out, out[1:])):
+        raise SpecError(f"{name}: {key} musí mít x vzestupně")
+    return out
+
+
+def _turn(name: str, raw: dict) -> dict | None:
+    """Otočení hotového dílu kolem osy procházející bodem `stred`, třeba otevřená čelist kolem kloubu."""
+    turn = raw.get("otoceni")
+    if turn is None:
+        return None
+    if not isinstance(turn, dict) or turn.get("osa") not in ("x", "y", "z"):
+        raise SpecError(f"{name}: otoceni je {{stred, osa x/y/z, uhel}}")
+    return {"stred": _triple(name, "otoceni.stred", turn.get("stred")), "osa": turn["osa"], "uhel": _num(name, "otoceni.uhel", turn.get("uhel"), -360, 360)}
+
+
+def _section_rows(name: str, rows) -> list[list[float]]:
+    if not isinstance(rows, list) or not 2 <= len(rows) <= 400:
+        raise SpecError(f"{name}: rezy jsou 2 až 400 průřezů [x, polosirka, z_stred, polovyska, n, zuzeni_dole]")
+    out = []
+    for r in rows:
+        if not isinstance(r, (list, tuple)) or not 4 <= len(r) <= 6:
+            raise SpecError(f"{name}: průřez {r!r} chce [x, polosirka, z_stred, polovyska] a volitelně n a zuzeni_dole")
+        x, hw, zc, hh = (_num(name, "rezy", v) for v in r[:4])
+        if hw <= 0 or hh <= 0:
+            raise SpecError(f"{name}: průřez v x {x} má nulovou šířku nebo výšku")
+        n = _num(name, "rezy n", r[4], 0.5, 10) if len(r) > 4 else 2.0
+        taper = _num(name, "rezy zuzeni_dole", r[5], 0.0, 0.95) if len(r) > 5 else 0.0
+        out.append([x, hw, zc, hh, n, taper, 0.0])
+    return out
+
+
+def _lofted(name: str, raw: dict) -> dict:
+    """Obecný loft: průřezy po ose x, každý superelipsa (n = 2 elipsa, víc = hranatější), dole zúžená o `zuzeni_dole`."""
+    out = {"rezy": _section_rows(name, raw.get("rezy")), "hladit": bool(raw.get("hladit", True))}
+    if (turn := _turn(name, raw)) is not None:
+        out["otoceni"] = turn
+    return out
+
+
+DENSE_FRONT = [0.0, 0.002, 0.005, 0.009, 0.014, 0.02, 0.028, 0.038, 0.05, 0.065]   # zaoblené čelo potřebuje husté průřezy
+
+
+def body_sections(p: dict) -> list[list[float]]:
+    """Tělo z profilu na průřezy [x, polosirka, z_stred, polovyska, n, zuzeni_dole, hreben] v metrech.
+    Profil je v podílech délky od špičky (x = 0) k konci, hřbet a břicho nad nejnižším bodem břicha, šířka celá."""
+    length, prof = p["delka"], p["profil"]
+    xs = prof["x"]
+    ridge = prof.get("hreben") or [0.0] * len(xs)
+    out = []
+    for x in p["vzorky"]:
+        k_dome, x_s = 1.0, x
+        if x < p["celo"]:                       # čelo vyklenuté jako polovina elipsoidu, ne deska
+            k_dome, x_s = max(math.sqrt(1 - ((p["celo"] - x) / p["celo"]) ** 2), 0.02), p["celo"]
+        top, bot = _linear(xs, prof["hrbet"], x_s) * length, _linear(xs, prof["bricho"], x_s) * length
+        zc = (top + bot) / 2 + 0.12 * (1 - k_dome) * (top - bot)      # špička klenby nad středem: spodek hlavy ustupuje
+        hh = max((top - bot) / 2 * k_dome, 0.005) * table_at(p["zplosteni"], x_s)
+        hw = max(_linear(xs, prof["sirka"], x_s) * length / 2 * k_dome, 0.005)
+        out.append([round(p["x0"] + x * length, 4), round(hw, 4), round(p["z0"] + zc, 4), round(hh, 4),
+                    round(table_at(p["hranatost"], x_s), 3), round(table_at(p["zuzeni_dole"], x_s), 3), round(_linear(xs, ridge, x_s) * length, 4)])
+    return out
+
+
+def _body(name: str, raw: dict) -> dict:
+    """Tělo tvora z profilu (engine/silueta.py): hřbet, břicho a šířka po délce, `hreben` jen ve střední čáře hřbetu."""
+    length = _num(name, "delka", raw.get("delka"), 0.01, MAX_METRES)
+    prof = raw.get("profil")
+    if not isinstance(prof, dict):
+        raise SpecError(f"{name}: profil je {{x, hrbet, bricho, sirka}} v podílech délky")
+    xs = prof.get("x")
+    if not isinstance(xs, list) or not 3 <= len(xs) <= 1001:
+        raise SpecError(f"{name}: profil.x jsou 3 až 1001 podílů délky")
+    clean = {"x": [_num(name, "profil.x", v, 0.0, 1.0) for v in xs]}
+    if any(b <= a for a, b in zip(clean["x"], clean["x"][1:])):
+        raise SpecError(f"{name}: profil.x musí růst")
+    for key in ("hrbet", "bricho", "sirka", "hreben"):
+        values = prof.get(key)
+        if values is None and key == "hreben":
+            continue
+        if not isinstance(values, list) or len(values) != len(xs):
+            raise SpecError(f"{name}: profil.{key} musí mít stejně hodnot jako profil.x")
+        clean[key] = [_num(name, f"profil.{key}", v, -1.0, 1.0) for v in values]
+    end = _num(name, "konec", raw.get("konec", 1.0), 0.5, 1.0)
+    samples = raw.get("vzorky") or [x for x in DENSE_FRONT if x < end] + [round(0.08 + 0.015 * i, 4) for i in range(int((end - 0.08) / 0.015) + 1)]
+    part = {"delka": length, "x0": _num(name, "x0", raw.get("x0", -length / 2)), "z0": _num(name, "z0", raw.get("z0", 0.0)), "profil": clean,
+            "celo": _num(name, "celo", raw.get("celo", 0.0), 0.0, 0.4), "vzorky": [_num(name, "vzorky", v, 0.0, 1.0) for v in samples],
+            "hranatost": _table(name, raw, "hranatost", 2.0, 0.5, 10), "zuzeni_dole": _table(name, raw, "zuzeni_dole", 0.0, 0.0, 0.95),
+            "zplosteni": _table(name, raw, "zplosteni", 1.0, 0.01, 2.0)}
+    part["rezy"] = body_sections(part)
+    part["hladit"] = True
+    return part
+
+
+def _ellipsoid(name: str, raw: dict) -> dict:
+    out = {"stred": _triple(name, "stred", raw.get("stred")), "poloosy": [_num(name, "poloosy", v, 0.001, MAX_METRES) for v in _triple(name, "poloosy", raw.get("poloosy"))],
+           "natoceni": _triple(name, "natoceni", raw.get("natoceni", [0, 0, 0])), "zrcadlo": _mirror(name, raw)}
+    if (turn := _turn(name, raw)) is not None:
+        out["otoceni"] = turn
+    return out
+
+
+def _plate(name: str, raw: dict) -> dict:
+    """Plochý díl z obrysu shora [[x, y], ...] s tloušťkou, skloněný kolem osy y v `osa_x` (ocasní ploutev při záběru)."""
+    outline = raw.get("obrys")
+    if not isinstance(outline, list) or not 3 <= len(outline) <= 200:
+        raise SpecError(f"{name}: obrys je 3 až 200 bodů [x, y]")
+    pts = [_pair(name, "obrys", p) for p in outline]
+    if raw.get("zrcadlit_y"):       # zadaná je jen strana y >= 0 od kořene ke špičce, druhá se dopočítá
+        pts = pts + [[x, -y] for x, y in reversed(pts[1:-1])]
+    return {"obrys": pts, "z": _num(name, "z", raw.get("z", 0.0)), "tloustka": _num(name, "tloustka", raw.get("tloustka"), 0.001, 100),
+            "osa_x": _num(name, "osa_x", raw.get("osa_x", pts[0][0])), "sklon": _num(name, "sklon", raw.get("sklon", 0.0), -90, 90)}
+
+
+def _teeth(name: str, raw: dict) -> dict:
+    points = raw.get("body")
+    if not isinstance(points, list) or not 1 <= len(points) <= MAX_COUNT:
+        raise SpecError(f"{name}: body jsou 1 až {MAX_COUNT} bodů [x, y, z] (pata zubu)")
+    out = {"body": [_triple(name, "body", p) for p in points], "vyska": _num(name, "vyska", raw.get("vyska"), 0.001, 10),
+           "polomer": _num(name, "polomer", raw.get("polomer"), 0.001, 5), "spicka": _num(name, "spicka", raw.get("spicka", 0.0), 0.0, 5), "zrcadlo": _mirror(name, raw)}
+    if (turn := _turn(name, raw)) is not None:
+        out["otoceni"] = turn
+    return out
+
+
+def _tube(name: str, raw: dict) -> dict:
+    """Trubice s proměnným poloměrem po hladké křivce bodů [x, y, z, r]; `useky` určí tkáň po klíčových bodech, `klubko` na konci smotá střevo."""
+    points = raw.get("body")
+    if not isinstance(points, list) or not 2 <= len(points) <= 200:
+        raise SpecError(f"{name}: body jsou 2 až 200 bodů [x, y, z, polomer]")
+    keys = []
+    for p in points:
+        if not isinstance(p, (list, tuple)) or len(p) != 4:
+            raise SpecError(f"{name}: bod {p!r} chce [x, y, z, polomer]")
+        keys.append([_num(name, "body", v) for v in p[:3]] + [_num(name, "body polomer", p[3], 0.001, 50)])
+    sections = []
+    for item in raw.get("useky", []):
+        if not isinstance(item, (list, tuple)) or len(item) != 2 or item[1] not in MATERIALS:
+            raise SpecError(f"{name}: useky jsou [do_bodu, material] s materiálem z {', '.join(MATERIALS)}")
+        sections.append([_num(name, "useky", item[0], 0, len(keys)), item[1]])
+    out = {"body": keys, "useky": sections, "stlaceni_y": _num(name, "stlaceni_y", raw.get("stlaceni_y", 1.0), 0.1, 1.0),
+           "stlaceni_od": _num(name, "stlaceni_od", raw.get("stlaceni_od", 0.0), 0.0, 50)}
+    coil = raw.get("klubko")
+    if coil is not None:
+        if not isinstance(coil, dict):
+            raise SpecError(f"{name}: klubko je {{stred, rozmer, smycek, polomer}}")
+        out["klubko"] = {"stred": _triple(name, "klubko.stred", coil.get("stred")), "rozmer": _triple(name, "klubko.rozmer", coil.get("rozmer")),
+                         "smycek": _num(name, "klubko.smycek", coil.get("smycek", 12), 1, 60), "polomer": _num(name, "klubko.polomer", coil.get("polomer"), 0.001, 10),
+                         "bodu": int(_num(name, "klubko.bodu", coil.get("bodu", 400), 20, 2000))}
+    return out
+
+
+def _model(name: str, raw: dict) -> dict:
+    """Hotový model vedle stavby nebo tvora: postava v měřítku. Nejdelší rozměr = `delka`, natočení ve stupních kolem x, y, z."""
+    ref = str(raw.get("model") or "")
+    if not MODEL_REF.fullmatch(ref):
+        raise SpecError(f"{name}: model je 'postava' nebo '<id>/v<n>' z knihovny 3D ({ref!r})")
+    return {"model": ref, "delka": _num(name, "delka", raw.get("delka"), 0.01, MAX_METRES), "stred": _triple(name, "stred", raw.get("stred")),
+            "natoceni": _triple(name, "natoceni", raw.get("natoceni", [0, 0, 0]))}
+
+
+BUILDERS = {"telo": _body, "prurezy": _lofted, "elipsoid": _ellipsoid, "deska": _plate, "zuby": _teeth, "trubice": _tube, "model": _model,
+            "sachty": _shafts, "ochoz": _vault, "schodiste": _stairs, "prstenec": _ring, "hlediste": _seating, "kopule": _dome, "kvadr": _box, "disk": _disc, "sloupy": _columns, "portik": _portico, "arkady": _arcade, "vyrez": _cut,
             "rada": _row, "pricky": _walls, "otvory": _openings, "dutina": _cavity, "sochy": _statues, "lide": _people, "plachty": _sails, "zdvihadla": _lifts}
 
 
