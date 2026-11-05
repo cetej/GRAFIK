@@ -24,6 +24,23 @@ bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)  # švy UV rozpojují s�
 
 bm.verts.ensure_lookup_table()
 P0 = np.array([v.co for v in bm.verts])
+# předloktí leží ve stejném okně jako jílec původní dýky; kůži nevtlačovat (v11: rozmazané předloktí)
+_uvl = bm.loops.layers.uv.active
+_im = next(n.image for n in me.materials[0].node_tree.nodes if n.type == "TEX_IMAGE" and n.image.colorspace_settings.name != "Non-Color")
+_iw, _ih = _im.size; _px = np.array(_im.pixels[:], np.float32).reshape(_ih, _iw, 4)
+
+
+def is_skin(v):
+    u = v.link_loops[0][_uvl].uv if v.link_loops else None
+    if u is None: return False
+    c = _px[min(max(int(u.y * _ih), 0), _ih - 1), min(max(int(u.x * _iw), 0), _iw - 1)]
+    hh = np.degrees(np.arctan2(np.sqrt(3) * (c[1] - c[2]), 2 * c[0] - c[1] - c[2])) % 360
+    return 4 < hh < 15.5 and c[:3].max() > 0.3
+
+
+def is_arm(v):
+    """Kůže dál než 0,14 od osy = předloktí; dřevo jílce má podobný odstín, ale leží u těla."""
+    return is_skin(v) and np.hypot(P0[v.index, 0] + 0.008, P0[v.index, 1] - 0.006) > 0.14
 
 
 def push_radial(a0, a1, z0, z1, margin=0.006):
@@ -35,12 +52,14 @@ def push_radial(a0, a1, z0, z1, margin=0.006):
         if ring.sum() < 3: continue
         rb = float(np.percentile(rr[ring], 70))
         for k in np.where((ang > a0) & (ang < a1) & (np.abs(P0[:, 2] - zz) < 0.005) & (rr > rb + margin) & (rr < 0.16))[0]:  # štít leží dál než 0,16
-            v = bm.verts[int(k)]; d = Vector((v.co.x + 0.008, v.co.y - 0.006, 0)).normalized()
+            v = bm.verts[int(k)]
+            if is_arm(v) or any(is_arm(e.other_vert(v)) for e in v.link_edges): continue  # i soused paže, jinak trn
+            d = Vector((v.co.x + 0.008, v.co.y - 0.006, 0)).normalized()
             v.co.x = -0.008 + d.x * (rb - 0.002); v.co.y = 0.006 + d.y * (rb - 0.002); n_ += 1
     return n_
 
 
-print("push dagger", push_radial(8.0, 28.0, 0.55, 0.71))
+print("push dagger", push_radial(8.0, 28.0, 0.55, 0.645))  # nad z 0,645 je předloktí (v11: rozmazaná kůže)
 bm.to_mesh(me); bm.free()
 co = np.array([v.co for v in me.vertices]); x, y, z = co.T
 
@@ -209,16 +228,20 @@ L = (z_top - z_bot) / up.z
 # rukojeť venku před zbrojí (jinak je uvnitř a „chybí“), k opasku dvě kožená poutka (jinak „visí ve vzduchu“)
 IRON = metal("zelezo_pugio", (0.38, 0.38, 0.40), 0.4)
 LEATH = metal("kuze_poutko", (0.16, 0.09, 0.05), 0.7, 0.0)
-th = np.radians(17.0)
+# v12: v 17° vedla rukojeť do lokte (předloktí k štítu zabírá -25..32° nad z 0,62) a pochva odstávala;
+# v 42° (bok k zádům, jako na předloze) je sloupec volný do z 0,68 → svislá osa přiložená k nejširší tunice
+A_P = 42.0
+th = np.radians(A_P)
 out_ = Vector((np.cos(th), np.sin(th), 0.0)); tan_ = Vector((0, 0, 1)).cross(out_).normalized()
 ang_ = np.degrees(np.arctan2(y - 0.006, x + 0.008)); rr = np.hypot(x + 0.008, y - 0.006)
 def r_at(zz):
-    s_ = (np.abs(ang_ - 17.0) < 4) & (np.abs(z - zz) < 0.008) & (rr < 0.16)
+    s_ = (np.abs(ang_ - A_P) < 4) & (np.abs(z - zz) < 0.008) & (rr < 0.16)
     return float(np.percentile(rr[s_], 90))
 pz_top, pz_bot = 0.585, 0.455
 def P(r, zz):
     return Vector((-0.008 + r * out_.x, 0.006 + r * out_.y, zz))
-Pb = P(r_at(0.46) + 0.008, pz_bot); Pt = P(r_at(0.60) + 0.0065 + 0.004, 0.615)
+r_ax = max(r_at(zz) for zz in np.arange(0.45, 0.69, 0.01)) + 0.0065
+Pb = P(r_ax, pz_bot); Pt = P(r_ax, 0.615)
 up_p = (Pt - Pb).normalized()
 yp = up_p.cross(tan_).normalized() * -1
 if yp.dot(out_) < 0: yp = -yp
@@ -242,12 +265,12 @@ for zz, hh, wf in ((0.578, 0.008, 1.0), (0.548, 0.006, 0.9), (0.515, 0.006, 0.8)
 for sgn in (-1, 1):  # kroužky závěsu a poutka k opasku
     bpy.ops.mesh.primitive_torus_add(major_radius=0.005, minor_radius=0.0014, major_segments=16, minor_segments=8)
     rg = bpy.context.object; rg.rotation_euler = (1.5708, 0, 0); bpy.ops.object.transform_apply(rotation=True)
-    ring_pos = pat(0.565) + tan_ * sgn * 0.021
+    ring_pos = pat(0.574) + tan_ * sgn * 0.0185
     place(rg, BRASS, Fp, ring_pos)
-    belt_pt = P(r_at(0.58) + 0.002, 0.582) + tan_ * sgn * 0.016
+    belt_pt = P(r_at(0.592) + 0.003, 0.594) + tan_ * sgn * 0.0185  # krátké poutko z kroužku na opasek
     seg = belt_pt - ring_pos; L_ = seg.length
     bpy.ops.mesh.primitive_cube_add(size=1); st = bpy.context.object
-    st.scale = (0.006, 0.002, L_ + 0.004); bpy.ops.object.transform_apply(scale=True)
+    st.scale = (0.008, 0.0025, L_ + 0.006); bpy.ops.object.transform_apply(scale=True)
     Fs = Matrix((tan_, seg.normalized().cross(tan_).normalized(), seg.normalized())).transposed()
     place(st, LEATH, Fs, (belt_pt + ring_pos) / 2)
 bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=0.007)
