@@ -321,11 +321,15 @@ def page_fields(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: s
     for point, text in req.popisky.items():
         lines = [t.strip() for t in text.split("\n") if t.strip()]
         if lines and point in body["points"]:
-            small = [row for line in lines[1:] for row in _wrap(line, 40 if fmt == "16:9" else 18)]
+            small = [row for line in lines[1:] for row in _wrap(line, 28 if fmt == "16:9" else 18)]
             drafts.append({"text": lines[0], "small": small, "kotva": point, "align": "left", "size": font, "pos": [0.0, 0.0]})
-    # na šířku střídavě nad a pod tvorem podle polohy bodu zleva doprava; pořadí podle bodu v obraze, výška pásu podle jeho popisků
+    # na šířku nejdřív jedna řada nad tvorem, dokud se vejde; řada pod ním bere tvoru druhý pás výšky (vorvaň 5. 11.: dvě řady 49 %
+    # šířky, jedna 94 %). Popisky jdou do řad podle důležitosti, v řadě pak podle polohy bodu zleva doprava.
     order = sorted(range(len(drafts)), key=lambda i: body["points"][drafts[i]["kotva"]][0 if fmt == "16:9" else 1])
-    rows = {i: ("nad" if n % 2 == 0 else "dole") for n, i in enumerate(order)}
+    rows, used = {}, 0.0
+    for i in range(len(drafts)):
+        used += _text_box(drafts[i], font)[2] + font
+        rows[i] = "nad" if used <= W - 40 else "dole"
     if fmt == "16:9":
         band = {r: max((_text_box(lb, font)[3] for i, lb in enumerate(drafts) if rows[i] == r), default=-GAP) + GAP for r in ("nad", "dole")}
         rect = [20.0, top + band["nad"], W - 40.0, H - top - band["nad"] - band["dole"] - 20.0]
