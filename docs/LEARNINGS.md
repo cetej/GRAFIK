@@ -7,6 +7,11 @@
 - Popisek pod tvorem s lomeným vodítkem škrtal text. Svislé vodítko z věci dolů k hornímu okraji textu (`dole`), stejně jako `nad` u řady nahoře.
 - Kontrola „bod v obraze není vidět“ brala viditelnost z paprsku v Blenderu, který skončí na kůži; orgán za průsvitným oknem je ale vidět. Po složení vrstev se viditelnost počítá z alfy vrstev.
 
+## 2026-11-05 — Úprava v rámečku zmizela z hotových obrázků a na infografice nechávala obdélník
+
+- 1. 11. jsem podmínkou `finished` (původ `source`) schoval ve Studiu všechno, co souvisí s generátorem, i když zadání chyběla jen „Další variantě“. Úprava v rámečku a Vrstvy objektů zadání nepotřebují, a tak zmizely právě u infografik, exportů a ručních úprav. Operátor to hledal 5. 11. Když schovávám tlačítko, ověřím u každého zvlášť, co doopravdy potřebuje.
+- Paste-back držel okolí přesně, ale FLUX vrací celý obraz s posunutým tónem (tmavomodrý přechod rovně a o 12–24 úrovní jinak). Na infografice vorvaně zůstal viditelný obdélník. Spike ze srpna měřil jen gradient na hranici, posun tónu uvnitř ne. Teď `paste.match_tone` rozloží rozdíl na okraji masky plynule dovnitř: šev 11,9 → 2,5 úrovně. Okraj rámečku 2 % zasáhl titulek, proto je teď 1 %.
+
 ## 2026-11-05 — Textura FLUXem: vnitřnosti tvar předlohy drží jen někdy, kůže skoro vždy
 
 - Na vorvani z dílů dala kůže IoU 0,97–0,987 ve všech třech seedech, vnitřnosti 0,977, 0,68 a 0,251. Bez měření obrysu by se nepovedený seed dostal na stránku. Proto úloha `textura3d` měří IoU u každého seedu a doporučuje nejlepší; `tvar_drzi` je pod 0,9 nepravda.
