@@ -168,6 +168,9 @@ function SeriesPageCard({ page, onError, onInfographicDoc }: { page: SeriesPage;
         </details>
         <div className="row tight">
           <button className="btn" onClick={() => onInfographicDoc(docId)}>Otevřít ve velkém</button>
+          {page.dokumenty?.filter((d) => d.id !== docId).map((d) => (
+            <button key={d.id} className="btn" onClick={() => onInfographicDoc(d.id)}>Otevřít {d.size.replace('x', '×')}</button>
+          ))}
           <button className="btn" disabled={busy} onClick={exportPng}>{busy ? 'Exportuji…' : 'Export PNG'}</button>
           {png && <a href={png} target="_blank" rel="noreferrer">Otevřít PNG</a>}
         </div>

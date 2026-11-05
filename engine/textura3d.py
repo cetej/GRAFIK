@@ -11,6 +11,8 @@ vnitřnosti jako „špatně nalepená fotografie“; operátor zvolil „Render
    dutina pod vnitřnostmi). Ostatní vrstvy (postava) a body popisků zůstávají. `na_vysku` přidá verzi 9:16 překlopením podle
    úhlopříčky: týž tvor z druhé strany, hlava nahoru; kamera na výšku ukazovala víc břicha a FLUX na něm kreslil rýhy.
 Na výšku FLUX předlohu nedrží (vnitřnosti IoU 0,14–0,17), proto se předloha na výšku posílá naležato a výsledek se otočí zpět.
+3. `POST …/textura/<t>/stranka` složí stránky 16:9 a 9:16 do Infografik, `POST …/textura/<t>/tema` dá hotového tvora tématu
+   jako vlastní obraz a řetězec infografiky z něj pak stránky složí sám (fáze 3b).
 Nic se nepřepisuje: `renders/<r>/textura-<n>/` a v něm `hotovo-<k>/`.
 """
 from __future__ import annotations
@@ -319,7 +321,7 @@ def page_fields(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: s
     for point, text in req.popisky.items():
         lines = [t.strip() for t in text.split("\n") if t.strip()]
         if lines and point in body["points"]:
-            small = [row for line in lines[1:] for row in _wrap(line, 30 if fmt == "16:9" else 18)]
+            small = [row for line in lines[1:] for row in _wrap(line, 40 if fmt == "16:9" else 18)]
             drafts.append({"text": lines[0], "small": small, "kotva": point, "align": "left", "size": font, "pos": [0.0, 0.0]})
     # na šířku střídavě nad a pod tvorem podle polohy bodu zleva doprava; pořadí podle bodu v obraze, výška pásu podle jeho popisků
     order = sorted(range(len(drafts)), key=lambda i: body["points"][drafts[i]["kotva"]][0 if fmt == "16:9" else 1])
@@ -327,14 +329,14 @@ def page_fields(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: s
     if fmt == "16:9":
         band = {r: max((_text_box(lb, font)[3] for i, lb in enumerate(drafts) if rows[i] == r), default=-GAP) + GAP for r in ("nad", "dole")}
         rect = [20.0, top + band["nad"], W - 40.0, H - top - band["nad"] - band["dole"] - 20.0]
-    else:
+    else:       # tvor vlevo, popisky vpravo (vorvan_stranka.py, operátor: obraz a popisky zrcadlově): tlama je vpravo a vodítko ji nekříží
         column = max((_text_box(lb, font)[2] for lb in drafts), default=0) + GAP
-        rect = [20.0 + column, top, W - 40.0 - column, H - top - 20.0]
+        rect = [20.0, top, W - 40.0 - column, H - top - 20.0]
     place = placement({"rect": rect}, body)
     with Image.open(folder / "obraz.png") as im:
-        bx0, by0, _bx1, by1 = im.getchannel("A").point(lambda v: 255 if v > 24 else 0).getbbox()
-    bx0, by0 = place["x"] + bx0 * place["k"], place["y"] + by0 * place["k"]
-    by1 = place["y"] + by1 * place["k"]
+        bx0, by0, bx1, by1 = im.getchannel("A").point(lambda v: 255 if v > 24 else 0).getbbox()
+    bx0, bx1 = place["x"] + bx0 * place["k"], place["x"] + bx1 * place["k"]
+    by0, by1 = place["y"] + by0 * place["k"], place["y"] + by1 * place["k"]
     above, below = [], []
     for i in order:
         label = drafts[i]
@@ -347,7 +349,7 @@ def page_fields(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: s
             label.update(dole=True, pos=[ax - 10, min(by1 + GAP, H - 20 - h)])
             below.append(label)
         else:
-            label.update(align="right", pos=[min(bx0, rect[0]) - GAP, ay - font * 0.72])
+            label.update(pos=[bx1 + GAP, ay - font * 0.72])
             above.append(label)
     if fmt == "16:9":
         _row(above, font, W)
@@ -363,7 +365,91 @@ def page_fields(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: s
             "zar_vrstvy": [n for n in layers if n not in textured], "labels": labels}
     if skin:
         main["orez"] = {n: skin for n in inner}
-    return {"title": req.titulek, "size": size_name, "panels": [main]}
+    # hlavní věc dominuje: na šířku podíl šířky stránky, na výšku podíl výšky, který tvor zabírá
+    share = (bx1 - bx0) / W if fmt == "16:9" else (by1 - by0) / H
+    return {"title": req.titulek, "size": size_name, "panels": [main], "_podil": share}
+
+
+def _done(tex: Textura3d, mid: str, ver: str, tid: str, hotovo: str) -> tuple[dict, dict, Path]:
+    """(model, textura, složka hotovo-<k>) z výběru seedu."""
+    meta = tex.lib.read(mid, ver)
+    info = next((t for t in meta.get("textury", []) if t["id"] == tid), None)
+    if info is None:
+        raise Model3dError(f"textura {tid} u modelu {mid} {ver} neexistuje")
+    if not DIR.fullmatch(hotovo):
+        raise Model3dError("hotovo je hotovo-<k> z výběru seedu")
+    base = tex.lib.vdir(mid, ver) / "renders" / info["render"] / info["slozka"] / hotovo
+    if not (base / "obraz.png").is_file():
+        raise Model3dError(f"{hotovo} u textury {tid} nemá obraz.png")
+    return meta, info, base
+
+
+MIN_SHARE = {"16:9": 0.55, "9:16": 0.6}    # tvor menší než tohle je vedle popisků vedlejší (vorvaň z řetězce 5. 11.: 41 % šířky)
+
+
+def fit_labels(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: str, textured: dict) -> tuple[dict, list[str]]:
+    """Pole stránky a co vypadlo: obraz před počtem popisků (operátor 2. 11.), dokud je tvor malý, vypadne poslední, tedy nejméně důležitý."""
+    popisky = {k: v for k, v in req.popisky.items() if v.strip()}
+    dropped = []
+    while True:
+        fields = page_fields(fmt, folder, rel, req.model_copy(update={"popisky": popisky}), model_title, textured)
+        if fields.pop("_podil") >= MIN_SHARE[fmt] or len(popisky) <= 1:
+            return fields, dropped
+        last = list(popisky)[-1]
+        dropped.append(popisky.pop(last).split("\n")[0])
+
+
+def make_pages(tex: Textura3d, library_dir: Path, mid: str, ver: str, tid: str, req: StrankaIn, make_doc, extra: dict | None = None) -> tuple[list[dict], list[str]]:
+    """Dokumenty s panely ze stejných vrstev, jeden na formát, a hlášení o vypadlých popiscích; `make_doc(fields)` dokument vytvoří a uloží."""
+    meta, info, base = _done(tex, mid, ver, tid, req.hotovo)
+    if not req.formaty or set(req.formaty) - set(FORMATS):
+        raise Model3dError(f"formáty {', '.join(FORMATS)}")
+    if not any(t.strip() for t in req.popisky.values()):
+        raise Model3dError("stránka chce aspoň jeden popisek")
+    docs, notes = [], []
+    for fmt in req.formaty:
+        source = base / FORMATS[fmt][1] if FORMATS[fmt][1] else base
+        if not (source / "obraz.png").is_file():
+            raise Model3dError(f"{req.hotovo} nemá {'verzi na výšku (vyber s na_vysku)' if FORMATS[fmt][1] else 'obraz.png'}")
+        folder = base / f"stranka-{fmt.replace(':', 'x')}"
+        crop_to_content(source, folder)
+        rel = folder.relative_to(library_dir).as_posix()
+        fields, dropped = fit_labels(fmt, folder, rel, req, meta["title"], info["vrstvy"])
+        notes += [f"{fmt}: popisek {name} vypadl, jinak by byl tvor na stránce malý" for name in dropped]
+        docs.append(make_doc({**fields, **(extra or {})}))
+    return docs, notes
+
+
+class TemaIn(BaseModel):
+    qid: str                            # položka Wikidaty tématu, např. Q81214 vorvaň
+    hotovo: str
+    nazev: str                          # co obraz ukazuje, čte ho model návrhů
+    popisky: dict[str, str]             # bod z body.json -> krátký český název části
+
+
+def to_topic(tex: Textura3d, library_dir: Path, mid: str, ver: str, tid: str, req: TemaIn) -> dict:
+    """Hotový 3D tvor jako vlastní obraz tématu (library/tema/<qid>/obrazy.json, serie.own_pictures): řetězec ho dá do návrhů
+    jako hlavní obraz a stránku složí z jeho vrstev (chain._stranky). Stejný model a textura přepíše svůj starší řádek."""
+    if not re.fullmatch(r"Q\d+", req.qid):
+        raise Model3dError("qid je položka Wikidaty, např. Q81214")
+    if not req.nazev.strip():
+        raise Model3dError("napište, co obraz ukazuje")
+    _meta, info, base = _done(tex, mid, ver, tid, req.hotovo)
+    points = json.loads((base / "body.json").read_text(encoding="utf-8"))["points"]
+    names = {k: v.strip() for k, v in req.popisky.items() if v.strip()}
+    if not names or set(names) - set(points):
+        raise Model3dError(f"popisky patří k bodům modelu: {', '.join(points)}")
+    path = library_dir / "tema" / req.qid / "obrazy.json"
+    rows = json.loads(path.read_text(encoding="utf-8"))["obrazy"] if path.is_file() else []
+    row = {"id": f"3d-{mid}", "nazev": req.nazev.strip(), "slozka": base.relative_to(library_dir).as_posix(), "popisky": names, "druh": "zvire",
+           "ai": "FLUX 3 Klein (textura), model z dílů v Blenderu", "model": {"model_id": mid, "version": ver},
+           "tvor3d": {"model_id": mid, "version": ver, "textura": tid, "hotovo": req.hotovo, "vrstvy": info["vrstvy"]}}
+    rows = [r for r in rows if r.get("id") != row["id"]] + [row]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"obrazy": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(path)
+    return row
 
 
 def register_page(app: FastAPI, tex: Textura3d, library_dir: Path, make_panel_doc, finish) -> None:
@@ -372,27 +458,17 @@ def register_page(app: FastAPI, tex: Textura3d, library_dir: Path, make_panel_do
     @app.post("/api/v2/models3d/{model_id}/{version}/textura/{textura_id}/stranka", status_code=201)
     def models3d_textura_stranka(model_id: str, version: str, textura_id: str, body: StrankaIn):
         try:
-            meta = tex.lib.read(model_id, version)
-            info = next((t for t in meta.get("textury", []) if t["id"] == textura_id), None)
-            if info is None:
-                raise Model3dError(f"textura {textura_id} u modelu {model_id} {version} neexistuje")
-            if not DIR.fullmatch(body.hotovo) or not body.formaty or set(body.formaty) - set(FORMATS):
-                raise Model3dError(f"hotovo je hotovo-<k>, formáty {', '.join(FORMATS)}")
-            if not any(t.strip() for t in body.popisky.values()):
-                raise Model3dError("stránka chce aspoň jeden popisek")
-            base = tex.lib.vdir(model_id, version) / "renders" / info["render"] / info["slozka"] / body.hotovo
-            docs = []
-            for fmt in body.formaty:
-                source = base / FORMATS[fmt][1] if FORMATS[fmt][1] else base
-                if not (source / "obraz.png").is_file():
-                    raise Model3dError(f"{body.hotovo} nemá {'verzi na výšku (vyber s na_vysku)' if FORMATS[fmt][1] else 'obraz.png'}")
-                folder = base / f"stranka-{fmt.replace(':', 'x')}"
-                crop_to_content(source, folder)
-                rel = folder.relative_to(library_dir).as_posix()
-                docs.append(finish(make_panel_doc(page_fields(fmt, folder, rel, body, meta["title"], info["vrstvy"]))))
+            docs, notes = make_pages(tex, library_dir, model_id, version, textura_id, body, lambda f: finish(make_panel_doc(f)))
         except Model3dError as e:
             raise HTTPException(404 if "neexistuje" in str(e) else 400, str(e)) from e
-        return {"dokumenty": [{"id": d["id"], "size": d["size"], "title": d["title"]} for d in docs]}
+        return {"dokumenty": [{"id": d["id"], "size": d["size"], "title": d["title"]} for d in docs], "hlaseni": notes}
+
+    @app.post("/api/v2/models3d/{model_id}/{version}/textura/{textura_id}/tema", status_code=201)
+    def models3d_textura_tema(model_id: str, version: str, textura_id: str, body: TemaIn):
+        try:
+            return to_topic(tex, library_dir, model_id, version, textura_id, body)
+        except Model3dError as e:
+            raise HTTPException(404 if "neexistuje" in str(e) else 400, str(e)) from e
 
 
 def register(app: FastAPI, tex: Textura3d) -> None:

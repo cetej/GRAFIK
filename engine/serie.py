@@ -38,6 +38,7 @@ TWO_COLUMNS = 0.3           # a o který jsou dražší dva sloupce: jeden je kl
 LEAD_WIDTH = 0.42           # běžná věta v em, změřeno na ukázce Tesly
 LIFE_FACT = re.compile(r"^(Narození|Úmrtí|Místo narození|Místo úmrtí):|\bse narodil|\bzemřel|\bwas born\b|\bdied\b", re.I)
 RELATIVE = re.compile(r"\b(father|mother|brother|sister|wife|otec|otce|matk|bratr|sestr|manžel)", re.I)     # smrt otce není životopisný údaj o člověku samém
+DISPUTE = re.compile(r"přou|sporn|rozpor|nejist|odhad|\bnebo\b|\?", re.I)   # popisek sporného faktu přiznává, že se zdroje neshodují
 MAX_CALLOUTS = 4
 MAX_FACT_LINES = 3          # volný fakt zalomený na víc řádků je úzký sloupek slov (motor 2. 11.: pět řádků u „60 000 dolarů“), raději vypadne
 HEIGHTS = (1.25, 1.5, 1.0)  # stejně široké stránky: výška k šířce
@@ -56,7 +57,7 @@ Pravidla:
 - Jeden popisek, jedna myšlenka. Nesouvisející fakt k němu nepřilepuj. Dva popisky smí vycházet z téhož faktu.
 - Místo, které čtenář nezná, zasaď: ne „ve Smiljanu u Gospiće“, ale „ve vesnici v dnešním Chorvatsku“. Známá města stačí jménem. Neznámou firmu nebo člověka uveď tím, čím byli.
 - Tvrzení a čísla jen z faktu. Žádné další události, data ani čísla si nepřidávej. Každé číslo a datum, které použiješ, opiš přesně z faktu; číslo, kterému laik nerozumí, vynech. Vysvětlit běžnými slovy, co pojem znamená, smíš a máš.
-- Fakt se stavem „rozpor“ uveď jako rozpětí, nerozhoduj.
+- Fakt se stavem „rozpor“ uveď jako rozpětí a řekni, že se zdroje přou. Nerozhoduj a nevyvozuj z jednoho konce rozpětí závěr: ne „Široký 15 až 40 cm, člověk neprojde“, ale „Široký 15, nebo až 40 cm? Zdroje se přou.“
 - Popisek: „value“ je tučný název do 3 slov (věc, číslo nebo letopočet), „text“ je pod ním vysvětlení nejvýš 8 slov a 50 znaků, jedna krátká věta. Delší se vedle obrazu nevejde a vypadne. Jen položka životopisu smí mít 12 slov. Datum piš jako rok, nebo měsíc slovem a rok.
 - „bod“ je id z BODŮ OBRAZU, když se popisek týká té části obrazu, jinak null. Popisek u věci je vždy lepší než popisek bez bodu.
 - „obraz“ je id z MALÝCH OBRAZŮ, když k položce patří, jinak null.
@@ -174,6 +175,8 @@ def write_texts(dossier: dict, proposal: dict, chosen: list[int], *, model: str 
                 if fact_id is None:
                     note.append(f"Číslo {', '.join(strange)} není ve faktu {wrong}, položka vypadla.")
                     continue
+            if known[fact_id]["stav"] == "rozpor" and not DISPUTE.search(f"{item.get('value', '')} {item.get('text', '')}"):
+                note.append(f"Fakt {fact_id} je v pramenech sporný a popisek „{item.get('value', '')}“ to neříká, zkontrolujte ho.")
             items.append({"value": str(item.get("value") or ""), "text": str(item.get("text") or ""), "fakt": fact_id, "bod": item.get("bod") if isinstance(item.get("bod"), str) else None, "obraz": item.get("obraz") if isinstance(item.get("obraz"), str) else None})
         if len(items) > MAX_ITEMS:
             note += [f"Nevešlo se: {item['value']} {item['text']}".strip() for item in items[MAX_ITEMS:]]

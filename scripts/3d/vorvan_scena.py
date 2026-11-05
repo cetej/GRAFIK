@@ -25,7 +25,7 @@ DIVER_GLB = DATA / "library/3d/potapec-infografika-vorvan/v1/model.glb"
 LENGTH, DIVER_LEN = 16.0, 2.3          # samec 16 m (Wikipedia), potápěč s ploutvemi 2,3 m
 LAYER_PX = (1308, 307)                 # 2D vrstva vorvaně, ze které model vznikl: body z vorvan_stranka.py v jejích px
 CAVITY = (600, 200, 470, 108)
-POINTS = {"Tlama": (150, 258), "Jícen": (345, 222), "Předžaludek": (520, 190), "Hlavní žaludek": (640, 186), "Střevo": (865, 186),
+POINTS = {"Tlama": (150, 258), "Jícen": (349, 245), "Předžaludek": (520, 190), "Hlavní žaludek": (640, 186), "Střevo": (865, 186),
           "tlama_koutek": (290, 252)}
 
 
@@ -256,7 +256,7 @@ def organ_mat(name, color, bump_kind="NOISE", scale=6.0, strength=0.5):
 # Trávicí trubice jako jeden souvislý tvar (operátor 5. 11.: oddělené koule vypadaly jako „rozházené hračky“ a potrava se
 # „teleportuje“). Body ve 2D vrstvě vorvaně (px, jako POINTS) a poloměr v metrech: jícen, předžaludek, krček, hlavní žaludek,
 # dvě spojovací komůrky, střevo; to pak pokračuje do klubka. Velikosti odhad podle délky 16 m, komory zjednodušené.
-TRACT = [(228, 242, 0.15), (300, 236, 0.16), (360, 214, 0.16), (412, 192, 0.17),
+TRACT = [(300, 274, 0.2), (328, 262, 0.16), (370, 228, 0.16), (412, 192, 0.17),     # jícen z hltanu za koutkem tlamy (operátor 5. 11.)
          (450, 184, 0.34), (490, 186, 0.6), (530, 192, 0.64), (570, 198, 0.44), (600, 196, 0.22),
          (625, 190, 0.48), (655, 186, 0.56), (688, 190, 0.38), (708, 195, 0.18),
          (726, 198, 0.29), (746, 200, 0.14), (766, 200, 0.27), (786, 198, 0.11), (806, 194, 0.09)]
