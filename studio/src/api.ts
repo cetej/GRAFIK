@@ -556,7 +556,10 @@ export interface Model3dVersion {
   license?: string          // převzatý hotový model (engine/hotove3d.py): licence, autor a odkaz na zdroj
   author?: string
   source_url?: string
-  zdroj?: 'smithsonian' | 'sketchfab'
+  zdroj?: 'sklad' | 'smithsonian' | 'sketchfab'
+  sklad_id?: string         // převzatý ze skladu na D: (ngm_shared.sklad3d)
+  sklad?: string            // zkontrolovaný model zkopírovaný do skladu (3d/nase/<id>/<verze>)
+  sklad_chyba?: string | null
 }
 export interface Render3d {
   id: string; pohled: string; res: [number, number]; samples: number; file: string; body: string
@@ -569,8 +572,9 @@ export interface TexturaVrstva {
 }
 export interface Textura3d { id: string; slozka: string; render: string; predloha: string; vrstvy: Record<string, TexturaVrstva>; seconds: number; created: string; dir: string }
 export interface Hotovy3d {
-  zdroj: 'smithsonian' | 'sketchfab'; id: string; nazev: string; autor: string | null; licence: string
-  stranka: string | null; nahled: string | null; trojuhelniky?: number | null; lze_stahnout: boolean; proc_ne: string | null
+  zdroj: 'sklad' | 'smithsonian' | 'sketchfab'; id: string; nazev: string; autor: string | null; licence: string
+  stranka: string | null; nahled: string | null; trojuhelniky?: number | null; rozmery_m?: number[] | null
+  lze_stahnout: boolean; proc_ne: string | null
 }
 export interface Estimate3d { method: string; recommended: string; items: CostItem[]; total_usd: number; eta_s: number; label: string }
 export interface Job3d extends Omit<Job, 'request'> { kind: string; request: { model_id: string; version: string; elevation?: number; recover?: boolean } }

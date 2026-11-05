@@ -33,6 +33,7 @@ const NAROVNAT: { label: string; axis: 'x' | 'y' | 'z'; deg: number; title: stri
   { label: 'Na pravý bok', axis: 'z', deg: -90, title: 'o 90° na druhou stranu' },
   { label: 'Vzhůru nohama', axis: 'x', deg: 180, title: 'o 180°' },
 ]
+const ZDROJ_LABEL: Record<string, string> = { sklad: 'Sklad', smithsonian: 'Smithsonian', sketchfab: 'Sketchfab' }
 const METHOD_LABEL: Record<string, string> = {
   'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry', rotate: 'otočený', parts: 'z dílů',
 }
@@ -368,7 +369,8 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
                     <span className="hot-txt">
                       <b>{k.nazev}</b>
                       <small className={k.lze_stahnout ? '' : 'bad'}>
-                        {k.zdroj === 'smithsonian' ? 'Smithsonian' : 'Sketchfab'}{k.autor ? ` · ${k.autor}` : ''} · {k.proc_ne ?? k.licence}
+                        {ZDROJ_LABEL[k.zdroj]}{k.autor ? ` · ${k.autor}` : ''} · {k.proc_ne ?? k.licence}
+                        {k.rozmery_m && ` · ${k.rozmery_m.map((x) => x.toFixed(2)).join(' × ')} m`}
                         {k.stranka && <> · <a href={k.stranka} target="_blank" rel="noreferrer">otevřít na webu</a></>}
                       </small>
                     </span>
@@ -381,7 +383,7 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
                 {nalez.chyby.map((c) => <p key={c} className="hint bad">{c}</p>)}
               </div>
             )}
-            <p className="hint">Do knihovny jde jen CC0 a CC BY; licence se ověří znovu těsně před stažením, autor se uloží k modelu.
+            <p className="hint">Nejdřív se hledá ve skladu na D: (Poly Haven, bez sítě), pak na webu. Do knihovny jde jen CC0 a CC BY; licence se ověří znovu těsně před stažením, autor se uloží k modelu.
               {nalez && !nalez.sketchfab_stazeni && ' Převzetí ze Sketchfabu chce SKETCHFAB_API_TOKEN v .env.'}</p>
           </div>
         )}
@@ -466,7 +468,9 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
               <div className="checkbar">
                 <label className="row check">
                   <input type="checkbox" checked={!!cur.review} onChange={(e) => toggleReview(e.target.checked)} />
-                  <span><b>Model zkontrolován</b>: počet nohou a kol, úlomky, části navíc (otočte model dokola, nebo vygenerujte sheet)</span>
+                  <span><b>Model zkontrolován</b>: počet nohou a kol, úlomky, části navíc (otočte model dokola, nebo vygenerujte sheet)
+                    {cur.review && (cur.sklad ? <small className="hint"> · kopie ve skladu</small>
+                      : cur.sklad_chyba ? <small className="hint bad"> · {cur.sklad_chyba}</small> : null)}</span>
                 </label>
                 <span className="grow" />
                 <button className="btn small" disabled={!!sheetJob || cur.status === 'rendering'} onClick={() => renderEl(20)}

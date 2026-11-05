@@ -1,4 +1,7 @@
-"""Hotové 3D modely zdarma, než se generuje: Smithsonian 3D a Sketchfab.
+"""Hotové 3D modely zdarma, než se generuje: sklad na D: (`ngm_shared.sklad3d`), Smithsonian 3D a Sketchfab.
+
+Sklad: hledá se nejdřív, lokálně a bez sítě (Poly Haven CC0, Smithsonian CC0 stažený dopředu); naše vlastní
+modely (`nase`) ve skladu nabízené nejsou, ty už jsou v knihovně.
 
 Smithsonian: hledání v 3d-api.si.edu bez klíče, licence z Open Access API (`usage.access` u balíčku);
 klíč `SI_API_KEY` z api.data.gov, jinak `DEMO_KEY` s nízkým hodinovým limitem, proto jen při stažení.
@@ -16,6 +19,8 @@ import urllib.request
 
 from engine.keys import get_key
 from engine.reflib import UA
+from ngm_shared import sklad3d
+from ngm_shared.sklad import SkladError
 
 SI_SEARCH = "https://3d-api.si.edu/api/v1.0/content/file/search"
 SI_OA = "https://api.si.edu/openaccess/api/v1.0/search"
@@ -141,6 +146,39 @@ def fetch_sf(uid: str) -> tuple[bytes, dict]:
     return _download(glb["url"]), {k: cand[k] for k in ("nazev", "autor", "licence", "stranka")}
 
 
+# -- sklad na D: (DECISIONS 2026-11-05) ------------------------------------------------
+
+SKLAD_NAHLED = "/api/v2/models3d/sklad/nahled?id="
+
+
+def search_sklad(q: str, limit: int = 24) -> list[dict]:
+    try:
+        nalez = sklad3d.hledej(q, druh="model", bez_zdroje=("nase",), limit=limit)
+    except (SkladError, OSError) as e:
+        raise Hotove3dError(f"sklad {sklad3d.dir3d()} nedostupný: {e}") from e
+    return [{"zdroj": "sklad", "id": z["id"], "nazev": z["nazev"], "autor": z["autor"], "licence": z["licence"],
+             "stranka": z["stranka"], "nahled": SKLAD_NAHLED + urllib.parse.quote(z["id"]) if z.get("nahled") else None,
+             "trojuhelniky": z.get("trojuhelniky"), "rozmery_m": z.get("rozmery_m"), "lze_stahnout": True, "proc_ne": None}
+            for z in nalez]
+
+
+def fetch_sklad(id_: str) -> tuple[bytes, dict]:
+    try:
+        z = sklad3d.zaznam(id_)
+        if z["druh"] != "model" or z["zdroj"] == "nase":
+            raise Hotove3dError(f"sklad: {id_} není cizí model")
+        ok, why = licence_ok(z["licence"])
+        if not ok:
+            raise Hotove3dError(f"sklad: {why}")
+        glb = sklad3d.cesta(z).read_bytes()
+    except (SkladError, OSError) as e:
+        raise Hotove3dError(f"sklad: {e}") from e
+    if len(glb) > MAX_BYTES:
+        raise Hotove3dError(f"GLB má {len(glb) / 1e6:.0f} MB, strop je {MAX_BYTES / 1e6:.0f} MB")
+    return glb, {"nazev": z["nazev"], "autor": z["autor"], "licence": z["licence"], "stranka": z["stranka"],
+                 "sklad_id": z["id"], "puvodni_zdroj": z["zdroj"]}
+
+
 # -- společné -------------------------------------------------------------------------
 
 def _download(url: str) -> bytes:
@@ -151,9 +189,9 @@ def _download(url: str) -> bytes:
 
 
 def search(q: str) -> dict:
-    """Kandidáti z obou zdrojů; výpadek jednoho zdroje nezastaví druhý."""
+    """Kandidáti ze skladu, pak z obou webových zdrojů; výpadek jednoho zdroje nezastaví ostatní."""
     out, errors = [], []
-    for name, fn in (("smithsonian", search_si), ("sketchfab", search_sf)):
+    for name, fn in (("sklad", search_sklad), ("smithsonian", search_si), ("sketchfab", search_sf)):
         try:
             out += fn(q)
         except Hotove3dError as e:
@@ -166,7 +204,10 @@ def fetch(zdroj: str, model_id: str) -> tuple[bytes, dict]:
         glb, info = fetch_si(model_id)
     elif zdroj == "sketchfab":
         glb, info = fetch_sf(model_id)
+    elif zdroj == "sklad":
+        glb, info = fetch_sklad(model_id)
     else:
         raise Hotove3dError(f"neznámý zdroj {zdroj}")
-    info["origin"] = f"{'Smithsonian 3D' if zdroj == 'smithsonian' else 'Sketchfab'}: {info['nazev']}, {info['autor']}, {info['licence']}, {info['stranka']}"
+    jmeno = {"smithsonian": "Smithsonian 3D", "sketchfab": "Sketchfab"}.get(zdroj) or f"Sklad ({info['puvodni_zdroj']})"
+    info["origin"] = f"{jmeno}: {info['nazev']}, {info['autor']}, {info['licence']}, {info['stranka']}"
     return glb, info

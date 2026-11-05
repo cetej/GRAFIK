@@ -15,14 +15,16 @@ from PIL import Image
 from pydantic import BaseModel
 
 from engine import hotove3d
+from ngm_shared import sklad3d
+from ngm_shared.sklad import SkladError
 from engine import models3d as m3d
 from engine.models3d import (ELEVATIONS, PARTS, CameraIn, CutoutIn, Model3dError, Model3dIn, Models3d, ReviewIn,
                              RotateIn, StretchIn, ViewsIn)
 
 
 class HotoveIn(BaseModel):
-    zdroj: str                      # smithsonian | sketchfab
-    id: str                         # balíček Smithsonianu / uid Sketchfabu
+    zdroj: str                      # sklad | smithsonian | sketchfab
+    id: str                         # id ve skladu (polyhaven/<slug>) / balíček Smithsonianu / uid Sketchfabu
     title: str = ""
     model_id: str | None = None     # nová verze existujícího modelu
     caller: str = "studio"
@@ -145,8 +147,20 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
             glb, info = hotove3d.fetch(body.zdroj, body.id)
         except hotove3d.Hotove3dError as e:
             raise HTTPException(400, str(e)) from e
+        extra = {"sklad_id": info["sklad_id"]} if body.zdroj == "sklad" else {}
         return store_glb(glb, body.model_id, body.title or info["nazev"], info["origin"], body.caller,
-                         license=info["licence"], author=info["autor"], source_url=info["stranka"], zdroj=body.zdroj)
+                         license=info["licence"], author=info["autor"], source_url=info["stranka"], zdroj=body.zdroj, **extra)
+
+    @app.get("/api/v2/models3d/sklad/nahled")
+    def models3d_sklad_nahled(id: str):
+        """Náhled modelu ze skladu pro kartu ve Studiu; cesta jen ze záznamu indexu."""
+        try:
+            path = sklad3d.cesta(sklad3d.zaznam(id), "nahled")
+        except (SkladError, OSError) as e:
+            raise HTTPException(404, str(e)) from e
+        if path is None or not path.is_file():
+            raise HTTPException(404, "model ve skladu nemá náhled")
+        return FileResponse(path)
 
     @app.get("/api/v2/models3d/{model_id}")
     def models3d_get(model_id: str):
@@ -194,7 +208,15 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
         meta = call(lib.read, model_id, version)
         if body.reviewed and not meta["views"] and not meta.get("viewer"):
             raise HTTPException(409, "model nejde zkontrolovat: ještě není v prohlížeči ani na sheetu")
-        return lib.update(model_id, version, review={"by": body.by, "at": m3d._now()} if body.reviewed else None)
+        meta = lib.update(model_id, version, review={"by": body.by, "at": m3d._now()} if body.reviewed else None)
+        if body.reviewed and (lib.vdir(model_id, version) / "model.glb").is_file():
+            # operátor 2026-11-05: zkontrolovaný model jde jako kopie i do skladu; kontrola na skladu nezávisí
+            try:
+                meta = lib.update(model_id, version, sklad=sklad3d.uloz_nas(lib.vdir(model_id, version), meta)["id"],
+                                  sklad_chyba=None)
+            except (SkladError, OSError) as e:
+                meta = lib.update(model_id, version, sklad_chyba=f"kopie do skladu se nepovedla: {e}")
+        return meta
 
     def require_review(meta: dict) -> None:
         if not meta.get("review"):

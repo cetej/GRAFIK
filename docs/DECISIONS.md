@@ -2,6 +2,16 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-05 — 3D sklad na D:, propojení s GRAFIKem a POHYBem, kopie zkontrolovaných modelů
+
+Operátor 5. 11.: „v samostatné session rozjeť dobudování skladu a jeho propojení s projekty“; na náčrt odpověděl „Ano, podle náčrtu“, k našim modelům zvolil „Kopie při schválení“, disk D: připojil.
+
+- **Co:** modul `ngm_shared.sklad3d`, složka `NGM_SKLAD/3d/`. Poly Haven (CC0) modely jako GLB složený z glTF s texturami 1k a HDRI 1k, Smithsonian (CC0 z Open Access) vybraný podle témat přes `scripts/sklad3d.py`. Každá položka má `puvod.json` (autor, licence, odkaz), index se staví z nich. NASA zatím ne: licenci jsme neověřili.
+- **GRAFIK:** „Hotový model · zdarma“ hledá nejdřív ve skladu (bez sítě), pak Smithsonian a Sketchfab. „Převzít · 0 USD“ zkopíruje GLB do `library/3d` jako dřív, s licencí, autorem, odkazem a `sklad_id`. Do výroby dál jen přes `library/3d`.
+- **Naše modely:** zaškrtnutí „Model zkontrolován“ zkopíruje verzi do `3d/nase/<id>/<verze>/` (kopie, ne přesun; ve skladu se nic nepřepisuje). Když sklad chybí, kontrola projde a model nese `sklad_chyba`. Naše modely se v hledání hotových modelů nenabízejí, v knihovně už jsou.
+- **POHYB:** pole „Odrazy a světlo“ nabízí kromě vestavěných i `sklad:<slug>` (HDRI ze skladu). Modely bere POHYB dál z `library/3d`. KLAPKA beze změny.
+- **Proč:** sklad je zásoba na velkém disku (C: má volno 126 GB). Jedna cesta do výroby (`library/3d`) drží licenci a původ u každého modelu.
+
 ## 2026-11-05 — 3D infografika jako vorvaň se dělá přímo v Grafikovi, ne skripty v konverzaci
 
 - **Co:** postup vorvaně (model z průřezů podle předloh, průsvitná kůže s vnitřnostmi, postava v měřítku, textura FLUXem, stránka 16:9 a 9:16) se převede na obecné úlohy Engine a Studia ve třech fázích (`docs/plans/2026-11-05-3d-infografika-tvor.md`). Co je u vorvaně zvláštní, patří do dat popisu, ne do kódu. Fáze 1 je hotová.
