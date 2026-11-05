@@ -4,6 +4,7 @@ real server (docs/capabilities/sd-server-master-987.md), returns a solid PNG.
 Usage: python fake_sd_server.py --listen-port N [ignored sd-server args...]
 Env FAKE_SD_DELAY_S: seconds a job stays running. FAKE_SD_LOG: append payloads (JSON lines).
 FAKE_SD_OOM_ONCE=<path>: the first job ever (marker file absent) fails like an out-of-VRAM run.
+FAKE_SD_CRASH_OOM_ONCE=<path>: the first job ever crashes the whole server like CUDA out of memory mid-sampling.
 """
 import base64
 import io
@@ -51,6 +52,11 @@ class H(BaseHTTPRequestHandler):
                 return self._json(404, {"error": "not found"})
             if time.time() - job["t"] < DELAY:
                 return self._json(200, {"id": job["id"], "status": "running"})
+            crash = os.environ.get("FAKE_SD_CRASH_OOM_ONCE")
+            if crash and not os.path.exists(crash):
+                open(crash, "w").close()
+                print("[E] ggml: CUDA error: out of memory", flush=True)
+                os._exit(1)
             marker = os.environ.get("FAKE_SD_OOM_ONCE")
             if marker and not os.path.exists(marker):
                 open(marker, "w").close()

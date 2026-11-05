@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Okno v kůži vorvaně lemovalo moře; pád sd-serveru na VRAM vypadal jako timeout
+
+- Průsvitná kůže z Blenderu má okno s měkkým okrajem a render vnitřku k němu nedosahuje: lemem okna prosvítalo pozadí stránky (moře). Vrstva „Dutina“ pod vnitřnostmi (`vorvan_stranka.scene_3d`) vyplní okno tónem dutiny z renderu. Jen okno a jeho okraj: kůže je lehce průsvitná všude, dutina pod celým tělem ztmavila i hlavu a čelist (rozdíl až 89 úrovní). Kontrola: rozdíl proti staré stránce smí být jen v oblasti okna.
+- `vorvan_stranka.py` zapisoval vždy do `stranky/`, kde leží hotové a ručně upravené stránky. Nová sazba jde přes `--out` do jiné složky.
+- CUDA out of memory uprostřed vzorkování sd-server shodí celý. Úloha viděla jen „spojení se sd-serverem selhalo: timed out“ a pojistka na nedostatek VRAM (restart a nový pokus) se nespustila, protože čekala na stav `failed`. Teď ji spustí i pád, když je v konci logu „out of memory“. Na GPU tehdy byly VectorCraft (2×) a ChatGPT.
+- Zkušební úpravy na operátorově stránce se v Knihovně řadí jako nejnovější verze a Studio je otevře místo originálu. Operátor pak viděl plochý obrázek bez potápěče a myslel, že vrstvy zmizely. Zkoušet na kopii, nebo zkušební verze hned uklidit.
+
 ## 2026-11-05 — Stránka z 3D vrstev: co rozbilo první rozložení
 
 - Render celý do panelu dal na výšku 25 % prázdné plochy: tvor zabírá jen střed renderu. Vrstvy, obraz a body se nejdřív oříznou na společný obsah, pak teprve skládají.
