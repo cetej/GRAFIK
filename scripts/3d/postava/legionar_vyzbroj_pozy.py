@@ -133,7 +133,6 @@ def make_scabbard(with_hilt):
     o = join(p, "pochva")
     if with_hilt:
         g = make_gladius(); g.data.transform(Matrix.Translation((0, 0, -0.063)))  # záštita na ústí
-        g.data.transform(Matrix.Rotation(math.pi, 4, "X") @ Matrix.Rotation(math.pi, 4, "Z")) if False else None
         g.data.transform(Matrix.Diagonal((1, 1, -1, 1)))  # čepel dolů do pochvy
         o = join([o, g], "pochva")
     return o
@@ -157,8 +156,6 @@ def make_shield():
         z = -H / 2 + H * j / nv; row = []
         for i in range(nu + 1):
             t = -half + 2 * half * i / nu
-            for off in (0.0, 0.012):
-                pass
             row.append(bm.verts.new((R * math.sin(t), -0.06 + R * (1 - math.cos(t)), z)))
         rows.append(row)
     uvl = bm.loops.layers.uv.new("UVMap")
@@ -277,11 +274,11 @@ def build_pose(rig, G, P):
         d0 = (fb.tail_local - fb.head_local); d0h = Vector((d0.x, d0.y, 0)).normalized()
         dv = Vector(dirv)
         yaw = math.atan2(dv.y, dv.x) - math.atan2(d0h.y, d0h.x)
-        pitch = Vector((dv.x, dv.y, 0)).length and math.atan2(dv.z, Vector((dv.x, dv.y, 0)).length)
-        Rf = Matrix.Rotation(yaw, 3, "Z") @ Matrix.Rotation(-pitch + math.radians(-toe), 3, Matrix.Rotation(yaw, 3, "Z") @ Vector((-d0h.y, d0h.x, 0))) if False else Matrix.Rotation(yaw, 3, "Z")
-        if toe or pitch:
-            ax = (Matrix.Rotation(yaw, 3, "Z") @ Vector((-d0h.y, d0h.x, 0))).normalized()
-            Rf = Matrix.Rotation(math.radians(-toe) + pitch * 0 - pitch, 3, ax) @ Rf if False else Matrix.Rotation(-math.radians(toe) + pitch, 3, ax) @ Rf
+        pitch = math.atan2(dv.z, Vector((dv.x, dv.y, 0)).length)
+        Rf = Matrix.Rotation(yaw, 3, "Z")
+        if toe or pitch:  # zvednutá pata / skloněná špička kolem příčné osy chodidla
+            ax = (Rf @ Vector((-d0h.y, d0h.x, 0))).normalized()
+            Rf = Matrix.Rotation(-math.radians(toe) + pitch, 3, ax) @ Rf
         tgt = empty(f"cil_noha.{s}", Matrix.Translation(Vector(ank)) @ (Rf @ fb.matrix_local.to_3x3()).to_4x4())
         side = 1 if s == "L" else -1
         kp = Vector(ank) + Vector((dv.x, dv.y, 0)).normalized() * 0.6 + Vector((0.05 * side, 0, 0.45))
@@ -309,7 +306,6 @@ def place_props(rig, G, P):
         if h["drzi"] == "pilum":
             o = make_pilum(h["pilum_grip"])
             # osa dílu +Z → osa úchopu
-            M = Matrix.Translation(C) @ (Rt @ Matrix(((0, 0, 1), (1, 0, 0), (0, 1, 0))).inverted().transposed().inverted()).to_4x4()
             M = Matrix.Translation(C) @ Rt.to_4x4() @ Matrix.Rotation(math.radians(90), 4, "Y")
         elif h["drzi"] == "gladius":
             o = make_gladius()
