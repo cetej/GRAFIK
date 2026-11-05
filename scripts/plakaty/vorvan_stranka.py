@@ -172,11 +172,16 @@ def diver_layer(data: Path, mouth: tuple[float, float], px_per_m: float, facing_
     h = diver.height * w / diver.width
     x = mouth[0] if facing_left else mouth[0] - w
     y = mouth[1] - h * 0.45
-    # jemná záře pod potápěčem (operátor: „je špatně viditelný“): tmavý oblek na tmavé vodě, bez ostrého okraje
-    glow = (f'<radialGradient id="zare-potapec" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#9fe3ea" stop-opacity="0.42"/>'
-            f'<stop offset="0.55" stop-color="#5fb8c8" stop-opacity="0.16"/><stop offset="1" stop-color="#5fb8c8" stop-opacity="0"/></radialGradient>'
-            f'<ellipse cx="{x + w / 2:.1f}" cy="{y + h / 2:.1f}" rx="{w * 0.72:.1f}" ry="{max(h, w * 0.3) * 0.95:.1f}" fill="url(#zare-potapec)"/>')
-    return group("Záře pod potápěčem", glow) + group("Potápěč", image_tag(diver, x, y, w, h, "PNG"))
+    # jemná záře kolem těla potápěče (operátor: „je špatně viditelný“, „víc kolem těla“): rozostřená silueta, ne elipsa
+    pad = round(diver.width * 0.08)
+    sil = Image.new("L", (diver.width + 2 * pad, diver.height + 2 * pad), 0)
+    sil.paste(diver.getchannel("A"), (pad, pad))
+    halo = sil.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(pad * 0.45))
+    glow = Image.new("RGBA", sil.size, (150, 225, 232, 0))
+    glow.putalpha(halo.point(lambda v: round(v * 0.6)))
+    k = w / diver.width
+    return (group("Záře kolem potápěče", image_tag(glow, x - pad * k, y - pad * k, glow.width * k, glow.height * k, "PNG"))
+            + group("Potápěč", image_tag(diver, x, y, w, h, "PNG")))
 
 
 def rings_inset(x: float, y: float, cm: float = 2.6, step: float = 190, head: int = 40) -> tuple[str, str, float]:
