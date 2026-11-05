@@ -206,6 +206,10 @@ def pick_mask(masks: list[Image.Image], box: tuple[int, int, int, int]) -> int |
     return best
 
 
+class NotFound(BackendError):
+    """SAM-3 proběhl (a stál), ale objekt nenašel."""
+
+
 def sam_segment(png: bytes, box: tuple[int, int, int, int], text: str | None = None) -> tuple[Image.Image, float | None]:
     """Maska objektu. S `text` hledá SAM-3 objekt podle slova a z výskytů vybere ten u rámečku (px); bez něj obtáhne
     to, co je v rámečku. `prompt` a `apply_mask: false` posílat vždy (docs/capabilities/sam3-point.md)."""
@@ -233,7 +237,7 @@ def sam_segment(png: bytes, box: tuple[int, int, int, int], text: str | None = N
     masks = [m.resize(size, Image.NEAREST) for m in masks]
     i = pick_mask(masks, box)
     if i is None:
-        raise BackendError(f"{SAM_ENDPOINT}: {'objekt ' + repr(text) if text else 'v rámečku'} nenašel")
+        raise NotFound(f"{SAM_ENDPOINT}: {'objekt ' + repr(text) if text else 'v rámečku'} nenašel")
     return masks[i], (r.get("scores") or [None] * len(masks))[i]
 
 
@@ -320,9 +324,25 @@ class Objekty:
             d.mkdir(parents=True, exist_ok=True)
             doc = {"ref": ref, "size": list(rgb.size), "objects": [], "next_id": 1, "podklad": None, "ulohy": [],
                    "created": datetime.now().isoformat(timespec="seconds")}
-            for item in found:
-                self._add_object(ref, doc, rgb, png, item["cs"], item["en"], item["box"], True)
-                self._cost(ref, f"maska objektu {item['cs']} (SAM-3)", SAM_USD, f"fal:{SAM_ENDPOINT}")
+            # SAM-3 podle slova nenašel vorvaně v řezu (infografika 2026-11-05) a celé hledání spadlo: objekt, který
+            # podle slova nenajde, zkusí obtáhnout v rámečku od Clauda, dokud stačí odhad (MAX_OBJECTS volání)
+            calls, missing = 0, []
+            for by_name in (True, False):
+                for item in (found if by_name else missing[:]):
+                    if calls >= MAX_OBJECTS:
+                        break
+                    calls += 1
+                    self._cost(ref, f"maska objektu {item['cs']} (SAM-3)", SAM_USD, f"fal:{SAM_ENDPOINT}")
+                    try:
+                        obj = self._add_object(ref, doc, rgb, png, item["cs"], item["en"], item["box"], by_name)
+                    except NotFound:
+                        obj = None
+                    if by_name and obj is None:
+                        missing.append(item)
+                    elif not by_name and obj is not None:
+                        missing.remove(item)
+            done = {o["nazev"] for o in doc["objects"]}
+            doc["nenalezeno"] = [i["cs"] for i in found if i["cs"] not in done]
             if not doc["objects"]:
                 raise ObjektyError("v obrázku jsem nenašel žádný objekt; přidejte ho rámečkem")
             self.save(ref, doc)

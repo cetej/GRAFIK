@@ -31,11 +31,13 @@ def calls():
 def api(settings, sd, monkeypatch, calls):  # noqa: F811
     def find(png, brief):
         calls["find"] += 1
-        return [{"cs": "maják", "en": "lighthouse", "box": [100, 100, 600, 300]},
-                {"cs": "loď", "en": "boat", "box": [500, 550, 900, 950]}]
+        return calls.get("found") or [{"cs": "maják", "en": "lighthouse", "box": [100, 100, 600, 300]},
+                                      {"cs": "loď", "en": "boat", "box": [500, 550, 900, 950]}]
 
     def segment(png, box, text=None):
         calls["segment"].append((box, text))
+        if calls.get("missing", lambda box, text: False)(box, text):
+            raise objekty.NotFound("nenašel")
         size = Image.open(BytesIO(png)).size
         return _ellipse(size, box), 0.9
 
@@ -168,3 +170,20 @@ def test_done_without_plate_is_refused_and_api_rejects_edit_mask(api, calls, mon
     r = api.post("/api/v2/images", json={"prompt": "-", "parent": ref, "edit": {
         "action": "remove", "bbox": [0, 0, 500, 500], "instruction": "x", "mask": "C:/Windows/win.ini"}})
     assert r.status_code == 400
+
+
+def test_object_not_found_by_name_is_traced_in_its_box_or_skipped(api, calls):
+    """Vorvaň v řezu (2026-11-05): SAM-3 podle slova nenašel nic a celé hledání spadlo. Teď se objekt zkusí
+    obtáhnout v rámečku od Clauda a ten, který nejde ani tak, se jen vypíše; ostatní vrstvy zůstanou."""
+    calls["found"] = [{"cs": "vorvaň", "en": "sperm whale", "box": [100, 100, 600, 300]},
+                      {"cs": "loď", "en": "boat", "box": [500, 550, 900, 950]},
+                      {"cs": "duch", "en": "ghost", "box": [0, 0, 100, 100]}]
+    calls["missing"] = lambda box, text: text in ("sperm whale", "ghost") or (text is None and box[1] == 0)
+    ref = _image(api)
+    r = api.post(_url(ref), json={"confirm_cost": True})
+    assert r.status_code == 201, r.text
+    doc = r.json()
+    assert [o["nazev"] for o in doc["objects"]] == ["loď", "vorvaň"]
+    assert doc["nenalezeno"] == ["duch"]
+    assert [t for _, t in calls["segment"]] == ["sperm whale", "boat", "ghost", None, None]
+    assert len(calls["segment"]) <= objekty.MAX_OBJECTS

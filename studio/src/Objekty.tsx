@@ -121,6 +121,7 @@ export default function ObjektyPanel({ selected, src, onCreated, onError }:
               <li className="podklad"><span>Podklad</span>
                 <span className="hint">{plate ? 'dokreslený' : doc.podklad?.zastaraly ? 'zastaralý' : pending ? 'dokresluje se…' : 'chybí'}</span></li>
             </ul>
+            {!!doc.nenalezeno?.length && <p className="hint">SAM-3 neobtáhl: {doc.nenalezeno.join(', ')}. Přidejte rámečkem.</p>}
             {pending && <p className="hint">Lokální FLUX pracuje, stav se obnoví sám.</p>}
             {failed && <p className="panel-warning">Úloha selhala: {failed.error}</p>}
             {(!doc.podklad || doc.podklad.zastaraly) && !pending && (
