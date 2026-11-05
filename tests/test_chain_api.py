@@ -506,6 +506,15 @@ def test_creature_from_3d_is_marked_for_the_proposals_and_its_page_goes_the_3d_w
     assert images[(1, 1)]["tvor3d"] == {"hotovo": "hotovo-1"}      # chain._stranky podle toho skládá stránku z vrstev
 
 
+def test_disputed_fact_without_admitting_it_is_reported():
+    dossier = {**SERIES_DOSSIER, "facts": [{**FACTS[0], "stav": "rozpor"}, *FACTS[1:]]}
+    proposal = pp.clean(SERIES, dossier)[0]
+    answer = {"stranky": [{"stranka": 1, "titulek": "T", "polozky": [{"fakt": "f1", "value": "Jícen", "text": "rok 1801, člověk neprojde", "bod": None},
+                                                                     {"fakt": "f1", "value": "Jícen", "text": "rok 1801? Zdroje se přou.", "bod": None}]}]}
+    out = sr.write_texts(dossier, proposal, [1], ask=lambda *a, **k: claude.Answer(json.dumps(answer), "m", 1, 1, 0.0, "end_turn"))
+    assert out["hlaseni"][1] == ["Fakt f1 je v pramenech sporný a popisek „Jícen“ to neříká, zkontrolujte ho."]
+
+
 def test_a_number_the_fact_does_not_have_drops_the_item():
     fact = {"tvrzeni": "Narození: 10. 7. 1856", "hodnota": "1856-07-10", "zdroje": [{"citace": "postavil 1 000 cívek a 2,5 km vedení, 150,000 USD"}]}
     assert sr.documented({"value": "1856", "text": "narodil se 10. 7."}, fact) == []

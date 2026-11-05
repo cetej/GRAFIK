@@ -177,15 +177,34 @@ def test_creature_goes_to_the_topic_and_the_chain_builds_its_page_from_layers(ap
     # stránka řetězce: položka s bodem jde na 3D obraz, bez bodu se ohlásí; na výšku první
     chain = api.app.state.chain
     wf = Workflow(id="wf-test", kind="infografika", urceni="web", stranky=[1])
-    text = {"titulek": "Věž zevnitř", "polozky": [{"value": "Zeď", "text": "pískovec, 2 m", "bod": "zed"}, {"value": "1850", "text": "postavena", "bod": None}]}
-    page = Chain._page_3d(chain, wf, 1, own[0]["tvor3d"], text, ["dřívější hlášení"])
+    text = {"titulek": "Věž zevnitř", "polozky": [{"value": "Pískovec", "text": "Zdi z kamene, 2 m", "bod": "zed"}, {"value": "1850", "text": "postavena", "bod": None}]}
+    page = Chain._page_3d(chain, wf, 1, own[0], text, ["dřívější hlášení"])
     assert [d["size"] for d in page["dokumenty"]] == ["1080x1920", "1920x1080"] and page["doc"] == page["dokumenty"][0]["id"]
     assert page["hlaseni"] == ["dřívější hlášení", "Na 3D obraz se nevešlo: 1850 postavena"]
     doc = api.get(f"/api/v2/infographics/{page['doc']}").json()
     assert doc["serie"] == {"wf": "wf-test", "stranka": 1, "celkem": 1} and doc["na_strance"] == ""
-    assert [lb["kotva"] for lb in doc["panels"][0]["labels"]] == ["zed"] and doc["panels"][0]["orez"] == {"vnitrek": "kuze"}
-    empty = Chain._page_3d(chain, wf, 1, own[0]["tvor3d"], {"titulek": "x", "polozky": [text["polozky"][1]]}, [])
+    label = doc["panels"][0]["labels"][0]
+    assert label["kotva"] == "zed" and label["text"] == "Zeď" and " ".join(label["small"]) == "Pískovec: zdi z kamene, 2 m"     # nadpis je název části z modelu
+    assert doc["panels"][0]["orez"] == {"vnitrek": "kuze"}
+    empty = Chain._page_3d(chain, wf, 1, own[0], {"titulek": "x", "polozky": [text["polozky"][1]]}, [])
     assert empty["doc"] is None and "nemíří na bod" in empty["hlaseni"][-1]
+
+
+def test_creature_dominates_and_the_least_important_label_drops(tmp_path, monkeypatch):
+    """Tvor menší než MIN_SHARE: popisky vypadávají od konce, dokud tvor nedominuje; poslední zůstane vždy."""
+    shares = iter([0.3, 0.4, 0.6])
+    seen = []
+
+    def fake(fmt, folder, rel, req, title, textured):
+        seen.append(list(req.popisky))
+        return {"title": "t", "size": "1920x1080", "panels": [], "_podil": next(shares)}
+
+    monkeypatch.setattr(textura3d, "page_fields", fake)
+    req = textura3d.StrankaIn(hotovo="hotovo-1", titulek="t", popisky={"a": "A\nprvní", "b": "B", "c": "C\nposlední", "d": " "})
+    fields, dropped = textura3d.fit_labels("16:9", tmp_path, "x", req, "m", {})
+    assert seen == [["a", "b", "c"], ["a", "b"], ["a"]] and dropped == ["C", "B"] and "_podil" not in fields
+    shares = iter([0.1])
+    assert textura3d.fit_labels("16:9", tmp_path, "x", req.model_copy(update={"popisky": {"a": "A"}}), "m", {})[1] == []
 
 
 @pytest.mark.parametrize("over, message", [({"qid": "vorvan"}, "Wikidaty"), ({"popisky": {"neni": "Nic"}}, "bodům"), ({"nazev": " "}, "co obraz ukazuje"), ({"hotovo": "hotovo-9"}, "obraz.png")])

@@ -618,7 +618,7 @@ export const m3dApi = {
   texturaVyber: (id: string, v: string, tid: string, body: { seedy: Record<string, number>; na_vysku: boolean }) =>
     post<{ dir: string; seedy: Record<string, number>; vrstvy: string[]; na_vysku?: string }>(`${m3}/${id}/${v}/textura/${tid}/vyber`, body),
   stranka: (id: string, v: string, tid: string, body: { hotovo: string; titulek: string; popisky: Record<string, string>; nazvy_vrstev: Record<string, string>; formaty: string[] }) =>
-    post<{ dokumenty: { id: string; size: string; title: string }[] }>(`${m3}/${id}/${v}/textura/${tid}/stranka`, body),
+    post<{ dokumenty: { id: string; size: string; title: string }[]; hlaseni: string[] }>(`${m3}/${id}/${v}/textura/${tid}/stranka`, body),
   tema: (id: string, v: string, tid: string, body: { qid: string; hotovo: string; nazev: string; popisky: Record<string, string> }) =>
     post<{ id: string; slozka: string }>(`${m3}/${id}/${v}/textura/${tid}/tema`, body),
 }

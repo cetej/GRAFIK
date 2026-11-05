@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — 3D stránka z řetězce: kontroly prošly, laťku nedržela
+
+- První stránka, kterou řetězec složil z 3D vorvaně, prošla všemi kontrolami, a přesto byla horší než ruční. Na šířku zabíral tvor 41 % šířky, protože popisky ve třech řádcích sebraly výšku. Popisek u tlamy měl nadpis „Krakatice“: model nadepsal bod potravou, a pravidlo „pojmenuj část“ hlídal jen prompt. Na výšku vedlo vodítko přes celou hlavu ke sloupci vlevo. A u sporného faktu (10–15 proti 30–40 cm) model dopsal závěr „člověk neprojde“.
+- Opraveno měřením a daty, ne promptem: podíl tvora na stránce (`textura3d.MIN_SHARE`, 55 % šířky, 60 % výšky), nejméně důležitý popisek vypadne a ohlásí se. Nadpis bere jméno části z `obrazy.json`, text modelu jde pod něj. Na výšku je sloupec vpravo od tvora jako na ruční stránce. U sporného faktu hlášení, když popisek spor nepřizná (`serie.DISPUTE`).
+- Kontroly stránky (`/kontrola`) neměří, jestli hlavní věc dominuje, ani jestli nadpis popisku pojmenuje věc u bodu. Před odevzdáním proto výřez ve 100 % a porovnání s ruční stránkou.
+
 ## 2026-11-05 — Okno v kůži vorvaně lemovalo moře; pád sd-serveru na VRAM vypadal jako timeout
 
 - Průsvitná kůže z Blenderu má okno s měkkým okrajem a render vnitřku k němu nedosahuje: lemem okna prosvítalo pozadí stránky (moře). Vrstva „Dutina“ pod vnitřnostmi (`vorvan_stranka.scene_3d`) vyplní okno tónem dutiny z renderu. Jen okno a jeho okraj: kůže je lehce průsvitná všude, dutina pod celým tělem ztmavila i hlavu a čelist (rozdíl až 89 úrovní). Kontrola: rozdíl proti staré stránce smí být jen v oblasti okna.
