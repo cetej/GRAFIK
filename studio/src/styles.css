@@ -433,6 +433,20 @@ main.m3d dd select { max-width: 100%; }
 .sheet8 img { width: 100%; display: block; }
 .sheet8 .al { position: absolute; top: 3px; left: 3px; background: #fff; font-size: 11px; padding: 0 4px; border-radius: 3px; pointer-events: none; }
 .sheet8 .zoom-btn { right: 3px; bottom: 3px; width: 24px; height: 24px; }
+/* model z dílů: rendery, textura FLUXem s výběrem varianty, stránka do Infografik (Renders3d.tsx) */
+.r3d { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.r3d h3 { margin: 12px 0 6px; }
+.r3d-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
+.r3d-grid figure { position: relative; margin: 0; background: #1c3a4c; border: 2px solid transparent; border-radius: 6px; cursor: pointer; overflow: hidden; }
+.r3d-grid figure.on { border-color: var(--accent); }
+.r3d-grid figure.bad figcaption { color: #9b1c1c; }
+.r3d-grid img { width: 100%; display: block; aspect-ratio: 12 / 5; object-fit: contain; }
+.r3d-grid figcaption { background: #fff; font-size: 12px; padding: 3px 6px; }
+.r3d-add { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 8px; border: 1px dashed #b9bcc3; border-radius: 6px; }
+.r3d-layer { display: grid; grid-template-columns: 120px 220px minmax(0, 1fr); gap: 8px; align-items: start; margin-bottom: 6px; }
+.r3d-layer textarea, .r3d-labels textarea { font-size: 16px; width: 100%; }
+.r3d-labels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; margin-bottom: 8px; }
+.r3d-labels label { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 6px; align-items: center; font-size: 13px; }
 .lastref { position: relative; margin: 10px 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
 .lastref img { width: 100%; background: #cdd0d5; border-radius: 6px; display: block; cursor: zoom-in; }
 .lastref .zoom-btn { right: 14px; top: 14px; bottom: auto; }

@@ -251,7 +251,7 @@ class Parts3d:
             shutil.rmtree(out, ignore_errors=True)
             raise
         body = json.loads((out / "body.json").read_text(encoding="utf-8"))
-        info = {"id": name, "pohled": render["pohled"], "res": render["res"], "samples": render["samples"], "posuny": render["posuny"],
+        info = {"id": name, "pohled": render["pohled"], "res": render["res"], "samples": render["samples"], "posuny": render["posuny"], "pozadavek": render,
                 "vrstvy": body.get("vrstvy", {}), "file": f"renders/{name}/obraz.png", "body": f"renders/{name}/body.json", "job_id": job_id,
                 "zarizeni": body.get("zarizeni"), "seconds": round(time.time() - t0, 1), "rendered": _now()}
         with self.lib._lock:

@@ -117,6 +117,8 @@ def _label(where: str, raw: dict) -> dict:
     out = {"text": str(raw["text"]), "small": _lines(raw.get("small")), "kotva": anchor, "pos": _numbers(f"{where}: pos", raw.get("pos"), 2), "align": raw.get("align", "left")}
     if raw.get("nad"):
         out["nad"] = True
+    elif raw.get("dole"):       # popisek v řadě pod objektem: čára z věci rovně dolů k hornímu okraji textu
+        out["dole"] = True
     if raw.get("radek") is not None:
         out["radek"] = _number(f"{where}: radek", raw["radek"])
     if raw.get("size") is not None:
@@ -200,6 +202,19 @@ def validate(doc: dict) -> list[dict]:
             if not isinstance(layers, dict) or any(not PANEL_ID.fullmatch(str(k)) for k in layers):
                 raise InfoError(f"panel {pid}: vrstvy jsou {{klíč souboru: název}}")
             panel["vrstvy"] = {str(k): str(v) for k, v in layers.items()}
+            # 3D tvor (engine/textura3d.py): vnitřnosti jen uvnitř obrysu těla, záře kolem postavy, průsvitná kůže bez zesílené hrany
+            clip = raw.get("orez") or {}
+            if not isinstance(clip, dict) or any(k not in panel["vrstvy"] or v not in panel["vrstvy"] for k, v in clip.items()):
+                raise InfoError(f"panel {pid}: orez je {{vrstva: vrstva, podle jejíhož obrysu se ořízne}}, obě z vrstvy")
+            glow_layers = raw.get("zar_vrstvy") or []
+            if not isinstance(glow_layers, list) or any(k not in panel["vrstvy"] for k in glow_layers):
+                raise InfoError(f"panel {pid}: zar_vrstvy jsou názvy vrstev z vrstvy")
+            if clip:
+                panel["orez"] = {str(k): str(v) for k, v in clip.items()}
+            if glow_layers:
+                panel["zar_vrstvy"] = [str(k) for k in glow_layers]
+            if raw.get("hrana") is False:
+                panel["hrana"] = False
             panel["prekryvy"] = [_overlay(f"panel {pid}", o) for o in raw.get("prekryvy") or []]
             panel["znacky"] = [_mark(f"panel {pid}", m) for m in raw.get("znacky") or []]
             if raw.get("pod"):
@@ -294,6 +309,8 @@ def leader_points(label: dict, place: dict, size: float, panel_id: str = "") -> 
     if label.get("nad"):        # popisek v řadě nad objektem: čára ze spodku textu rovně dolů k věci
         box = _text_box(label, size)
         return [(ax, ay), (ax, box[1] + box[3] + size * 0.15)]
+    if label.get("dole"):
+        return [(ax, ay), (ax, _text_box(label, size)[1] - size * 0.15)]
     px, py = label["pos"]
     end = px - 8 if label["align"] == "left" else px + 8
     ly = py + size * 0.72
@@ -439,19 +456,27 @@ class Renderer:
         """Objekt oříznutý sám na sebe, ve VectorCraftu jde vybrat, posunout nebo skrýt zvlášť. Kde se dva objekty dotýkají, jsou oba
         na hraně poloprůhledné a prosvítala by stránka, proto se průhlednost hrany trochu zvedne."""
         d = panel_dir(self.root, panel["id"])
-        target, box_file = d / "orez" / f"{key}.png", d / "orez" / f"{key}.json"
+        by = (panel.get("orez") or {}).get(key)
+        stem = f"{key}-v-{by}" if by else key + ("-mekka" if panel.get("hrana") is False else "")     # jiné nastavení = jiný soubor, žádná stará kopie
+        target, box_file = d / "orez" / f"{stem}.png", d / "orez" / f"{stem}.json"
         if not target.exists() or not box_file.exists():
             target.parent.mkdir(exist_ok=True)
             with Image.open(d / f"vrstva-{key}.png") as source:
                 im = source.convert("RGBA")
+            if by:      # plochý obraz vnitřností po natočení přečnívá z těla (vorvaň: „lezou mu střeva ven“): jen uvnitř obrysu
+                with Image.open(d / f"vrstva-{by}.png") as outer:
+                    body = outer.getchannel("A").point(lambda v: 255 if v > 8 else 0).filter(ImageFilter.MinFilter(7)).filter(ImageFilter.GaussianBlur(1.5))
+                im.putalpha(ImageChops.multiply(im.getchannel("A"), body))
             box = im.getchannel("A").getbbox()
             if box is None:
                 box_file.write_text("null", encoding="utf-8")
                 return ""
             im = im.crop(box)
             r, g, b, a = im.split()
+            if panel.get("hrana") is not False:
+                a = a.point(lambda v: 255 - (255 - v) * (255 - v) // 255)
             tmp = target.with_suffix(".tmp.png")
-            Image.merge("RGBA", (r, g, b, a.point(lambda v: 255 - (255 - v) * (255 - v) // 255))).save(tmp, "PNG", optimize=True)
+            Image.merge("RGBA", (r, g, b, a)).save(tmp, "PNG", optimize=True)
             os.replace(tmp, target)
             box_file.write_text(json.dumps(box), encoding="utf-8")
         box = json.loads(box_file.read_text(encoding="utf-8"))
@@ -459,7 +484,33 @@ class Renderer:
             return ""
         k = place["k"]
         tag = self.image(panel, target.name, place["x"] + box[0] * k, place["y"] + box[1] * k, (box[2] - box[0]) * k, (box[3] - box[1]) * k)
-        return f'<g id="{self.gid(title)}">{tag}</g>'
+        glow = self._layer_glow(panel, place, key, title) if key in panel.get("zar_vrstvy", []) else ""
+        return f'{glow}<g id="{self.gid(title)}">{tag}</g>'
+
+    def _layer_glow(self, panel: dict, place: dict, key: str, title: str) -> str:
+        """Jemná záře kolem postavy, ať je na tmavé vodě vidět (vorvaň, operátor: „je špatně viditelný“, „jemněji“): rozostřená silueta."""
+        d = panel_dir(self.root, panel["id"])
+        target, box_file = d / "orez" / f"{key}-zar.png", d / "orez" / f"{key}-zar.json"
+        if not target.exists() or not box_file.exists():
+            with Image.open(d / f"vrstva-{key}.png") as source:
+                alpha = source.getchannel("A")
+            box = alpha.getbbox()
+            if box is None:
+                box_file.write_text("null", encoding="utf-8")
+                return ""
+            pad = round((box[2] - box[0]) * 0.08)
+            box = (box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad)
+            halo = alpha.crop(box).filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(pad * 0.55))
+            glow = Image.new("RGBA", halo.size, (150, 225, 232, 0))
+            glow.putalpha(halo.point(lambda v: round(v * 0.32)))
+            glow.save(target, "PNG", optimize=True)
+            box_file.write_text(json.dumps(box), encoding="utf-8")
+        box = json.loads(box_file.read_text(encoding="utf-8"))
+        if box is None:
+            return ""
+        k = place["k"]
+        tag = self.image(panel, target.name, place["x"] + box[0] * k, place["y"] + box[1] * k, (box[2] - box[0]) * k, (box[3] - box[1]) * k)
+        return f'<g id="{self.gid(f"Záře {title}")}">{tag}</g>'
 
     def _overlays(self, panel: dict, place: dict) -> str:
         line, under = "#fff6de", "#0f141e"

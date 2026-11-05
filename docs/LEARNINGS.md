@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Stránka z 3D vrstev: co rozbilo první rozložení
+
+- Render celý do panelu dal na výšku 25 % prázdné plochy: tvor zabírá jen střed renderu. Vrstvy, obraz a body se nejdřív oříznou na společný obsah, pak teprve skládají.
+- Písmo podle `MOBIL` (popisek 27,3 jednotky) je na 1920 px 96 px a řada tří popisků se nevešla. Velikost podle pravidla „nejmenší text 1/30 šířky“ (druhý řádek 0,86 písma) a druhý řádek zalomený; když řada přeteče, posouvá se zprava a nikdy přes levý okraj.
+- Popisek pod tvorem s lomeným vodítkem škrtal text. Svislé vodítko z věci dolů k hornímu okraji textu (`dole`), stejně jako `nad` u řady nahoře.
+- Kontrola „bod v obraze není vidět“ brala viditelnost z paprsku v Blenderu, který skončí na kůži; orgán za průsvitným oknem je ale vidět. Po složení vrstev se viditelnost počítá z alfy vrstev.
+
 ## 2026-11-05 — Úprava v rámečku zmizela z hotových obrázků a na infografice nechávala obdélník
 
 - 1. 11. jsem podmínkou `finished` (původ `source`) schoval ve Studiu všechno, co souvisí s generátorem, i když zadání chyběla jen „Další variantě“. Úprava v rámečku a Vrstvy objektů zadání nepotřebují, a tak zmizely právě u infografik, exportů a ručních úprav. Operátor to hledal 5. 11. Když schovávám tlačítko, ověřím u každého zvlášť, co doopravdy potřebuje.

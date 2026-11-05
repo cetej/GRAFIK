@@ -864,6 +864,12 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
 
     infochain.make_doc = make_panel_doc
 
+    def page_without_credit(doc: dict) -> dict:
+        """Stránka z 3D vrstev: na stránce ani kredit AI, ani zdroj (operátor 5. 11.), kredit zůstává v `sources` pro popisek na webu."""
+        return infos.save(doc["id"], {**doc, "na_strance": "", "sources": doc.get("sources") or doc.get("ai_note") or ""})
+
+    textura3d.register_page(app, textury, s.library_dir, make_panel_doc, page_without_credit)
+
     @app.post("/api/v2/infographics/panels", status_code=201)
     def info_panels(body: InfoPanels):
         try:

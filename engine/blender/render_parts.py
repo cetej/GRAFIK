@@ -352,6 +352,8 @@ def main():
         if PARTS[name]["typ"] != "model":
             smooth(o, 28 if PARTS[name]["typ"] in SOLID else 40)
     if REQ.get("hlina"):    # předloha tvaru pro FLUX: matná světlá hlína, ze které čte tvar a světlo, kůži dodá sám (vorvaň 5. 11.)
+        for name in [n for n in objects if PARTS[n].get("material") == "dutina"]:     # tmavá stěna dutiny není tvar, FLUX by ji kreslil
+            bpy.data.objects.remove(objects.pop(name))
         clay = clay_material()
         for o in objects.values():
             o.data.materials.clear()
