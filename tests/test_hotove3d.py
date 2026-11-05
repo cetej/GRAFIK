@@ -105,5 +105,38 @@ def test_search_survives_one_source_down(monkeypatch):
 
     monkeypatch.setattr(h, "search_sf", down)
     monkeypatch.setattr(h, "search_si", lambda q: [{"zdroj": "smithsonian"}])
+    monkeypatch.setattr(h, "search_sklad", lambda q: [])
     out = h.search("mammoth")
     assert out["kandidati"] == [{"zdroj": "smithsonian"}] and "503" in out["chyby"][0]
+
+
+# -- sklad na D: (ngm_shared.sklad3d; NGM_SKLAD je v testech dočasná složka) ------------
+
+def test_sklad_search_first_without_our_models(monkeypatch):
+    from ngm_shared import sklad3d
+    sklad3d.uloz_model("smithsonian", "mamut", GLB, {"nazev": "Woolly Mammoth", "licence": "CC0", "autor": "SI"})
+    sklad3d.sestav_index()
+    monkeypatch.setattr(h, "search_si", lambda q: [{"zdroj": "smithsonian"}])
+    monkeypatch.setattr(h, "search_sf", lambda q: [])
+    out = h.search("mammoth")
+    assert [k["zdroj"] for k in out["kandidati"]] == ["sklad", "smithsonian"]
+    k = out["kandidati"][0]
+    assert (k["id"], k["licence"], k["lze_stahnout"], k["nahled"]) == ("smithsonian/mamut", "CC0", True, None)
+    glb, info = h.fetch("sklad", "smithsonian/mamut")
+    assert glb == GLB and info["sklad_id"] == "smithsonian/mamut"
+    assert info["origin"].startswith("Sklad (smithsonian): Woolly Mammoth, SI, CC0")
+
+
+def test_sklad_offers_no_own_models_and_survives_missing_store(tmp_path, monkeypatch):
+    from ngm_shared import sklad3d
+    (tmp_path / "v1").mkdir()
+    (tmp_path / "v1" / "model.glb").write_bytes(GLB)
+    sklad3d.uloz_nas(tmp_path / "v1", {"id": "amfora", "version": "v1", "title": "Amphora"})
+    assert h.search_sklad("amphora") == []
+    with pytest.raises(h.Hotove3dError, match="není cizí model"):
+        h.fetch("sklad", "nase/amfora/v1")
+    monkeypatch.setenv("NGM_SKLAD", str(tmp_path / "chybi"))
+    monkeypatch.setattr(h, "search_si", lambda q: [])
+    monkeypatch.setattr(h, "search_sf", lambda q: [])
+    out = h.search("amphora")
+    assert out["kandidati"] == [] and out["chyby"][0].startswith("sklad: sklad")

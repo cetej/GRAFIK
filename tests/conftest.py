@@ -23,9 +23,12 @@ os.environ["GRAFIK_TERMDB"] = ""
 # Nor the operator's shared library (KNIHOVNA): importing engine.app builds the module-level app, whose
 # style library seeds an empty knihovna, before any fixture runs.
 os.environ["NGM_KNIHOVNA"] = tempfile.mkdtemp(prefix="grafik-tests-knihovna-")
+# Nor the store on D: (NGM_SKLAD): a ticked model review copies the model there (DECISIONS 2026-11-05).
+os.environ["NGM_SKLAD"] = tempfile.mkdtemp(prefix="grafik-tests-sklad-")
 
 
 @pytest.fixture(autouse=True)
 def _own_knihovna(tmp_path, monkeypatch):
     """Every test gets its own shared library (Settings.knihovna_dir reads NGM_KNIHOVNA)."""
     monkeypatch.setenv("NGM_KNIHOVNA", str(tmp_path / "knihovna"))
+    monkeypatch.setenv("NGM_SKLAD", str(tmp_path / "sklad"))

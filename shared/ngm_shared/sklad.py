@@ -1,4 +1,4 @@
-"""Sklad na D: — náměty videí (fáze F1) pro POHYB, KLAPKA a GRAFIK; návrh STOPA `outputs/2026-11-04-sklad-namety-a-3d-modely.md`.
+"""Sklad na D: — náměty videí (fáze F1) pro POHYB, KLAPKA a GRAFIK, 3D v `sklad3d`; návrh STOPA `outputs/2026-11-04-sklad-namety-a-3d-modely.md`.
 
     NGM_SKLAD (výchozí D:/NGM-SKLAD)/
       README.md                          co ve skladu je a pod jakou licencí
@@ -254,6 +254,11 @@ a do výstupu projektů nesmí. Videa se nestahují, `post_url` vede na originá
 
 Hledání: `python -m ngm_shared.sklad hledej <slova> [--kategorie vysvetleni]`.
 Aktualizace: `python -m ngm_shared.sklad stahni namety`.
+
+## 3d/
+
+3D modely a HDRI (Poly Haven CC0, Smithsonian CC0, kopie našich zkontrolovaných modelů z GRAFIKu).
+Podrobnosti v `3d/README.md`, hledání `python -m ngm_shared.sklad hledej3d <slova>`.
 """
     _write_atomic(root() / "README.md", text.encode("utf-8"))
 
@@ -303,18 +308,32 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m ngm_shared.sklad")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("stahni")
-    s.add_argument("co", choices=["namety"])
+    s.add_argument("co", choices=["namety", "polyhaven", "hdri"])
     s.add_argument("--bez-nahledu", action="store_true")
+    s.add_argument("--limit", type=int, help="jen prvních N položek Poly Havenu (zkouška)")
     h = sub.add_parser("hledej")
     h.add_argument("slova", nargs="*")
     h.add_argument("--kategorie", choices=list(KATEGORIE))
     h.add_argument("--technika")
     h.add_argument("--limit", type=int, default=10)
+    h3 = sub.add_parser("hledej3d")
+    h3.add_argument("slova", nargs="*")
+    h3.add_argument("--druh", choices=["model", "hdri"])
+    h3.add_argument("--zdroj")
+    h3.add_argument("--limit", type=int, default=10)
     sub.add_parser("stav")
     a = p.parse_args(argv)
+    from ngm_shared import sklad3d
     try:
-        if a.cmd == "stahni":
+        if a.cmd == "stahni" and a.co == "namety":
             stahni_namety(nahledy=not a.bez_nahledu)
+        elif a.cmd == "stahni":
+            sklad3d.stahni_polyhaven("model" if a.co == "polyhaven" else "hdri", limit=a.limit)
+            sklad3d.zapis_readme()
+            _zapis_readme()
+        elif a.cmd == "hledej3d":
+            for z in sklad3d.hledej(" ".join(a.slova), druh=a.druh, zdroj=a.zdroj, limit=a.limit):
+                print(f"{z['id']:<40} {z['druh']:<6} {z['licence']:<8} {z['bajtu'] / 1e6:6.1f} MB  {z['nazev']}")
         elif a.cmd == "hledej":
             for z in hledej(" ".join(a.slova), kategorie=a.kategorie, technika=a.technika, limit=a.limit):
                 print(f"{z['id']}  {KATEGORIE[z['kategorie']]:<20} @{z['autor']}  {z['post_url']}")
@@ -325,6 +344,13 @@ def main(argv: list[str] | None = None) -> int:
                   f"{sum(1 for z in index if z['nahled'])} s náhledem")
             for k, n in Counter(z["kategorie"] for z in index).most_common():
                 print(f"  {KATEGORIE[k]}: {n}")
+            try:
+                i3 = sklad3d.nacti_index()
+            except SkladError:
+                i3 = []
+            print(f"3d: {len(i3)} položek, {sum(z['bajtu'] for z in i3) / 1e9:.2f} GB")
+            for (zdroj, druh), n in sorted(Counter((z["zdroj"], z["druh"]) for z in i3).items()):
+                print(f"  {zdroj} {druh}: {n}")
     except SkladError as e:
         print(f"chyba: {e}", file=sys.stderr)
         return 1

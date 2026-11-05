@@ -491,3 +491,40 @@ def test_empty_camera_view_is_an_error(api, settings, monkeypatch):
     job = wait(api, r["job_id"])
     assert job["status"] == "failed" and "mimo záběr" in job["error"]
     assert not list((settings.library_dir / "3d" / "tatra-87" / "v1" / "camera").glob("*.png"))
+
+
+def test_review_copies_model_to_sklad_once(api, monkeypatch, tmp_path):
+    """Operátor 2026-11-05: zkontrolovaný model jde jako kopie do skladu; výpadek skladu kontrolu nezastaví."""
+    import os
+    from ngm_shared import sklad3d
+    wait(api, upload(api)["job_id"])
+    base = "/api/v2/models3d/tatra-87/v1"
+    meta = api.post(f"{base}/review", json={"reviewed": True}).json()
+    assert meta["sklad"] == "nase/tatra-87/v1" and meta["sklad_chyba"] is None
+    z = sklad3d.zaznam("nase/tatra-87/v1")
+    assert sklad3d.cesta(z).read_bytes() == GLB and z["grafik"]["model_id"] == "tatra-87"
+
+    monkeypatch.setenv("NGM_SKLAD", str(tmp_path / "soubor"))
+    (tmp_path / "soubor").write_text("ne složka")
+    api.post(f"{base}/review", json={"reviewed": False})
+    meta = api.post(f"{base}/review", json={"reviewed": True}).json()
+    assert meta["review"] and meta["sklad_chyba"].startswith("kopie do skladu se nepovedla")
+    assert os.environ["NGM_SKLAD"].endswith("soubor")
+
+
+def test_sklad_import_and_preview(api, monkeypatch):
+    from ngm_shared import sklad, sklad3d
+    z = sklad3d.uloz_model("smithsonian", "mamut", GLB, {"nazev": "Woolly Mammoth", "licence": "CC0", "autor": "SI"})
+    (sklad.root() / "3d" / "smithsonian" / "mamut" / "nahled.webp").write_bytes(b"RIFFwebp")
+    import json as _json
+    p = sklad.root() / "3d" / "smithsonian" / "mamut" / "puvod.json"
+    p.write_text(_json.dumps({**z, "nahled": "3d/smithsonian/mamut/nahled.webp"}), encoding="utf-8")
+    sklad3d.sestav_index()
+    k = api.get("/api/v2/models3d/hotove", params={"q": "mammoth"}).json()["kandidati"][0]
+    assert k["zdroj"] == "sklad" and api.get(k["nahled"]).content == b"RIFFwebp"
+    assert api.get("/api/v2/models3d/sklad/nahled", params={"id": "nic/x"}).status_code == 404
+    r = api.post("/api/v2/models3d/hotove", json={"zdroj": "sklad", "id": "smithsonian/mamut"})
+    assert r.status_code == 202, r.text
+    wait(api, r.json()["job_id"])
+    meta = api.get(f"/api/v2/models3d/{r.json()['model_id']}").json()["versions"][0]
+    assert (meta["zdroj"], meta["sklad_id"], meta["license"]) == ("sklad", "smithsonian/mamut", "CC0")
