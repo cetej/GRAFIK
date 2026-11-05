@@ -62,7 +62,9 @@ Polohy dílů (osa pochvy, střed puklice) dává `legionar_sonda_dily.py`: barv
 
 ## Co zbývá u legionáře
 
-Postava je jeden mesh se štítem a pilem: na jiné pózy a pohyb rigging (Mixamo / Blender), štít a pilum zvlášť. Licence operátorova podkladu neznámá, před publikací ověřit původ.
+Postava je jeden mesh se štítem a pilem, na pózy se nehodí (DECISIONS 2026-11-05). Základ pro kostru je `library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru` v1. Podklad v A-póze bez zbraní vygeneroval lokální FLUX z `ref-front.png` v1, pohled zezadu a z boku vznikl ze stejné postavy s pohledem v1 jako druhou předlohou. Model z Hunyuan3D `Normal` stál USD 0,525. Podklady a `request.json` jsou v `v1/podklad/`. Zbývá: lesk kovu, kostra a váhy v Blenderu, díly (štít, pilum, gladius s pochvou, pugio) připnuté ke kostem, zkušební pózy. Licence operátorova podkladu je neznámá, před publikací ověřit původ.
+
+**Podklad v A-póze z FLUXu:** když zadání nechá zbraně na opasku, generátor ve 4 ze 6 variant místo pugia namaluje druhý dlouhý meč. Pohled z boku: varianty s rukou nataženou dopředu vyřadit, při A-póze ruka z boku visí podél těla. Výřez: rembg z Engine bez šedi pozadí (zbytek mezi nohama), klíč pozadí přidávat jen u okraje rembg (prsty). Klíč po řádcích na celé ploše nechal skvrny pozadí.
 
 
 ## Přidaný díl kontroluj ze všech stran, i zezadu
