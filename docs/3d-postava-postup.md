@@ -1,6 +1,6 @@
 # 3D postava z podkladu: postup a pasti (legionář, 2026-11-05)
 
-Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v9 (platné: **v8** čistý, **v9** opotřebovaný; v4–v7 mají zdvojený meč a dýku v boku). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
+Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v11 (platné: **v10** čistý, **v11** opotřebovaný; v4–v7 mají zdvojený meč a dýku v boku, v8–v9 nakřivo puklici a pugio bez rukojeti). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
 
 ## Kdy tahle cesta, kdy jiná
 
@@ -50,7 +50,8 @@ Polohy dílů (osa pochvy, střed puklice) dává `legionar_sonda_dily.py`: barv
 - **Odstranit vyčnívající díl:** vyhlazení okna (300 iterací) stáhlo i okolní tuniku (posun 9 758 z 11 876 bodů). Zatlačení pod povrch zmačkalo texturu do viditelné skvrny. Funguje jen u malého dílu, který pak zakryje nový: dýka zatlačena radiálně k povrchu boku, **jen body blízko osy** (poloměr < 0,16): bez té podmínky zatlačení roztrhlo horní okraj štítu, který leží ve stejném úhlu. Kontrola výpočtem: nejbližší bod v nové síti pro každý bod štítu, posun 0,0 mm (`legionar_sonda_kusy.py`, `legionar_detail_render.py`).
 - Osu dílu měř z profilu (řezy po výšce, okraj předmětu), ne z PCA malého vzorku: pochva vyšla nakloněná a 2,5 cm vedle, byly dva jílce.
 - Díly pokládat přes původní tvar, nic nemazat: v síti nevzniknou díry. Pochvu o 1–3 mm před původní plochu, jinak prosvítají kousky původního kování.
-- Puklice na prohnutém štítu: osu kopule vodorovně (PCA desky dala sklon a puklice byla nakřivo), střed = těžiště podložní desky, žádný rovný kroužek kolem (na prohnutém štítu z jedné strany zapadá).
+- Puklice na prohnutém štítu: osa = **skutečná normála štítu** (průměr normál vrcholů v prstenci 5–7,5 cm kolem desky), ne PCA desky (lišila se o 12°, puklice byla nakřivo i po vyrovnání svislé složky). Střed = průmět vrcholu původního vyboulení. Žádný rovný kroužek kolem (na prohnutém štítu z jedné strany zapadá).
+- Díl na boku (pugio) podél **změřeného povrchu po výškách**, ne na jednom poloměru: tunika dole 0,124, pas 0,098, opasek 0,115, zbroj 0,13. Na jednom poloměru se pochva dole zabořila, u pasu visela ve vzduchu a rukojeť zmizela uvnitř zbroje. Rukojeť ven před zbroj, k opasku poutka (`legionar_sonda_normaly.py`).
 - Sdílený materiál upravovat jednou: smyčka přes díly ho ztlumila tolikrát, kolik dílů ho používá (mosaz 12×, zčernala).
 - Ploché mosazné pásky odrážejí studiové světlo krémově: zkosit hrany, drsnost ≥ 0,45.
 

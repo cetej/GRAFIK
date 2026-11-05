@@ -168,12 +168,20 @@ hg = (P - pcen) @ n_
 D = P[hg > 0.5 * hg.max()]; dc = D.mean(0); base_pt = dc - ((dc - pcen) @ n_) * n_
 rad = float(np.percentile(np.linalg.norm((D - dc) - np.outer((D - dc) @ n_, n_), axis=1), 95))
 R = max(rad, 0.022) * 1.5; Hd = float(hg.max()) + 0.004  # překrýt celé původní vyboulení
-# štít stojí svisle: osa kopule vodorovně (PCA dala sklon -0,05 → puklice nakřivo), střed = střed desky
-n_[2] = 0.0; n_ /= np.linalg.norm(n_)
-nrm = Vector(n_.tolist()); surf = Vector(pcen.tolist())
+# osa = skutečná normála štítu (průměr normál prstence 5–7,5 cm kolem desky; PCA desky se lišila o 12° → nakřivo),
+# střed = průmět vrcholu původního vyboulení do roviny prstence
+nrv = np.array([v.normal for v in me.vertices])
+dist_ = np.linalg.norm(co - pcen, axis=1)
+ring_ = (dist_ > 0.05) & (dist_ < 0.075) & (x > 0.15) & (nrv[:, 0] > 0.3)
+n_ = nrv[ring_].mean(0); n_[2] = 0.0; n_ /= np.linalg.norm(n_)
+rc = co[ring_].mean(0)
+core_ = (dist_ < 0.045) & (x > 0.15)
+apex = co[core_][np.argmax((co[core_] - rc) @ n_)]
+Hd = float((apex - rc) @ n_) + 0.003
+nrm = Vector(n_.tolist()); surf = Vector((apex - (Hd - 0.003) * n_).tolist())
 print("boss base", tuple(round(c, 3) for c in surf), "normal", tuple(round(c, 3) for c in nrm), "R", round(R, 4), "height", round(Hd, 4))
 bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=R)
-boss = bpy.context.object; boss.scale = (1, 1, (Hd + 0.002) / R)
+boss = bpy.context.object; boss.scale = (1, 1, Hd / R)
 bpy.ops.object.transform_apply(scale=True)
 for f in boss.data.polygons: f.use_smooth = True
 frame = nrm.to_track_quat("Z", "Y").to_matrix()
@@ -197,18 +205,27 @@ L = (z_top - z_bot) / up.z
 # vymodelovaný gladius vyřazen (operátor: meč zdvojený); zůstává původní meč z generátoru, osa `at` jen pro kontrolní záběry
 
 # ---- 4) pugio v pochvě na levém boku (původní dýka trčela šikmo z boku, čepel v těle) ----
+# povrch boku v úhlu 17° (měřeno): tunika dole r 0,124, pas 0,098, opasek 0,115, zbroj 0,13 → pochva dole u tuniky,
+# rukojeť venku před zbrojí (jinak je uvnitř a „chybí“), k opasku dvě kožená poutka (jinak „visí ve vzduchu“)
 IRON = metal("zelezo_pugio", (0.38, 0.38, 0.40), 0.4)
-th = np.radians(17.0)  # úhel místa, kde byla původní rukojeť (x 0,105, y 0,04)
-out_ = Vector((np.cos(th), np.sin(th), 0.0))
+LEATH = metal("kuze_poutko", (0.16, 0.09, 0.05), 0.7, 0.0)
+th = np.radians(17.0)
+out_ = Vector((np.cos(th), np.sin(th), 0.0)); tan_ = Vector((0, 0, 1)).cross(out_).normalized()
 ang_ = np.degrees(np.arctan2(y - 0.006, x + 0.008)); rr = np.hypot(x + 0.008, y - 0.006)
-side = (np.abs(ang_ - 17.0) < 5) & (z > 0.47) & (z < 0.57) & (rr < 0.16)  # štít leží ve stejném úhlu dál od osy
-r_bg = float(np.percentile(rr[side], 90))
+def r_at(zz):
+    s_ = (np.abs(ang_ - 17.0) < 4) & (np.abs(z - zz) < 0.008) & (rr < 0.16)
+    return float(np.percentile(rr[s_], 90))
 pz_top, pz_bot = 0.585, 0.455
-ax0 = Vector((-0.008, 0.006, 0.0)) + out_ * (r_bg + 0.006 + 0.002)
-Fp = Matrix((Vector((0, 0, 1)).cross(out_), out_, Vector((0, 0, 1)))).transposed()  # X šířka, Y ven, Z nahoru
-print("pugio surface r", round(r_bg, 4), "at", tuple(round(c, 3) for c in ax0))
+def P(r, zz):
+    return Vector((-0.008 + r * out_.x, 0.006 + r * out_.y, zz))
+Pb = P(r_at(0.46) + 0.008, pz_bot); Pt = P(r_at(0.60) + 0.0065 + 0.004, 0.615)
+up_p = (Pt - Pb).normalized()
+yp = up_p.cross(tan_).normalized() * -1
+if yp.dot(out_) < 0: yp = -yp
+Fp = Matrix((tan_, yp, up_p)).transposed()  # X šířka, Y ven, Z podél osy
 def pat(zz):
-    return Vector((ax0.x, ax0.y, zz))
+    return Pb + up_p * ((zz - Pb.z) / up_p.z)
+print("pugio bottom", tuple(round(c, 3) for c in Pb), "hilt", tuple(round(c, 3) for c in Pt), "belt r", round(r_at(0.58), 3))
 bpy.ops.mesh.primitive_cube_add(size=1); sh = bpy.context.object
 bm = bmesh.new(); bm.from_mesh(sh.data)
 for v in bm.verts:
@@ -222,24 +239,34 @@ for zz, hh, wf in ((0.578, 0.008, 1.0), (0.548, 0.006, 0.9), (0.515, 0.006, 0.8)
     bpy.ops.mesh.primitive_cube_add(size=1); bd = bpy.context.object
     bd.scale = (0.037 * wf, 0.015, hh); bpy.ops.object.transform_apply(scale=True)
     place(bd, BRASS, Fp, pat(zz))
-for s in (-1, 1):
+for sgn in (-1, 1):  # kroužky závěsu a poutka k opasku
     bpy.ops.mesh.primitive_torus_add(major_radius=0.005, minor_radius=0.0014, major_segments=16, minor_segments=8)
     rg = bpy.context.object; rg.rotation_euler = (1.5708, 0, 0); bpy.ops.object.transform_apply(rotation=True)
-    place(rg, BRASS, Fp, pat(0.565) + Fp.col[0] * s * 0.021)
+    ring_pos = pat(0.565) + tan_ * sgn * 0.021
+    place(rg, BRASS, Fp, ring_pos)
+    belt_pt = P(r_at(0.58) + 0.002, 0.582) + tan_ * sgn * 0.016
+    seg = belt_pt - ring_pos; L_ = seg.length
+    bpy.ops.mesh.primitive_cube_add(size=1); st = bpy.context.object
+    st.scale = (0.006, 0.002, L_ + 0.004); bpy.ops.object.transform_apply(scale=True)
+    Fs = Matrix((tan_, seg.normalized().cross(tan_).normalized(), seg.normalized())).transposed()
+    place(st, LEATH, Fs, (belt_pt + ring_pos) / 2)
 bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=0.007)
 tk = bpy.context.object; place(tk, BRASS, Fp, pat(pz_bot - 0.004))
 bpy.ops.mesh.primitive_cube_add(size=1); gd = bpy.context.object  # záštita
-gd.scale = (0.03, 0.012, 0.006); bpy.ops.object.transform_apply(scale=True); place(gd, IRON, Fp, pat(pz_top + 0.004))
-bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=0.0065, depth=0.04); gr = bpy.context.object
+gd.scale = (0.032, 0.013, 0.007); bpy.ops.object.transform_apply(scale=True); place(gd, IRON, Fp, pat(pz_top + 0.004))
+bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=0.007, depth=0.042); gr = bpy.context.object
 for f in gr.data.polygons: f.use_smooth = True
-place(gr, WOOD, Fp, pat(pz_top + 0.027))
+place(gr, WOOD, Fp, pat(pz_top + 0.029))
 bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=1); sw = bpy.context.object  # zesílení uprostřed rukojeti
-sw.scale = (0.009, 0.008, 0.007); bpy.ops.object.transform_apply(scale=True)
+sw.scale = (0.0105, 0.009, 0.0075); bpy.ops.object.transform_apply(scale=True)
 for f in sw.data.polygons: f.use_smooth = True
-place(sw, IRON, Fp, pat(pz_top + 0.027))
-bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.013, depth=0.006); pm = bpy.context.object  # plochá hlavice
+place(sw, IRON, Fp, pat(pz_top + 0.029))
+bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.015, depth=0.007); pm = bpy.context.object  # plochá hlavice
 pm.rotation_euler = (1.5708, 0, 0); bpy.ops.object.transform_apply(rotation=True)
-place(pm, IRON, Fp, pat(pz_top + 0.052))
+place(pm, IRON, Fp, pat(pz_top + 0.057))
+for sgn in (-1, 0, 1):  # mosazné nýty v hlavici
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=6, radius=0.0028); rv = bpy.context.object
+    place(rv, BRASS, Fp, pat(pz_top + 0.057) + tan_ * sgn * 0.009 + yp * 0.004)
 for o in new:
     o.name = "dily_kov"
 print("parts", len(new))
@@ -259,7 +286,10 @@ shots = {"zepredu": ((0, -1, 0.15), ctr, size * 1.1),
          "mec": ((-0.6, -1, 0.15), at(0.5), 0.36),
          "mec_zboku": ((-1, 0, 0.1), at(0.52), 0.42),
          "mec_zezadu": ((-0.6, 1, 0.2), at(0.52), 0.42),
-         "dyka_zboku": ((1, 0.2, 0.1), pat(0.55), 0.3),
+         "dyka_zboku": ((1, 0.2, 0.1), pat(0.56), 0.3),
+         "dyka_zezadu": ((0.6, 1, 0.3), pat(0.56), 0.3),
+         "puklice_zepredu": ((0, -1, 0.05), surf, 0.3),
+         "puklice_zboku": ((1, 0, 0.05), surf, 0.3),
          "dyka_zepredu": ((0.3, -1, 0.1), pat(0.55), 0.3),
          "mec_shora": ((-0.5, -0.6, 1.0), at(0.6), 0.42),
          "puklice": (tuple(nrm + Vector((0, 0, 0.2))), surf, 0.3),
