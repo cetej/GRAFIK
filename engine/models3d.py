@@ -313,7 +313,16 @@ class Model3dLibrary:
             meta.update(fields)
             tmp = d / "model.json.tmp"
             tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
-            tmp.replace(d / "model.json")
+            # Windows refuses the replace while a reader (Studio polling, antivirus) has model.json open:
+            # an upload of two versions back to back failed with 500 and left model.json.tmp (2026-11-05)
+            for attempt in range(10):
+                try:
+                    tmp.replace(d / "model.json")
+                    break
+                except PermissionError:
+                    if attempt == 9:
+                        raise
+                    time.sleep(0.1 * (attempt + 1))
             return meta
 
     def new_version(self, model_id: str | None, title: str, **meta) -> dict:

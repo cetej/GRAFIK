@@ -388,6 +388,24 @@ def test_interrupted_step_is_marked(tmp_path):
     assert v["status"] == "failed" and "restartem" in v["error"] and v["request_id"] == "req-9"
 
 
+def test_update_retries_while_model_json_is_locked(tmp_path, monkeypatch):
+    lib = Model3dLibrary(tmp_path / "3d")
+    m = lib.new_version(None, "Legionář", method="upload")
+    real, fails = Path.replace, [2]
+
+    def flaky(self, target):
+        if self.name == "model.json.tmp" and fails[0]:
+            fails[0] -= 1
+            raise PermissionError("[WinError 5] Access is denied")
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", flaky)
+    monkeypatch.setattr("engine.models3d.time.sleep", lambda s: None)
+    lib.update(m["id"], "v1", status="viewer")
+    assert lib.read(m["id"], "v1")["status"] == "viewer" and fails[0] == 0
+    assert not (tmp_path / "3d" / m["id"] / "v1" / "model.json.tmp").exists()
+
+
 # -- v2: viewer copy, check in the viewer, render from the viewer's camera -----------------------
 
 CAM = {"target": [0.1, 0.2, -0.3], "azimuth": 315, "elevation": 20, "distance": 2.5, "lens": 50}
