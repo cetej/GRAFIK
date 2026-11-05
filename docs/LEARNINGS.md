@@ -1,5 +1,9 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Legionář: vymodelovaný meč přes původní byl zepředu dobrý, z boku dvojitý
+
+- Operátor při zvětšení v7 našel zdvojený meč a dýku zaraženou v boku. Kontroloval jsem jen zepředu; původní pochva byla o 2 cm silnější a z boku a shora přes ruku vyčnívala. Síť z generátoru je jeden kus, původní díl nejde vyříznout a vyhlazení či zatlačení velkého dílu nechává skvrny. Řešení: meč nechat z generátoru, malou dýku zatlačit jen u těla (poloměr < 0,16, jinak se roztrhl štít) a překrýt vymodelovaným pugiem. Postup: [`3d-postava-postup.md`](3d-postava-postup.md) § Vymodelované díly.
+
 ## 2026-11-05 — Legionář: generátor dá tvar a barvy, kov a díly se dodělávají v Blenderu
 
 - Postava z operátorova podkladu se 4 pohledy (Hunyuan3D v3 multi-view) sedí tvarem i barvami; FLUX předlohy reálie nedržely. Vyráběné díly (pilum, gladius, puklice) generátor rozmaže, vymodelovat a položit přes původní tvar. Postup a pasti: [`3d-postava-postup.md`](3d-postava-postup.md).
