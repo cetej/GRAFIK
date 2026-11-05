@@ -237,7 +237,8 @@ class Researcher:
         base = self.lib.dossier(req["extends"])
         if base is None:
             raise rs.ResearchError(f"dossier {req['extends']} neexistuje")
-        questions = [req["question"]] if req.get("question") else [
+        asked = req.get("questions") or ([req["question"]] if req.get("question") else [])     # questions: řetězec infografiky
+        questions = asked or [
             *[q for q in base["otazky_bez_odpovedi"] if not q.startswith("Chybí obrázek")],
             *[f"Rozpor mezi zdroji: {f['tvrzeni']}" for f in base["facts"] if f["stav"] == "rozpor"]]
         if not questions:

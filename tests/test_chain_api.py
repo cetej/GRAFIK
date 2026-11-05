@@ -11,6 +11,7 @@ from engine import chain as ch
 from engine import panels as pn
 from engine import proposals as pp
 from engine import serie as sr
+from engine import zadani as zd
 from engine.app import create_app
 from engine.backends import FluxLocal
 from engine.jobs import load_costs
@@ -32,10 +33,11 @@ class FakeAsk:
 
     def __init__(self, usd=0.01, reply=None):
         self.usd, self.reply, self.calls = usd, reply or REPLY, []
+        self.zadani = {"predmet": "Pantheon", "predmet_en": "Pantheon", "druh": "vec", "otazky": [], "vzor": None}
 
     def __call__(self, content, system, *, what, model, effort="low", max_tokens=16000):
         self.calls.append({"what": what, "model": model, "content": content})
-        data = LOGIC if what == "kontrola logiky" else self.reply
+        data = LOGIC if what == "kontrola logiky" else self.zadani if what == "rozbor zadání" else self.reply
         return claude.Answer(json.dumps(data, ensure_ascii=False), model, 1000, 500, self.usd, "end_turn")
 
 
@@ -84,8 +86,10 @@ def test_one_price_up_front_nothing_starts_without_consent(lab, settings):
     r = lab.post("/api/v2/workflows/infografika", json={"topic": "Pantheon"})
     assert r.status_code == 402
     body = r.json()
-    assert body["estimate_usd"] == pytest.approx(CHAIN_USD)
-    assert [i["usd"] for i in body["items"]][0] == 0.0 and len(body["items"]) == 4
+    assert body["estimate_usd"] == pytest.approx(CHAIN_USD + zd.USD)     # téma bez položky Wikidaty: zadání čte model
+    assert [i["usd"] for i in body["items"]][:2] == [zd.USD, 0.0] and len(body["items"]) == 5
+    with_qid = lab.post("/api/v2/workflows/infografika", json={"topic": "Pantheon", "qid": "Q99309"}).json()
+    assert with_qid["estimate_usd"] == pytest.approx(CHAIN_USD)
     assert lab.get("/api/v2/workflows").json() == [] and not settings.costs_path.exists()
 
 
@@ -224,12 +228,70 @@ def test_starts_from_a_finished_dossier_with_a_reference_image(lab):
     assert lab.post("/api/v2/workflows/infografika", json={"topic": "x", "vzor": "0" * 32, "confirm_cost": True}).status_code == 404
 
 
+def _vzor(lab):
+    buf = BytesIO()
+    Image.new("RGB", (300, 200), (10, 20, 30)).save(buf, "PNG")
+    return lab.app.state.chain.reflib.add(buf.getvalue(), origin="upload", title="vzor")["id"]
+
+
+QUESTION = {"predmet": "Pantheon", "predmet_en": "Pantheon", "druh": "vec", "otazky": ["Vejde se do kopule člověk?"],
+            "vzor": {"o_cem": "řez stavbou", "skladba": "velký řez a čtyři kroky", "tvrzeni": ["Kopule má 43 m."]}}
+
+
+def test_question_topic_reads_the_pattern_first_searches_the_subject_and_offers_the_web(lab, settings):
+    lab.ask.zadani = QUESTION
+    wf = wait_stage(lab, start(lab, topic="Vešel by se člověk do Pantheonu?", qid=None, vzor=_vzor(lab))["id"], ("stop",))
+    assert lab.ask.calls[0]["what"] == "rozbor zadání" and lab.ask.calls[0]["content"][0]["type"] == "image"
+    assert wf["zadani"]["predmet"] == "Pantheon" and wf["zadani"]["vzor"]["tvrzeni"] == ["Kopule má 43 m."]
+    assert wf["research_id"] == "pantheon-v1" and wf["resume_stage"] == "web" and "Wikipedie dala" in wf["stop_reason"]
+    assert wf["spent_usd"] == pytest.approx(0.01) and wf["resume_usd"] == pytest.approx(research.WEB_USD + CHAIN_USD)
+    assert [r["backend"] for r in load_costs(settings.costs_path)] == ["claude:zadani"]
+
+    assert lab.post(f"/api/v2/workflows/{wf['id']}/continue", json={"bez_webu": True}).status_code == 402      # návrhy jsou placené
+    lab.post(f"/api/v2/workflows/{wf['id']}/continue", json={"bez_webu": True, "confirm_cost": True})
+    done = wait_stage(lab, wf["id"], ("vyber", "stop"))
+    assert done["stage"] == "vyber", done["stop_reason"]
+    assert "OTÁZKA ZADÁNÍ, na kterou má stránka odpovědět: Vešel by se člověk do Pantheonu?" in lab.ask.calls[-1]["content"][-1]["text"]
+
+
+def test_web_step_extends_the_dossier_with_the_questions_of_the_brief(lab, settings):
+    from tests.test_research_api import web_reply
+    asked = []
+
+    def turn(text, system, *, on_reply, **kw):
+        asked.append(text)
+        reply = web_reply(json.dumps({"facts": [{"tvrzeni": "Do kopule by se vešla koule o průměru 43 m.", "predmet": "kopule",
+                                                 "zdroje": [{"url": "https://x", "nazev": "X"}]}]}, ensure_ascii=False), ["https://x"])
+        on_reply(reply)
+        return [reply]
+
+    lab.app.state.chain.researcher.web_turn = turn
+    lab.ask.zadani = QUESTION
+    wf = wait_stage(lab, start(lab, topic="Vešel by se člověk do Pantheonu?", qid=None, vzor=_vzor(lab))["id"], ("stop",))
+    assert lab.post(f"/api/v2/workflows/{wf['id']}/continue", json={"confirm_cost": True}).status_code == 200
+    done = wait_stage(lab, wf["id"], ("vyber", "stop"))
+    assert done["stage"] == "vyber", done["stop_reason"]
+    assert "Vešel by se člověk do Pantheonu?" in asked[0] and "Vejde se do kopule člověk?" in asked[0] and "Ověř tvrzení ze vzoru: Kopule má 43 m." in asked[0]
+    assert done["research_id"] == "pantheon-v2" and done["spent_usd"] > 0.01
+    dossier = lab.get("/api/v2/research/pantheon-v2").json()["dossier"]
+    assert any("koule" in f["tvrzeni"] for f in dossier["facts"])
+
+
+def test_subject_missing_on_wikipedia_offers_only_the_web(lab):
+    lab.ask.zadani = {**QUESTION, "predmet": "xqzw", "predmet_en": "xqzw en", "otazky": []}
+    lab.app.state.chain.researcher.get = lambda host, params: {"query": {"pages": []}} if params.get("generator") == "search" else fake_get(host, params)
+    wf = wait_stage(lab, start(lab, topic="Co je xqzw?", qid=None)["id"], ("stop",))
+    assert wf["resume_stage"] == "web" and "žádná fakta" in wf["stop_reason"]
+    assert lab.get(f"/api/v2/research/{wf['research_id']}").json()["status"] == "done"
+    assert lab.post(f"/api/v2/workflows/{wf['id']}/continue", json={"bez_webu": True, "confirm_cost": True}).status_code == 409
+
+
 def test_restart_in_the_free_step_carries_on_by_itself(settings, sd):
     ask = FakeAsk()
     with TestClient(make(settings, sd, ask, start_worker=False)) as c:
         wf_id = start(c)["id"]
         row = c.app.state.store.next_queued()   # úloha běží, když Engine spadne
-        assert row["kind"] == ch.KIND and json.loads(row["request"])["stage"] == "podklady"
+        assert row["kind"] == ch.KIND and json.loads(row["request"])["stage"] == "zadani"     # s položkou Wikidaty a bez vzoru zdarma
     with TestClient(make(settings, sd, ask)) as c:
         wf = wait_stage(c, wf_id, ("vyber", "stop"))
         assert wf["stage"] == "vyber", wf["stop_reason"]
@@ -281,7 +343,7 @@ def test_chain_and_historical_guide_do_not_mix(lab):
 def test_model_choice_goes_to_the_price_and_the_ledger(lab, settings):
     cheap = lab.get("/api/v2/workflows/infografika/estimate", params={"model": "gpt-6.1-terra"}).json()
     dear = lab.get("/api/v2/workflows/infografika/estimate", params={"model": "claude-sonnet-5-5"}).json()
-    assert cheap["total_usd"] < dear["total_usd"] and "gpt-6.1-terra" in cheap["items"][1]["what"]
+    assert cheap["total_usd"] < dear["total_usd"] and "gpt-6.1-terra" in cheap["items"][2]["what"]
     wf = wait_stage(lab, start(lab, model="gpt-6.1-terra")["id"], ("vyber",))
     assert lab.ask.calls[-1]["model"] == "gpt-6.1-terra" and wf["model"] == "gpt-6.1-terra"
     assert [r["usd"] for r in load_costs(settings.costs_path) if r["backend"] == "openai:navrhy"] == [0.01]

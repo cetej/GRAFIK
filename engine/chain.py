@@ -23,17 +23,24 @@ from typing import Literal
 from PIL import Image
 from pydantic import BaseModel
 
-from engine import infographics, proposals, serie
+from engine import infographics, proposals, serie, zadani as zd
 from engine.infographics import InfoError
 from engine.reflib import RefLibError
 from engine.workflows import Workflow
-from ngm_shared import claude, image_checks as ic
+from ngm_shared import claude, image_checks as ic, research as rs
 from ngm_shared.research import ResearchError
 
 KIND = "infografika"
-LABEL = {"podklady": "Podklady", "navrhy": "Návrhy skladby", "kontrola": "Kontrola logiky", "stranky": "Stránky série"}
-STEPS = tuple(LABEL)
-COST_WHAT = {"podklady": "podklady: Wikidata, Wikipedia, Commons", "navrhy": "3 návrhy skladby, náčrty 0 USD", "kontrola": "poradní kontrola logiky vybraného návrhu", "stranky": "krátké české texty stránek z vybraných faktů"}
+LABEL = {"zadani": "Zadání", "podklady": "Podklady", "web": "Hledání na webu", "navrhy": "Návrhy skladby", "kontrola": "Kontrola logiky", "stranky": "Stránky série"}
+STEPS = ("zadani", "podklady", "navrhy", "kontrola", "stranky")     # "web" jen na souhlas, když volné zdroje nestačí
+COST_WHAT = {"zadani": "rozbor zadání a vzoru: co hledat a co ověřit", "podklady": "podklady: Wikidata, Wikipedia, Commons",
+             "web": f"hledání na webu, nejvýš {rs.MAX_SEARCHES} hledání ({rs.WEB_MODEL})", "navrhy": "3 návrhy skladby, náčrty 0 USD",
+             "kontrola": "poradní kontrola logiky vybraného návrhu", "stranky": "krátké české texty stránek z vybraných faktů"}
+
+
+def rest(stage: str) -> tuple[str, ...]:
+    """Kroky od `stage` do konce; web je jednorázová odbočka před návrhy."""
+    return ("web", *STEPS[STEPS.index("navrhy"):]) if stage == "web" else STEPS[STEPS.index(stage):]
 
 
 def _usd(value: float) -> str:
@@ -58,6 +65,7 @@ class PickIn(BaseModel):
 
 class ContinueIn(BaseModel):
     confirm_cost: bool = False
+    bez_webu: bool = False              # stojí před hledáním na webu: pokračovat jen s volnými zdroji
 
 
 class Chain:
@@ -74,7 +82,9 @@ class Chain:
         return {KIND: self.run}
 
     def step_usd(self, wf: Workflow, stage: str) -> float:
-        return {"podklady": 0.0, "navrhy": proposals.estimate_usd(wf.model), "kontrola": ic.LOGIC_USD, "stranky": serie.estimate_usd(wf.model)}[stage]
+        reads = wf.vzor or not wf.qid       # zadání čte model jen u vzoru nebo tématu bez položky Wikidaty
+        return {"zadani": zd.USD if reads else 0.0, "podklady": 0.0, "web": rs.WEB_USD, "navrhy": proposals.estimate_usd(wf.model),
+                "kontrola": ic.LOGIC_USD, "stranky": serie.estimate_usd(wf.model)}[stage]
 
     def estimate(self, wf: Workflow, stages=STEPS) -> dict:
         items = [{"what": COST_WHAT[s] + (f" ({wf.model})" if s == "navrhy" else ""), "usd": self.step_usd(wf, s)} for s in stages]
@@ -85,14 +95,15 @@ class Chain:
             wf = self.wfs.get(req["wf"])
         stage = req["stage"]
         try:
-            return {"podklady": self._podklady, "navrhy": self._navrhy, "kontrola": self._kontrola, "stranky": self._stranky}[stage](wf, job_id)
+            return {"zadani": self._zadani, "podklady": self._podklady, "web": self._web, "navrhy": self._navrhy,
+                    "kontrola": self._kontrola, "stranky": self._stranky}[stage](wf, job_id)
         except Exception as e:
             self.stop(wf, stage, f"{LABEL[stage]}: {e}")
             raise
 
     def stop(self, wf: Workflow, stage: str, reason: str) -> None:
         wf.stage, wf.resume_stage, wf.stop_reason, wf.step_job = "stop", stage, reason, None
-        wf.resume_usd = self.estimate(wf, STEPS[STEPS.index(stage):])["total_usd"]
+        wf.resume_usd = self.estimate(wf, rest(stage))["total_usd"]
         self.wfs.save(wf)
 
     def enqueue(self, wf: Workflow, stage: str) -> None:
@@ -103,14 +114,15 @@ class Chain:
             return
         with self._enqueue_lock:
             wf.stage, wf.resume_stage, wf.stop_reason = stage, None, None
-            backend = "local" if not usd else f"{proposals.vendor(wf.model)}:{wf.model}" if stage in ("navrhy", "stranky") else f"claude:{ic.MODEL}"
+            backend = ("local" if not usd else f"{proposals.vendor(wf.model)}:{wf.model}" if stage in ("navrhy", "stranky")
+                       else f"claude:{zd.MODEL}" if stage == "zadani" else f"claude:{rs.WEB_MODEL}" if stage == "web" else f"claude:{ic.MODEL}")
             wf.step_job = self.store.add_task(KIND, wf.caller, backend, {"wf": wf.id, "stage": stage})
             self.wfs.save(wf)
 
     def resume(self) -> None:
         """Po restartu: viz docstring modulu."""
         for wf in self.wfs.list():
-            if wf.kind != KIND or wf.stage not in STEPS:
+            if wf.kind != KIND or wf.stage not in LABEL:
                 continue
             job = self.store.get(wf.step_job) if wf.step_job else None
             if job and job["status"] == "queued":
@@ -122,22 +134,89 @@ class Chain:
             else:
                 self.enqueue(wf, wf.stage)
 
+    def _zadani(self, wf: Workflow, job_id: str) -> dict:
+        """Vzor a téma přečte model dřív než rešerše: z otázky heslo, z otázky a vzoru co ověřit na webu."""
+        estimate = self.step_usd(wf, "zadani")
+        if not estimate:
+            self.enqueue(wf, "podklady")
+            return {"files": [], "cost_usd": 0.0}
+        vzor = self.reflib.image_path(wf.vzor) if wf.vzor else None
+        ledger = {"job_id": job_id, "caller": wf.caller, "backend": "claude:zadani", "n": 1}
+        self.log_cost({**ledger, "usd": estimate, "status": "pending", "items": [{"what": "rozbor zadání, odhad", "usd": estimate}]})
+        try:
+            out = zd.read(wf.object, vzor, ask=self.ask)
+        except claude.ClaudeError as e:
+            cost = e.cost or {"usd": 0.0}
+            self.log_cost({**ledger, "usd": cost["usd"], "status": "failed", "usage": cost, "items": [{"what": "rozbor zadání", "usd": cost["usd"]}]})
+            wf.spent_usd = round(wf.spent_usd + cost["usd"], 4)
+            raise ResearchError(str(e)) from e
+        cost = out.pop("cost")
+        self.log_cost({**ledger, "usd": cost["usd"], "status": "ok", "usage": cost, "items": [{"what": "rozbor zadání", "usd": cost["usd"]}]})
+        wf.spent_usd = round(wf.spent_usd + cost["usd"], 4)
+        wf.zadani = out
+        self.enqueue(wf, "podklady")
+        return {"files": [], "cost_usd": cost["usd"]}
+
     def _podklady(self, wf: Workflow, job_id: str) -> dict:
+        """Volné zdroje. Když heslo nenajdou, zkusí anglické; když ani to, nebo zadání ptá dál než heslo, zastaví se s nabídkou webu."""
         lib = self.researcher.lib
+        z = wf.zadani or {}
+        topic = z.get("predmet") or wf.object
         if not wf.research_id:
-            wf.research_id = lib.new(wf.object, {"topic": wf.object, "qid": wf.qid, "images": True, "per_role": 4, "extends": None, "question": None, "caller": wf.caller})
+            wf.research_id = lib.new(topic, {"topic": topic, "qid": wf.qid, "images": True, "per_role": 4, "extends": None, "question": None, "caller": wf.caller})
             self.wfs.save(wf)
         request = {**lib.request(wf.research_id), "job_id": job_id}
         lib.write_request(wf.research_id, request)
         if lib.dossier(wf.research_id) is None:
-            self.researcher.run(job_id, request)
-        self.enqueue(wf, "navrhy")
+            tries = [request["topic"], *([z["predmet_en"]] if z.get("predmet_en") and not wf.qid else [])]
+            for n, name in enumerate(tries, 1):
+                try:
+                    self.researcher.run(job_id, {**request, "topic": name})
+                    break
+                except rs.NotFound:
+                    if n == len(tries):
+                        lib.finish(wf.research_id, empty_dossier(wf.research_id, request.get("verze"), topic, z.get("druh", "vec")))
+        dossier = lib.dossier(wf.research_id)
+        questions = zd.web_questions(wf.zadani)
+        if dossier["facts"] and not questions:
+            self.enqueue(wf, "navrhy")
+        else:
+            web = _usd(rs.WEB_USD)
+            self.stop(wf, "web", f"K „{topic}“ jsem na Wikipedii nenašel žádná fakta. Hledání na webu stojí asi {web}." if not dossier["facts"] else
+                      f"Wikipedie dala {len(dossier['facts'])} faktů o „{dossier['entita']['label']}“, na otázky zadání a vzoru ale neodpovídá. "
+                      f"Hledání na webu stojí asi {web}, nebo pokračujte jen s Wikipedií.")
         return {"files": [], "research": wf.research_id, "cost_usd": 0.0}
+
+    def _web(self, wf: Workflow, job_id: str) -> dict:
+        """Placené doplnění dossieru z webu otázkami zadání a vzoru; nová verze dossieru, stará zůstává."""
+        lib = self.researcher.lib
+        base = lib.dossier(wf.research_id)
+        questions = zd.web_questions(wf.zadani) or [wf.object]
+        if wf.object not in questions[0]:
+            questions = [f"Otázka zadání: {wf.object}", *questions]
+        new_id = lib.new(base["tema"], {"topic": base["tema"], "qid": None, "images": False, "per_role": 4, "extends": wf.research_id,
+                                        "question": None, "questions": questions, "caller": wf.caller})
+        request = {**lib.request(new_id), "job_id": job_id}
+        lib.write_request(new_id, request)
+        try:
+            self.researcher.run(job_id, request)
+        except Exception:
+            wf.spent_usd = round(wf.spent_usd + rs.WEB_USD, 4)      # přesná cena je v ledgeru, do rozpočtu počítám odhad
+            raise
+        dossier = lib.dossier(new_id)
+        usd = round(dossier.get("cost_usd", 0.0) - base.get("cost_usd", 0.0), 4)
+        wf.spent_usd, wf.research_id = round(wf.spent_usd + usd, 4), new_id
+        if not dossier["facts"]:
+            raise ResearchError("ani na webu jsem nenašel fakta se zdrojem, není z čeho navrhovat")
+        self.enqueue(wf, "navrhy")
+        return {"files": [], "research": new_id, "cost_usd": usd}
 
     def _navrhy(self, wf: Workflow, job_id: str) -> dict:
         dossier = self.researcher.lib.dossier(wf.research_id)
         if not dossier["facts"]:
             raise ResearchError("v dossieru nejsou fakta, není z čeho navrhovat, nic se neplatilo; zkuste jinou položku Wikidaty")
+        if wf.zadani and wf.zadani["predmet"] != wf.object:
+            dossier = {**dossier, "otazka": wf.object}
         vzor = self.reflib.image_path(wf.vzor) if wf.vzor else None
         estimate = self.step_usd(wf, "navrhy")
         ledger = {"job_id": job_id, "caller": wf.caller, "backend": f"{proposals.vendor(wf.model)}:navrhy", "n": 1}
@@ -244,6 +323,13 @@ class Chain:
         return {**found, "_autor": meta.get("author"), "_licence": meta.get("license")} if image.get("ref_id") and not image.get("slozka") else found
 
 
+def empty_dossier(research_id: str, verze, topic: str, druh: str) -> dict:
+    """Heslo na Wikipedii není: dossier bez faktů jako základ pro hledání na webu (`extends`)."""
+    return {"tema": topic, "entita": {"qid": None, "label": topic, "popis": "", "url": None, "commons_category": None, "sitelinks": {}, "druh": druh},
+            "facts": [], "images": [], "pinterest": [], "otazky_bez_odpovedi": [f"Na Wikipedii není heslo „{topic}“."], "zdroje": [],
+            "cost_usd": 0.0, "id": research_id, "verze": verze}
+
+
 def register(app: FastAPI, chain: Chain, workflows) -> None:
     lib = chain.researcher.lib
 
@@ -262,7 +348,7 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
     @app.get("/api/v2/workflows/infografika/estimate")
     def chain_estimate(model: str | None = None, research: str | None = None):
         wf = Workflow(id="odhad", kind=KIND, model=model or proposals.DEFAULT_MODEL)
-        return chain.estimate(wf, STEPS[1:] if research else STEPS)
+        return chain.estimate(wf, rest("navrhy") if research else STEPS)
 
     @app.post("/api/v2/workflows/infografika", status_code=201)
     def chain_start(body: ChainIn):
@@ -280,12 +366,12 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
                 raise HTTPException(404, f"vzor {body.vzor} v knihovně předloh neexistuje")
         except RefLibError as e:
             raise HTTPException(400, str(e)) from e
-        draft = Workflow(id="odhad", kind=KIND, model=model)
-        est = chain.estimate(draft, STEPS[1:] if body.research else STEPS)
+        draft = Workflow(id="odhad", kind=KIND, model=model, qid=body.qid, vzor=body.vzor)
+        est = chain.estimate(draft, rest("navrhy") if body.research else STEPS)
         if not body.confirm_cost:
             return payment(est, "Řetězec")
         wf = workflows.create(kind=KIND, object=topic, qid=body.qid, vzor=body.vzor, model=model, urceni=body.urceni, caller=body.caller, research_id=body.research, budget_usd=est["total_usd"], stranky_usd=chain.step_usd(draft, "stranky"))
-        chain.enqueue(wf, "navrhy" if body.research else "podklady")
+        chain.enqueue(wf, "navrhy" if body.research else "zadani")
         return wf
 
     @app.post("/api/v2/workflows/{wf_id}/pick")
@@ -320,7 +406,13 @@ def register(app: FastAPI, chain: Chain, workflows) -> None:
         wf = get(wf_id)
         if wf.stage != "stop" or not wf.resume_stage:
             raise HTTPException(409, "řetězec nestojí, není co obnovit")
-        est = chain.estimate(wf, STEPS[STEPS.index(wf.resume_stage):])
+        if body.bez_webu:
+            if wf.resume_stage != "web":
+                raise HTTPException(409, "řetězec nestojí před hledáním na webu")
+            if not lib.dossier(wf.research_id)["facts"]:
+                raise HTTPException(409, "bez webu nejsou žádná fakta, není z čeho navrhovat")
+            wf.resume_stage = "navrhy"
+        est = chain.estimate(wf, rest(wf.resume_stage))
         if est["total_usd"] and not body.confirm_cost:
             return payment(est, "Pokračování")
         wf.budget_usd = round(wf.spent_usd + est["total_usd"], 4)

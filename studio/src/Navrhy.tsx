@@ -8,13 +8,13 @@ import { FactRow, ResearchBody, ROLES, type ResearchProps, type RoleKey } from '
 
 // Řetězec infografika z tématu (engine/chain.py): podklady a návrhy běží samy, operátor vybírá. Cena se schválila jednou na začátku.
 type View = 'podklady' | 'navrhy' | 'vyber' | 'stranky'
-const RUNNING: Chain['stage'][] = ['podklady', 'navrhy', 'kontrola', 'stranky']
+const RUNNING: Chain['stage'][] = ['zadani', 'podklady', 'web', 'navrhy', 'kontrola', 'stranky']
 const PAGES_WORD = (n: number) => (n === 1 ? 'stránka' : n >= 2 && n <= 4 ? 'stránky' : 'stránek')
 const SEVERITY_TAG: Record<string, string> = { vysoká: 'bad', střední: '', nízká: 'ok' }
 
 const viewOf = (wf: Chain): View => {
   const stage = wf.stage === 'stop' ? wf.resume_stage : wf.stage
-  if (stage === 'podklady') return 'podklady'
+  if (stage === 'zadani' || stage === 'podklady' || stage === 'web') return 'podklady'
   if (stage === 'stranky' || wf.serie.length) return 'stranky'
   return stage === 'navrhy' || stage === 'vyber' ? 'navrhy' : 'vyber'
 }
@@ -203,11 +203,11 @@ export default function ChainView({ id, onBack, ...props }: ResearchProps & { id
   const compose = async () => {
     try { setWf(await chainApi.pages(id)) } catch (e) { onError((e as Error).message) }
   }
-  const resume = async (confirm = false) => {
+  const resume = async (confirm = false, bezWebu = false) => {
     try {
-      setWf(await chainApi.resume(id, confirm))
+      setWf(await chainApi.resume(id, confirm, bezWebu))
     } catch (e) {
-      if (e instanceof PaymentRequired) setConfirm({ title: `Pokračovat: ${wf?.object}`, items: e.items, total: e.estimate, onOk: () => resume(true) })
+      if (e instanceof PaymentRequired) setConfirm({ title: `Pokračovat: ${wf?.object}`, items: e.items, total: e.estimate, onOk: () => resume(true, bezWebu) })
       else onError((e as Error).message)
     }
   }
@@ -250,13 +250,32 @@ export default function ChainView({ id, onBack, ...props }: ResearchProps & { id
         <section className="card conflicts">
           <h3>Řetězec stojí</h3>
           <p>{wf.stop_reason}</p>
-          <button className={`btn ${wf.resume_usd ? 'pay' : 'go'}`} onClick={() => resume(false)}>Pokračovat · {fmtUsd(wf.resume_usd)}</button>
+          {wf.resume_stage === 'web' ? (
+            <div className="row">
+              <button className="btn pay" onClick={() => resume(false)}>Hledat na webu · {fmtUsd(wf.resume_usd)}</button>
+              <button className="btn" onClick={() => resume(false, true)}>Pokračovat jen s Wikipedií</button>
+            </div>
+          ) : <button className={`btn ${wf.resume_usd ? 'pay' : 'go'}`} onClick={() => resume(false)}>Pokračovat · {fmtUsd(wf.resume_usd)}</button>}
+        </section>
+      )}
+
+      {wf.zadani && current === 'podklady' && (
+        <section className="card">
+          <h3>Zadání</h3>
+          <p>Hledám heslo <b>{wf.zadani.predmet}</b>{wf.zadani.predmet !== wf.object ? <> · otázka stránky: {wf.object}</> : null}</p>
+          {wf.zadani.otazky.length > 0 && <><b>Co musí podklady zodpovědět</b><ul className="citations">{wf.zadani.otazky.map((q) => <li key={q}>{q}</li>)}</ul></>}
+          {wf.zadani.vzor && (
+            <>
+              <p><b>Vzor:</b> {wf.zadani.vzor.o_cem} {wf.zadani.vzor.skladba}</p>
+              {wf.zadani.vzor.tvrzeni.length > 0 && <><b>Tvrzení vzoru k ověření</b><ul className="citations">{wf.zadani.vzor.tvrzeni.map((t) => <li key={t}>{t}</li>)}</ul></>}
+            </>
+          )}
         </section>
       )}
 
       {current === 'podklady' && (wf.research_id
         ? <ResearchBody id={wf.research_id} {...props} />
-        : <section className="card"><p><b>Dohledávám podklady…</b></p></section>)}
+        : <section className="card"><p><b>{wf.stage === 'zadani' ? 'Čtu zadání a vzor…' : 'Dohledávám podklady…'}</b></p></section>)}
 
       {current === 'navrhy' && (
         <>
