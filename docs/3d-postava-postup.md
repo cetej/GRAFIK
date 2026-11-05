@@ -1,6 +1,6 @@
 # 3D postava z podkladu: postup a pasti (legionář, 2026-11-05)
 
-Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v13 (platné: **v12** čistý, **v13** opotřebovaný; v4–v7 mají zdvojený meč a dýku v boku, v8–v9 nakřivo puklici a pugio bez rukojeti, v10–v11 pugio u lokte a zezadu odstává). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
+Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v16 (platné: **v15** čistý, **v16** opotřebovaný; v12–v13 zbytek starého jílce u lokte, v14 díra v boku; v4–v7 mají zdvojený meč a dýku v boku, v8–v9 nakřivo puklici a pugio bez rukojeti, v10–v11 pugio u lokte a zezadu odstává). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
 
 ## Kdy tahle cesta, kdy jiná
 
@@ -68,3 +68,8 @@ Postava je jeden mesh se štítem a pilem: na jiné pózy a pohyb rigging (Mixam
 ## Přidaný díl kontroluj ze všech stran, i zezadu
 
 Pugio v10 vypadalo zepředu dobře, zezadu odstávalo od boku a rukojeť vedla do lokte (operátor u v11). Před umístěním změř profil těla v několika úhlech a výškách i s rukama (`r` do 0,24): ruka opřená o štít zabírá úhly, kde by díl jinak seděl. Vtlačení původního dílu omez barvou i polohou: kůže dál od osy je paže, ne díl, a vynech i její sousedy, jinak zůstane trn.
+
+
+## Nechtěný díl z generátoru vyřízni a díru zacel vějířem
+
+Vtlačení dílu do těla nechá zmuchlaný zbytek. Díl, který leží těsně u povrchu, podle vzdálenosti od osy nenajdeš. Pomůže mapa hloubky paprsků z kamery: zbytek, opasek, zbroj a paže mají každý jinou hloubku. Po smazání `holes_fill` a `triangle_fill` u zubatých okrajů selhávají (díra, nebo plochy přes celé tělo). Spolehlivý je vějíř: pro každou souvislou skupinu okrajových hran jeden nový vrchol ve středu (zasunutý pod povrch), trojúhelník na hranu, jedna UV pro celý vějíř a krátké vyhlazení okolí. Ověř 0 otevřených hran a prohlédni i `viewer.glb` (hlína ve Studiu).
