@@ -8,6 +8,7 @@
 # 9:16: vorvaň svisle hlavou nahoru vlevo (tak i spí, f21), popisky vpravo ve výšce svého orgánu.
 # 16:9 (hlavní verze) ze stejných vrstev: vorvaň vodorovně, popisky nad a pod tělem.
 #   python scripts/plakaty/vorvan_stranka.py DATA_DIR
+import json
 import sys
 from pathlib import Path
 
@@ -163,6 +164,18 @@ def whale_svg(data: Path, x0: float, y0: float, s: float, upright: bool):
     return svg, at, size[0], size[1]
 
 
+def glow_layer(figure: Image.Image, x: float, y: float, w: float, name: str = "Záře kolem potápěče") -> str:
+    """Jemná záře kolem těla postavy (operátor: „je špatně viditelný“, „víc kolem těla“, „jemněji“): rozostřená silueta."""
+    pad = round(figure.width * 0.08)
+    sil = Image.new("L", (figure.width + 2 * pad, figure.height + 2 * pad), 0)
+    sil.paste(figure.getchannel("A"), (pad, pad))
+    halo = sil.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(pad * 0.55))
+    glow = Image.new("RGBA", sil.size, (150, 225, 232, 0))
+    glow.putalpha(halo.point(lambda v: round(v * 0.32)))
+    k = w / figure.width
+    return group(name, image_tag(glow, x - pad * k, y - pad * k, glow.width * k, glow.height * k, "PNG"))
+
+
 def diver_layer(data: Path, mouth: tuple[float, float], px_per_m: float, facing_left: bool) -> str:
     """Potápěč ve stejném měřítku jako hlava vorvaně: tělo s ploutvemi kolem 2,3 m, hlavou k tlamě."""
     diver = Image.open(data / "potapec-vrstva.png")          # ve vrstvě plave doleva
@@ -172,16 +185,50 @@ def diver_layer(data: Path, mouth: tuple[float, float], px_per_m: float, facing_
     h = diver.height * w / diver.width
     x = mouth[0] if facing_left else mouth[0] - w
     y = mouth[1] - h * 0.45
-    # jemná záře kolem těla potápěče (operátor: „je špatně viditelný“, „víc kolem těla“): rozostřená silueta, ne elipsa
-    pad = round(diver.width * 0.08)
-    sil = Image.new("L", (diver.width + 2 * pad, diver.height + 2 * pad), 0)
-    sil.paste(diver.getchannel("A"), (pad, pad))
-    halo = sil.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(pad * 0.55))
-    glow = Image.new("RGBA", sil.size, (150, 225, 232, 0))
-    glow.putalpha(halo.point(lambda v: round(v * 0.32)))     # jemněji (operátor 5. 11.)
-    k = w / diver.width
-    return (group("Záře kolem potápěče", image_tag(glow, x - pad * k, y - pad * k, glow.width * k, glow.height * k, "PNG"))
-            + group("Potápěč", image_tag(diver, x, y, w, h, "PNG")))
+    return glow_layer(diver, x, y, w) + group("Potápěč", image_tag(diver, x, y, w, h, "PNG"))
+
+
+def scene_2d(data: Path, fmt: str, box: tuple[float, float, float, float]):
+    """2D vrstvy z FLUX. Vrací (grafika, bod podle jména → stránka, šířka, výška)."""
+    x0, y0, bw, bh = box
+    whale_w = Image.open(data / "vorvan-vrstva.png").width
+    if fmt == "9x16":
+        s = bh / (whale_w * PERSP_C)
+        whale_s, at, ww, wh = whale_svg(data, x0, y0, s, upright=True)
+        mouth = at(290, 252)
+        diver = diver_layer(data, (mouth[0] + 10, mouth[1]), whale_w * s / WHALE_M, facing_left=True)
+    else:
+        s = bw / (whale_w * PERSP_C)
+        whale_s, at, ww, wh = whale_svg(data, x0, y0, s, upright=False)
+        jaw = at(40, 262)
+        diver = diver_layer(data, (jaw[0] - 14, jaw[1]), whale_w * s / WHALE_M, facing_left=False)
+    points = {head: at(px, py) for (px, py), head, _ in LABELS}
+    return [whale_s, diver], points.__getitem__, ww, wh
+
+
+def scene_3d(render: Path, fmt: str, box: tuple[float, float, float, float], align: str):
+    """Vrstvy z Blenderu (scripts/3d/vorvan_scena.py): vnitřek, průsvitná kůže, potápěč, stejná kamera, body z body.json.
+    Všechny vrstvy se oříznou stejně na společný obsah a vejdou do `box`. Vrací totéž co scene_2d."""
+    d = render / fmt
+    ims = {n: Image.open(d / f"{n}.png").convert("RGBA") for n in ("vnitrek", "kuze", "potapec")}
+    union = np.zeros(ims["kuze"].size[::-1], bool)
+    for im in ims.values():
+        union |= np.asarray(im.getchannel("A")) > 8
+    ys, xs = np.nonzero(union)
+    crop = (max(0, int(xs.min()) - 6), max(0, int(ys.min()) - 6), min(union.shape[1], int(xs.max()) + 7), min(union.shape[0], int(ys.max()) + 7))
+    cw, ch = crop[2] - crop[0], crop[3] - crop[1]
+    x0, y0, bw, bh = box
+    k = min(bw / cw, bh / ch)
+    w, h = cw * k, ch * k
+    x = x0 if align == "left" else x0 + (bw - w) if align == "right" else x0 + (bw - w) / 2
+    y = y0 + (bh - h) / 2 if fmt == "16x9" else y0
+    layers = {n: im.crop(crop) for n, im in ims.items()}
+    graphics = [group("Vnitřnosti 3D", image_tag(layers["vnitrek"], x, y, w, h, "PNG")),
+                group("Průsvitná kůže", image_tag(layers["kuze"], x, y, w, h, "PNG")),
+                glow_layer(layers["potapec"], x, y, w),
+                group("Potápěč", image_tag(layers["potapec"], x, y, w, h, "PNG"))]
+    pts = json.loads((d / "body.json").read_text(encoding="utf-8"))["points"]
+    return graphics, (lambda name: (x + (pts[name][0] - crop[0]) * k, y + (pts[name][1] - crop[1]) * k)), w, h
 
 
 def rings_inset(x: float, y: float, cm: float = 2.6, step: float = 190, head: int = 40) -> tuple[str, str, float]:
@@ -209,25 +256,21 @@ def svg_page(W: int, H: int, graphics: list[str], texts: list[str]) -> str:
             + group("Grafika", "".join(graphics)) + group("Texty", "".join(texts)) + "</svg>")
 
 
-def page_916(data: Path) -> tuple[str, int, int]:
+def page_916(data: Path, render: Path | None = None) -> tuple[str, int, int]:
     """Vorvaň svisle vlevo, popisky vpravo ve výšce svého orgánu (operátor: obraz a popisky zrcadlově)."""
     W, H = 1080, 1920
     TT, LEAD_S, HEAD, LINE, NOTE = 84, 40, 40, 36, 27
     M = 40
-    whale_w = Image.open(data / "vorvan-vrstva.png").width
-    y0 = 150
-    s = (H - y0 - 40) / (whale_w * PERSP_C)
-    whale_s, at, ww, wh = whale_svg(data, 20, y0, s, upright=True)
+    box = (20, 150, 470, H - 150 - 40)
+    graphics, at, ww, wh = scene_3d(render, "9x16", box, "left") if render else scene_2d(data, "9x16", box)
     col_x = 20 + ww + 50
     col = W - M - col_x
     texts = [group("Titulek", text(M, 104, TITLE, TT, WHITE, 700))]
     lead_rows = wrap_px(LEAD, col, LEAD_S)
     texts.append(group("Úvod", lines(col_x, 210, lead_rows, LEAD_S, DIM)))
     prev_bottom = 210 + (len(lead_rows) - 1) * LEAD_S * 1.22 + 20
-    mouth = at(290, 252)
-    graphics = [whale_s, diver_layer(data, (mouth[0] + 10, mouth[1]), whale_w * s / WHALE_M, facing_left=True)]
-    for (px, py), head, body in LABELS:
-        bx, by = at(px, py)
+    for _, head, body in LABELS:
+        bx, by = at(head)
         rows = wrap_px(body, col, LINE)
         top = max(by - 14, prev_bottom + 30)
         line_y = top + HEAD * 0.5
@@ -243,25 +286,22 @@ def page_916(data: Path) -> tuple[str, int, int]:
     return svg_page(W, H, graphics, texts), W, H
 
 
-def page_169(data: Path) -> tuple[str, int, int]:
+def page_169(data: Path, render: Path | None = None) -> tuple[str, int, int]:
     """Hlavní verze 16:9: vorvaň vodorovně hlavou vlevo, potápěč před tlamou, popisky nad a pod tělem u svého orgánu."""
     W, H = 1920, 1080
     TT, HEAD, LINE, NOTE = 112, 48, 40, 30
     M = 60
-    whale_w = Image.open(data / "vorvan-vrstva.png").width
-    x0, y0 = 380, 330
-    s = (W - 30 - x0) / (whale_w * PERSP_C)
-    whale_s, at, ww, wh = whale_svg(data, x0, y0, s, upright=False)
-    jaw = at(40, 262)
-    graphics = [whale_s, diver_layer(data, (jaw[0] - 14, jaw[1]), whale_w * s / WHALE_M, facing_left=False)]
+    box = (M, 330, W - 30 - M, 400) if render else (380, 330, W - 30 - 380, 400)
+    graphics, at, ww, wh = scene_3d(render, "16x9", box, "right") if render else scene_2d(data, "16x9", box)
     texts = [group("Titulek", text(M, 140, TITLE, TT, WHITE, 700)),
              group("Úvod", text(M, 210, "Vorvaň (16 m) a potápěč ve stejném měřítku.", 40, DIM))]
-    # popisek: (nad tělem?, levý okraj textu, šířka)
-    place = {"Tlama": (False, 470, 300), "Jícen": (False, 800, 330), "Předžaludek": (True, 910, 470),
-             "Hlavní žaludek": (False, 1160, 220), "Střevo": (True, 1420, 440)}
-    for (px, py), head, body in LABELS:
-        above, x, w = place[head]
-        bx, by = at(px, py)
+    # popisek: (nad tělem?, posun textu vůči bodu, šířka)
+    place = {"Tlama": (False, -110, 300), "Jícen": (False, -30, 330), "Předžaludek": (True, -100, 470),
+             "Hlavní žaludek": (False, -30, 220), "Střevo": (True, -20, 440)}
+    for _, head, body in LABELS:
+        above, dx, w = place[head]
+        bx, by = at(head)
+        x = bx + dx
         rows = wrap_px(body, w, LINE)
         block = HEAD * 0.8 + HEAD * 1.1 + (len(rows) - 1) * LINE * 1.22 + LINE * 0.3
         top = 345 - block if above else 720
@@ -277,11 +317,14 @@ def page_169(data: Path) -> tuple[str, int, int]:
 
 
 if __name__ == "__main__":
+    # python scripts/plakaty/vorvan_stranka.py DATA_DIR [--3d RENDER_DIR]
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     data = Path(sys.argv[1])
+    render = Path(sys.argv[sys.argv.index("--3d") + 1]) if "--3d" in sys.argv else None
     out = data.parent / "stranky"
-    for stem, page in (("vorvan-9x16", page_916), ("vorvan-16x9", page_169)):
-        svg, w, h = page(data)
+    prefix = "vorvan-3d" if render else "vorvan"
+    for stem, page in ((f"{prefix}-9x16", page_916), (f"{prefix}-16x9", page_169)):
+        svg, w, h = page(data, render)
         print(stem)
         write_poster(svg, out, stem, w, h, TITLE, None, ai=True)
     (out / "zdroje.txt").write_text(CREDITS, encoding="utf-8")
