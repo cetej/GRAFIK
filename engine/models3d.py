@@ -352,7 +352,11 @@ class Model3dLibrary:
         out = []
         for d in self.root.iterdir():
             if d.is_dir() and self._versions(d.name):
-                m = self.latest(d.name)
+                try:
+                    m = self.latest(d.name)
+                except Model3dError:
+                    # a folder written by a script (only model.glb, no model.json) must not stop the Engine start
+                    continue
                 out.append({**m, "versions": len(self._versions(d.name))})
         return sorted(out, key=lambda m: m["created"], reverse=True)
 
