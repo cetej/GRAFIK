@@ -81,7 +81,8 @@ class Workflow(BaseModel):
     model: str = ""
     urceni: str = "web"                 # infografika: web (výchozí), nebo tisková příloha
     caller: str = "studio"
-    stage: str = ""                      # podklady | navrhy | vyber | kontrola | hotovo | stop
+    stage: str = ""                      # zadani | podklady | web | navrhy | vyber | kontrola | hotovo | stop
+    zadani: dict | None = None           # rozbor zadání (engine/zadani.py): heslo pro rešerši, otázky, čtení vzoru
     research_id: str | None = None
     step_job: str | None = None
     budget_usd: float = 0.0              # schválená cena celého řetězce

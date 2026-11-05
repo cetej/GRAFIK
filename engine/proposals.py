@@ -111,6 +111,7 @@ def dossier_text(dossier: dict, own: list[dict] | tuple = ()) -> str:
             roles[image["role"]] = roles.get(image["role"], 0) + 1
     entity = dossier["entita"]
     lines = [f"TÉMA: {entity['label']} ({entity.get('popis') or dossier['tema']})",
+             *([f"OTÁZKA ZADÁNÍ, na kterou má stránka odpovědět: {dossier['otazka']}"] if dossier.get("otazka") else []),
              "VLASTNÍ OBRAZY: " + ("; ".join(f"{o['id']}: {o['nazev']}" for o in own) or "žádné"),
              "OBRÁZKY K DISPOZICI: " + (", ".join(f"{k} {v}" for k, v in roles.items()) or "žádné"), "FAKTA:"]
     lines += [f"{f['id']} [{f['stav']}, {f['tema']}] {f['tvrzeni'][:MAX_FACT_TEXT]}" for f in dossier["facts"]]

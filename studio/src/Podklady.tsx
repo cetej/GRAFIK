@@ -59,7 +59,7 @@ const fmtValue = (v: FactSource['hodnota'], unit: string | null) => {
   return `${Array.isArray(v) ? `${num(v[0])}–${num(v[1])}` : num(v)}${unit ? ` ${unit}` : ''}`
 }
 
-const STAGE_LABEL: Record<Chain['stage'], string> = { podklady: 'dohledává podklady', navrhy: 'skládá návrhy', vyber: 'čeká na výběr návrhu', stranky: 'skládá stránky', kontrola: 'kontroluje návrh', hotovo: 'návrh vybrán', stop: 'stojí, čeká na vás' }
+const STAGE_LABEL: Record<Chain['stage'], string> = { zadani: 'čte zadání a vzor', podklady: 'dohledává podklady', web: 'hledá na webu',navrhy: 'skládá návrhy', vyber: 'čeká na výběr návrhu', stranky: 'skládá stránky', kontrola: 'kontroluje návrh', hotovo: 'návrh vybrán', stop: 'stojí, čeká na vás' }
 
 export function TopicStart({ chains, onOpen, onChain, setConfirm, onError }: {
   chains: (Workflow | Chain)[]; onOpen: (id: string) => void; onChain: (id: string) => void; setConfirm: (c: Confirm) => void; onError: (msg: string) => void
@@ -278,7 +278,7 @@ function DossierView({ state, dossier, onOpenVersion, onOpen, setConfirm, onErro
         <div className="row between">
           <div>
             <h2 className="dossier-title">{dossier.entita.label}</h2>
-            <span className="hint">{dossier.entita.druh && KIND_LABEL[dossier.entita.druh] ? `${KIND_LABEL[dossier.entita.druh]} · ` : ''}{dossier.entita.popis} · <a href={dossier.entita.url} target="_blank" rel="noreferrer">Wikidata {dossier.entita.qid}</a> · verze {dossier.verze}{dossier.cost_usd ? ` · ${fmtUsd(dossier.cost_usd)}` : ' · 0 USD'}</span>
+            <span className="hint">{dossier.entita.druh && KIND_LABEL[dossier.entita.druh] ? `${KIND_LABEL[dossier.entita.druh]} · ` : ''}{dossier.entita.popis} · {dossier.entita.qid ? <a href={dossier.entita.url} target="_blank" rel="noreferrer">Wikidata {dossier.entita.qid}</a> : 'bez hesla na Wikipedii'} · verze {dossier.verze}{dossier.cost_usd ? ` · ${fmtUsd(dossier.cost_usd)}` : ' · 0 USD'}</span>
           </div>
           <div className="row tight">
             <button className="btn" onClick={() => setAskQid(!askQid)}>Jiná položka</button>

@@ -1,5 +1,11 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-05 — Řetězec infografiky skončil u otázky a vzor nečetl
+
+- **Téma jako otázka („Spolkl by vorvaň člověka?“) Wikidata jako heslo nenajde**, rešerše spadla a řetězec stál dřív, než vzor kdokoli otevřel (vzor četl až krok Návrhy). Samotné „vorvaň“ najde Q81214 se 132 fakty.
+- Oprava: krok Zadání na začátku (model přečte vzor a téma, ~0,01 USD), rešerše hledá heslo, `NotFound` zkusí anglické heslo a pak prázdný dossier; otázky zadání a tvrzení vzoru nabídnou hledání na webu s cenou místo konce.
+- Obecně: krok, který čte vstup operátora (vzor, otázku), patří před první krok, který může selhat. Jinak vstup operátora tiše propadne.
+
 ## 2026-11-04 — Vrstvy objektů: co SAM-3, Claude a FLUX dělají jinak, než čekáš
 
 - **SAM-3 s víc rámečky v jednom volání vrátí jen jednu masku** (sonda na sklenici, lupě a papírech: 3 rámečky, 1 maska lupy). Na každý objekt jedno volání.

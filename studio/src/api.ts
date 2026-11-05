@@ -258,7 +258,8 @@ export interface Chain {
   object: string
   vzor: string | null
   model: string
-  stage: 'podklady' | 'navrhy' | 'vyber' | 'kontrola' | 'stranky' | 'hotovo' | 'stop'
+  stage: 'zadani' | 'podklady' | 'web' | 'navrhy' | 'vyber' | 'kontrola' | 'stranky' | 'hotovo' | 'stop'
+  zadani: { predmet: string; predmet_en: string | null; druh: string; otazky: string[]; vzor: { o_cem: string; skladba: string; tvrzeni: string[] } | null } | null
   research_id: string | null
   budget_usd: number
   spent_usd: number
@@ -280,7 +281,7 @@ export const chainApi = {
   get: (id: string) => call<Chain>(`/api/v2/workflows/${id}`),
   pick: (id: string, navrh: number, stranky: number[]) => post<Chain>(`/api/v2/workflows/${id}/pick`, { navrh, stranky }),
   pages: (id: string) => post<Chain>(`/api/v2/workflows/${id}/stranky`, {}),
-  resume: (id: string, confirm: boolean) => post<Chain>(`/api/v2/workflows/${id}/continue`, { confirm_cost: confirm }),
+  resume: (id: string, confirm: boolean, bezWebu = false) => post<Chain>(`/api/v2/workflows/${id}/continue`, { confirm_cost: confirm, bez_webu: bezWebu }),
 }
 
 export const imageUrl = (ref: string, w?: number) =>

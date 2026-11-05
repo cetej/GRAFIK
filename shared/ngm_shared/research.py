@@ -52,6 +52,10 @@ class ResearchError(RuntimeError):
     """Rešerše nejde udělat. Zpráva je pro UI."""
 
 
+class NotFound(ResearchError):
+    """K tématu není položka Wikidaty; řetězec infografiky pak zkusí jiné heslo nebo web."""
+
+
 Get = Callable[[str, dict], dict]
 SKETCHFAB = "api.sketchfab.com"
 GOOGLE_PATENTS = "patents.google.com"
@@ -146,7 +150,7 @@ def find_entity(topic: str, qid: str | None = None, get: Get = get_json) -> dict
             break
         qid = _search_entity(topic, lang, get)
     if not qid:
-        raise ResearchError(f"k tématu „{topic}“ jsem na Wikipedii nic nenašel")
+        raise NotFound(f"k tématu „{topic}“ jsem na Wikipedii nic nenašel")
     data = get("www.wikidata.org", {"action": "wbgetentities", "ids": qid, "props": "labels|descriptions|claims|sitelinks|info",
                                     "languages": "cs|en|de|it"})
     item = (data.get("entities") or {}).get(qid)
