@@ -1,6 +1,6 @@
 # 3D postava z podkladu: postup a pasti (legionář, 2026-11-05)
 
-Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v7. Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
+Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v9 (platné: **v8** čistý, **v9** opotřebovaný; v4–v7 mají zdvojený meč a dýku v boku). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
 
 ## Kdy tahle cesta, kdy jiná
 
@@ -18,7 +18,7 @@ Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rims
 | 4 | Bílý model: Engine, Hunyuan3D v3 multi-view, Geometry | 0,375 | Engine `POST /models3d` |
 | 5 | Obarvený model: Hunyuan3D v3 `generate_type: Normal` + pohledy, přímo přes fal (Engine má generátor napevno na Geometry) | 0,525 | `legionar_fal_barevny.py` |
 | 6 | Lesk kovu: metallic-roughness mapa z barvy textury | 0 | `legionar_lesk_zbroje.py` |
-| 7 | Vyráběné díly vymodelovat a položit **přes** původní (pilum, gladius, puklice) | 0 | `legionar_hrot_pila.py`, `legionar_dily_kov.py` |
+| 7 | Vyráběné díly vymodelovat a položit **přes** původní (pilum, puklice, pugio); co nový díl nezakryje ze všech stran, nechat z generátoru (meč) | 0 | `legionar_hrot_pila.py`, `legionar_dily_kov.py` |
 | 8 | Kování a prvky přilby jako mosaz, ocel sjednotit | 0 | `legionar_dily_kov.py` |
 | 9 | Opotřebení na tažení zapéct do textur | 0 | `legionar_opotrebeni.py` |
 | 10 | Kontrola: rendery se studiovým HDRI, **výřezy v plné velikosti** (hlava, kování, meč, nohy) | 0 | `legionar_render_pohledy.py` |
@@ -45,8 +45,12 @@ Polohy dílů (osa pochvy, střed puklice) dává `legionar_sonda_dily.py`: barv
 - Vertex dirt (`paint.vertex_color_dirt`): medián ~0,06, ne 0,5. Pevný práh označí celý model za záhyb. Práh z percentilů (záhyb = nejnižší čtvrtina). A atribut `FLOAT_COLOR`, bajtový se čte přes sRGB.
 
 **Vymodelované díly**
+- **Díl položený přes původní funguje jen tam, kde ho původní zakryje ze všech stran.** Gladius přes původní meč zepředu seděl, ale z boku, zezadu a šikmo shora přes ruku byly vidět dva (operátor ve v7 při zvětšení). Polohu jsem měřil jen z přední strany, původní pochva byla o 2 cm silnější. Kontrolovat z boku, zezadu a shora, ne jen zepředu. U legionáře nakonec zůstal meč z generátoru (sám zdvojený není) a vymodelovaný byl vyřazen (v8).
+- **Síť z generátoru je jeden souvislý kus** (po spojení švů UV: 1 komponenta, meč, dýka, štít i pilum srostlé s tělem). Původní díl nejde vyříznout. Po načtení glTF se síť jeví jako tisíce kousků, to jsou ostrůvky textury; `remove_doubles` je spojí.
+- **Odstranit vyčnívající díl:** vyhlazení okna (300 iterací) stáhlo i okolní tuniku (posun 9 758 z 11 876 bodů). Zatlačení pod povrch zmačkalo texturu do viditelné skvrny. Funguje jen u malého dílu, který pak zakryje nový: dýka zatlačena radiálně k povrchu boku, **jen body blízko osy** (poloměr < 0,16): bez té podmínky zatlačení roztrhlo horní okraj štítu, který leží ve stejném úhlu. Kontrola výpočtem: nejbližší bod v nové síti pro každý bod štítu, posun 0,0 mm (`legionar_sonda_kusy.py`, `legionar_detail_render.py`).
 - Osu dílu měř z profilu (řezy po výšce, okraj předmětu), ne z PCA malého vzorku: pochva vyšla nakloněná a 2,5 cm vedle, byly dva jílce.
 - Díly pokládat přes původní tvar, nic nemazat: v síti nevzniknou díry. Pochvu o 1–3 mm před původní plochu, jinak prosvítají kousky původního kování.
+- Puklice na prohnutém štítu: osu kopule vodorovně (PCA desky dala sklon a puklice byla nakřivo), střed = těžiště podložní desky, žádný rovný kroužek kolem (na prohnutém štítu z jedné strany zapadá).
 - Sdílený materiál upravovat jednou: smyčka přes díly ho ztlumila tolikrát, kolik dílů ho používá (mosaz 12×, zčernala).
 - Ploché mosazné pásky odrážejí studiové světlo krémově: zkosit hrany, drsnost ≥ 0,45.
 

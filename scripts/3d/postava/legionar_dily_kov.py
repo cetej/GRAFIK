@@ -1,5 +1,5 @@
 # Vyráběné díly legionáře nahrazené vymodelovanými (0 USD), položené přes původní tvar z generátoru:
-# gladius v pochvě (hlavice, rukojeť, záštita, pochva s kováním a koncovkou), puklice štítu,
+# pugio v pochvě na levém boku (původní dýka zatlačena do boku), puklice štítu,
 # kování zbroje jako kov (maska z barvy textury, malba štítu zůstane matná).
 # blender -b --factory-startup --python dily_kov.py -- <in.glb> <out.glb> <render_dir> <hdri.exr>
 import bpy, bmesh, sys, os
@@ -15,6 +15,33 @@ body = max((o for o in bpy.context.scene.objects if o.type == "MESH"), key=lambd
 bpy.context.view_layer.objects.active = body
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 me = body.data
+
+# původní dýka z generátoru je srostlá s tělem (síť je jeden kus) a trčí šikmo z boku: zatlačit ji do povrchu
+# (operátor: dýka zaražená v boku). Meč z generátoru zůstává, vymodelovaný přes něj dělal zdvojení.
+bm = bmesh.new(); bm.from_mesh(me)
+bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)  # švy UV rozpojují síť, vyhlazení by ji roztrhlo
+
+
+bm.verts.ensure_lookup_table()
+P0 = np.array([v.co for v in bm.verts])
+
+
+def push_radial(a0, a1, z0, z1, margin=0.006):
+    """Body v úhlovém okně dál od osy než povrch boku (z okolních úhlů, jen r < 0,16 – štít ne) zatlačit dovnitř."""
+    ang = np.degrees(np.arctan2(P0[:, 1] - 0.006, P0[:, 0] + 0.008)); rr = np.hypot(P0[:, 0] + 0.008, P0[:, 1] - 0.006)
+    n_ = 0
+    for zz in np.arange(z0, z1, 0.01):
+        ring = (((ang > a0 - 8) & (ang < a0 - 2)) | ((ang > a1 + 2) & (ang < a1 + 8))) & (np.abs(P0[:, 2] - zz) < 0.005) & (rr < 0.16)
+        if ring.sum() < 3: continue
+        rb = float(np.percentile(rr[ring], 70))
+        for k in np.where((ang > a0) & (ang < a1) & (np.abs(P0[:, 2] - zz) < 0.005) & (rr > rb + margin) & (rr < 0.16))[0]:  # štít leží dál než 0,16
+            v = bm.verts[int(k)]; d = Vector((v.co.x + 0.008, v.co.y - 0.006, 0)).normalized()
+            v.co.x = -0.008 + d.x * (rb - 0.002); v.co.y = 0.006 + d.y * (rb - 0.002); n_ += 1
+    return n_
+
+
+print("push dagger", push_radial(8.0, 28.0, 0.55, 0.71))
+bm.to_mesh(me); bm.free()
 co = np.array([v.co for v in me.vertices]); x, y, z = co.T
 
 
@@ -27,9 +54,7 @@ def metal(name, rgb, rough, metallic=1.0):
 
 
 BRASS = metal("mosaz", (0.62, 0.38, 0.11), 0.45)
-LEATHER = metal("pochva_kuze", (0.010, 0.011, 0.024), 0.8, 0.0)
 WOOD = metal("drevo", (0.30, 0.15, 0.07), 0.55, 0.0)
-BONE = metal("kost", (0.78, 0.70, 0.55), 0.5, 0.0)
 new = []
 
 
@@ -143,23 +168,25 @@ hg = (P - pcen) @ n_
 D = P[hg > 0.5 * hg.max()]; dc = D.mean(0); base_pt = dc - ((dc - pcen) @ n_) * n_
 rad = float(np.percentile(np.linalg.norm((D - dc) - np.outer((D - dc) @ n_, n_), axis=1), 95))
 R = max(rad, 0.022) * 1.5; Hd = float(hg.max()) + 0.004  # překrýt celé původní vyboulení
-nrm = Vector(n_.tolist()); surf = Vector(base_pt.tolist())
+# štít stojí svisle: osa kopule vodorovně (PCA dala sklon -0,05 → puklice nakřivo), střed = střed desky
+n_[2] = 0.0; n_ /= np.linalg.norm(n_)
+nrm = Vector(n_.tolist()); surf = Vector(pcen.tolist())
 print("boss base", tuple(round(c, 3) for c in surf), "normal", tuple(round(c, 3) for c in nrm), "R", round(R, 4), "height", round(Hd, 4))
 bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=R)
 boss = bpy.context.object; boss.scale = (1, 1, (Hd + 0.002) / R)
 bpy.ops.object.transform_apply(scale=True)
 for f in boss.data.polygons: f.use_smooth = True
 frame = nrm.to_track_quat("Z", "Y").to_matrix()
-place(boss, BRASS, frame, surf)
-bpy.ops.mesh.primitive_torus_add(major_radius=R * 1.04, minor_radius=0.003, major_segments=48, minor_segments=12)
-rim = bpy.context.object
-for f in rim.data.polygons: f.use_smooth = True
-place(rim, BRASS, frame, surf + nrm * 0.001)
+place(boss, BRASS, frame, surf)  # bez rovného kroužku: na prohnutém štítu z jedné strany zapadal
 
-# ---- 3) gladius v pochvě ----
+# ---- 3) osa meče (jen pro kontrolní záběry) ----
 # osa ze svislého profilu (levý okraj pochvy, střed jílce); přední plocha pochvy y ≈ -0,065 a výš mírně ustupuje
 up = Vector((0.0, 0.05, 1.0)).normalized()
-c0 = Vector((-0.114, -0.061, 0.469))
+# po vyhlazení původního meče: přední povrch těla v ose pochvy, pochva (tloušťka 0,017) k němu přiléhá
+col_ = (np.abs(x + 0.114) < 0.01) & (z > 0.36) & (z < 0.56) & (y < 0.0)
+y_bg = float(np.median([y[col_ & (np.abs(z - zz) < 0.01)].min() for zz in np.arange(0.37, 0.56, 0.02) if (col_ & (np.abs(z - zz) < 0.01)).any()]))
+c0 = Vector((-0.114, y_bg - 0.0085 - 0.002, 0.469))
+print("sword surface y", round(y_bg, 4), "centre", tuple(round(c, 3) for c in c0))
 def at(zz):
     return c0 + up * ((zz - c0.z) / up.z)
 wdir = up.cross(Vector((0, 1, 0))).normalized()  # šířka pochvy ~ osa X
@@ -167,55 +194,52 @@ tdir = wdir.cross(up).normalized()
 F = Matrix((wdir, tdir, up)).transposed()  # lokální X šířka, Y tloušťka, Z osa
 z_top, z_bot = 0.610, 0.300
 L = (z_top - z_bot) / up.z
-# pochva: zužující se kvádr
-bpy.ops.mesh.primitive_cube_add(size=1)
-sc_ = bpy.context.object
-bm = bmesh.new(); bm.from_mesh(sc_.data)
+# vymodelovaný gladius vyřazen (operátor: meč zdvojený); zůstává původní meč z generátoru, osa `at` jen pro kontrolní záběry
+
+# ---- 4) pugio v pochvě na levém boku (původní dýka trčela šikmo z boku, čepel v těle) ----
+IRON = metal("zelezo_pugio", (0.38, 0.38, 0.40), 0.4)
+th = np.radians(17.0)  # úhel místa, kde byla původní rukojeť (x 0,105, y 0,04)
+out_ = Vector((np.cos(th), np.sin(th), 0.0))
+ang_ = np.degrees(np.arctan2(y - 0.006, x + 0.008)); rr = np.hypot(x + 0.008, y - 0.006)
+side = (np.abs(ang_ - 17.0) < 5) & (z > 0.47) & (z < 0.57) & (rr < 0.16)  # štít leží ve stejném úhlu dál od osy
+r_bg = float(np.percentile(rr[side], 90))
+pz_top, pz_bot = 0.585, 0.455
+ax0 = Vector((-0.008, 0.006, 0.0)) + out_ * (r_bg + 0.006 + 0.002)
+Fp = Matrix((Vector((0, 0, 1)).cross(out_), out_, Vector((0, 0, 1)))).transposed()  # X šířka, Y ven, Z nahoru
+print("pugio surface r", round(r_bg, 4), "at", tuple(round(c, 3) for c in ax0))
+def pat(zz):
+    return Vector((ax0.x, ax0.y, zz))
+bpy.ops.mesh.primitive_cube_add(size=1); sh = bpy.context.object
+bm = bmesh.new(); bm.from_mesh(sh.data)
 for v in bm.verts:
-    v.co.x *= 0.048; v.co.y *= 0.021; v.co.z *= L
-    if v.co.z < 0: v.co.x *= 0.78
-bm.to_mesh(sc_.data); bm.free()
-bpy.ops.object.modifier_add(type="BEVEL"); sc_.modifiers[-1].width = 0.004; sc_.modifiers[-1].segments = 3
-bpy.ops.object.modifier_apply(modifier=sc_.modifiers[-1].name)
-place(sc_, LEATHER, F, at((z_top + z_bot) / 2))
-# kování pochvy: dvě objímky s kroužky nahoře, jedna uprostřed, koncovka dole
-for zz, hh in ((0.598, 0.024), (0.548, 0.014), (0.47, 0.012), (0.395, 0.012)):
-    bpy.ops.mesh.primitive_cube_add(size=1); band = bpy.context.object
-    frac = (z_top - zz) / (z_top - z_bot); wfac = 1 - 0.22 * frac
-    band.scale = (0.052 * wfac, 0.027, hh); bpy.ops.object.transform_apply(scale=True)
-    bpy.ops.object.modifier_add(type="BEVEL"); band.modifiers[-1].width = 0.0035; band.modifiers[-1].segments = 4
-    bpy.ops.object.modifier_apply(modifier=band.modifiers[-1].name)
-    for f in band.data.polygons: f.use_smooth = True
-    place(band, BRASS, F, at(zz))
-for zz in (0.598, 0.548):  # kroužky závěsu po stranách
-    for s in (-1, 1):
-        bpy.ops.mesh.primitive_torus_add(major_radius=0.007, minor_radius=0.0018, major_segments=20, minor_segments=8)
-        ring = bpy.context.object; ring.rotation_euler = (0, 1.5708, 0); bpy.ops.object.transform_apply(rotation=True)
-        place(ring, BRASS, F, at(zz) + wdir * s * 0.03)
-bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=0.022, radius2=0.0, depth=0.035)
-chape = bpy.context.object; chape.rotation_euler = (3.14159, 0, 0.785); chape.scale = (1, 0.5, 1)
-bpy.ops.object.transform_apply(rotation=True, scale=True)
-place(chape, BRASS, F, at(z_bot) - up * 0.008)
-bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=12, radius=0.007)
-knob = bpy.context.object; place(knob, BRASS, F, at(z_bot) - up * 0.028)
-# jílec: záštita, rukojeť s žebry, hlavice
-bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1)
-guard = bpy.context.object; guard.scale = (0.03, 0.019, 0.012); bpy.ops.object.transform_apply(scale=True)
-for f in guard.data.polygons: f.use_smooth = True
-place(guard, WOOD, F, at(0.622))
-bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.0115, depth=0.05)
-grip = bpy.context.object
-for f in grip.data.polygons: f.use_smooth = True
-place(grip, BONE, F, at(0.659))
-for zz in (0.645, 0.659, 0.673):
-    bpy.ops.mesh.primitive_torus_add(major_radius=0.0118, minor_radius=0.0022, major_segments=24, minor_segments=8)
-    rib = bpy.context.object; place(rib, BONE, F, at(zz))
-bpy.ops.mesh.primitive_uv_sphere_add(segments=32, ring_count=16, radius=1)
-pom = bpy.context.object; pom.scale = (0.021, 0.019, 0.016); bpy.ops.object.transform_apply(scale=True)
-for f in pom.data.polygons: f.use_smooth = True
-place(pom, WOOD, F, at(0.700))
-bpy.ops.mesh.primitive_cone_add(vertices=16, radius1=0.004, radius2=0.002, depth=0.012)
-nut = bpy.context.object; place(nut, BRASS, F, at(0.718))
+    v.co.x *= 0.034; v.co.y *= 0.012; v.co.z *= (pz_top - pz_bot)
+    if v.co.z < 0: v.co.x *= 0.55
+bm.to_mesh(sh.data); bm.free()
+bpy.ops.object.modifier_add(type="BEVEL"); sh.modifiers[-1].width = 0.003; sh.modifiers[-1].segments = 3
+bpy.ops.object.modifier_apply(modifier=sh.modifiers[-1].name)
+place(sh, IRON, Fp, pat((pz_top + pz_bot) / 2))
+for zz, hh, wf in ((0.578, 0.008, 1.0), (0.548, 0.006, 0.9), (0.515, 0.006, 0.8)):
+    bpy.ops.mesh.primitive_cube_add(size=1); bd = bpy.context.object
+    bd.scale = (0.037 * wf, 0.015, hh); bpy.ops.object.transform_apply(scale=True)
+    place(bd, BRASS, Fp, pat(zz))
+for s in (-1, 1):
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.005, minor_radius=0.0014, major_segments=16, minor_segments=8)
+    rg = bpy.context.object; rg.rotation_euler = (1.5708, 0, 0); bpy.ops.object.transform_apply(rotation=True)
+    place(rg, BRASS, Fp, pat(0.565) + Fp.col[0] * s * 0.021)
+bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=0.007)
+tk = bpy.context.object; place(tk, BRASS, Fp, pat(pz_bot - 0.004))
+bpy.ops.mesh.primitive_cube_add(size=1); gd = bpy.context.object  # záštita
+gd.scale = (0.03, 0.012, 0.006); bpy.ops.object.transform_apply(scale=True); place(gd, IRON, Fp, pat(pz_top + 0.004))
+bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=0.0065, depth=0.04); gr = bpy.context.object
+for f in gr.data.polygons: f.use_smooth = True
+place(gr, WOOD, Fp, pat(pz_top + 0.027))
+bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=10, radius=1); sw = bpy.context.object  # zesílení uprostřed rukojeti
+sw.scale = (0.009, 0.008, 0.007); bpy.ops.object.transform_apply(scale=True)
+for f in sw.data.polygons: f.use_smooth = True
+place(sw, IRON, Fp, pat(pz_top + 0.027))
+bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.013, depth=0.006); pm = bpy.context.object  # plochá hlavice
+pm.rotation_euler = (1.5708, 0, 0); bpy.ops.object.transform_apply(rotation=True)
+place(pm, IRON, Fp, pat(pz_top + 0.052))
 for o in new:
     o.name = "dily_kov"
 print("parts", len(new))
@@ -233,6 +257,11 @@ cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); cam.data.type = 
 ctr = Vector(((co.min(0) + co.max(0)) / 2).tolist()); size = float((co.max(0) - co.min(0)).max())
 shots = {"zepredu": ((0, -1, 0.15), ctr, size * 1.1),
          "mec": ((-0.6, -1, 0.15), at(0.5), 0.36),
+         "mec_zboku": ((-1, 0, 0.1), at(0.52), 0.42),
+         "mec_zezadu": ((-0.6, 1, 0.2), at(0.52), 0.42),
+         "dyka_zboku": ((1, 0.2, 0.1), pat(0.55), 0.3),
+         "dyka_zepredu": ((0.3, -1, 0.1), pat(0.55), 0.3),
+         "mec_shora": ((-0.5, -0.6, 1.0), at(0.6), 0.42),
          "puklice": (tuple(nrm + Vector((0, 0, 0.2))), surf, 0.3),
          "zbroj": ((0.25, -1, 0.2), Vector((0.0, -0.05, 0.75)), 0.34),
          "prilba": ((-0.5, -1, 0.35), Vector((0.0, 0.0, 0.91)), 0.22),
