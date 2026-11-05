@@ -52,7 +52,7 @@ def is_sleeve(v):
 
 
 def cut_hilt(a0, a1, z0, z1, margin=0.006):
-    """Jílec původní dýky vyříznout a díru zacelit: vtlačený zůstával vidět jako zmuchlaný válec s hlavicí (v12, v13)."""
+    """Jílec původní dýky vyříznout a díru zacelit: vtlačený zůstával vidět (v12, v13); holes_fill nechal díru (v14)."""
     ang = np.degrees(np.arctan2(P0[:, 1] - 0.006, P0[:, 0] + 0.008)); rr = np.hypot(P0[:, 0] + 0.008, P0[:, 1] - 0.006)
     cut = set()
     for zz in np.arange(z0, z1, 0.01):
@@ -72,7 +72,7 @@ def cut_hilt(a0, a1, z0, z1, margin=0.006):
         cut.add(bm.verts[int(k)])
     rim = {e.other_vert(v) for v in cut for e in v.link_edges} - cut
     bmesh.ops.delete(bm, geom=list(cut), context="VERTS")
-    # hlavice jílce je světlá jako kůže, po vyříznutí krčku ale visí volně: malé odtržené kusy u okraje smazat
+    # hlavice po vyříznutí krčku visí volně: malé odtržené kusy u okraje smazat
     loose = set()
     for v0 in [v for v in rim if v.is_valid]:
         if v0 in loose: continue
@@ -84,17 +84,49 @@ def cut_hilt(a0, a1, z0, z1, margin=0.006):
                 if w not in comp: comp.add(w); stack.append(w)
         if len(comp) < 3000: loose |= comp
     bmesh.ops.delete(bm, geom=list(loose), context="VERTS")
-    rim = {v for v in rim if v.is_valid}
-    border = [e for v in rim if v.is_valid for e in v.link_edges if e.is_boundary]
-    new_f = bmesh.ops.holes_fill(bm, edges=list(set(border)), sides=0)["faces"]
-    for f in new_f:  # UV z vrcholu okraje: textura pokračuje z okolí, ne z rohu atlasu
-        for lp in f.loops:
-            other = next((l for l in lp.vert.link_loops if l.face not in new_f), None)
-            if other is not None: lp[_uvl].uv = other[_uvl].uv
-    return len(cut), len(loose), len(new_f)
+    rim = [v for v in rim if v.is_valid]
+    # každou díru zvlášť zacelit vějířem ze středu (holes_fill v14 zvládl 3 plošky a nechal díru, triangle_fill v16
+    # spojil vzdálené okraje): souvislé skupiny okrajových hran → nový vrchol ve středu → trojúhelník na každou hranu
+    border = {e for v in rim for e in v.link_edges if e.is_boundary}
+    new_f, groups = [], 0
+    while border:
+        e0 = border.pop(); comp, stack = {e0}, [e0]
+        while stack:
+            for vv in stack.pop().verts:
+                for e2 in vv.link_edges:
+                    if e2 in border: border.discard(e2); comp.add(e2); stack.append(e2)
+        vs = {vv for e in comp for vv in e.verts}
+        c = sum((vv.co for vv in vs), Vector()) / len(vs)
+        # jedna barva pro celý vějíř (UV okraje leží v atlasu daleko od sebe → pruhy, v16)
+        uvc = min((vv for vv in vs if vv.link_loops), key=lambda vv: (vv.co - c).length).link_loops[0][_uvl].uv.copy()
+        rc = float(np.hypot(c.x + 0.008, c.y - 0.006))
+        if rc < 0.145:  # díra v boku: střed pod povrch, jinak vějíř trčí jako stan (v16); díra u paže zůstane
+            f_ = (((ang > 0) & (ang < 5)) | ((ang > 30) & (ang < 38))) & (np.abs(P0[:, 2] - c.z) < 0.006) & (rr < 0.15)
+            if f_.sum() > 3:
+                rb = float(np.percentile(rr[f_], 50)) - 0.004
+                d = Vector((c.x + 0.008, c.y - 0.006, 0)).normalized()
+                c = Vector((-0.008 + d.x * rb, 0.006 + d.y * rb, c.z))
+        cv = bm.verts.new(c); groups += 1
+        body_hole = rc < 0.145
+        for e in comp:
+            a_, b_ = e.verts
+            f_old = e.link_faces[0]
+            lp = next(l for l in f_old.loops if l.edge == e)  # stávající ploška vede hranu a_→b_, nová opačně
+            f = bm.faces.new((lp.link_loop_next.vert, lp.vert, cv)) if lp.vert == a_ or lp.vert == b_ else None
+            if f is None: continue
+            f.material_index = f_old.material_index; f.smooth = True; new_f.append(f)
+            for l in f.loops:
+                l[_uvl].uv = uvc
+        if body_hole:  # okraj díry je zubatý: vějíř by vrhal skládané stíny (v16), okolí vyhladit
+            ring = set(vs) | {cv}
+            ring |= {e.other_vert(vv) for vv in vs for e in vv.link_edges}
+            for _ in range(12):
+                bmesh.ops.smooth_vert(bm, verts=list(ring), factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    left = sum(1 for v in rim if v.is_valid for e in v.link_edges if e.is_boundary)
+    return len(cut), len(loose), groups, len(new_f), left
 
 
-print("cut hilt (verts, loose verts, fill faces)", cut_hilt(5.0, 30.0, 0.55, 0.665, margin=0.004))
+print("hilt cut (verts, loose, holes, fill faces, open edge ends left)", cut_hilt(5.0, 30.0, 0.55, 0.665, margin=0.004))
 bm.to_mesh(me); bm.free()
 co = np.array([v.co for v in me.vertices]); x, y, z = co.T
 
