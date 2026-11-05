@@ -219,6 +219,9 @@ def write_poster(svg: str, out: Path, stem: str, w: int, h: int, title: str, kni
     print({p.name: p.stat().st_size for p in sorted(out.iterdir()) if p.is_file()})
     for issue in check_layout(svg):
         print("SAZBA:", issue)
+    # zdroje i kredit AI a modelů patří do popisků na webu, na stránku ne (operátor 5. 11.)
+    for hit in sorted(set(re.findall(r'id="(Zdroj[^"]*)"|>([^<]*(?:\b[Zz]droj\w*:|FLUX|Obrazy: AI)[^<]*)<', svg))):
+        print("SAZBA: zdroj nebo kredit na stránce (patří do popisků na webu):", "".join(hit))
     if knihovna:
         print(upload_poster(out / f"{stem}.png", title, knihovna, ai))
     return out / f"{stem}.png"
