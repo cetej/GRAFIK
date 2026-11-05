@@ -121,6 +121,8 @@ def test_layers_by_part_and_own_groups(api, settings, built):
     ({"odkryv": [{"dily": ["oblouky"], "azimut": [0, 90]}]}, "takový díl"),
     ({"odkryv": [{"dily": ["podlaha"], "azimut": [90, 0]}]}, "azimut"),
     ({"odkryv": [{"dily": ["podlaha"], "azimut": [0, 400]}]}, "azimut"),
+    ({"pruhledne": {"dily": ["neni"], "okno": {"stred": [0, 1], "poloosy": [2, 1]}}}, "průhledný díl"),
+    ({"pruhledne": {"dily": ["zed"], "okno": {"stred": [0, 1], "poloosy": [0, 1]}}}, "poloosy"),
 ])
 def test_bad_render_request_is_refused_right_away(api, built, body, message):
     r = render(api, **body)
@@ -132,6 +134,25 @@ def test_section_options_reach_the_blender_script(api, settings, built):
     assert wait(api, job)["status"] == "done"
     args = [c for c in trace(settings) if c["script"] == "render_parts.py"][0]["args"][2]
     assert '"sokl": {"z": 1.2, "pas": 12.0}' in args and '"odkryv": [{"dily": ["podlaha"], "azimut": [-225.0, -25.0]}]' in args and '"rez": "tmava"' in args
+
+
+def test_creature_options_reach_the_blender_script(api, settings, built):
+    window = {"stred": [-0.5, 1.2], "poloosy": [5.9, 0.9]}
+    job = render(api, perspektiva=True, samostatne=True, vrstvy=True, pruhledne={"dily": ["zed"], "okno": window}).json()["job_id"]
+    assert wait(api, job)["status"] == "done"
+    args = [c for c in trace(settings) if c["script"] == "render_parts.py"][0]["args"][2]
+    assert '"perspektiva": true' in args and '"samostatne": true' in args
+    assert '"pruhledne": {"dily": ["zed"], "okno": {"stred": [-0.5, 1.2], "poloosy": [5.9, 0.9]}, "zbyva": 0.14}' in args
+
+
+def test_figure_part_gets_its_glb_file(api, settings):
+    figure = {"typ": "model", "nazev": "clovek", "model": "postava", "delka": 1.72, "stred": [12, 0, 0.86]}
+    m = model(api, spec={**SPEC, "dily": SPEC["dily"] + [figure]})
+    popis = (versions(settings) / "popis.json").read_text(encoding="utf-8")
+    assert "postava-172.glb" in popis and wait(api, m["job_id"])["status"] == "done"
+    missing = {**figure, "model": "neni/v1"}
+    r = api.post("/api/v2/models3d/parts", json={"title": "Věž", "spec": {**SPEC, "dily": SPEC["dily"] + [missing]}})
+    assert r.status_code == 404 and "neexistuje" in r.json()["detail"]
 
 
 def test_render_needs_a_parts_model(api):

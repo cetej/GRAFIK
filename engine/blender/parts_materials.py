@@ -225,8 +225,60 @@ def aggregate(name, mortar_a, mortar_b, rocks, scale, rough=0.95):
     return m
 
 
+def skin(name):
+    """Tmavá kůže velryby s jemnou vrásčitou strukturou (scripts/3d/vorvan_scena.py), ať funguje průhlednost i světlo."""
+    m, t, bsdf = new_mat(name, 0.42)
+    noise = t.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value, noise.inputs["Detail"].default_value = 6.0, 8.0
+    ramp = t.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].color = (0.028, 0.027, 0.027, 1)
+    ramp.color_ramp.elements[1].color = (0.075, 0.072, 0.07, 1)
+    wave = t.nodes.new("ShaderNodeTexWave")
+    wave.inputs["Scale"].default_value, wave.inputs["Distortion"].default_value = 3.0, 9.0
+    bump = t.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.25
+    t.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    t.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
+    t.links.new(wave.outputs["Fac"], bump.inputs["Height"])
+    t.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    return m
+
+
+def tissue(name, color, kind="NOISE", scale=6.0, strength=0.5):
+    """Tkáň: barva (lineární), podpovrchový rozptyl a reliéf, svalové pruhy (WAVE) nebo záhyby sliznice (NOISE)."""
+    m, t, bsdf = new_mat(name, 0.38)
+    bsdf.inputs["Base Color"].default_value = (*color, 1)
+    bsdf.inputs["Subsurface Weight"].default_value = 0.25
+    bsdf.inputs["Subsurface Radius"].default_value = (0.3, 0.08, 0.06)
+    tex = t.nodes.new("ShaderNodeTexWave" if kind == "WAVE" else "ShaderNodeTexNoise")
+    tex.inputs["Scale"].default_value = scale
+    if kind == "WAVE":
+        tex.inputs["Distortion"].default_value = 2.0
+    else:
+        tex.inputs["Detail"].default_value = 6.0
+    bump = t.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = strength
+    t.links.new(tex.outputs["Fac"], bump.inputs["Height"])
+    t.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
+    return m
+
+
+def glow(name, color):
+    """Tmavá stěna tělní dutiny za vnitřnostmi: vlastní barva, žádné světlo ani stín."""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    t = m.node_tree
+    t.nodes.clear()
+    em = t.nodes.new("ShaderNodeEmission")
+    em.inputs["Color"].default_value = (*color, 1)
+    t.links.new(em.outputs[0], t.nodes.new("ShaderNodeOutputMaterial").inputs[0])
+    return m
+
+
+TISSUE = {"tkan": ((0.6, 0.26, 0.22), "WAVE", 6.0, 0.4), "sval": ((0.56, 0.2, 0.19), "WAVE", 3.0, 0.6),
+          "sliznice": ((0.66, 0.33, 0.27), "NOISE", 9.0, 0.8), "strevo": ((0.76, 0.46, 0.39), "NOISE", 14.0, 0.3)}
 _cache = {}
-FLAT = {"provaz": "#5c4c35", "kuze": "#b98a66", "lide_1": "#8c2f26", "lide_2": "#e6dfcf", "lide_3": "#34507a", "lide_4": "#b9893a", "lide_5": "#5b6b45", "lide_6": "#d9c7a0"}
+FLAT = {"zub": "#e8e0cc","provaz": "#5c4c35", "kuze": "#b98a66", "lide_1": "#8c2f26", "lide_2": "#e6dfcf", "lide_3": "#34507a", "lide_4": "#b9893a", "lide_5": "#5b6b45", "lide_6": "#d9c7a0"}
 
 
 def surface(name, radius=0.0):
@@ -238,6 +290,12 @@ def surface(name, radius=0.0):
     if name in FLAT:
         m, _t, bsdf = new_mat(label, 0.85)
         bsdf.inputs["Base Color"].default_value = srgb(FLAT[name])
+    elif name == "kuze_tmava":
+        m = skin(label)
+    elif name in TISSUE:
+        m = tissue(label, *TISSUE[name])
+    elif name == "dutina":
+        m = glow(label, (0.045, 0.012, 0.013))
     elif name == "travertin":
         m = masonry(label, "#b9ae98", "#c7bda8", "#857b6b", 2.4, 0.62, radius)
     elif name == "tuf":

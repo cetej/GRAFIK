@@ -5,12 +5,13 @@ import json
 import subprocess
 from pathlib import Path
 
+import numpy as np
 import pytest
 from ngm_shared.heavy_lock import HeavyBusy, heavy
 from PIL import Image
 
 from engine.config import Settings
-from engine.parts_spec import DECOR, MAX_PARTS, SpecError, validate
+from engine.parts_spec import DECOR, KINDS, MAX_PARTS, SpecError, table_at, validate
 
 REPO = Path(__file__).resolve().parents[1]
 PANTHEON = REPO / "scripts" / "3d" / "dily" / "pantheon.json"
@@ -112,7 +113,7 @@ def test_cut_only_a_solid_declared_before():
 def test_colosseum_example_is_valid_and_labels_invented_things():
     out = validate(json.loads(KOLOSEUM.read_text(encoding="utf-8")))
     assert out["dim"] == {"length": 188.0, "width": 155.5, "height": 48.5}
-    assert {p["typ"] for p in out["dily"]} >= set(DECOR)
+    assert {p["typ"] for p in out["dily"]} >= {"sochy", "lide", "plachty", "zdvihadla"}     # oživení obrazu; vnitřnosti a postava jsou pro tvora
     assert "vymyšlené" in out["zdroje"]["plachty a lidé"]       # oživení obrazu se nesmí tvářit jako pramen
     assert any(p.get("okoli") for p in out["dily"])
 
@@ -284,3 +285,113 @@ def test_real_blender_builds_named_parts(tmp_path):
     assert report["bez_kontaktu"] == []
     lo, hi = report["dily"]["kupole"]["bbox"]
     assert hi[2] == pytest.approx(44.0, abs=0.3) and lo[0] == pytest.approx(-27.85, abs=0.1)
+
+
+# --- tvor: tělo z profilu, čelist, zuby, ploutve, ocas, vnitřnosti, postava (3D infografika vorvaně 5. 11.)
+
+WHALE = REPO / "scripts" / "3d" / "dily" / "vorvan.json"
+PROFILE = {"x": [0, 0.5, 1], "hrbet": [0.1, 0.2, 0.05], "bricho": [0.05, 0.0, 0.03], "sirka": [0.0, 0.2, 0.0]}
+BODY = {"typ": "telo", "nazev": "telo", "delka": 10, "profil": PROFILE, "material": "kuze_tmava"}
+
+
+def creature(*parts) -> dict:
+    return {"dim": {"length": 10, "width": 2, "height": 2}, "dily": [BODY, *parts]}
+
+
+def test_whale_example_is_valid_and_body_becomes_sections():
+    out = validate(json.loads(WHALE.read_text(encoding="utf-8")))
+    kinds = {p["nazev"]: p["typ"] for p in out["dily"]}
+    assert kinds == {"telo": "telo", "celist": "prurezy", "zuby": "zuby", "ploutve": "elipsoid", "ocas": "deska", "traveni": "trubice",
+                     "dutina": "elipsoid", "potapec": "model"}
+    body = next(p for p in out["dily"] if p["nazev"] == "telo")
+    assert len(body["rezy"]) == 71 and body["rezy"][0][0] == -8.0      # hlava v x = -8, konec těla v 0,985 délky
+    assert body["rezy"][-1][0] == pytest.approx(-8 + 0.98 * 16, abs=0.01)
+    assert body["rezy"][0][4] == 3.0 and body["rezy"][-1][4] == 2.0     # hlava hranatější, tělo kulaté
+    assert {a["nazev"] for a in out["kotvy"]} == {"tlama", "jicen", "predzaludek", "hlavni_zaludek", "strevo"}
+    assert not set(kinds.values()) - set(KINDS)
+
+
+def test_table_is_smooth_between_points_and_flat_outside():
+    table = [[0.2, 3.0], [0.6, 1.0]]
+    assert table_at(table, 0.0) == 3.0 and table_at(table, 1.0) == 1.0
+    assert table_at(table, 0.4) == pytest.approx(2.0) and table_at(table, 0.25) > 2.9      # smoothstep, ne přímka
+
+
+def test_body_profile_gives_heights_widths_and_ridge_in_metres():
+    out = validate(creature())["dily"][0]
+    mid = min(out["rezy"], key=lambda s: abs(s[0]))     # x = 0 je půlka těla (x0 = -délka / 2)
+    assert mid[1] == pytest.approx(1.0, abs=0.01) and mid[3] == pytest.approx(1.0, abs=0.01) and mid[2] == pytest.approx(1.0, abs=0.01)
+    ridge = validate(creature())["dily"][0]
+    assert all(s[6] == 0 for s in ridge["rezy"])
+    tall = validate({**creature(), "dily": [{**BODY, "profil": {**PROFILE, "hreben": [0, 0.01, 0]}}]})["dily"][0]
+    assert max(s[6] for s in tall["rezy"]) == pytest.approx(0.1, abs=0.01)
+
+
+@pytest.mark.parametrize("part, message", [
+    ({**BODY, "nazev": "t2", "profil": {**PROFILE, "sirka": [0, 1]}}, "stejně hodnot"),
+    ({**BODY, "nazev": "t2", "profil": {**PROFILE, "x": [0, 0.5, 0.4]}}, "růst"),
+    ({**BODY, "nazev": "t2", "hranatost": [[0.5, 2], [0.2, 3]]}, "vzestupně"),
+    ({**BODY, "nazev": "t2", "profil": [1, 2]}, "profil je"),
+    ({"typ": "prurezy", "nazev": "c", "rezy": [[0, 1, 0, 1], [1, 0, 0, 1]]}, "nulovou"),
+    ({"typ": "prurezy", "nazev": "c", "rezy": [[0, 1, 0, 1], [1, 1, 0, 1]], "otoceni": {"stred": [0, 0, 0], "osa": "w", "uhel": 5}}, "otoceni"),
+    ({"typ": "deska", "nazev": "o", "obrys": [[0, 0], [1, 1]], "tloustka": 0.1}, "obrys"),
+    ({"typ": "zuby", "nazev": "z", "body": [[0, 0]], "vyska": 0.1, "polomer": 0.01}, "tři čísla"),
+    ({"typ": "trubice", "nazev": "t", "body": [[0, 0, 0], [1, 0, 0]]}, "polomer"),
+    ({"typ": "trubice", "nazev": "t", "body": [[0, 0, 0, 1], [1, 0, 0, 1]], "useky": [[1, "zlato"]]}, "useky"),
+    ({"typ": "model", "nazev": "m", "model": "../../etc/v1", "delka": 2, "stred": [0, 0, 0]}, "model je"),
+    ({"typ": "elipsoid", "nazev": "e", "stred": [0, 0, 0], "poloosy": [1, 0, 1]}, "poloosy"),
+])
+def test_bad_creature_part_says_what_is_wrong(part, message):
+    with pytest.raises(SpecError, match=message):
+        validate(creature(part))
+
+
+def test_organs_and_figure_stay_outside_the_dimensions_and_contact():
+    assert {"trubice", "model"} <= set(DECOR)
+
+
+def whale_on_disk(tmp_path, keep=lambda p: True) -> Path:
+    """Vorvaň z dílů s vestavěnou postavou místo potápěče (model z knihovny v testech není)."""
+    source = json.loads(WHALE.read_text(encoding="utf-8"))
+    source["dily"] = [p for p in source["dily"] if keep(p)]
+    for p in source["dily"]:
+        if p["typ"] == "model":
+            p["model"] = "postava"
+    clean = validate(source)
+    for p in clean["dily"]:
+        if p["typ"] == "model":
+            p["soubor"] = str(REPO / "engine" / "assets" / "postava-172.glb")
+    path = tmp_path / "spec.json"
+    path.write_text(json.dumps(clean), encoding="utf-8")
+    return path
+
+
+def test_real_blender_builds_the_whale_from_parts(tmp_path):
+    glb = tmp_path / "model.glb"
+    real_blender("lod_parts.py", str(glb), str(whale_on_disk(tmp_path)))
+    report = json.loads(Path(f"{glb}.dily.json").read_text(encoding="utf-8"))
+    assert set(report["dily"]) == {"telo", "celist", "zuby", "ploutve", "ocas", "traveni", "dutina", "potapec"}
+    lo, hi = report["dily"]["telo"]["bbox"]
+    assert lo[0] == pytest.approx(-8.0, abs=0.05) and hi[0] == pytest.approx(7.7, abs=0.1)
+    assert hi[2] - lo[2] == pytest.approx(2.7, abs=0.25)      # výška těla jako ruční model (0,169 délky)
+    flo, fhi = report["dily"]["ploutve"]["bbox"]
+    assert flo[1] == pytest.approx(-fhi[1], abs=0.01)         # zrcadlo přes y: obě ploutve
+    plo, phi = report["dily"]["potapec"]["bbox"]
+    assert max(b - a for a, b in zip(plo, phi)) == pytest.approx(2.3, abs=0.01)     # postava natažená na zadanou délku
+    assert report["bez_kontaktu"] == []
+
+
+def test_real_blender_renders_see_through_skin_in_perspective_layer_by_layer(tmp_path):
+    spec_path = whale_on_disk(tmp_path, keep=lambda p: p["typ"] != "model")
+    render = json.loads(WHALE.read_text(encoding="utf-8"))["render"]
+    request = {**render, "res": [360, 150], "samples": 8, "cpu": True, "vrstvy": True, "skupiny": {k: v for k, v in render["skupiny"].items() if k != "potapec"}}
+    real_blender("render_parts.py", str(spec_path), str(tmp_path), json.dumps(request))
+    skin = np.array(Image.open(tmp_path / "vrstva-kuze.png").getchannel("A"))
+    organs = np.array(Image.open(tmp_path / "vrstva-vnitrek.png").getchannel("A"))
+    whole = (skin > 0).sum()
+    assert whole > 0.1 * skin.size
+    assert ((skin > 5) & (skin < 120)).sum() > 0.15 * whole        # okno v kůži je průsvitné
+    assert (organs > 128).sum() > 0.02 * organs.size and (skin[organs > 128] < 200).mean() > 0.6   # vnitřnosti leží v okně
+    body = json.loads((tmp_path / "body.json").read_text(encoding="utf-8"))
+    x, _y = body["points"]["hlavni_zaludek"]
+    assert 0 < x < 360 and body["vrstvy"] == request["skupiny"]

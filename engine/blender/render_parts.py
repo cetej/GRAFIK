@@ -1,7 +1,9 @@
 # Coloured render of a parts model from a named view, free:
 #   blender -b --factory-startup -P engine/blender/render_parts.py -- spec.json OUT_DIR '{"pohled": "rez", "res": [1920, 1080]}'
 # Writes OUT_DIR/obraz.png (RGBA), OUT_DIR/body.json and, with "vrstvy", OUT_DIR/vrstva-<name>.png: one group of parts alone on
-# transparent, the others cut it out and keep their shadows, so the picture can be edited object by object.
+# transparent, the others cut it out and keep their shadows, so the picture can be edited object by object. With "samostatne"
+# each layer is rendered without the others (translucent skin apart from the organs behind it, as the whale page needs).
+# "perspektiva" uses a 50 mm camera instead of the orthographic one; "pruhledne" makes listed parts see-through in an ellipse.
 # body.json holds the canvas position of every part and of the description's `kotvy`, so labels sit exactly on the model.
 # Generalised from the --render path of scripts/3d/lod_pantheon.py; that script stays as it is.
 import json
@@ -13,7 +15,7 @@ from pathlib import Path
 import bpy
 import numpy as np
 from bpy_extras.object_utils import world_to_camera_view
-from mathutils import Vector
+from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -36,7 +38,8 @@ MARGIN = 1.06
 VIEW = {**VIEWS[REQ["pohled"]], **(REQ.get("kamera") or {})}
 RES = REQ.get("res", [1920, 1080])
 SAMPLES = int(REQ.get("samples", 96))
-SOLID = ("prstenec", "hlediste", "kopule", "kvadr", "disk", "rada", "pricky")
+ORGANIC = ("telo", "prurezy", "elipsoid", "deska", "zuby")
+SOLID = ("prstenec", "hlediste", "kopule", "kvadr", "disk", "rada", "pricky") + ORGANIC
 DECOR = lod_parts.DECOR
 PARTS = {p["nazev"]: p for p in SPEC["dily"]}
 
@@ -98,7 +101,9 @@ def linings():
 def paint(name, o, boxes, lined):
     """Real materials by part; faces on the section plane show what the wall is made of inside."""
     part = PARTS[name]
-    radius = part_radius(name) if part["typ"] in SOLID and part["typ"] != "kvadr" else 0.0
+    if part["typ"] == "model":      # postava v měřítku má vlastní materiály z GLB
+        return
+    radius = part_radius(name) if part["typ"] in SOLID and part["typ"] not in ORGANIC + ("kvadr",) else 0.0
     if part["typ"] not in SOLID:
         for i, slot in enumerate(o.data.materials):
             o.data.materials[i] = pm.surface(slot.name.split(".")[0], radius)
@@ -122,6 +127,68 @@ def paint(name, o, boxes, lined):
             if tree.find_nearest(p.center)[3] < 0.02:
                 p.material_index = slots[mat]
                 break
+
+
+def see_through(o, window, keep):
+    """Kůže průhledná v elipse `okno` (střed [x, z] a poloosy v metrech, pohled z boku), k okraji naplno: ostrý okraj řezu,
+    ne šmouha (operátor 5. 11.). Mimo okno zůstává `zbyva` krytí, aby se tělo neztratilo. Každý díl dostane vlastní kopii materiálu."""
+    (cx, cz), (rx, rz) = window["stred"], window["poloosy"]
+    for i, slot in enumerate(o.data.materials):
+        mat = slot.copy()
+        o.data.materials[i] = mat
+        nt = mat.node_tree
+        bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        nt.links.new(nt.nodes.new("ShaderNodeTexCoord").outputs["Object"], sep.inputs[0])
+
+        def op(kind, a, b):
+            n = nt.nodes.new("ShaderNodeMath")
+            n.operation = kind
+            for k, v in enumerate((a, b)):
+                if isinstance(v, (int, float)):
+                    n.inputs[k].default_value = v
+                else:
+                    nt.links.new(v, n.inputs[k])
+            return n.outputs[0]
+        dx = op("DIVIDE", op("SUBTRACT", sep.outputs["X"], cx), rx)
+        dz = op("DIVIDE", op("SUBTRACT", sep.outputs["Z"], cz), rz)
+        d = op("SQRT", op("ADD", op("MULTIPLY", dx, dx), op("MULTIPLY", dz, dz)), 0)
+        fade = op("MINIMUM", op("MAXIMUM", op("DIVIDE", op("SUBTRACT", d, 0.92), 0.08), 0.0), 1.0)
+        nt.links.new(op("ADD", keep, op("MULTIPLY", fade, 1 - keep)), bsdf.inputs["Alpha"])
+
+
+def look_at(cam, pos, target, up):
+    f = (target - pos).normalized()
+    r = f.cross(up).normalized()
+    u = r.cross(f)
+    cam.matrix_world = Matrix((r, u, -f)).transposed().to_4x4()
+    cam.matrix_world.translation = pos
+
+
+def frame_perspective(scene, cam, pts, direction, fill=0.9):
+    """Perspektivní kamera ve směru `direction` od středu modelu: vzdálenost a posun tak, aby model vyplnil `fill` snímku
+    (scripts/3d/vorvan_scena.py). Mírná perspektiva: bližší konec je větší, jako hlava vorvaně k divákovi."""
+    lo, hi = pts.min(0), pts.max(0)
+    target = Vector(((lo + hi) / 2).tolist())
+    up = Vector((0, 0, 1)) if abs(direction.z) < 0.99 else Vector((0, 1, 0))
+    sample = [Vector(p) for p in pts[:: max(1, len(pts) // 4000)]]
+    dist = 2.5 * float(np.linalg.norm(hi - lo))
+    for _ in range(6):
+        look_at(cam, target + direction * dist, target, up)
+        cam.data.shift_x = cam.data.shift_y = 0
+        bpy.context.view_layer.update()
+        q = [world_to_camera_view(scene, cam, p) for p in sample]
+        span = max(max(p.x for p in q) - min(p.x for p in q), max(p.y for p in q) - min(p.y for p in q))
+        dist *= span / fill
+    look_at(cam, target + direction * dist, target, up)
+    bpy.context.view_layer.update()
+    q = [world_to_camera_view(scene, cam, p) for p in sample]
+    aspect = RES[0] / RES[1]
+    big = max(aspect, 1.0)
+    cam.data.shift_x = ((min(p.x for p in q) + max(p.x for p in q)) / 2 - 0.5) * (aspect / big)
+    cam.data.shift_y = ((min(p.y for p in q) + max(p.y for p in q)) / 2 - 0.5) / big
+    bpy.context.view_layer.update()
+    return target, dist
 
 
 def smooth(o, deg=28):
@@ -272,27 +339,43 @@ def main():
     lined = linings()
     for name, o in objects.items():
         paint(name, o, boxes, lined)
-        smooth(o, 28 if PARTS[name]["typ"] in SOLID else 40)
+        if PARTS[name]["typ"] != "model":
+            smooth(o, 28 if PARTS[name]["typ"] in SOLID else 40)
+    clear = REQ.get("pruhledne")
+    if clear:
+        for name in clear["dily"]:
+            if name in objects:
+                see_through(objects[name], clear["okno"], clear.get("zbyva", 0.14))
 
     scene = bpy.context.scene
+    scene.render.resolution_x, scene.render.resolution_y = RES
     az, el = math.radians(VIEW["az"]), math.radians(VIEW["el"])
     d = Vector((math.cos(az) * math.cos(el), math.sin(az) * math.cos(el), math.sin(el)))
     objs = list(objects.values())
     box = REQ.get("zaber")      # a part of the model fills the picture, the rest runs off its edges
     pts = np.array([(x, y, z) for x in (box[0][0], box[1][0]) for y in (box[0][1], box[1][1]) for z in (box[0][2], box[1][2])], dtype=float) if box else world_points(objs)
-    scale, centre = frame(pts, -d, RES)
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
     scene.collection.objects.link(cam)
     scene.camera = cam
-    cam.data.type = "ORTHO"
-    reach = 10 * max(scale, *SPEC["dim"].values())
-    cam.data.ortho_scale = scale
-    cam.data.clip_end = 4 * reach
-    cam.rotation_mode = "QUATERNION"
-    cam.location = centre + d * reach
-    cam.rotation_quaternion = (-d).to_track_quat("-Z", "Y")
+    perspective = bool(REQ.get("perspektiva"))
+    if perspective:
+        cam.data.lens = 50
+        _target, dist = frame_perspective(scene, cam, pts, d)
+        reach = dist
+        scale = 2 * dist * math.tan(cam.data.angle / 2)      # šířka záběru ve vzdálenosti středu modelu, pro m_px
+        cam.data.clip_end = 10 * dist
+    else:
+        scale, centre = frame(pts, -d, RES)
+        cam.data.type = "ORTHO"
+        reach = 10 * max(scale, *SPEC["dim"].values())
+        cam.data.ortho_scale = scale
+        cam.data.clip_end = 4 * reach
+        cam.rotation_mode = "QUATERNION"
+        cam.location = centre + d * reach
+        cam.rotation_quaternion = (-d).to_track_quat("-Z", "Y")
     lights(VIEW["az"])
     device = setup_cycles()
+    scene.cycles.transparent_max_bounces = 24      # průsvitná kůže a vnitřnosti za ní
     bpy.context.view_layer.update()
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -305,11 +388,12 @@ def main():
 
     def in_sight(world, part=None):
         """Nothing stands in front of this point on the camera's ray; with a part named, the ray lands on that part here."""
-        start = world + d * reach
-        hit, loc, _n, _i, what, _m = scene.ray_cast(dg, start, -d)
+        start = cam.matrix_world.translation.copy() if perspective else world + d * reach
+        ray = (world - start).normalized()
+        hit, loc, _n, _i, what, _m = scene.ray_cast(dg, start, ray)
         if part is not None:
             return hit and what.name == part and (loc - world).length < near
-        return not hit or (loc - start).length > reach - near
+        return not hit or (loc - start).length > (world - start).length - near
 
     def visible_point(o):
         """A surface point of the part that the camera sees, closest to the middle of its visible points."""
@@ -344,9 +428,13 @@ def main():
     bpy.ops.render.render(write_still=True)
     if REQ.get("vrstvy"):
         layers = groups(objects)
+        alone = bool(REQ.get("samostatne"))     # vrstva sama bez ostatních (kůže zvlášť od vnitřností), jinak ostatní vyříznou svůj obrys
         for name, group in layers.items():
             for o in objs:
-                o.is_holdout = o not in group
+                if alone:
+                    o.hide_render = o not in group
+                else:
+                    o.is_holdout = o not in group
             r.filepath = str(OUT / f"vrstva-{name}.png")
             bpy.ops.render.render(write_still=True)
         info["vrstvy"] = {name: [o.name for o in group] for name, group in layers.items()}

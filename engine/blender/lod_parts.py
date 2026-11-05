@@ -13,6 +13,7 @@ from pathlib import Path
 
 import bmesh
 import bpy
+from mathutils import Euler, Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
 N = 360
@@ -20,9 +21,11 @@ ARC_TABLE = 720
 COLORS = {"travertin": "#d9cfbc", "tuf": "#a89a80", "cihla": "#a5573d", "beton": "#9a958c", "mramor": "#e6e2da", "zula": "#7d7f83",
           "bronz": "#6f5a35", "strecha": "#8f8778", "pisek": "#c9b38a", "kamen": "#b5ac9c", "drevo": "#9a7646", "omitka": "#96382a",
           "platno": "#dcd1b8", "platno_2": "#cabd9e", "provaz": "#5c4c35", "zemina": "#655240", "freska": "#c9983f", "kuze": "#b98a66",
-          "lide_1": "#8c2f26", "lide_2": "#e6dfcf", "lide_3": "#34507a", "lide_4": "#b9893a", "lide_5": "#5b6b45", "lide_6": "#d9c7a0"}
+          "lide_1": "#8c2f26", "lide_2": "#e6dfcf", "lide_3": "#34507a", "lide_4": "#b9893a", "lide_5": "#5b6b45", "lide_6": "#d9c7a0",
+          "kuze_tmava": "#2b2928", "tkan": "#9a4338", "sval": "#8f3430", "sliznice": "#a85445", "strevo": "#c2766a", "zub": "#e8e0cc", "dutina": "#0b0303"}
 CLOTH = ("lide_1", "lide_2", "lide_3", "lide_4", "lide_5", "lide_6")
-DECOR = ("sochy", "lide", "plachty", "zdvihadla")
+DECOR = ("sochy", "lide", "plachty", "zdvihadla", "trubice", "model")
+SEG = 48
 
 
 def material(name):
@@ -572,6 +575,191 @@ def volume(o):
     return out
 
 
+# --- tvor: tělo z průřezů, ploutve, ocas, zuby, vnitřnosti a postava v měřítku (zobecněno ze scripts/3d/lod_vorvan.py a vorvan_scena.py)
+
+def section_ring(sec, seg=SEG):
+    """Superelipsa průřezu: n = 2 elipsa, víc hranatější; dole zúžená o `taper`; `ridge` zvedne jen střední čáru hřbetu."""
+    x, hw, zc, hh, n, taper, ridge = sec
+    out = []
+    for i in range(seg):
+        a = 2 * math.pi * i / seg
+        c, s = math.cos(a), math.sin(a)
+        k = 1 - taper * (-s) ** 1.3 if s < 0 else 1.0
+        y = hw * k * math.copysign(abs(c) ** (2 / n), c)
+        z = zc + hh * math.copysign(abs(s) ** (2 / n), s)
+        if s > 0:
+            z += ridge * s ** 12
+        out.append((x, y, z))
+    return out
+
+
+def turned(o, turn):
+    if turn:
+        c = Vector(turn["stred"])
+        o.data.transform(Matrix.Translation(c) @ Matrix.Rotation(math.radians(turn["uhel"]), 4, turn["osa"].upper()) @ Matrix.Translation(-c))
+        o.data.update()
+    return o
+
+
+def soft(o, levels=2):
+    for p in o.data.polygons:
+        p.use_smooth = True
+    o.modifiers.new("hladko", "SUBSURF").levels = levels
+    return o
+
+
+def loft_solid(name, p):
+    rings = [section_ring(s) for s in p["rezy"]]
+    verts = [v for r in rings for v in r]
+    faces = [(i * SEG + j, i * SEG + (j + 1) % SEG, (i + 1) * SEG + (j + 1) % SEG, (i + 1) * SEG + j) for i in range(len(rings) - 1) for j in range(SEG)]
+    faces += [tuple(reversed(range(SEG))), tuple(range((len(rings) - 1) * SEG, len(rings) * SEG))]
+    o = mesh_object(name, verts, faces, p["material"])
+    turned(o, p.get("otoceni"))
+    return soft(o) if p.get("hladit", True) else o
+
+
+def mirror_mesh(verts, faces, axes):
+    """Kopie přes rovinu y = 0 (nebo x = 0) ve stejném dílu: obě ploutve, oba řady zubů."""
+    for axis in axes:
+        k = {"x": 0, "y": 1}[axis]
+        n = len(verts)
+        verts = verts + [tuple(-c if i == k else c for i, c in enumerate(v)) for v in verts]
+        faces = faces + [tuple(i + n for i in reversed(f)) for f in faces]
+    return verts, faces
+
+
+def ellipsoid_solid(name, p, seg=24, rings=12):
+    rot = Euler([math.radians(a) for a in p["natoceni"]], "XYZ").to_matrix()
+    a, b, c = p["poloosy"]
+    centre = Vector(p["stred"])
+    verts = [tuple(centre + rot @ Vector((a * math.sin(math.pi * r / rings) * math.cos(2 * math.pi * s / seg),
+                                             b * math.sin(math.pi * r / rings) * math.sin(2 * math.pi * s / seg), c * math.cos(math.pi * r / rings))))
+             for r in range(1, rings) for s in range(seg)]
+    top, bottom = len(verts), len(verts) + 1
+    verts += [tuple(centre + rot @ Vector((0, 0, c))), tuple(centre + rot @ Vector((0, 0, -c)))]
+    faces = [(r * seg + s, r * seg + (s + 1) % seg, (r + 1) * seg + (s + 1) % seg, (r + 1) * seg + s) for r in range(rings - 2) for s in range(seg)]
+    faces += [(top, (s + 1) % seg, s) for s in range(seg)] + [(bottom, (rings - 2) * seg + s, (rings - 2) * seg + (s + 1) % seg) for s in range(seg)]
+    verts, faces = mirror_mesh(verts, faces, p["zrcadlo"])
+    o = mesh_object(name, verts, faces, p["material"])
+    turned(o, p.get("otoceni"))
+    return soft(o, 1)
+
+
+def plate_solid(name, p):
+    pts, z, t = p["obrys"], p["z"], p["tloustka"]
+    m = len(pts)
+    verts = [(x, y, z - t / 2) for x, y in pts] + [(x, y, z + t / 2) for x, y in pts]
+    o = mesh_object(name, verts, prism_faces(m), p["material"])
+    if p["sklon"]:      # sklon dolů jako při záběru: vodorovná ploutev je ze šikmé kamery jen tenká jehla
+        pivot = Vector((p["osa_x"], 0, z))
+        o.data.transform(Matrix.Translation(pivot) @ Matrix.Rotation(math.radians(p["sklon"]), 4, "Y") @ Matrix.Translation(-pivot))
+    return soft(o)
+
+
+def teeth_solid(name, p, sides=8):
+    verts, faces = [], []
+    for x, y, z in p["body"]:
+        base = len(verts)
+        verts += [(x + p["polomer"] * math.cos(2 * math.pi * k / sides), y + p["polomer"] * math.sin(2 * math.pi * k / sides), z) for k in range(sides)]
+        verts += [(x + p["spicka"] * math.cos(2 * math.pi * k / sides), y + p["spicka"] * math.sin(2 * math.pi * k / sides), z + p["vyska"]) for k in range(sides)]
+        faces += [tuple(base + i for i in f) for f in prism_faces(sides)]
+    verts, faces = mirror_mesh(verts, faces, p["zrcadlo"])
+    o = mesh_object(name, verts, faces, p["material"])
+    return turned(o, p.get("otoceni"))
+
+
+def catmull(ps, n=12):
+    """Hladká křivka bodů [x, y, z, r]; poslední složka výstupu je index klíčového bodu (pro tkáň po úsecích)."""
+    out = []
+    ext = [ps[0]] + ps + [ps[-1]]
+    for i in range(1, len(ext) - 2):
+        p0, p1, p2, p3 = ext[i - 1], ext[i], ext[i + 1], ext[i + 2]
+        for k in range(n):
+            s = k / n
+            out.append(tuple(0.5 * (2 * b + (-a + c) * s + (2 * a - 5 * b + 4 * c - d) * s * s + (-a + 3 * b - 3 * c + d) * s ** 3)
+                             for a, b, c, d in zip(p0, p1, p2, p3)) + (i - 1 + s,))
+    out.append(tuple(ps[-1]) + (len(ps) - 1,))
+    return out
+
+
+def tube_solid(name, p, seg=20):
+    """Vnitřnosti jako jeden souvislý tvar (operátor 5. 11.: oddělené koule vypadaly jako rozházené hračky): trubice s proměnným
+    poloměrem, rámy bez kroucení, na konci volitelně klubko střeva."""
+    keys = p["body"]
+    path = catmull(keys)
+    coil = p.get("klubko")
+    if coil:
+        centre, size, last, n = Vector(coil["stred"]), Vector(coil["rozmer"]), Vector(path[-1][:3]), coil["bodu"]
+        for i in range(1, n):
+            s = 2 * math.pi * i / n * coil["smycek"]
+            c = Vector((math.sin(s * 0.97 - 1.3) * math.cos(s * 0.31), math.sin(s * 1.23 + 1.0) * math.cos(s * 0.17), math.cos(s * 0.89) * math.sin(s * 0.43 + 0.5)))
+            q = last.lerp(centre + Vector((c.x * size.x, c.y * size.y, c.z * size.z)), min(i / 40, 1.0))   # z konce trubice plynule do klubka
+            path.append((q.x, q.y, q.z, coil["polomer"], len(keys) + i / n))
+    names = [m for _upto, m in p["useky"]] + [p["material"]]
+    verts, faces, mats, normal = [], [], [], None
+    for i, (x, y, z, r, k) in enumerate(path):
+        c = Vector((x, y, z))
+        tan = (Vector(path[min(i + 1, len(path) - 1)][:3]) - Vector(path[max(i - 1, 0)][:3])).normalized()
+        if normal is None:
+            normal = tan.cross(Vector((0, 1, 0))).normalized()
+        normal = (normal - tan * normal.dot(tan)).normalized()      # parallel transport
+        side = tan.cross(normal)
+        for j in range(seg):
+            a = 2 * math.pi * j / seg
+            off = normal * (r * math.cos(a)) + side * (r * math.sin(a))
+            if r > p["stlaceni_od"]:
+                off.y *= p["stlaceni_y"]
+            verts.append(tuple(c + off))
+        mats.append(next((m for m, (upto, _name) in enumerate(p["useky"]) if k < upto), len(p["useky"])))
+    for i in range(len(path) - 1):
+        faces += [(i * seg + j, i * seg + (j + 1) % seg, (i + 1) * seg + (j + 1) % seg, (i + 1) * seg + j) for j in range(seg)]
+    faces += [tuple(reversed(range(seg))), tuple(range((len(path) - 1) * seg, len(path) * seg))]
+    o = mesh_object(name, verts, faces)
+    for m in names:
+        o.data.materials.append(material(m))
+    for f, poly in enumerate(o.data.polygons):
+        poly.material_index = mats[min(f // seg, len(mats) - 1)] if f < (len(path) - 1) * seg else 0
+        poly.use_smooth = True
+    return o
+
+
+def model_solid(name, p):
+    """Hotový GLB (postava v měřítku): ležící model se položí podél x, nejdelší rozměr = `delka`, střed v `stred`, pak natočení kolem
+    x, y, z ve stupních. Materiály zůstávají z modelu."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=p["soubor"])
+    meshes = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    for o in meshes:
+        world = o.matrix_world.copy()
+        o.parent = None
+        o.data.transform(world)
+        o.matrix_world = Matrix.Identity(4)
+    for o in [o for o in bpy.data.objects if o not in before and o.type != "MESH"]:
+        bpy.data.objects.remove(o)
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in meshes:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = meshes[0]
+    if len(meshes) > 1:
+        bpy.ops.object.join()
+    o = bpy.context.view_layer.objects.active
+    o.name = name
+    co = [v.co for v in o.data.vertices]
+    lo = Vector([min(v[i] for v in co) for i in range(3)])
+    hi = Vector([max(v[i] for v in co) for i in range(3)])
+    size = hi - lo
+    if size.y > size.x and size.y >= size.z:        # ležící model (potápěč) podél x; stojící postava zůstane stát
+        o.data.transform(Matrix.Rotation(math.radians(90), 4, "Z"))
+        co = [v.co for v in o.data.vertices]
+        lo = Vector([min(v[i] for v in co) for i in range(3)])
+        hi = Vector([max(v[i] for v in co) for i in range(3)])
+    k = p["delka"] / max(hi - lo)
+    rot = Euler([math.radians(a) for a in p["natoceni"]], "XYZ").to_matrix().to_4x4()
+    o.data.transform(Matrix.Translation(Vector(p["stred"])) @ rot @ Matrix.Scale(k, 4) @ Matrix.Translation(-(lo + hi) / 2))
+    o.data.update()
+    return o
+
+
 def cutter_of(name, part):
     """Object of a cut with its own shape, for the build and for painting the inside of the space it leaves."""
     if part["typ"] == "dutina":
@@ -625,6 +813,10 @@ def build(spec, kept=lambda x, y, z=None: True, no_effect=None):
             o = {"sochy": statues, "lide": people, "zdvihadla": lifts}[kind](name, part, kept)
             if o:
                 objects[name] = o
+        elif kind in ("telo", "prurezy"):
+            objects[name] = loft_solid(name, part)
+        elif kind in ("elipsoid", "deska", "zuby", "trubice", "model"):
+            objects[name] = {"elipsoid": ellipsoid_solid, "deska": plate_solid, "zuby": teeth_solid, "trubice": tube_solid, "model": model_solid}[kind](name, part)
         elif kind == "vyrez":
             cut(name, part["cile"], box_solid(f"{name}_cut", part["kvadr"]) if "kvadr" in part else wedge_cutter(name, part["azimut"], part["z"]))
     bpy.context.view_layer.update()

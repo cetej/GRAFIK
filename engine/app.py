@@ -27,7 +27,7 @@ from engine.gpu import free_vram_mib
 from engine.keys import get_key
 from engine.jobs import JobStore, Worker, load_costs
 from engine.models import ImageRequest, Ref, check_box
-from engine import api3d, api_knihovna, image_format, api_scenes3d, archive, chain, checks, localize, models3d as m3d, objekty, panels, parts3d, pohyb, reformat, research, scenes3d
+from engine import api3d, api_knihovna, image_format, api_scenes3d, archive, chain, checks, localize, models3d as m3d, objekty, panels, parts3d, pohyb, reformat, research, scenes3d, silueta
 from engine.sdserver import SdServer
 from engine import commons
 from engine.reflib import RefLibError, RefLibrary
@@ -244,6 +244,7 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
     app.state.chain = infochain
     api3d.register(app, models3d, store, reflib)
     parts3d.register(app, parts)
+    silueta.register(app, reflib)
     api_scenes3d.register(app, scenes, models3d, store)
     localize.register(app, localizer, store, reflib)
     research.register(app, researcher, store)
