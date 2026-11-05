@@ -88,6 +88,15 @@ def compose(mode: str, flux: Image.Image, colour: Image.Image) -> Image.Image:
     return out
 
 
+def flatten(folder: Path, files: list[str]) -> None:
+    """obraz.png = vrstvy na sobě zdola nahoru: dokument s panely (engine/panels.py copy_render) a náhledy ho potřebují."""
+    layers = [Image.open(folder / f).convert("RGBA") for f in files]
+    out = Image.new("RGBA", layers[0].size, (0, 0, 0, 0))
+    for layer in layers:
+        out.alpha_composite(layer)
+    out.save(folder / "obraz.png")
+
+
 def transpose_points(body: dict) -> dict:
     out = {**body, "points": {k: [y, x] for k, (x, y) in body["points"].items()}, "res": body["res"][::-1]}
     if "ramecky" in body:
@@ -149,7 +158,7 @@ class Textura3d:
                     cut.save(out / f"flux-{name}-{seed}.png")
                     seeds[str(seed)] = {"soubor": f"flux-{name}-{seed}.png", "iou": iou(cut, src)}
                 best = max(seeds, key=lambda s: seeds[s]["iou"])
-                layers[name] = {"slozeni": layer["slozeni"], "seedy": seeds, "doporuceny": int(best),
+                layers[name] = {"slozeni": layer["slozeni"], "prompt": layer["prompt"], "seedy": seeds, "doporuceny": int(best),
                                 "tvar_drzi": seeds[best]["iou"] >= MIN_IOU, "na_vysku_nalezato": turn}
         except Exception:
             shutil.rmtree(out, ignore_errors=True)
@@ -175,23 +184,215 @@ class Textura3d:
         out = tdir / f"hotovo-{max(taken, default=0) + 1}"
         out.mkdir()
         body_json = json.loads((cdir / "body.json").read_text(encoding="utf-8"))
+        # pořadí vrstev zdola nahoru: co se skládá `pod` (vnitřnosti), pak ostatní, jak je render vyjmenoval (kůže, postava)
+        order = sorted(body_json.get("vrstvy", {}), key=lambda n: (meta["vrstvy"].get(n, {}).get("slozeni") != "pod"))
         files = []
-        for layer in body_json.get("vrstvy", {}):
+        for layer in order:
             colour = Image.open(cdir / f"vrstva-{layer}.png").convert("RGBA")
             img = compose(meta["vrstvy"][layer]["slozeni"], Image.open(tdir / f"flux-{layer}-{chosen[layer]}.png").convert("RGBA"), colour) \
                 if layer in chosen else colour
             img.save(out / f"vrstva-{layer}.png")
             files.append(f"vrstva-{layer}.png")
-        (out / "body.json").write_text(json.dumps({**body_json, "textura": {"id": tid, "seedy": chosen}}, ensure_ascii=False, indent=1), encoding="utf-8")
+        flatten(out, files)
+        (out / "body.json").write_text(json.dumps({**body_json, "vrstvy": {n: body_json["vrstvy"][n] for n in order}, "textura": {"id": tid, "seedy": chosen}},
+                                                  ensure_ascii=False, indent=1), encoding="utf-8")
         result = {"dir": f"renders/{meta['render']}/{meta['slozka']}/{out.name}", "seedy": chosen, "vrstvy": files}
         if body.na_vysku:
             tall = out / "na-vysku"
             tall.mkdir()
             for f in files:
                 Image.open(out / f).transpose(Image.Transpose.TRANSPOSE).save(tall / f)
+            flatten(tall, files)
             (tall / "body.json").write_text(json.dumps(transpose_points(json.loads((out / "body.json").read_text(encoding="utf-8"))), ensure_ascii=False, indent=1), encoding="utf-8")
             result["na_vysku"] = f"{result['dir']}/na-vysku"
         return result
+
+
+class StrankaIn(BaseModel):
+    hotovo: str                         # hotovo-<k> z výběru seedu
+    titulek: str
+    popisky: dict[str, str] = {}        # bod z body.json -> český popisek; prázdný se nevypíše, druhý řádek za „\n“
+    nazvy_vrstev: dict[str, str] = {}   # vrstva -> název ve VectorCraftu
+    formaty: list[str] = ["16:9", "9:16"]
+
+
+FORMATS = {"16:9": ("1920x1080", ""), "9:16": ("1080x1920", "na-vysku")}
+GAP = 24        # mezera mezi tvorem a řadou popisků
+
+
+def _row(labels: list[dict], size: float, width: int) -> None:
+    """Popisky v jedné řadě se nesmí překrýt: každý začíná až za koncem předchozího, co přeteče vpravo, se posune zpět."""
+    from engine.panels import _text_box
+    labels.sort(key=lambda lb: lb["pos"][0])
+    edge = 20.0
+    for lb in labels:
+        x = _text_box(lb, size)[0]
+        if x < edge:
+            lb["pos"][0] += edge - x
+        x, _y, w, _h = _text_box(lb, size)
+        edge = x + w + size * 0.6
+    right = width - 20.0        # co přeteče vpravo, jde zpět jen o tolik, kolik je třeba, a nikdy přes levý okraj
+    for lb in reversed(labels):
+        x, _y, w, _h = _text_box(lb, size)
+        if x + w > right:
+            lb["pos"][0] -= min(x + w - right, x - 20)
+        right = _text_box(lb, size)[0] - size * 0.6
+
+
+def _column(labels: list[dict], size: float, top: float, bottom: float) -> None:
+    """Popisky ve sloupci pod sebou, každý co nejblíž výšce své věci a bez překryvu."""
+    from engine.panels import _text_box
+    labels.sort(key=lambda lb: lb["pos"][1])
+    edge = top
+    for lb in labels:
+        lb["pos"][1] = max(lb["pos"][1], edge)
+        edge = lb["pos"][1] + _text_box(lb, size)[3] + size * 0.5
+    over = edge - size * 0.5 - bottom
+    for lb in reversed(labels):
+        if over <= 0:
+            break
+        lb["pos"][1] -= over
+
+
+def crop_to_content(src: Path, dst: Path, margin: float = 0.02) -> None:
+    """Vrstvy, obraz a body oříznuté na společný obsah: tvor pak vyplní plochu stránky, ne prázdné okolí renderu."""
+    if (dst / "body.json").is_file():
+        return
+    dst.mkdir(parents=True, exist_ok=True)
+    files = ["obraz.png", *sorted(p.name for p in src.glob("vrstva-*.png"))]
+    with Image.open(src / "obraz.png") as im:
+        w, h = im.size
+        x0, y0, x1, y1 = im.getchannel("A").point(lambda v: 255 if v > 8 else 0).getbbox() or (0, 0, w, h)
+    pad = round(max(x1 - x0, y1 - y0) * margin)
+    box = (max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad))
+    for f in files:
+        with Image.open(src / f) as im:
+            im.crop(box).save(dst / f)
+    body = json.loads((src / "body.json").read_text(encoding="utf-8"))
+    body["points"] = {k: [x - box[0], y - box[1]] for k, (x, y) in body["points"].items()}
+    body["ramecky"] = {k: [a - box[0], b - box[1], c - box[0], d - box[1]] for k, (a, b, c, d) in body.get("ramecky", {}).items()}
+    if "origin" in body:
+        body["origin"] = [body["origin"][0] - box[0], body["origin"][1] - box[1]]
+    body["res"] = [box[2] - box[0], box[3] - box[1]]
+    body["viditelne"] = visible_points(dst, body)
+    (dst / "body.json").write_text(json.dumps(body, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def visible_points(folder: Path, body: dict) -> list[str]:
+    """Blender počítá viditelnost paprskem, který skončí na kůži; orgán za průsvitným oknem je ale vidět. Bod je vidět, když leží
+    na některé vrstvě a vrstvy nad ní jsou v tom místě průsvitné (vrstvy zdola nahoru jako v body.json)."""
+    alphas = [np.asarray(Image.open(folder / f"vrstva-{n}.png").getchannel("A")) for n in body.get("vrstvy", {})]
+    out = []
+    for name, (x, y) in body["points"].items():
+        xi, yi = int(round(x)), int(round(y))
+        if not alphas or not (0 <= yi < alphas[0].shape[0] and 0 <= xi < alphas[0].shape[1]):
+            continue
+        hit = next((i for i, a in enumerate(alphas) if a[yi, xi] > 40), None)
+        if hit is not None and all(a[yi, xi] < 200 for a in alphas[hit + 1:]):
+            out.append(name)
+    return out
+
+
+def _wrap(text: str, chars: int) -> list[str]:
+    out, cur = [], ""
+    for word in text.split():
+        if cur and len(cur) + 1 + len(word) > chars:
+            out.append(cur)
+            cur = word
+        else:
+            cur = f"{cur} {word}".strip()
+    return out + ([cur] if cur else [])
+
+
+def page_fields(fmt: str, folder: Path, rel: str, req: StrankaIn, model_title: str, textured: dict) -> dict:
+    """Stránka s jedním velkým tvorem z vrstev: vnitřnosti oříznuté obrysem kůže, záře kolem netexturovaných vrstev (postava).
+    Na šířku popisky střídavě v řadě nad a pod tvorem se svislým vodítkem, na výšku ve sloupci vedle tvora, vždy u bodu z body.json
+    (vorvan_stranka.py). Písmo: nejmenší text 1/30 šířky stránky (docs/infografiky-zasady.md, Web a mobil)."""
+    from engine.panels import MOBIL, _text_box, placement, to_page
+    size_name = FORMATS[fmt][0]
+    W, H = (int(v) for v in size_name.split("x"))
+    k = W / MOBIL["jednotek"]
+    font = round(W / 30 / 0.86 + 0.5)          # druhý řádek je 0,86 písma a má mít aspoň 1/30 šířky
+    body = json.loads((folder / "body.json").read_text(encoding="utf-8"))
+    top = MOBIL["titulek_y"] * k + GAP
+    drafts = []
+    for point, text in req.popisky.items():
+        lines = [t.strip() for t in text.split("\n") if t.strip()]
+        if lines and point in body["points"]:
+            small = [row for line in lines[1:] for row in _wrap(line, 30 if fmt == "16:9" else 18)]
+            drafts.append({"text": lines[0], "small": small, "kotva": point, "align": "left", "size": font, "pos": [0.0, 0.0]})
+    # na šířku střídavě nad a pod tvorem podle polohy bodu zleva doprava; pořadí podle bodu v obraze, výška pásu podle jeho popisků
+    order = sorted(range(len(drafts)), key=lambda i: body["points"][drafts[i]["kotva"]][0 if fmt == "16:9" else 1])
+    rows = {i: ("nad" if n % 2 == 0 else "dole") for n, i in enumerate(order)}
+    if fmt == "16:9":
+        band = {r: max((_text_box(lb, font)[3] for i, lb in enumerate(drafts) if rows[i] == r), default=-GAP) + GAP for r in ("nad", "dole")}
+        rect = [20.0, top + band["nad"], W - 40.0, H - top - band["nad"] - band["dole"] - 20.0]
+    else:
+        column = max((_text_box(lb, font)[2] for lb in drafts), default=0) + GAP
+        rect = [20.0 + column, top, W - 40.0 - column, H - top - 20.0]
+    place = placement({"rect": rect}, body)
+    with Image.open(folder / "obraz.png") as im:
+        bx0, by0, _bx1, by1 = im.getchannel("A").point(lambda v: 255 if v > 24 else 0).getbbox()
+    bx0, by0 = place["x"] + bx0 * place["k"], place["y"] + by0 * place["k"]
+    by1 = place["y"] + by1 * place["k"]
+    above, below = [], []
+    for i in order:
+        label = drafts[i]
+        ax, ay = to_page(place, label["kotva"], "hlavni")
+        h = _text_box(label, font)[3]
+        if fmt == "16:9" and rows[i] == "nad":
+            label.update(nad=True, pos=[ax - 10, max(top, by0 - GAP - h)])
+            above.append(label)
+        elif fmt == "16:9":
+            label.update(dole=True, pos=[ax - 10, min(by1 + GAP, H - 20 - h)])
+            below.append(label)
+        else:
+            label.update(align="right", pos=[min(bx0, rect[0]) - GAP, ay - font * 0.72])
+            above.append(label)
+    if fmt == "16:9":
+        _row(above, font, W)
+        _row(below, font, W)
+    else:
+        _column(above, font, top, H - 20)
+    labels = above + below
+    layers = body.get("vrstvy", {})
+    inner = [n for n, v in textured.items() if v.get("slozeni") == "pod" and n in layers]
+    skin = next((n for n, v in textured.items() if v.get("slozeni") == "okno" and n in layers), None)
+    main = {"id": "hlavni", "typ": "obraz", "poradi": 1, "nazev": model_title, "rect": rect, "zdroj": {"slozka": rel},
+            "vrstvy": {n: req.nazvy_vrstev.get(n, n) for n in layers}, "hrana": False,
+            "zar_vrstvy": [n for n in layers if n not in textured], "labels": labels}
+    if skin:
+        main["orez"] = {n: skin for n in inner}
+    return {"title": req.titulek, "size": size_name, "panels": [main]}
+
+
+def register_page(app: FastAPI, tex: Textura3d, library_dir: Path, make_panel_doc, finish) -> None:
+    """Stránka do záložky Infografiky z hotové textury; `make_panel_doc` je cesta POST /api/v2/infographics/panels,
+    `finish(doc)` uloží dokument bez kreditu na stránce (operátor 5. 11.: zdroje a kredity patří do popisků na webu)."""
+    @app.post("/api/v2/models3d/{model_id}/{version}/textura/{textura_id}/stranka", status_code=201)
+    def models3d_textura_stranka(model_id: str, version: str, textura_id: str, body: StrankaIn):
+        try:
+            meta = tex.lib.read(model_id, version)
+            info = next((t for t in meta.get("textury", []) if t["id"] == textura_id), None)
+            if info is None:
+                raise Model3dError(f"textura {textura_id} u modelu {model_id} {version} neexistuje")
+            if not DIR.fullmatch(body.hotovo) or not body.formaty or set(body.formaty) - set(FORMATS):
+                raise Model3dError(f"hotovo je hotovo-<k>, formáty {', '.join(FORMATS)}")
+            if not any(t.strip() for t in body.popisky.values()):
+                raise Model3dError("stránka chce aspoň jeden popisek")
+            base = tex.lib.vdir(model_id, version) / "renders" / info["render"] / info["slozka"] / body.hotovo
+            docs = []
+            for fmt in body.formaty:
+                source = base / FORMATS[fmt][1] if FORMATS[fmt][1] else base
+                if not (source / "obraz.png").is_file():
+                    raise Model3dError(f"{body.hotovo} nemá {'verzi na výšku (vyber s na_vysku)' if FORMATS[fmt][1] else 'obraz.png'}")
+                folder = base / f"stranka-{fmt.replace(':', 'x')}"
+                crop_to_content(source, folder)
+                rel = folder.relative_to(library_dir).as_posix()
+                docs.append(finish(make_panel_doc(page_fields(fmt, folder, rel, body, meta["title"], info["vrstvy"]))))
+        except Model3dError as e:
+            raise HTTPException(404 if "neexistuje" in str(e) else 400, str(e)) from e
+        return {"dokumenty": [{"id": d["id"], "size": d["size"], "title": d["title"]} for d in docs]}
 
 
 def register(app: FastAPI, tex: Textura3d) -> None:

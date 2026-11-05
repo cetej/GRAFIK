@@ -527,7 +527,9 @@ export interface Model3dVersion {
   title: string
   created: string
   status: 'queued' | 'generating' | 'model' | 'viewer' | 'rendering' | 'stretching' | 'ready' | 'failed'
-  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch' | 'rotate'
+  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch' | 'rotate' | 'parts'
+  renders?: Render3d[]       // model z dílů (engine/parts3d.py): barevné rendery a rendery v hlíně
+  textury?: Textura3d[]      // povrch vrstev z lokálního FLUXu (engine/textura3d.py)
   backend: string | null
   refs: { view: View3d; file: string; source: string | null; license: string | null }[]
   cost_usd: number
@@ -555,6 +557,16 @@ export interface Model3dVersion {
   source_url?: string
   zdroj?: 'smithsonian' | 'sketchfab'
 }
+export interface Render3d {
+  id: string; pohled: string; res: [number, number]; samples: number; file: string; body: string
+  vrstvy: Record<string, string[]>; job_id: string; seconds: number; rendered: string
+  pozadavek?: Record<string, unknown> & { hlina?: boolean }
+}
+export interface TexturaVrstva {
+  slozeni: 'okno' | 'pod'; prompt?: string; doporuceny: number; tvar_drzi: boolean
+  seedy: Record<string, { soubor: string; iou: number }>
+}
+export interface Textura3d { id: string; slozka: string; render: string; predloha: string; vrstvy: Record<string, TexturaVrstva>; seconds: number; created: string; dir: string }
 export interface Hotovy3d {
   zdroj: 'smithsonian' | 'sketchfab'; id: string; nazev: string; autor: string | null; licence: string
   stranka: string | null; nahled: string | null; trojuhelniky?: number | null; lze_stahnout: boolean; proc_ne: string | null
@@ -598,6 +610,14 @@ export const m3dApi = {
   hotove: (q: string) => call<{ kandidati: Hotovy3d[]; chyby: string[]; sketchfab_stazeni: boolean }>(`${m3}/hotove?q=${encodeURIComponent(q)}`),
   prevzit: (body: { zdroj: string; id: string; title?: string; model_id?: string | null }) =>
     post<{ model_id: string; version: string; job_id: string; estimate_usd: number }>(`${m3}/hotove`, body),
+  // model z dílů: render (i v hlíně), textura z lokálního FLUXu, výběr seedu a stránka do Infografik, vše 0 USD
+  render: (id: string, v: string, body: Record<string, unknown>) => post<{ job_id: string }>(`${m3}/${id}/${v}/render`, body),
+  textura: (id: string, v: string, body: { render: string; predloha: string; vrstvy: Record<string, { prompt: string; slozeni: string }>; seeds: number[] }) =>
+    post<{ job_id: string; obrazu: number }>(`${m3}/${id}/${v}/textura`, body),
+  texturaVyber: (id: string, v: string, tid: string, body: { seedy: Record<string, number>; na_vysku: boolean }) =>
+    post<{ dir: string; seedy: Record<string, number>; vrstvy: string[]; na_vysku?: string }>(`${m3}/${id}/${v}/textura/${tid}/vyber`, body),
+  stranka: (id: string, v: string, tid: string, body: { hotovo: string; titulek: string; popisky: Record<string, string>; nazvy_vrstev: Record<string, string>; formaty: string[] }) =>
+    post<{ dokumenty: { id: string; size: string; title: string }[] }>(`${m3}/${id}/${v}/textura/${tid}/stranka`, body),
 }
 
 // -- 3D scenes (engine/api_scenes3d.py, docs/plans/2026-10-27-3d-sceny.md) ---------------------------------

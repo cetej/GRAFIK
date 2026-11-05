@@ -4,6 +4,7 @@ import {
   type Estimate3d, type Hotovy3d, type Job3d, type Model3dVersion, type RefIn, type RefMeta, type View3d,
 } from './api.ts'
 import RefPicker from './RefPicker.tsx'
+import Renders3d from './Renders3d.tsx'
 import Viewer3d, { DEFAULT_VIEW, type Cam3d, type ViewerHandle } from './Viewer3d.tsx'
 import { fmtTime, fmtUsd } from './App.tsx'
 
@@ -60,9 +61,10 @@ const ratio = (b: number[]) => {
   return [len, wid, b[2]].map((x) => (x / top).toLocaleString('cs-CZ', { maximumFractionDigits: 2 })).join(' : ')
 }
 
-export default function Models3d({ onError, onToStudio, onScenes }: {
+export default function Models3d({ onError, onToStudio, onScenes, onInfographicDoc }: {
   onError: (msg: string) => void
   onScenes: () => void
+  onInfographicDoc: (id: string) => void
   onToStudio: (ref: RefIn & { name: string; preview: string; meta?: string }) => void
 }) {
   const [models, setModels] = useState<Model3dVersion[]>([])
@@ -511,6 +513,7 @@ export default function Models3d({ onError, onToStudio, onScenes }: {
                 ) : <p className="hint">{sheetJob ? 'Kreslím…' : 'Pro tuto výšku sheet ještě není.'}</p>}
               </div>
             )}
+            {cur.method === 'parts' && <Renders3d model={cur} onError={onError} onDoc={onInfographicDoc} />}
           </>
         )}
       </section>

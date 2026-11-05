@@ -74,8 +74,9 @@ def test_pick_composes_layers_with_the_colour_render_and_turns_to_portrait(api, 
     r = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/vyber", json={"seedy": {"kuze": 62}, "na_vysku": True})
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["seedy"] == {"kuze": 62, "vnitrek": 61} and body["vrstvy"] == ["vrstva-kuze.png", "vrstva-vnitrek.png"]
+    assert body["seedy"] == {"kuze": 62, "vnitrek": 61} and body["vrstvy"] == ["vrstva-vnitrek.png", "vrstva-kuze.png"]   # zdola nahoru: pod je dole
     out = versions(settings) / body["dir"]
+    assert (out / "obraz.png").is_file() and (versions(settings) / body["na_vysku"] / "obraz.png").is_file()     # dokument s panely ho potřebuje
     assert (out / "vrstva-kuze.png").is_file() and json.loads((out / "body.json").read_text(encoding="utf-8"))["textura"]["seedy"]["kuze"] == 62
     tall = versions(settings) / body["na_vysku"]
     assert json.loads((tall / "body.json").read_text(encoding="utf-8"))["points"]["zed"] == [10, 10]
@@ -139,3 +140,61 @@ def test_failed_flux_leaves_no_half_texture(api, settings, renders, monkeypatch)
 def test_whale_recipe_names_layers_the_render_makes():
     spec = json.loads((Path(__file__).resolve().parents[1] / "scripts" / "3d" / "dily" / "vorvan.json").read_text(encoding="utf-8"))
     assert set(spec["textura"]) <= set(spec["render"]["skupiny"]) and spec["predloha"]["hlina"] and spec["predloha"]["kamera"] == spec["render"]["kamera"]
+
+
+def test_page_goes_to_infographics_in_both_formats_without_credit(api, settings, renders, flux):
+    wait(api, texture(api).json()["job_id"])
+    hotovo = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/vyber", json={"seedy": {}, "na_vysku": True}).json()["dir"].split("/")[-1]
+    r = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/stranka", json={
+        "hotovo": hotovo, "titulek": "Věž zevnitř", "popisky": {"zed": "Zeď\npískovec, 2 m", "podlaha": "", "neni": "Nic"}, "nazvy_vrstev": {"kuze": "Kůže"}})
+    assert r.status_code == 201, r.text
+    docs = r.json()["dokumenty"]
+    assert [d["size"] for d in docs] == ["1920x1080", "1080x1920"]
+    doc = api.get(f"/api/v2/infographics/{docs[0]['id']}").json()
+    panel = doc["panels"][0]
+    assert doc["na_strance"] == "" and doc["title"] == "Věž zevnitř"
+    assert panel["vrstvy"] == {"vnitrek": "vnitrek", "kuze": "Kůže"} and panel["orez"] == {"vnitrek": "kuze"} and panel["hrana"] is False
+    assert [lb["kotva"] for lb in panel["labels"]] == ["zed"] and panel["labels"][0]["small"] == ["pískovec, 2 m"]     # prázdný a neznámý bod vypadly
+    assert panel["zdroj"]["slozka"].endswith(f"{hotovo}/stranka-16x9")
+    assert api.get(f"/api/v2/infographics/{docs[1]['id']}").json()["panels"][0]["zdroj"]["slozka"].endswith("stranka-9x16")
+    svg = api.get(f"/api/v2/infographics/{docs[0]['id']}/svg").text
+    assert "Zeď" in svg and "(AI)" not in svg and "AI)" not in svg
+
+
+@pytest.mark.parametrize("body, status, message", [
+    ({"hotovo": "hotovo-9", "titulek": "x", "popisky": {"zed": "Zeď"}}, 400, "obraz.png"),
+    ({"hotovo": "../x", "titulek": "x", "popisky": {"zed": "Zeď"}}, 400, "hotovo"),
+    ({"hotovo": "hotovo-1", "titulek": "x", "popisky": {"zed": " "}}, 400, "popisek"),
+    ({"hotovo": "hotovo-1", "titulek": "x", "popisky": {"zed": "Zeď"}, "formaty": ["4:3"]}, 400, "formáty"),
+])
+def test_bad_page_request_says_what_is_wrong(api, renders, flux, body, status, message):
+    wait(api, texture(api).json()["job_id"])
+    api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/vyber", json={"seedy": {}})
+    r = api.post("/api/v2/models3d/vez/v1/textura/r-1-textura-1/stranka", json=body)
+    assert r.status_code == status and message in r.json()["detail"]
+
+
+def test_points_behind_see_through_skin_count_as_visible(tmp_path):
+    for name, box, alpha in (("vnitrek", (2, 2, 8, 8), 255), ("kuze", (0, 0, 10, 10), 60)):
+        im = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+        im.paste((90, 90, 90, alpha), box)
+        im.save(tmp_path / f"vrstva-{name}.png")
+    opaque = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+    opaque.paste((90, 90, 90, 255), (0, 0, 3, 3))
+    opaque.save(tmp_path / "vrstva-potapec.png")
+    body = {"vrstvy": {"vnitrek": [], "kuze": [], "potapec": []}, "points": {"organ": [5, 5], "zakryty": [2, 2], "voda": [20, 20], "kuze": [9, 9]}}
+    assert textura3d.visible_points(tmp_path, body) == ["organ", "kuze"]
+
+
+def test_crop_keeps_points_on_the_same_pixels(tmp_path):
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir()
+    im = Image.new("RGBA", (100, 50), (0, 0, 0, 0))
+    im.paste((200, 0, 0, 255), (40, 10, 60, 30))
+    im.save(src / "obraz.png")
+    im.save(src / "vrstva-a.png")
+    (src / "body.json").write_text(json.dumps({"res": [100, 50], "points": {"p": [50, 20]}, "vrstvy": {"a": []}, "origin": [50, 25]}), encoding="utf-8")
+    textura3d.crop_to_content(src, dst)
+    body = json.loads((dst / "body.json").read_text(encoding="utf-8"))
+    x, y = body["points"]["p"]
+    assert body["res"][0] < 30 and Image.open(dst / "obraz.png").getpixel((int(x), int(y)))[0] == 200 and body["viditelne"] == ["p"]

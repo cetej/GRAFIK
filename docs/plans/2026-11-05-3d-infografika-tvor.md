@@ -29,7 +29,20 @@ Zkouška každé fáze: vorvaň znovu udělaný přes Engine musí odpovídat ru
 - Recept vorvaně `vorvan.json` → `textura` (prompty z `vorvan_flux.py` beze změny).
 - Zbývá: výběr seedu ve Studiu (jediné ruční rozhodnutí) patří do fáze 3 spolu s krokem v řetězci.
 
-## Fáze 3 — krok „3D scéna“ v řetězci a stránka v Infografikách (čeká)
+## Fáze 3a — Studio a stránka v Infografikách (hotovo 5. 11., náčrt schválený operátorem)
+
+- Studio 3D, model z dílů: `studio/src/Renders3d.tsx` pod sheetem pohledů. Rendery (barevné a v hlíně, „Render v hlíně · 0 USD“ se
+  stejnou kamerou, render si pamatuje `pozadavek`), textura (vrstvy, složení okno/pod, anglický popis povrchu, 3 seedy), mřížka
+  variant s IoU (doporučená předvybraná, pod 0,9 „tvar nesedí“), titulek, formát a popisky k bodům, „Složit a vytvořit stránku“.
+- Engine: výběr seedu dopíše `obraz.png` (vrstvy zdola nahoru, `pod` dole). `POST …/textura/<id>/stranka` ořízne vrstvy na obsah
+  (`stranka-16x9/`, `stranka-9x16/`, viditelnost bodů znovu z vrstev), složí dokument s panely: vnitřnosti oříznuté obrysem kůže
+  (`orez`), záře kolem netexturované vrstvy (`zar_vrstvy`), průsvitná kůže bez zesílené hrany (`hrana: false`), na šířku popisky
+  střídavě nad a pod tvorem se svislým vodítkem (`nad`, nové `dole`), na výšku ve sloupci vedle tvora, písmo 1/30 šířky. Na stránce
+  žádný kredit AI ani zdroj (`na_strance` prázdné, kredit v `sources`).
+- Vorvaň: obě stránky projdou kontrolami (`GET …/kontrola`) bez nálezu, kromě „před zveřejněním zkontroluje člověk“.
+- Vynechané proti ruční stránce: malé srovnání jícnu s člověkem (zvláštnost vorvaně) a editor popisků ve Studiu (úprava ve VectorCraftu).
+
+## Fáze 3b — krok „3D scéna“ v řetězci (čeká)
 
 - Krok mezi Návrhy a Stránky v `engine/chain.py`; návrh zvířete s pojmy „vnitřek“, „figura v měřítku“.
 - Panelový dokument s vrstvami kůže, vnitřku a postavy: vnitřek oříznutý obrysem těla, záře postavy, popisky na `body.json`.

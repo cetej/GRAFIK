@@ -671,3 +671,42 @@ def test_reformat_gives_the_main_picture_the_most_room(api, doc):
     W, H = map(int, new["size"].split("x"))
     assert hero[2] * hero[3] == max(p["rect"][2] * p["rect"][3] for p in new["panels"])
     assert hero[2] * hero[3] > 0.25 * W * H
+
+
+def test_layer_clip_glow_and_soft_edge_for_a_creature(api, settings):
+    from engine import panels as P
+    folder = settings.library_dir / "tvor"
+    folder.mkdir(parents=True)
+    Image.new("RGBA", (200, 100), (0, 0, 0, 255)).save(folder / "obraz.png")
+    inner = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+    inner.paste((220, 90, 90, 255), (0, 20, 200, 80))          # vnitřnosti přečnívají z těla vlevo i vpravo
+    inner.save(folder / "vrstva-vnitrek.png")
+    skin = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+    skin.paste((60, 60, 60, 40), (50, 10, 150, 90))
+    skin.save(folder / "vrstva-kuze.png")
+    fig = Image.new("RGBA", (200, 100), (0, 0, 0, 0))
+    fig.paste((20, 20, 20, 255), (5, 40, 25, 60))
+    fig.save(folder / "vrstva-postava.png")
+    (folder / "body.json").write_text(json.dumps({**BODY, "res": [200, 100]}), encoding="utf-8")
+    panel = {"id": "hlavni", "typ": "obraz", "rect": [0, 200, 1920, 860], "zdroj": {"slozka": "tvor"},
+             "vrstvy": {"vnitrek": "Vnitřnosti", "kuze": "Kůže", "postava": "Postava"}, "orez": {"vnitrek": "kuze"}, "zar_vrstvy": ["postava"], "hrana": False,
+             "labels": [{"text": "Žaludek", "kotva": "vez", "pos": [900, 1000], "dole": True}]}
+    r = api.post("/api/v2/infographics/panels", json={"title": "Tvor", "size": "1920x1080", "panels": [panel]})
+    assert r.status_code == 201, r.text
+    doc = r.json()
+    svg = api.get(f"/api/v2/infographics/{doc['id']}/svg").text
+    assert "Záře Postava" in svg
+    root = settings.library_dir / "infographics" / doc["id"] / "panely" / "hlavni" / "orez"
+    assert Image.open(root / "vnitrek-v-kuze.png").width < 110      # jen uvnitř obrysu kůže (50 až 150 px), ne celých 200
+    assert max(Image.open(root / "kuze-mekka.png").getchannel("A").getdata()) == 40      # průsvitná kůže bez zesílené hrany
+    lead = P.leader_points({"text": "Žaludek", "small": [], "kotva": "vez", "pos": [900, 1000], "align": "left", "dole": True},
+                           P.placement({"rect": [0, 200, 1920, 860]}, {**BODY, "res": [200, 100]}), 40)
+    assert lead[0][0] == lead[1][0] and lead[1][1] < 1000       # svisle z věci dolů k hornímu okraji textu
+
+
+@pytest.mark.parametrize("extra, message", [({"orez": {"vnitrek": "neni"}}, "orez"), ({"zar_vrstvy": ["neni"]}, "zar_vrstvy")])
+def test_creature_layer_options_name_existing_layers(extra, message):
+    from engine import panels as P
+    doc = {"size": "1920x1080", "panels": [{"id": "h", "typ": "obraz", "rect": [0, 0, 100, 100], "vrstvy": {"vnitrek": "V"}, **extra}]}
+    with pytest.raises(P.InfoError, match=message):
+        P.validate(doc)

@@ -323,7 +323,7 @@ export default function App() {
               setToast(`Snímek scény ${ref.name} je v předlohách jako „tvar“, věta o rozměrech v zadání.`)
             }} />
         ) : (
-          <Models3d onError={setToast} onScenes={() => setMode3d('scenes')}
+          <Models3d onError={setToast} onScenes={() => setMode3d('scenes')} onInfographicDoc={(id) => { setInfoId(id); setTab('info') }}
             onToStudio={(ref) => { setRefs((r) => [...r, ref].slice(0, 10)); setTab('studio'); setToast(`Pohled ${ref.name} je v předlohách jako „tvar“.`) }} />
         )
       ) : tab === 'info' ? (
