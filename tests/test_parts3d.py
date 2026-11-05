@@ -159,3 +159,13 @@ def test_view_names_match_the_blender_script():
     source = (Path(parts3d.__file__).parent / "blender" / "render_parts.py").read_text(encoding="utf-8")
     block = source[source.index("VIEWS = {"):source.index("MARGIN =")]
     assert tuple(re.findall(r'"(\w+)": \{', block)) == parts3d.POHLEDY
+
+
+def test_library_list_skips_folder_without_model_json(tmp_path):
+    from engine.models3d import Model3dLibrary
+    lib = Model3dLibrary(tmp_path)
+    lib.new_version(None, "dobry")
+    (tmp_path / "ze-skriptu" / "v1").mkdir(parents=True)
+    (tmp_path / "ze-skriptu" / "v1" / "model.glb").write_bytes(b"glb")
+    assert [m["id"] for m in lib.list()] == ["dobry"]
+    assert lib.mark_interrupted() == 0
