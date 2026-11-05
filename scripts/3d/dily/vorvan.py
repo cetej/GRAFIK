@@ -24,6 +24,17 @@ SIRKA = [(0.0, 0.0), (0.01, 0.05), (0.03, 0.075), (0.06, 0.09), (0.1, 0.1), (0.2
 LAYER_PX = (1308, 307)
 CAVITY = (600, 200, 470, 108)
 POINTS = {"tlama": (150, 258), "jicen": (345, 222), "predzaludek": (520, 190), "hlavni_zaludek": (640, 186), "strevo": (865, 186)}
+# vzhled povrchu pro lokální FLUX (scripts/plakaty/vorvan_flux.py, operátor 5. 11.: ne guma, ne kovové torpédo, žádné rýhy plejtváka)
+WHALE = ("Photorealistic adult male sperm whale with exactly the shape, pose, angle, size and outline of <ref_image_0>, "
+         "the open narrow lower jaw with two rows of conical ivory teeth exactly where it is in the reference. Matte dark brownish grey skin, "
+         "deeply wrinkled corrugated skin like a dried prune on the flanks behind the head, pale whitish scars and circular sucker scratches on "
+         "the huge blunt head, white lips, small eye just above the mouth corner, small paddle pectoral fin, low dorsal hump with knuckles. "
+         "Smooth throat and belly without any long grooves or pleats (not a rorqual), skin wrinkles short and irregular, not in regular bands; "
+         "flukes visible as broad flat blades. Natural underwater daylight from above, wildlife photograph, sharp detail.")
+ORGANS = ("Realistic anatomical 3D illustration of the digestive organs of a sperm whale with exactly the shapes, positions and sizes "
+          "of <ref_image_0>: a fleshy muscular esophagus tube, a thick-walled muscular first stomach with deep ridges, a larger second stomach "
+          "with folded glandular lining, two small round connecting chambers, a densely coiled long intestine. Wet tissue, fine blood vessels, "
+          "pink, red and cream colours, soft studio light, medical illustration, no labels.")
 TRACT = [(228, 242, 0.15), (300, 236, 0.16), (360, 214, 0.16), (412, 192, 0.17),
          (450, 184, 0.34), (490, 186, 0.6), (530, 192, 0.64), (570, 198, 0.44), (600, 196, 0.22),
          (625, 190, 0.48), (655, 186, 0.56), (688, 190, 0.38), (708, 195, 0.18),
@@ -167,7 +178,12 @@ def main():
             "render": {"pohled": "celek", "kamera": {"az": -121.8, "el": 5.8}, "perspektiva": True, "res": [2400, 1000], "samples": 48,
                        "pruhledne": {"dily": ["telo", "celist", "ploutve", "ocas"], "okno": window, "zbyva": 0.14},
                        "skupiny": {"kuze": ["telo", "celist", "zuby", "ploutve", "ocas"], "vnitrek": ["traveni", "dutina"], "potapec": ["potapec"]},
-                       "samostatne": True}}
+                       "samostatne": True},
+            # textura FLUXem (engine/textura3d.py): render v hlíně se stejnou kamerou, bez tmavé dutiny, je předloha tvaru
+            "predloha": {"pohled": "celek", "kamera": {"az": -121.8, "el": 5.8}, "perspektiva": True, "res": [2400, 1000], "samples": 32, "hlina": True,
+                         "bez": ["dutina"], "skupiny": {"kuze": ["telo", "celist", "zuby", "ploutve", "ocas"], "vnitrek": ["traveni", "dutina"],
+                                                        "potapec": ["potapec"]}, "samostatne": True},
+            "textura": {"kuze": {"prompt": WHALE, "slozeni": "okno"}, "vnitrek": {"prompt": ORGANS, "slozeni": "pod"}}}
     out = HERE / "vorvan.json"
     out.write_text(json.dumps(spec, ensure_ascii=False, indent=1), encoding="utf-8")
     print(out, "KZ", round(frame[3], 3), "okno", window)
