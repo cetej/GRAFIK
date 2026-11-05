@@ -2683,5 +2683,49 @@
    ]
   },
   "samostatne": true
+ },
+ "predloha": {
+  "pohled": "celek",
+  "kamera": {
+   "az": -121.8,
+   "el": 5.8
+  },
+  "perspektiva": true,
+  "res": [
+   2400,
+   1000
+  ],
+  "samples": 32,
+  "hlina": true,
+  "bez": [
+   "dutina"
+  ],
+  "skupiny": {
+   "kuze": [
+    "telo",
+    "celist",
+    "zuby",
+    "ploutve",
+    "ocas"
+   ],
+   "vnitrek": [
+    "traveni",
+    "dutina"
+   ],
+   "potapec": [
+    "potapec"
+   ]
+  },
+  "samostatne": true
+ },
+ "textura": {
+  "kuze": {
+   "prompt": "Photorealistic adult male sperm whale with exactly the shape, pose, angle, size and outline of <ref_image_0>, the open narrow lower jaw with two rows of conical ivory teeth exactly where it is in the reference. Matte dark brownish grey skin, deeply wrinkled corrugated skin like a dried prune on the flanks behind the head, pale whitish scars and circular sucker scratches on the huge blunt head, white lips, small eye just above the mouth corner, small paddle pectoral fin, low dorsal hump with knuckles. Smooth throat and belly without any long grooves or pleats (not a rorqual), skin wrinkles short and irregular, not in regular bands; flukes visible as broad flat blades. Natural underwater daylight from above, wildlife photograph, sharp detail.",
+   "slozeni": "okno"
+  },
+  "vnitrek": {
+   "prompt": "Realistic anatomical 3D illustration of the digestive organs of a sperm whale with exactly the shapes, positions and sizes of <ref_image_0>: a fleshy muscular esophagus tube, a thick-walled muscular first stomach with deep ridges, a larger second stomach with folded glandular lining, two small round connecting chambers, a densely coiled long intestine. Wet tissue, fine blood vessels, pink, red and cream colours, soft studio light, medical illustration, no labels.",
+   "slozeni": "pod"
+  }
  }
 }

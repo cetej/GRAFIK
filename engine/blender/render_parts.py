@@ -3,7 +3,8 @@
 # Writes OUT_DIR/obraz.png (RGBA), OUT_DIR/body.json and, with "vrstvy", OUT_DIR/vrstva-<name>.png: one group of parts alone on
 # transparent, the others cut it out and keep their shadows, so the picture can be edited object by object. With "samostatne"
 # each layer is rendered without the others (translucent skin apart from the organs behind it, as the whale page needs).
-# "perspektiva" uses a 50 mm camera instead of the orthographic one; "pruhledne" makes listed parts see-through in an ellipse.
+# "perspektiva" uses a 50 mm camera instead of the orthographic one; "pruhledne" makes listed parts see-through in an ellipse;
+# "hlina" paints everything matte light clay, the shape reference for the FLUX texture (engine/textura3d.py).
 # body.json holds the canvas position of every part and of the description's `kotvy`, so labels sit exactly on the model.
 # Generalised from the --render path of scripts/3d/lod_pantheon.py; that script stays as it is.
 import json
@@ -155,6 +156,15 @@ def see_through(o, window, keep):
         d = op("SQRT", op("ADD", op("MULTIPLY", dx, dx), op("MULTIPLY", dz, dz)), 0)
         fade = op("MINIMUM", op("MAXIMUM", op("DIVIDE", op("SUBTRACT", d, 0.92), 0.08), 0.0), 1.0)
         nt.links.new(op("ADD", keep, op("MULTIPLY", fade, 1 - keep)), bsdf.inputs["Alpha"])
+
+
+def clay_material():
+    m = bpy.data.materials.new("hlina")
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (0.42, 0.42, 0.42, 1)
+    bsdf.inputs["Roughness"].default_value = 0.8
+    return m
 
 
 def look_at(cam, pos, target, up):
@@ -341,7 +351,12 @@ def main():
         paint(name, o, boxes, lined)
         if PARTS[name]["typ"] != "model":
             smooth(o, 28 if PARTS[name]["typ"] in SOLID else 40)
-    clear = REQ.get("pruhledne")
+    if REQ.get("hlina"):    # předloha tvaru pro FLUX: matná světlá hlína, ze které čte tvar a světlo, kůži dodá sám (vorvaň 5. 11.)
+        clay = clay_material()
+        for o in objects.values():
+            o.data.materials.clear()
+            o.data.materials.append(clay)
+    clear = None if REQ.get("hlina") else REQ.get("pruhledne")
     if clear:
         for name in clear["dily"]:
             if name in objects:

@@ -18,12 +18,16 @@ Zkouška každé fáze: vorvaň znovu udělaný přes Engine musí odpovídat ru
 - Měření: tvar z dílů proti siluetě IoU 0,57, odchylky obrysu 3,56 / 3,8 / 4,44 % délky, přesně jako ruční model; profil z boku z `silueta.py`
   shodný s ručním do posledního čísla. Render 2400 × 1000, 48 vzorků, 4 průchody na GPU 32 s.
 
-## Fáze 2 — textura lokálním FLUXem jako úloha (čeká)
+## Fáze 2 — textura lokálním FLUXem jako úloha (hotovo 5. 11., kromě Studia)
 
-- Render `hlina` (matná světlá hlína, vnitřnosti bez dutiny) jako předloha `geometry`, zelené plátno, 3 seedy, kontrola obrysu IoU (vorvaň 0,98–0,99).
-- Kůže: alfa = min(FLUX, okno z Blenderu); vnitřek: tmavá dutina z Blenderu + orgány z FLUXu (`vorvan_flux.py pick`).
-- Na výšku FLUX předlohu nedrží (IoU 0,14–0,17): render naležato a výsledek otočit (`vorvan_flux.py transpose`).
-- Studio: výběr seedu je jediné ruční rozhodnutí.
+- Render s `hlina` (matná světlá hlína) a `bez: ["dutina"]` se stejnou kamerou je předloha tvaru; v `vorvan.json` jako `predloha`.
+- `engine/textura3d.py`, `POST /api/v2/models3d/<id>/<ver>/textura` (úloha `textura3d`): každá vrstva × každý seed jeden FLUX na
+  zeleném plátně s rolí `geometry`, vystřižení, IoU obrysu proti předloze, doporučený seed. FLUX běží uvnitř úlohy (Worker.process),
+  do Knihovny nic nepřibude. Předloha na výšku jde do FLUXu naležato a zpět.
+- `POST …/textura/<id>/vyber`: složení `okno` (alfa FLUXu oříznutá oknem z barevného renderu) a `pod` (tmavá dutina pod orgány),
+  `na_vysku` = překlopení podle úhlopříčky i s body popisků. Výsledek `renders/<r>/textura-<n>/hotovo-<k>/`.
+- Recept vorvaně `vorvan.json` → `textura` (prompty z `vorvan_flux.py` beze změny).
+- Zbývá: výběr seedu ve Studiu (jediné ruční rozhodnutí) patří do fáze 3 spolu s krokem v řetězci.
 
 ## Fáze 3 — krok „3D scéna“ v řetězci a stránka v Infografikách (čeká)
 

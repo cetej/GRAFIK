@@ -74,6 +74,7 @@ class RenderIn(BaseModel):
     perspektiva: bool = False       # kamera 50 mm místo pravoúhlé: bližší konec větší (hlava vorvaně k divákovi)
     pruhledne: Pruhledne | None = None
     samostatne: bool = False        # každá vrstva sama, bez ostatních (kůže zvlášť od vnitřností za ní)
+    hlina: bool = False             # matná světlá hlína: předloha tvaru pro texturu FLUXem (engine/textura3d.py)
     caller: str = "studio"
 
 
@@ -149,6 +150,8 @@ def check_render(body: RenderIn, spec: dict) -> dict:
         out["pruhledne"] = body.pruhledne.model_dump()
     if body.samostatne:
         out["samostatne"] = True
+    if body.hlina:
+        out["hlina"] = True
     if body.zaber is not None:
         out["zaber"] = body.zaber
     if body.kamera:
