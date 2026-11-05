@@ -35,7 +35,7 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   const [mode, setMode] = useState<Mode>('view')
   // a finished picture with its own layers opens whole in VectorCraft, without a 16:9 document around it
   const [layered, setLayered] = useState(false)
-  // stored from a file: its caption is no prompt, so no variant and no generator edit
+  // stored from a file: its caption is no prompt, so no variant and no prompt edit (box edit and layers need none)
   const [finished, setFinished] = useState(false)
   const [vcAsk, setVcAsk] = useState<string | null>(null)
   const [vcOpened, setVcOpened] = useState<string | null>(null)
@@ -89,9 +89,9 @@ export default function Stage({ selected, job, onOpen, onUseAsRef, onSubmit, onR
   return (
     <section className="stage">
       <div className="toolbar">
-        {!finished && <button className={`btn ${mode === 'box' ? 'active' : ''}`} onClick={() => setMode(mode === 'box' ? 'view' : 'box')}>▭ Upravit v rámečku</button>}
-        {!finished && <button className={`btn ${mode === 'vrstvy' ? 'active' : ''}`} onClick={() => setMode(mode === 'vrstvy' ? 'view' : 'vrstvy')}
-          title="Rozložit na objekty: smazat, posunout, změnit, dokreslit podklad">◧ Vrstvy objektů</button>}
+        <button className={`btn ${mode === 'box' ? 'active' : ''}`} onClick={() => setMode(mode === 'box' ? 'view' : 'box')}>▭ Upravit v rámečku</button>
+        <button className={`btn ${mode === 'vrstvy' ? 'active' : ''}`} onClick={() => setMode(mode === 'vrstvy' ? 'view' : 'vrstvy')}
+          title="Rozložit na objekty: smazat, posunout, změnit, dokreslit podklad">◧ Vrstvy objektů</button>
         <button className={`btn ${mode === 'compare' ? 'active' : ''}`} disabled={!before}
           title={before ? 'Posuvníkem porovnáte s předchozí verzí nebo předlohou' : 'Tenhle obrázek nemá předchozí verzi ani předlohu'}
           onClick={() => setMode(mode === 'compare' ? 'view' : 'compare')}>⇔ Porovnat před/po</button>
