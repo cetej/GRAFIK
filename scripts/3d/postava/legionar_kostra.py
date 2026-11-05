@@ -30,7 +30,12 @@ SIDE = {
     "clavicle": ((0.02, 0.01, 0.89), (0.13, 0.02, 0.89), "chest"),
     "upperarm": ((0.13, 0.02, 0.89), (0.21, 0.01, 0.755), "clavicle"),
     "forearm": ((0.21, 0.01, 0.755), (0.29, 0.0, 0.63), "upperarm"),
-    "hand": ((0.29, 0.0, 0.63), (0.355, -0.01, 0.555), "forearm"),
+    "hand": ((0.29, 0.0, 0.63), (0.3525, -0.0079, 0.5797), "forearm"),       # konec u kloubů prstů
+    # prsty srostlé blánou (prsteník s malíčkem jeden kus): čtyři prsty jednou kostí po článcích, palec zvlášť
+    "fingers1": ((0.3525, -0.0079, 0.5797), (0.3590, -0.0099, 0.5567), "hand"),
+    "fingers2": ((0.3590, -0.0099, 0.5567), (0.3623, -0.0119, 0.5336), "fingers1"),
+    "thumb1": ((0.3294, -0.0132, 0.6094), (0.3656, -0.0211, 0.5995), "hand"),
+    "thumb2": ((0.3656, -0.0211, 0.5995), (0.3887, -0.0250, 0.5962), "thumb1"),
     "thigh": ((0.085, 0.01, 0.53), (0.077, 0.025, 0.315), "pelvis"),
     "shin": ((0.077, 0.025, 0.315), (0.09, 0.04, 0.075), "thigh"),
     "foot": ((0.09, 0.04, 0.075), (0.10, -0.065, 0.02), "shin"),
@@ -55,10 +60,10 @@ for n, par in PARENT.items():
 for n, (a, b, par) in SIDE.items():
     for sfx in (".L", ".R"):
         p = par if par in C else par + sfx
-        eb[n + sfx].parent = eb[p]; eb[n + sfx].use_connect = n not in ("clavicle", "thigh")
+        eb[n + sfx].parent = eb[p]; eb[n + sfx].use_connect = n not in ("clavicle", "thigh", "thumb1")
 # role: ohyb kolene a lokte kolem osy X kosti míří stejně na obou stranách
 for e in eb:
-    e.align_roll(Vector((0, -1, 0)) if e.name.split(".")[0] in ("thigh", "shin", "foot") else Vector((0, 0, 1)) if e.name.split(".")[0] in ("upperarm", "forearm", "hand", "clavicle") else Vector((0, -1, 0)))
+    e.align_roll(Vector((0, -1, 0)) if e.name.split(".")[0] in ("thigh", "shin", "foot", "fingers1", "fingers2", "thumb1", "thumb2") else Vector((0, 0, 1)) if e.name.split(".")[0] in ("upperarm", "forearm", "hand", "clavicle") else Vector((0, -1, 0)))
 bpy.ops.object.mode_set(mode="OBJECT")
 
 # pomocná uzavřená síť
