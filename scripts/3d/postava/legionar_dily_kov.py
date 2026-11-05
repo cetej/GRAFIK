@@ -16,15 +16,15 @@ bpy.context.view_layer.objects.active = body
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 me = body.data
 
-# původní dýka z generátoru je srostlá s tělem (síť je jeden kus) a trčí šikmo z boku: zatlačit ji do povrchu
-# (operátor: dýka zaražená v boku). Meč z generátoru zůstává, vymodelovaný přes něj dělal zdvojení.
+# původní dýka z generátoru je srostlá s tělem (síť je jeden kus) a trčí šikmo z boku: jílec vyříznout
+# (operátor: dýka zaražená v boku; vtlačený zůstával vidět). Meč z generátoru zůstává, vymodelovaný přes něj dělal zdvojení.
 bm = bmesh.new(); bm.from_mesh(me)
 bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)  # švy UV rozpojují síť, vyhlazení by ji roztrhlo
 
 
 bm.verts.ensure_lookup_table()
 P0 = np.array([v.co for v in bm.verts])
-# předloktí leží ve stejném okně jako jílec původní dýky; kůži nevtlačovat (v11: rozmazané předloktí)
+# předloktí leží ve stejném okně jako jílec původní dýky; kůži nechat (v11: rozmazané předloktí)
 _uvl = bm.loops.layers.uv.active
 _im = next(n.image for n in me.materials[0].node_tree.nodes if n.type == "TEX_IMAGE" and n.image.colorspace_settings.name != "Non-Color")
 _iw, _ih = _im.size; _px = np.array(_im.pixels[:], np.float32).reshape(_ih, _iw, 4)
@@ -35,7 +35,7 @@ def is_skin(v):
     if u is None: return False
     c = _px[min(max(int(u.y * _ih), 0), _ih - 1), min(max(int(u.x * _iw), 0), _iw - 1)]
     hh = np.degrees(np.arctan2(np.sqrt(3) * (c[1] - c[2]), 2 * c[0] - c[1] - c[2])) % 360
-    return 4 < hh < 15.5 and c[:3].max() > 0.3
+    return 4 < hh < 15.5 and c[:3].max() > 0.55  # dřevo jílce má stejný odstín, ale jas 0,35–0,5
 
 
 def is_arm(v):
@@ -43,23 +43,58 @@ def is_arm(v):
     return is_skin(v) and np.hypot(P0[v.index, 0] + 0.008, P0[v.index, 1] - 0.006) > 0.14
 
 
-def push_radial(a0, a1, z0, z1, margin=0.006):
-    """Body v úhlovém okně dál od osy než povrch boku (z okolních úhlů, jen r < 0,16 – štít ne) zatlačit dovnitř."""
+def is_sleeve(v):
+    u = v.link_loops[0][_uvl].uv if v.link_loops else None
+    if u is None: return False
+    c = _px[min(max(int(u.y * _ih), 0), _ih - 1), min(max(int(u.x * _iw), 0), _iw - 1)]
+    hh = np.degrees(np.arctan2(np.sqrt(3) * (c[1] - c[2]), 2 * c[0] - c[1] - c[2])) % 360
+    return hh > 300  # červený rukáv nad předloktím
+
+
+def cut_hilt(a0, a1, z0, z1, margin=0.006):
+    """Jílec původní dýky vyříznout a díru zacelit: vtlačený zůstával vidět jako zmuchlaný válec s hlavicí (v12, v13)."""
     ang = np.degrees(np.arctan2(P0[:, 1] - 0.006, P0[:, 0] + 0.008)); rr = np.hypot(P0[:, 0] + 0.008, P0[:, 1] - 0.006)
-    n_ = 0
+    cut = set()
     for zz in np.arange(z0, z1, 0.01):
         ring = (((ang > a0 - 8) & (ang < a0 - 2)) | ((ang > a1 + 2) & (ang < a1 + 8))) & (np.abs(P0[:, 2] - zz) < 0.005) & (rr < 0.16)
         if ring.sum() < 3: continue
         rb = float(np.percentile(rr[ring], 70))
-        for k in np.where((ang > a0) & (ang < a1) & (np.abs(P0[:, 2] - zz) < 0.005) & (rr > rb + margin) & (rr < 0.16))[0]:  # štít leží dál než 0,16
+        for k in np.where((ang > a0) & (ang < a1) & (np.abs(P0[:, 2] - zz) < 0.005) & (rr > rb + margin) & (rr < 0.17))[0]:  # štít leží dál
             v = bm.verts[int(k)]
-            if is_arm(v) or any(is_arm(e.other_vert(v)) for e in v.link_edges): continue  # i soused paže, jinak trn
-            d = Vector((v.co.x + 0.008, v.co.y - 0.006, 0)).normalized()
-            v.co.x = -0.008 + d.x * (rb - 0.002); v.co.y = 0.006 + d.y * (rb - 0.002); n_ += 1
-    return n_
+            if not (is_arm(v) or is_sleeve(v)): cut.add(v)
+    # hlavice leží těsně u zbroje, z boku nevyčnívá. Výběr podle průmětu do pohledu z boku (směr (1; 0,35; 0)) a hloubky:
+    # mapa paprsků v13/v14 dává zbytek −11..+9 mm, opasek za ním −20, zbroj −26, předloktí nad ním +20 a víc
+    dv_ = Vector((1, 0.35, 0.0)).normalized(); c0 = Vector((0.11, 0.035, 0.60)) + dv_ * 3
+    rt_ = (-dv_).cross(Vector((0, 0, 1))).normalized(); up_ = rt_.cross(-dv_).normalized()
+    q = P0 - np.array(c0)
+    pxx = 350 + q @ np.array(rt_) / 0.2 * 700; pyy = 350 - q @ np.array(up_) / 0.2 * 700; dep = 3 - q @ np.array(-dv_)
+    for k in np.where((pxx > 335) & (pxx < 425) & (pyy > 300) & (pyy < 408) & (dep > -0.015) & (dep < 0.013))[0]:
+        cut.add(bm.verts[int(k)])
+    rim = {e.other_vert(v) for v in cut for e in v.link_edges} - cut
+    bmesh.ops.delete(bm, geom=list(cut), context="VERTS")
+    # hlavice jílce je světlá jako kůže, po vyříznutí krčku ale visí volně: malé odtržené kusy u okraje smazat
+    loose = set()
+    for v0 in [v for v in rim if v.is_valid]:
+        if v0 in loose: continue
+        comp, stack = {v0}, [v0]
+        while stack and len(comp) < 3000:
+            u_ = stack.pop()
+            for e in u_.link_edges:
+                w = e.other_vert(u_)
+                if w not in comp: comp.add(w); stack.append(w)
+        if len(comp) < 3000: loose |= comp
+    bmesh.ops.delete(bm, geom=list(loose), context="VERTS")
+    rim = {v for v in rim if v.is_valid}
+    border = [e for v in rim if v.is_valid for e in v.link_edges if e.is_boundary]
+    new_f = bmesh.ops.holes_fill(bm, edges=list(set(border)), sides=0)["faces"]
+    for f in new_f:  # UV z vrcholu okraje: textura pokračuje z okolí, ne z rohu atlasu
+        for lp in f.loops:
+            other = next((l for l in lp.vert.link_loops if l.face not in new_f), None)
+            if other is not None: lp[_uvl].uv = other[_uvl].uv
+    return len(cut), len(loose), len(new_f)
 
 
-print("push dagger", push_radial(8.0, 28.0, 0.55, 0.645))  # nad z 0,645 je předloktí (v11: rozmazaná kůže)
+print("cut hilt (verts, loose verts, fill faces)", cut_hilt(5.0, 30.0, 0.55, 0.665, margin=0.004))
 bm.to_mesh(me); bm.free()
 co = np.array([v.co for v in me.vertices]); x, y, z = co.T
 
@@ -240,7 +275,7 @@ def r_at(zz):
 pz_top, pz_bot = 0.585, 0.455
 def P(r, zz):
     return Vector((-0.008 + r * out_.x, 0.006 + r * out_.y, zz))
-r_ax = max(r_at(zz) for zz in np.arange(0.45, 0.69, 0.01)) + 0.0065
+r_ax = max(r_at(zz) for zz in np.arange(0.45, 0.69, 0.01)) + 0.0015  # operátor: „trošku přitáhni k tělu“ (v12 +0,0065)
 Pb = P(r_ax, pz_bot); Pt = P(r_ax, 0.615)
 up_p = (Pt - Pb).normalized()
 yp = up_p.cross(tan_).normalized() * -1
