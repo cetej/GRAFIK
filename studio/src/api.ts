@@ -109,6 +109,7 @@ export interface ObjektyDoc {
   ref: string; size?: number[]; objects: Objekt[]; find_usd: number; add_usd?: number
   podklad: { file: string; job: string; url: string; zastaraly: boolean } | null
   ulohy: { job: string; op: 'podklad' | 'zmena'; object?: string; status: string | null; error: string | null }[]
+  nenalezeno?: string[]
 }
 const objektyUrl = (ref: string, tail = '') => `/api/v2/jobs/${ref.replace('/', '/images/')}/objekty${tail}`
 
