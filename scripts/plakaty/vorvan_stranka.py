@@ -176,9 +176,9 @@ def diver_layer(data: Path, mouth: tuple[float, float], px_per_m: float, facing_
     pad = round(diver.width * 0.08)
     sil = Image.new("L", (diver.width + 2 * pad, diver.height + 2 * pad), 0)
     sil.paste(diver.getchannel("A"), (pad, pad))
-    halo = sil.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.GaussianBlur(pad * 0.45))
+    halo = sil.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(pad * 0.55))
     glow = Image.new("RGBA", sil.size, (150, 225, 232, 0))
-    glow.putalpha(halo.point(lambda v: round(v * 0.6)))
+    glow.putalpha(halo.point(lambda v: round(v * 0.32)))     # jemněji (operátor 5. 11.)
     k = w / diver.width
     return (group("Záře kolem potápěče", image_tag(glow, x - pad * k, y - pad * k, glow.width * k, glow.height * k, "PNG"))
             + group("Potápěč", image_tag(diver, x, y, w, h, "PNG")))
