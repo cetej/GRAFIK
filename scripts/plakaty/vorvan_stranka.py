@@ -35,7 +35,7 @@ PERSP_K, PERSP_C = 0.82, 0.94        # mírná perspektiva: ocas má 82 % výšk
 
 # popisky: bod ve vrstvě vorvaně, nadpis, text
 LABELS = [
-    ((150, 258), "Tlama", "Zuby má jen dole, 20 až 26 na každé straně."),
+    ((150, 258), "Tlama", f"Zuby má jen dole, na{NB}každé straně 20{NB}až{NB}26."),
     ((345, 222), "Jícen", f"Jediná cesta dál. Měří 10{NB}až{NB}15, nebo 30{NB}až{NB}40{NB}cm? Zdroje se přou."),
     ((520, 190), "Předžaludek", "Svaly drtí potravu, trávicí šťávy tu nejsou."),
     ((640, 186), "Hlavní žaludek", "Teprve tady se tráví."),
@@ -43,7 +43,7 @@ LABELS = [
 ]
 TITLE = "Spolkl by vorvaň člověka?"
 LEAD = "Vorvaň (16 m) a potápěč jsou ve stejném měřítku. Do žaludku vede jen jícen."
-PACKARD = "Michael Packard tvrdil, že ho v roce 2021 spolkl a vyplivl keporkak. Odborníci pochybují."
+PACKARD = "Potápěče Michaela Packarda prý v roce 2021 spolkl a vyplivl keporkak. Odborníci o tom pochybují."
 CREDITS = """Spolkl by vorvaň člověka? Zdroje pod článek:
 - Délka samce 16 m; spí svisle; komory žaludku a předžaludek bez trávicích šťáv; střevo kolem 152 m: Wikipedia (en), Sperm whale.
 - Zuby 20–26 na každé straně dolní čelisti: Florida Fish and Wildlife Conservation Commission, Sperm whale.
@@ -294,32 +294,32 @@ def page_169(data: Path, render: Path | None = None) -> tuple[str, int, int]:
     W, H = 1920, 1080
     TT, HEAD, LINE = 112, 48, 40
     M = 60
-    box = (M, 300, W - 30 - M, 460) if render else (380, 330, W - 30 - 380, 400)
+    box = (M, 395, W - 30 - M, 440) if render else (380, 330, W - 30 - 380, 400)
     graphics, at, ww, wh = scene_3d(render, "16x9", box, "right") if render else scene_2d(data, "16x9", box)
     texts = [group("Titulek", text(M, 140, TITLE, TT, WHITE, 700)),
              group("Úvod", text(M, 210, "Vorvaň (16 m) a potápěč ve stejném měřítku.", 40, DIM))]
-    # popisky nad a pod tělem; v řadě se nepřekrývají: popisek, který by narazil na předchozí, se posune doprava a vodítko se zalomí
-    above = {"Předžaludek", "Hlavní žaludek"}
-    width = {"Tlama": 280, "Jícen": 330, "Předžaludek": 300, "Hlavní žaludek": 280, "Střevo": 300}
-    body_bottom = max(at(h)[1] for _, h, _ in LABELS) + 60
-    row_end = {True: 1190.0, False: 600.0}         # nad tělem až za titulkem, pod tělem za srovnáním jícnu
-    lift = {"Předžaludek": 30}                     # levé vodítko končí výš než pravé, jinak se jejich vodorovné části slijí v jednu čáru
-    for _, head, body in sorted(LABELS, key=lambda lab: at(lab[1])[0]):
-        up = head in above
+    # Popisky v řadě nad tělem a pod ním, každý na svislé čáře z vlastního textu (zásady: objekt přes celou šířku).
+    # Text začíná u své čáry, nebo u ní končí (anchor end), aby se sousedé nesrazili; nic se nezalamuje přes obraz.
+    # Nad tělem vpravo od titulku: Předžaludek (končí u čáry) a Hlavní žaludek (začíná u čáry).
+    # Pod tělem: Tlama (končí u čáry), Jícen a Střevo (začínají u čáry). Srovnání „Projde člověk jícnem?“ vlevo nahoře pod úvodem, nad hlavou.
+    place = {"Předžaludek": (True, "end", 480), "Hlavní žaludek": (True, "start", 240), "Střevo": (False, "start", 300),
+             "Tlama": (False, "end", 460), "Jícen": (False, "start", 400)}
+    body_bottom = max(at(h)[1] for _, h, _ in LABELS if not place[h][0]) + 50
+    above_top = 236                                # řada nad tělem až pod úvodním řádkem, jinak naráží do titulku
+    gap = 16
+    for _, head, body in LABELS:
+        up, anchor, w = place[head]
         bx, by = at(head)
-        w = width[head]
-        x = max(bx - 30, row_end[up] + 40)
-        row_end[up] = x + w
         rows = wrap_px(body, w, LINE)
         block = HEAD * 0.8 + HEAD * 1.1 + (len(rows) - 1) * LINE * 1.22 + LINE * 0.3
-        top = 300 - block - lift.get(head, 0) if up else max(720, body_bottom)
-        s_txt = text(x, top + HEAD * 0.8, head, HEAD, TEAL, 700) + lines(x, top + HEAD * 0.8 + HEAD * 1.1, rows, LINE, WHITE)
-        end = (top + block + 8) if up else (top - 12)
-        knee = bx if x <= bx <= x + w else x + 14
-        pts = f"{bx:.1f},{by:.1f} {bx:.1f},{end:.1f}" if knee == bx else f"{bx:.1f},{by:.1f} {bx:.1f},{end:.1f} {knee:.1f},{end:.1f}"
-        lead = f'<polyline points="{pts}" fill="none" stroke="{WHITE}" stroke-width="2.5"/>'
+        top = above_top if up else body_bottom
+        tx = bx - gap if anchor == "end" else bx + gap
+        s_txt = text(tx, top + HEAD * 0.8, head, HEAD, TEAL, 700, anchor) + lines(tx, top + HEAD * 0.8 + HEAD * 1.1, rows, LINE, WHITE, anchor=anchor)
+        # čára svisle od bodu k textu a podél něj až k jeho vzdálenému okraji, text stojí hned vedle
+        far = top + 6 if up else top + block - 6
+        lead = f'<line x1="{bx:.1f}" y1="{by:.1f}" x2="{bx:.1f}" y2="{far:.1f}" stroke="{WHITE}" stroke-width="2.5"/>'
         texts.append(group(head, s_txt + lead + f'<circle cx="{bx:.1f}" cy="{by:.1f}" r="7" fill="{WHITE}"/>'))
-    shape, labels, _ = rings_inset(M, 760, cm=2.0, step=190)
+    shape, labels, _ = rings_inset(M, 236, cm=1.6, step=150, head=36)
     graphics.append(shape)
     texts.append(labels)
     return svg_page(W, H, graphics, texts), W, H

@@ -687,3 +687,13 @@ Detail: `docs/spikes/2026-08-14-inpaint-4k.md`.
 
 Oprava z 30. 10. prošla na jedné mapě a STAV ji popsal obecně. Prahy byly z mapy Everestu (šířka 769 px), rastr skenu oklamal test ploché mapy (`textured`), takže sken šel na štětec PhotoCraftu, a `residue` bylo natvrdo 0. Dokud nepřišel jiný druh mapy, nic z toho nebylo vidět. Ověření patří zapsat i s tím, na čem proběhlo, a skutečný případ držet jako test.
 - **Sketchfab na httpx vrací `202` s prázdným tělem, urllib projde (2026-11-03).** Stejný dotaz `/v3/search` z httpx dostal `202 text/html` a 0 bajtů i s jiným User-Agentem a `Accept: application/json`; z urllib `200` a JSON. Pozná klienta jinak než hlavičkami. `engine/hotove3d.py` i `ngm_shared.research` proto volají Sketchfab přes urllib.
+
+## 2026-11-05 — Zvíře z jednoho bočního obrázku má vymyšlenou hlavu
+
+- Hunyuan 3.1 Pro z boční malby vorvaně udělal z boku hranatou hlavu, zepředu ale ostrý hřbet nahoře a z boku rovnou desku na čele. TRELLIS 2 měl čelo vyhloubené. Generátor z jednoho obrázku pohled zepředu a shora hádá. Kontrola `lod_check` to neodhalí: její pohled „front“ je u vorvaně od ocasu a poměry sedí. Hlavu je potřeba vidět zepředu, šikmo a z boku (`scripts/3d/vorvan_hlava.py`) dřív, než model jde do scény.
+- Spolehlivější je model z průřezů podle změřených předloh: bok z vědecké kresby (NOAA, předloha 01), šířka z pohledu shora (tabule od operátora, fotka shora jen kontrola, protože fotka zešikma šířku přecení: 0,15 místo 0,12 délky). Průřez hlavy z fotek pod vodou: nahoře široký a oblý, dolů se zužuje k čelisti. `scripts/3d/vorvan_profily.py` a `lod_vorvan.py`, 0 USD.
+- Hrb ze siluety dát jen do střední čáry hřbetu. Celý průřez ho udělá prstencem kolem těla.
+- Otevřená čelist musí za kloubem zajet do hlavy a spodek hlavy začít klesat před koutkem. Jinak čelist z boku visí pod hlavou jako přilepená. Mezeru změř v Blenderu (z u kloubu), od oka se plete s otevřenou tlamou.
+- Realistický povrch dodá lokální FLUX s renderem modelu jako předlohou `geometry` (světlá matná hlína na zeleném plátně): kůže vorvaně držela obrys modelu s IoU 0,98–0,99, 0 USD (`scripts/plakaty/vorvan_flux.py`). Vlastní materiál v Blenderu vypadal jako guma nebo kovové torpédo.
+- Na výšku FLUX předlohu nedrží: vnitřnosti kreslil jako lidské z atlasu (IoU 0,14–0,17), na břiše vorvaně dělal rýhy jako u plejtváka. Předlohu otoč na ležato a výsledek zpět; 9:16 vorvaně je nakonec 16:9 překlopená podle úhlopříčky (týž vorvaň z druhé strany).
+- Orgány jako oddělené koule působí jako hračky a potrava se mezi nimi „teleportuje“. Trávicí trubice je jeden tvar podél cesty s proměnným poloměrem (`vorvan_scena.tract`).
