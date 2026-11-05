@@ -2,6 +2,12 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-05 — Infografika „Spolkl by vorvaň člověka?“: hlavní obraz je předmět otázky, ne doplňky
+
+- **Co:** dominuje vorvaň s průsvitným tělem a 3D vnitřnostmi a potápěč ve skutečném poměru (samec 16 m). Srovnání jícnu s člověkem (dva kruhy a obrys) do stránky patří, ale malé. Scény zevnitř a detaily typu zobáky olihní jsou podružné, „nemusí se to s nimi přehánět“. Hlavní verze je 16:9, k ní 9:16 se zrcadlově prohozeným obrazem a popisky a mírná perspektiva (hlava blíž, ocas dál).
+- **Proč:** operátor: „jde mi o to hlavní rozebrat možnost spolknutí“, „rozhodně nechci, aby se dominantním prvkem stal 2D obrys busty figury a dva kruhy“, „vytrácí se 3D a zajímavé detaily“ (u plochého schématu).
+- **Stav:** 2D vrstvy z FLUX (`scripts/plakaty/vorvan_obrazy.py`, `vorvan_stranka.py`, `library/plakaty/vorvan/`). Další krok podle operátora je skutečný 3D model vorvaně (Sketchfab, muzeum Ósaka, CC BY; chce `SKETCHFAB_API_TOKEN`).
+
 ## 2026-11-04 — Vrstvy objektů v generované ilustraci
 
 Operátor: „může náš systém umět chytré mapování objektů (vrstev) v obrázku, jejich odmazávání, měnění a dogenerovávání podkladu?“; pak „Generované ilustrace“, „Vrstvy“ a po náčrtu panelu „Ano, postav to“ (hledání přes SAM-3).
