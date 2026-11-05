@@ -515,3 +515,7 @@ Operátor sjednotil Blender všech projektů do jedné přenosné instalace `%LO
 ## 2026-11-02 — Pantheon na šířku: celá stavba a všechny údaje
 
 Operátor odmítl náčrt s jedním sloupcem popisků, uříznutým portikem a vypuštěnými údaji a stránku upravil sám ve VectorCraftu („Není to ideální, ale aspoň takhle“). Platí jeho verze: stavba celá, údaje všechny, popisky u svých věcí, i přímo v obraze. Render pro web má rezervu za okrajem stavby, aby šel obraz zmenšit a posunout bez useknutých hran (`rez_web_cely`).
+
+## 2026-11-05: Na stránce ani kredit AI
+
+Operátor u vorvaně: „Vyser se na tu popisku zdroje, ta přijde do popisků na webu“ a „Flux a ty další … budou v kreditu na webu, do obrázku to nechci“. Na stránce infografiky není řádek se zdrojem ani označení AI, generátoru, 3D modelu nebo autora; vše jde do `zdroje.txt` a odtud do popisků na webu. Mění rozhodnutí z 2. 11. („jen označení AI a cizí autor“). `sazba.write_poster` hlásí zdroj nebo kredit na stránce. Renderer dokumentu s panely a kontrola věty o AI při exportu z VectorCraftu se mají změnit stejně.

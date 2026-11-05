@@ -1,6 +1,6 @@
 # Spolkl by vorvaň člověka? Vrstvená stránka pro web (docs/infografiky-zasady.md: Web a mobil, Vrstvy pro jiný formát).
 # Fakta: dossier library/research/vorvan-v2 (řetězec 20261105-071537-cf65): f4 f19 f21 f22 f50 f93 f138 a Wikipedia (en) Sperm whale,
-# odstavec o trávení (komory žaludku, střevo 152 m). Zdroje do zdroje.txt, na stránce jen označení AI.
+# odstavec o trávení (komory žaludku, střevo 152 m). Zdroje i kredit AI do zdroje.txt pro web, na stránce nic (operátor 5. 11.).
 # Obrazy: scripts/plakaty/vorvan_obrazy.py (FLUX 3 Klein, AI), každý objekt vlastní vrstva:
 #   vorvan-vrstva.png, potapec-vrstva.png, organy-42.png (3D orgány na zeleném). Jsou 2D; 3D model vorvaně je další krok.
 # Operátor 5. 11.: hlavní je rozebrat možnost spolknutí. Dominuje vorvaň s průsvitným tělem a 3D vnitřnostmi a potápěč
@@ -20,8 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from engine.panels import cut_green  # noqa: E402
 from sazba import FONT, group, image_tag, text, write_poster  # noqa: E402
 
-BG_TOP, BG_BOTTOM = "#0f3a52", "#06141e"
-WHITE, DIM, TEAL = "#f1ede4", "#a9bcc6", "#7fd3dc"
+BG_TOP, BG_BOTTOM = "#2a7393", "#0f3b52"      # světlejší voda (operátor 5. 11.)
+WHITE, DIM, TEAL = "#f6f3ec", "#cfdde4", "#a9eef4"
 FLESH = "#d07a6c"
 NB = " "
 
@@ -44,14 +44,13 @@ LABELS = [
 TITLE = "Spolkl by vorvaň člověka?"
 LEAD = "Vorvaň (16 m) a potápěč jsou ve stejném měřítku. Do žaludku vede jen jícen."
 PACKARD = "Michael Packard tvrdil, že ho v roce 2021 spolkl a vyplivl keporkak. Odborníci pochybují."
-AI_NOTE = "Obrazy: AI (FLUX 3 Klein), ilustrace, ne fotografie."
 CREDITS = """Spolkl by vorvaň člověka? Zdroje pod článek:
 - Délka samce 16 m; spí svisle; komory žaludku a předžaludek bez trávicích šťáv; střevo kolem 152 m: Wikipedia (en), Sperm whale.
 - Zuby 20–26 na každé straně dolní čelisti: Florida Fish and Wildlife Conservation Commission, Sperm whale.
 - Jícen 10–15 cm: MarineBio, Swallowed by a sperm whale? Jícen 30–40 cm: Science Friday, Whalefall movie science.
 - Předžaludek je bezžlázový vak: PubMed 3434544. Trávení až v hlavní komoře: Gut Health Times (sekundární zdroj).
 - Michael Packard 2021: Smithsonian Magazine; pochybnosti odborníka: NPR, 12. 6. 2021.
-- Obrazy: FLUX 3 Klein (AI). Tvar vorvaně podle kresby Physeter macrocephalus1.jpg (Wikimedia Commons, public domain), kůže podle fotografie B. Spragga (CC0). Vnitřnosti jsou ilustrace, poloha orgánů je přibližná.
+- Obrazy (kredit na webu, na stránce nic): FLUX 3 Klein (AI); 3D vorvaň Hunyuan 3D 3.1 Pro, potápěč TRELLIS 2, render Blender. Tvar vorvaně podle kresby Physeter macrocephalus1.jpg (Wikimedia Commons, public domain), kůže podle fotografie B. Spragga (CC0). Vnitřnosti jsou ilustrace, poloha orgánů je přibližná.
 """
 
 
@@ -223,6 +222,12 @@ def scene_3d(render: Path, fmt: str, box: tuple[float, float, float, float], ali
     x = x0 if align == "left" else x0 + (bw - w) if align == "right" else x0 + (bw - w) / 2
     y = y0 + (bh - h) / 2 if fmt == "16x9" else y0
     layers = {n: im.crop(crop) for n, im in ims.items()}
+    # vnitřnosti jen uvnitř obrysu těla: plochý obraz ve střední rovině po natočení přečnívá (operátor: „lezou mu střeva ven“)
+    body = layers["kuze"].getchannel("A").point(lambda v: 255 if v > 8 else 0).filter(ImageFilter.MinFilter(7)).filter(ImageFilter.GaussianBlur(1.5))
+    inner_a = np.asarray(layers["vnitrek"].getchannel("A"), np.float32)
+    outside = float((inner_a * (1 - np.asarray(body, np.float32) / 255)).sum() / max(inner_a.sum(), 1))
+    print(f"VNITŘEK MIMO TĚLO před ořezem: {outside:.1%}" + ("  ← ořezáno podle obrysu" if outside > 0.002 else ""))
+    layers["vnitrek"].putalpha(Image.fromarray((inner_a * np.asarray(body, np.float32) / 255).astype("uint8")))
     graphics = [group("Vnitřnosti 3D", image_tag(layers["vnitrek"], x, y, w, h, "PNG")),
                 group("Průsvitná kůže", image_tag(layers["kuze"], x, y, w, h, "PNG")),
                 glow_layer(layers["potapec"], x, y, w),
@@ -239,13 +244,12 @@ def rings_inset(x: float, y: float, cm: float = 2.6, step: float = 190, head: in
              f'<path d="M {sx - 22.5 * cm:.1f} {base:.1f} C {sx - 23 * cm:.1f} {base - 14 * cm:.1f} {sx - 16 * cm:.1f} {base - 20 * cm:.1f} {sx - 6 * cm:.1f} {base - 21 * cm:.1f} '
              f'L {sx + 6 * cm:.1f} {base - 21 * cm:.1f} C {sx + 16 * cm:.1f} {base - 20 * cm:.1f} {sx + 23 * cm:.1f} {base - 14 * cm:.1f} {sx + 22.5 * cm:.1f} {base:.1f} Z" fill="{DIM}" fill-opacity="0.75"/>')
     labels = text(x, y + 40, "Projde člověk jícnem?", head, TEAL, 700) + text(sx, base + 44, "člověk", 36, WHITE, 700, "middle")
-    for i, (lo, hi, label, who) in enumerate(((10, 15, "10–15 cm", "MarineBio"), (30, 40, "30–40 cm", "Science Friday"))):
+    for i, (lo, hi, label) in enumerate(((10, 15, "10–15 cm"), (30, 40, "30–40 cm"))):
         cx, cy = sx + step * (i + 1), base - 20 * cm
         shape += (f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{hi / 2 * cm:.1f}" fill="{FLESH}" fill-opacity="0.45" stroke="{FLESH}" stroke-width="2.5"/>'
                   f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{lo / 2 * cm:.1f}" fill="none" stroke="{WHITE}" stroke-width="1.5" stroke-dasharray="5 5"/>')
         labels += text(cx, base + 44, label, 36, WHITE, 700, "middle")
-        labels += group(f"Zdroj {who}", text(cx, base + 80, who, 28, DIM, anchor="middle"))
-    return group("Jícen proti člověku", shape), group("Jícen proti člověku, popisky", labels), base + 80
+    return group("Jícen proti člověku", shape), group("Jícen proti člověku, popisky", labels), base + 44
 
 
 def svg_page(W: int, H: int, graphics: list[str], texts: list[str]) -> str:
@@ -259,7 +263,7 @@ def svg_page(W: int, H: int, graphics: list[str], texts: list[str]) -> str:
 def page_916(data: Path, render: Path | None = None) -> tuple[str, int, int]:
     """Vorvaň svisle vlevo, popisky vpravo ve výšce svého orgánu (operátor: obraz a popisky zrcadlově)."""
     W, H = 1080, 1920
-    TT, LEAD_S, HEAD, LINE, NOTE = 84, 40, 40, 36, 27
+    TT, LEAD_S, HEAD, LINE = 84, 40, 40, 36
     M = 40
     box = (20, 150, 470, H - 150 - 40)
     graphics, at, ww, wh = scene_3d(render, "9x16", box, "left") if render else scene_2d(data, "9x16", box)
@@ -278,41 +282,46 @@ def page_916(data: Path, render: Path | None = None) -> tuple[str, int, int]:
         lead = f'<polyline points="{bx:.1f},{by:.1f} {col_x - 34:.1f},{by:.1f} {col_x - 14:.1f},{line_y:.1f}" fill="none" stroke="{WHITE}" stroke-width="2"/>'
         texts.append(group(head, s_txt + lead + f'<circle cx="{bx:.1f}" cy="{by:.1f}" r="6" fill="{WHITE}"/>'))
         prev_bottom = top + HEAD * 0.8 + HEAD * 1.1 + (len(rows) - 1) * LINE * 1.22 + 10
-    shape, labels, bottom = rings_inset(col_x, prev_bottom + 26, cm=2.2, step=175)
+    shape, labels, bottom = rings_inset(col_x, prev_bottom + 6, cm=1.9, step=175)
     graphics.append(shape)
     texts.append(labels)
-    texts.append(group("Packard", lines(col_x, bottom + 52, wrap_px(PACKARD, col, LINE), LINE, WHITE)))
-    texts.append(group("Patička", text(W - M, H - 24, AI_NOTE, NOTE, DIM, anchor="end")))
+    texts.append(group("Packard", lines(col_x, bottom + 46, wrap_px(PACKARD, col, LINE), LINE, WHITE)))
     return svg_page(W, H, graphics, texts), W, H
 
 
 def page_169(data: Path, render: Path | None = None) -> tuple[str, int, int]:
     """Hlavní verze 16:9: vorvaň vodorovně hlavou vlevo, potápěč před tlamou, popisky nad a pod tělem u svého orgánu."""
     W, H = 1920, 1080
-    TT, HEAD, LINE, NOTE = 112, 48, 40, 30
+    TT, HEAD, LINE = 112, 48, 40
     M = 60
-    box = (M, 330, W - 30 - M, 400) if render else (380, 330, W - 30 - 380, 400)
+    box = (M, 300, W - 30 - M, 460) if render else (380, 330, W - 30 - 380, 400)
     graphics, at, ww, wh = scene_3d(render, "16x9", box, "right") if render else scene_2d(data, "16x9", box)
     texts = [group("Titulek", text(M, 140, TITLE, TT, WHITE, 700)),
              group("Úvod", text(M, 210, "Vorvaň (16 m) a potápěč ve stejném měřítku.", 40, DIM))]
-    # popisek: (nad tělem?, posun textu vůči bodu, šířka)
-    place = {"Tlama": (False, -110, 300), "Jícen": (False, -30, 330), "Předžaludek": (True, -100, 470),
-             "Hlavní žaludek": (False, -30, 220), "Střevo": (True, -20, 440)}
-    for _, head, body in LABELS:
-        above, dx, w = place[head]
+    # popisky nad a pod tělem; v řadě se nepřekrývají: popisek, který by narazil na předchozí, se posune doprava a vodítko se zalomí
+    above = {"Předžaludek", "Hlavní žaludek"}
+    width = {"Tlama": 280, "Jícen": 330, "Předžaludek": 300, "Hlavní žaludek": 280, "Střevo": 300}
+    body_bottom = max(at(h)[1] for _, h, _ in LABELS) + 60
+    row_end = {True: 1190.0, False: 600.0}         # nad tělem až za titulkem, pod tělem za srovnáním jícnu
+    lift = {"Předžaludek": 30}                     # levé vodítko končí výš než pravé, jinak se jejich vodorovné části slijí v jednu čáru
+    for _, head, body in sorted(LABELS, key=lambda lab: at(lab[1])[0]):
+        up = head in above
         bx, by = at(head)
-        x = bx + dx
+        w = width[head]
+        x = max(bx - 30, row_end[up] + 40)
+        row_end[up] = x + w
         rows = wrap_px(body, w, LINE)
         block = HEAD * 0.8 + HEAD * 1.1 + (len(rows) - 1) * LINE * 1.22 + LINE * 0.3
-        top = 345 - block if above else 720
+        top = 300 - block - lift.get(head, 0) if up else max(720, body_bottom)
         s_txt = text(x, top + HEAD * 0.8, head, HEAD, TEAL, 700) + lines(x, top + HEAD * 0.8 + HEAD * 1.1, rows, LINE, WHITE)
-        end = (top + block + 8) if above else (top - 12)
-        lead = f'<line x1="{bx:.1f}" y1="{by:.1f}" x2="{bx:.1f}" y2="{end:.1f}" stroke="{WHITE}" stroke-width="2.5"/>'
+        end = (top + block + 8) if up else (top - 12)
+        knee = bx if x <= bx <= x + w else x + 14
+        pts = f"{bx:.1f},{by:.1f} {bx:.1f},{end:.1f}" if knee == bx else f"{bx:.1f},{by:.1f} {bx:.1f},{end:.1f} {knee:.1f},{end:.1f}"
+        lead = f'<polyline points="{pts}" fill="none" stroke="{WHITE}" stroke-width="2.5"/>'
         texts.append(group(head, s_txt + lead + f'<circle cx="{bx:.1f}" cy="{by:.1f}" r="7" fill="{WHITE}"/>'))
-    shape, labels, _ = rings_inset(1390, 770, cm=2.0, step=175)
+    shape, labels, _ = rings_inset(M, 760, cm=2.0, step=190)
     graphics.append(shape)
     texts.append(labels)
-    texts.append(group("Patička", text(W - M, H - 26, AI_NOTE, NOTE, DIM, anchor="end")))
     return svg_page(W, H, graphics, texts), W, H
 
 
