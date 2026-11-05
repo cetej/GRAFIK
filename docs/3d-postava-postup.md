@@ -1,6 +1,6 @@
 # 3D postava z podkladu: postup a pasti (legionář, 2026-11-05)
 
-Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v11 (platné: **v10** čistý, **v11** opotřebovaný; v4–v7 mají zdvojený meč a dýku v boku, v8–v9 nakřivo puklici a pugio bez rukojeti). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
+Ověřeno na římském legionáři z doby Trajánovy, knihovna `library/3d/rimsky-legionar-trajanova-doba`, verze v1–v13 (platné: **v12** čistý, **v13** opotřebovaný; v4–v7 mají zdvojený meč a dýku v boku, v8–v9 nakřivo puklici a pugio bez rukojeti, v10–v11 pugio u lokte a zezadu odstává). Celkem **USD 0,90** (bílý model 0,375 + obarvený 0,525), všechno ostatní v Blenderu za 0 USD. Skripty: `scripts/3d/postava/legionar_*.py` (souřadnice a prahy jsou pro tohoto legionáře, u jiné postavy je změř sondou znovu). Plný zápis průběhu: STOPA `outputs/2026-11-05-legionar-3d/README.md`.
 
 ## Kdy tahle cesta, kdy jiná
 
@@ -63,3 +63,8 @@ Polohy dílů (osa pochvy, střed puklice) dává `legionar_sonda_dily.py`: barv
 ## Co zbývá u legionáře
 
 Postava je jeden mesh se štítem a pilem: na jiné pózy a pohyb rigging (Mixamo / Blender), štít a pilum zvlášť. Licence operátorova podkladu neznámá, před publikací ověřit původ.
+
+
+## Přidaný díl kontroluj ze všech stran, i zezadu
+
+Pugio v10 vypadalo zepředu dobře, zezadu odstávalo od boku a rukojeť vedla do lokte (operátor u v11). Před umístěním změř profil těla v několika úhlech a výškách i s rukama (`r` do 0,24): ruka opřená o štít zabírá úhly, kde by díl jinak seděl. Vtlačení původního dílu omez barvou i polohou: kůže dál od osy je paže, ne díl, a vynech i její sousedy, jinak zůstane trn.
