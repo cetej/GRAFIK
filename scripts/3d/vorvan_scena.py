@@ -1,7 +1,7 @@
 # Blender: vorvaň s průsvitnou kůží, vnitřnostmi a potápěčem ve stejném měřítku, každá vrstva zvlášť (infografika „Spolkl by vorvaň člověka?“).
 # Modely: vorvaň --vorvan (library/3d/<id>/<verze>; TRELLIS 2 měl vyhloubené čelo, Hunyuan 3.1 Pro je bez textury),
 # potápěč library/3d/potapec-infografika-vorvan/v1/model.glb (TRELLIS 2). Kůže bez textury: skin_material.
-# Vnitřnosti: library/plakaty/vorvan/obrazy/organy-vrstva.png jako plocha ve střední rovině těla, jícen jako 3D trubice.
+# Vnitřnosti: 3D tělesa (organs3d: předžaludek, hlavní žaludek, komůrky, smotané střevo) a jícen jako trubice.
 # Pod zámkem těžké práce:  python scripts/3d/velsen_studna_run.py vorvan_scena.py OUT --fmt 16x9 [--w 2400 --h 1000 --samples 48]
 # Výstup OUT/<fmt>/kuze.png, vnitrek.png, potapec.png (RGBA, stejná kamera) a body.json (body pro popisky v px).
 import argparse
@@ -10,6 +10,7 @@ import math
 import sys
 from pathlib import Path
 
+import bmesh
 import bpy
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Matrix, Vector
@@ -20,13 +21,10 @@ for up in [DATA, *DATA.parents]:
         DATA = up
         break
 DIVER_GLB = DATA / "library/3d/potapec-infografika-vorvan/v1/model.glb"
-ORGANS = DATA / "library/plakaty/vorvan/obrazy/organy-vrstva.png"
 
 LENGTH, DIVER_LEN = 16.0, 2.3          # samec 16 m (Wikipedia), potápěč s ploutvemi 2,3 m
 LAYER_PX = (1308, 307)                 # 2D vrstva vorvaně, ze které model vznikl: body z vorvan_stranka.py v jejích px
-ORGAN_AT, ORGAN_K, ORGAN_PX = (385, 86), 0.44, (1295, 470)
 CAVITY = (600, 200, 470, 108)
-THROAT = [(228, 242), (300, 236), (360, 214), (412, 190)]
 POINTS = {"Tlama": (150, 258), "Jícen": (345, 222), "Předžaludek": (520, 190), "Hlavní žaludek": (640, 186), "Střevo": (865, 186),
           "tlama_koutek": (290, 252)}
 
@@ -38,9 +36,10 @@ def args():
     p.add_argument("--w", type=int, default=0)
     p.add_argument("--h", type=int, default=0)
     p.add_argument("--samples", type=int, default=48)
-    p.add_argument("--vorvan", default="vorvan-infografika/v1", help="model v library/3d (TRELLIS: vorvan-infografika/v1)")
+    p.add_argument("--vorvan", default="vorvan-lod/v2", help="model v library/3d; vorvan-lod/v2 z průřezů (lod_vorvan.py, skloněná ocasní ploutev), starší TRELLIS vorvan-infografika/v1")
     p.add_argument("--celo", action="store_true", help="víčko přes prohlubeň v čele (jen model z TRELLIS)")
     p.add_argument("--laloky", action="store_true", help="srovnat zkroucené ocasní laloky do vodorovné roviny (Hunyuan)")
+    p.add_argument("--predloha", action="store_true", help="předlohy tvaru pro FLUX: neprůhledný vorvaň a vnitřnosti bez dutiny, světlá hlína")
     return p.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
 
 
@@ -172,10 +171,21 @@ def head_is_min_x(obj, lo, hi) -> bool:
     return height(lambda x: x < lo.x + 0.12 * span) > height(lambda x: x > hi.x - 0.12 * span)
 
 
-def to3d(px, py, lo, hi):
-    """Bod 2D vrstvy vorvaně (hlava vlevo) na střední rovinu modelu: měřítko podle délky."""
+KZ = 1.0     # svislé měřítko vnitřností: 2D vorvaň byl hlubší než model, main() ho změří podle břicha modelu
+
+
+def belly_kz(obj, lo, hi) -> float:
+    """Dutina z 2D vrstvy má sahat do 92 % hloubky těla modelu v jejím středu (jinak vnitřnosti trčí z břicha)."""
     m = (hi.x - lo.x) / LAYER_PX[0]
-    return Vector((lo.x + px * m, 0.0, hi.z - py * m))
+    cx = lo.x + CAVITY[0] * m
+    zs = [(obj.matrix_world @ v.co).z for v in obj.data.vertices if abs((obj.matrix_world @ v.co).x - cx) < 0.25]
+    return 0.92 * (hi.z - min(zs)) / ((CAVITY[1] + CAVITY[3]) * m)
+
+
+def to3d(px, py, lo, hi, kz=None):
+    """Bod 2D vrstvy vorvaně (hlava vlevo) na střední rovinu modelu: měřítko podle délky, výška vnitřností × KZ."""
+    m = (hi.x - lo.x) / LAYER_PX[0]
+    return Vector((lo.x + px * m, 0.0, hi.z - py * m * (KZ if kz is None else kz)))
 
 
 def emission_mat(name, color, strength=1.0):
@@ -194,8 +204,8 @@ def emission_mat(name, color, strength=1.0):
 def skin_alpha(obj, lo, hi, keep=0.14):
     """Kůže zprůhledněná nad tělní dutinou (elipsa v souřadnicích X, Z jako ve 2D vrstvě), k okraji plynule celá."""
     m = (hi.x - lo.x) / LAYER_PX[0]
-    cx, cz = lo.x + CAVITY[0] * m, hi.z - CAVITY[1] * m
-    rx, rz = CAVITY[2] * m, CAVITY[3] * m
+    cx, cz = lo.x + CAVITY[0] * m, hi.z - CAVITY[1] * m * KZ
+    rx, rz = CAVITY[2] * m, CAVITY[3] * m * KZ
     for mat in obj.data.materials:
         nt = mat.node_tree
         bsdf = next(n for n in nt.nodes if n.type == "BSDF_PRINCIPLED")
@@ -220,60 +230,128 @@ def skin_alpha(obj, lo, hi, keep=0.14):
         nt.links.new(alpha, bsdf.inputs["Alpha"])
 
 
-def organs_plane(lo, hi):
-    m = (hi.x - lo.x) / LAYER_PX[0]
-    w, h = ORGAN_PX[0] * ORGAN_K * m, ORGAN_PX[1] * ORGAN_K * m
-    x0, z0 = lo.x + ORGAN_AT[0] * m, hi.z - ORGAN_AT[1] * m
-    bpy.ops.mesh.primitive_plane_add(size=1)
-    plane = bpy.context.active_object
-    plane.name = "Vnitřnosti"
-    plane.rotation_euler = (math.radians(90), 0, 0)
-    plane.scale = (w, h, 1)
-    plane.location = (x0 + w / 2, 0, z0 - h / 2)
-    mat = bpy.data.materials.new("Vnitřnosti")
+def organ_mat(name, color, bump_kind="NOISE", scale=6.0, strength=0.5):
+    """Tkáň: barva, podpovrchový rozptyl a reliéf (svalové pruhy nebo záhyby sliznice), světlo jako na těle."""
+    mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
-    nt.nodes.clear()
-    out = nt.nodes.new("ShaderNodeOutputMaterial")
-    tex = nt.nodes.new("ShaderNodeTexImage")
-    tex.image = bpy.data.images.load(str(ORGANS))
-    em, tr, mix = nt.nodes.new("ShaderNodeEmission"), nt.nodes.new("ShaderNodeBsdfTransparent"), nt.nodes.new("ShaderNodeMixShader")
-    nt.links.new(tex.outputs["Color"], em.inputs["Color"])
-    nt.links.new(tex.outputs["Alpha"], mix.inputs[0])
-    nt.links.new(tr.outputs[0], mix.inputs[1])
-    nt.links.new(em.outputs[0], mix.inputs[2])
-    nt.links.new(mix.outputs[0], out.inputs[0])
-    plane.data.materials.append(mat)
-    return plane
+    b = nt.nodes["Principled BSDF"]
+    b.inputs["Base Color"].default_value = (*color, 1)
+    b.inputs["Roughness"].default_value = 0.38
+    b.inputs["Subsurface Weight"].default_value = 0.25
+    b.inputs["Subsurface Radius"].default_value = (0.3, 0.08, 0.06)
+    tex = nt.nodes.new("ShaderNodeTexWave" if bump_kind == "WAVE" else "ShaderNodeTexNoise")
+    tex.inputs["Scale"].default_value = scale
+    if bump_kind == "WAVE":
+        tex.inputs["Distortion"].default_value = 2.0
+    else:
+        tex.inputs["Detail"].default_value = 6.0
+    bump = nt.nodes.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = strength
+    nt.links.new(tex.outputs["Fac"], bump.inputs["Height"])
+    nt.links.new(bump.outputs["Normal"], b.inputs["Normal"])
+    return mat
 
 
-def cavity_and_throat(lo, hi, far_y: float):
+# Trávicí trubice jako jeden souvislý tvar (operátor 5. 11.: oddělené koule vypadaly jako „rozházené hračky“ a potrava se
+# „teleportuje“). Body ve 2D vrstvě vorvaně (px, jako POINTS) a poloměr v metrech: jícen, předžaludek, krček, hlavní žaludek,
+# dvě spojovací komůrky, střevo; to pak pokračuje do klubka. Velikosti odhad podle délky 16 m, komory zjednodušené.
+TRACT = [(228, 242, 0.15), (300, 236, 0.16), (360, 214, 0.16), (412, 192, 0.17),
+         (450, 184, 0.34), (490, 186, 0.6), (530, 192, 0.64), (570, 198, 0.44), (600, 196, 0.22),
+         (625, 190, 0.48), (655, 186, 0.56), (688, 190, 0.38), (708, 195, 0.18),
+         (726, 198, 0.29), (746, 200, 0.14), (766, 200, 0.27), (786, 198, 0.11), (806, 194, 0.09)]
+PART = [("Jícen", 4), ("Předžaludek", 9), ("Hlavní žaludek", 18)]      # do kterého klíčového bodu sahá která tkáň
+
+
+def catmull(ps, n=10):
+    out = []
+    ext = [ps[0]] + ps + [ps[-1]]
+    for i in range(1, len(ext) - 2):
+        p0, p1, p2, p3 = ext[i - 1], ext[i], ext[i + 1], ext[i + 2]
+        for k in range(n):
+            s = k / n
+            out.append(tuple(0.5 * ((2 * b) + (-a + c) * s + (2 * a - 5 * b + 4 * c - d) * s * s + (-a + 3 * b - 3 * c + d) * s ** 3)
+                             for a, b, c, d in zip(p0, p1, p2, p3)) + (i - 1 + s,))
+    out.append(tuple(ps[-1]) + (len(ps) - 1,))
+    return out
+
+
+def tract(lo, hi):
+    keys = []
+    for px, py, r in TRACT:
+        v = to3d(px, py, lo, hi)
+        keys.append((v.x, v.y, v.z, r))
+    path = [(x, y, z, r, k) for x, y, z, r, k in catmull(keys, 12)]
+    # klubko střeva navazuje na konec: smyčky kolem bodu Střevo, poloměr trubice 0,085 m
+    gut = to3d(*POINTS["Střevo"], lo, hi)
+    last = Vector(path[-1][:3])
+    coil = []
+    n = 900
+    for i in range(1, n):
+        s = 2 * math.pi * i / n * 12
+        c = Vector((math.sin(s * 0.97 - 1.3) * math.cos(s * 0.31), 0.32 * math.sin(s * 1.23 + 1.0) * math.cos(s * 0.17),
+                    0.45 * math.cos(s * 0.89) * math.sin(s * 0.43 + 0.5)))
+        q = gut + c * 0.95              # hustší klubko, ne řídké drátěné kroužky
+        w = min(i / 40, 1.0)                     # prvních 40 bodů plynule od konce komůrek do klubka
+        q = last.lerp(q, w)
+        coil.append((q.x, q.y, q.z, 0.1, len(TRACT) + i / n))
+    path += coil
+    # trubice podél cesty: kruhový průřez (napříč těla stlačený), rámy bez kroucení (parallel transport)
+    seg = 20
+    bm = bmesh.new()
+    rings, mats = [], []
+    normal = None
+    for i, (x, y, z, r, k) in enumerate(path):
+        c = Vector((x, y, z))
+        nxt = Vector(path[min(i + 1, len(path) - 1)][:3])
+        prv = Vector(path[max(i - 1, 0)][:3])
+        tan = (nxt - prv).normalized()
+        if normal is None:
+            normal = tan.cross(Vector((0, 1, 0))).normalized()
+        normal = (normal - tan * normal.dot(tan)).normalized()
+        bin_ = tan.cross(normal)
+        ring = []
+        for j in range(seg):
+            a = 2 * math.pi * j / seg
+            off = normal * (r * math.cos(a)) + bin_ * (r * math.sin(a))
+            off.y *= 0.8 if r > 0.25 else 1.0
+            ring.append(bm.verts.new(c + off))
+        rings.append(ring)
+        mats.append(next((m for m, (_, upto) in enumerate(PART) if k < upto), len(PART)))
+    for i in range(len(rings) - 1):
+        for j in range(seg):
+            f = bm.faces.new((rings[i][j], rings[i][(j + 1) % seg], rings[i + 1][(j + 1) % seg], rings[i + 1][j]))
+            f.material_index = mats[i]
+            f.smooth = True
+    bm.faces.new(list(reversed(rings[0])))
+    bm.faces.new(rings[-1])
+    mesh = bpy.data.meshes.new("Trávicí trubice")
+    bm.to_mesh(mesh)
+    obj = bpy.data.objects.new("Trávicí trubice", mesh)
+    bpy.context.collection.objects.link(obj)
+    for mat in (organ_mat("Jícen", (0.6, 0.26, 0.22), "WAVE", 6.0, 0.4),
+                organ_mat("Předžaludek", (0.56, 0.2, 0.19), "WAVE", 3.0, 0.6),          # svalová stěna, bez trávicích šťáv
+                organ_mat("Hlavní žaludek", (0.66, 0.33, 0.27), "NOISE", 9.0, 0.8),     # záhyby sliznice, tady se tráví
+                organ_mat("Střevo", (0.76, 0.46, 0.39), "NOISE", 14.0, 0.3)):
+        obj.data.materials.append(mat)
+    return obj
+
+
+def organs3d(lo, hi):
+    """Vnitřnosti: jedna souvislá trávicí trubice od tlamy po klubko střeva."""
+    return [tract(lo, hi)]
+
+
+def cavity(lo, hi, far_y: float):
     m = (hi.x - lo.x) / LAYER_PX[0]
-    cx, cz = lo.x + CAVITY[0] * m, hi.z - CAVITY[1] * m
+    cx, cz = lo.x + CAVITY[0] * m, hi.z - CAVITY[1] * m * KZ
     bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24)
     cav = bpy.context.active_object
     cav.name = "Tělní dutina"
-    cav.scale = (CAVITY[2] * m * 0.86, 0.05, CAVITY[3] * m * 0.86)
+    cav.scale = (CAVITY[2] * m * 0.86, 0.05, CAVITY[3] * m * 0.86 * KZ)
     cav.location = (cx, far_y, cz)         # tenká tmavá stěna za vnitřnostmi, na odvrácené straně od kamery
     cav.data.materials.append(emission_mat("Dutina", (0.045, 0.012, 0.013)))
-    curve = bpy.data.curves.new("Jícen", "CURVE")
-    curve.dimensions = "3D"
-    spline = curve.splines.new("BEZIER")
-    spline.bezier_points.add(len(THROAT) - 1)
-    for bp, (px, py) in zip(spline.bezier_points, THROAT):
-        bp.co = to3d(px, py, lo, hi)
-        bp.handle_left_type = bp.handle_right_type = "AUTO"
-    curve.bevel_depth = 0.16
-    curve.bevel_resolution = 6
-    tube = bpy.data.objects.new("Jícen", curve)
-    bpy.context.collection.objects.link(tube)
-    mat = bpy.data.materials.new("Jícen")
-    mat.use_nodes = True
-    b = mat.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (0.62, 0.25, 0.21, 1)
-    b.inputs["Roughness"].default_value = 0.35
-    tube.data.materials.append(mat)
-    return [cav, tube]
+    return [cav]
 
 
 def look(cam, pos: Vector, target: Vector, up: Vector):
@@ -338,9 +416,20 @@ def main():
         flatten_flukes(whale, lo, hi)
         lo, hi = bbox(whale)
     cap = brow_cap(whale, lo, hi) if a.celo else None
-    skin_alpha(whale, lo, hi)
+    global KZ
+    KZ = belly_kz(whale, lo, hi)
+    print("KZ", round(KZ, 3), flush=True)
+    if a.predloha:     # světlá matná hlína: FLUX z ní čte tvar a světlo, kůži dodá sám (operátor 5. 11.: model vypadal jako z gumy)
+        for mat in whale.data.materials:
+            b = next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+            for link in list(b.inputs["Base Color"].links):
+                mat.node_tree.links.remove(link)
+            b.inputs["Base Color"].default_value = (0.42, 0.42, 0.42, 1)
+            b.inputs["Roughness"].default_value = 0.8
+    else:
+        skin_alpha(whale, lo, hi)
     side = -1 if a.fmt == "16x9" else 1                  # kamera na straně -Y (16:9), nebo +Y (9:16, břicho vpravo)
-    inside = [organs_plane(lo, hi), *cavity_and_throat(lo, hi, far_y=-side * 0.5)]
+    inside = [*organs3d(lo, hi), *cavity(lo, hi, far_y=-side * 0.6)]
 
     diver = import_glb(DIVER_GLB)
     dlo, dhi = normalize(diver, DIVER_LEN)
@@ -348,7 +437,7 @@ def main():
         diver.rotation_euler = (0, 0, math.radians(180))
         bpy.ops.object.transform_apply(rotation=True)
     mouth = to3d(*POINTS["tlama_koutek"], lo, hi)
-    jaw_tip = to3d(40, 262, lo, hi)
+    jaw_tip = to3d(40, 262, lo, hi, kz=1.0)
     if a.fmt == "16x9":
         diver.rotation_euler = (0, 0, math.radians(180))           # hlavou k vorvani (+X), lahev nahoru
         diver.location = (lo.x - DIVER_LEN / 2 - 0.15, -0.2, jaw_tip.z)     # ve stejné vzdálenosti od kamery jako vorvaň
@@ -372,7 +461,7 @@ def main():
 
     out = Path(a.out) / a.fmt
     out.mkdir(parents=True, exist_ok=True)
-    pts = {k: to3d(*v, lo, hi) for k, v in POINTS.items()}
+    pts = {k: to3d(*v, lo, hi, kz=1.0 if k in ("Tlama", "tlama_koutek") else None) for k, v in POINTS.items()}
     body = {}
     for k, p in pts.items():
         q = world_to_camera_view(scene, cam, p)
@@ -381,6 +470,8 @@ def main():
 
     skin = [whale, cap] if cap else [whale]
     layers = {"kuze": skin, "vnitrek": inside, "potapec": [diver]}
+    if a.predloha:
+        layers = {"predloha-kuze": skin, "predloha-vnitrek": [o for o in inside if o.name != "Tělní dutina"]}
     for name, show in layers.items():
         for o in [*skin, diver, *inside]:
             o.hide_render = o not in show
