@@ -171,7 +171,12 @@ def diver_layer(data: Path, mouth: tuple[float, float], px_per_m: float, facing_
     w = 2.3 * px_per_m
     h = diver.height * w / diver.width
     x = mouth[0] if facing_left else mouth[0] - w
-    return group("Potápěč", image_tag(diver, x, mouth[1] - h * 0.45, w, h, "PNG"))
+    y = mouth[1] - h * 0.45
+    # jemná záře pod potápěčem (operátor: „je špatně viditelný“): tmavý oblek na tmavé vodě, bez ostrého okraje
+    glow = (f'<radialGradient id="zare-potapec" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#9fe3ea" stop-opacity="0.42"/>'
+            f'<stop offset="0.55" stop-color="#5fb8c8" stop-opacity="0.16"/><stop offset="1" stop-color="#5fb8c8" stop-opacity="0"/></radialGradient>'
+            f'<ellipse cx="{x + w / 2:.1f}" cy="{y + h / 2:.1f}" rx="{w * 0.72:.1f}" ry="{max(h, w * 0.3) * 0.95:.1f}" fill="url(#zare-potapec)"/>')
+    return group("Záře pod potápěčem", glow) + group("Potápěč", image_tag(diver, x, y, w, h, "PNG"))
 
 
 def rings_inset(x: float, y: float, cm: float = 2.6, step: float = 190, head: int = 40) -> tuple[str, str, float]:
