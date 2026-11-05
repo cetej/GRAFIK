@@ -36,11 +36,16 @@ for o in objs:
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6 * max(hi - lo))
     bm.to_mesh(o.data)
     bm.free()
-tris_welded = sum(len(p.vertices) - 2 for o in objs for p in o.data.polygons)
-ratio = min(1.0, target / max(tris_welded, 1))
+tris_of = {o.name: sum(len(p.vertices) - 2 for p in o.data.polygons) for o in objs}
+# small modelled parts (a strap, a ring, a buckle) stay whole: at the big mesh's ratio (~0.09) a 12-triangle
+# box collapses into a spike (legionary pugio straps, 2026-11-05)
+SMALL = 2000
+small_tris = sum(t for t in tris_of.values() if t < SMALL)
+big_tris = sum(t for t in tris_of.values() if t >= SMALL)
+ratio = min(1.0, max(target - small_tris, 1) / max(big_tris, 1))
 for o in objs:
     o.data.materials.clear()
-    if ratio < 1.0:
+    if ratio < 1.0 and tris_of[o.name] >= SMALL:
         m = o.modifiers.new("dec", "DECIMATE")
         m.decimate_type = "COLLAPSE"
         m.ratio = ratio
