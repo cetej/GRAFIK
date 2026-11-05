@@ -749,3 +749,7 @@ Oprava z 30. 10. prošla na jedné mapě a STAV ji popsal obecně. Prahy byly z 
 - Realistický povrch dodá lokální FLUX s renderem modelu jako předlohou `geometry` (světlá matná hlína na zeleném plátně): kůže vorvaně držela obrys modelu s IoU 0,98–0,99, 0 USD (`scripts/plakaty/vorvan_flux.py`). Vlastní materiál v Blenderu vypadal jako guma nebo kovové torpédo.
 - Na výšku FLUX předlohu nedrží: vnitřnosti kreslil jako lidské z atlasu (IoU 0,14–0,17), na břiše vorvaně dělal rýhy jako u plejtváka. Předlohu otoč na ležato a výsledek zpět; 9:16 vorvaně je nakonec 16:9 překlopená podle úhlopříčky (týž vorvaň z druhé strany).
 - Orgány jako oddělené koule působí jako hračky a potrava se mezi nimi „teleportuje“. Trávicí trubice je jeden tvar podél cesty s proměnným poloměrem (`vorvan_scena.tract`).
+
+## 2026-11-05: „Zkontrolováno“ jen po prohlídce operátorem
+
+Tlačítko „Jsou v pořádku“ u náhledu v chatu jsem vzal jako schválení a čtyři pózy legionáře označil `review`, čímž se zkopírovaly do 3D skladu. Operátor je přitom neviděl. `review` a kopie do skladu patří jen k výslovnému „zkontroloval jsem“ u modelu ve Studiu, ne k odpovědi na náhled. Vrácení: `review` false přes API kopii ve skladu nesmaže a v `model.json` nechá pole `sklad`. Složku `nase/<id>` smaž ručně, pole `sklad` odstraň a spusť `sklad3d.sestav_index()`.
