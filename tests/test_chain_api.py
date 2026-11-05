@@ -497,6 +497,15 @@ def test_pages_are_built_from_facts_and_each_is_checked(settings, sd):
         assert c.post(f"/api/v2/workflows/{wf['id']}/stranky").status_code == 409     # složené se znovu neplatí
 
 
+def test_creature_from_3d_is_marked_for_the_proposals_and_its_page_goes_the_3d_way():
+    own = [{"id": "3d-vorvan", "nazev": "Vorvaň s průhledem", "slozka": "x", "tvor3d": {"hotovo": "hotovo-1"}}, {"id": "motor", "nazev": "Motor", "slozka": "y"}]
+    text = pp.dossier_text({**SERIES_DOSSIER, "entita": {"label": "Vorvaň", "druh": "zvire"}}, own)
+    assert "3d-vorvan: Vorvaň s průhledem (3D tvor)" in text and "motor: Motor (3D tvor)" not in text
+    proposal = pp.clean({"navrhy": [{"nazev": "Tělo", "veta": "V.", "format": "4:5", "panely": [series_panel("f1", vlastni="3d-vorvan", druh="hlavni")]}]}, SERIES_DOSSIER, own)[0]
+    images, _notes = sr.pick_images(SERIES_DOSSIER, proposal, [1], own)
+    assert images[(1, 1)]["tvor3d"] == {"hotovo": "hotovo-1"}      # chain._stranky podle toho skládá stránku z vrstev
+
+
 def test_a_number_the_fact_does_not_have_drops_the_item():
     fact = {"tvrzeni": "Narození: 10. 7. 1856", "hodnota": "1856-07-10", "zdroje": [{"citace": "postavil 1 000 cívek a 2,5 km vedení, 150,000 USD"}]}
     assert sr.documented({"value": "1856", "text": "narodil se 10. 7."}, fact) == []

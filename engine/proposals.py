@@ -59,7 +59,8 @@ KIND_RULES = {
 - Série o člověku je celá: životopis a po jedné stránce na každé stěžejní dílo, ke kterému je vlastní obraz, dohromady 3 až 4 stránky. Skladby se liší tím, která díla vyberou a na co se ptají.""",
     "zvire": """\
 - Téma je živý tvor. Každá skladba má panel s celým zvířetem, realistickým, ne kresleným maskotem (predloha zvire, obrazek ilustrace). Hlavní obraz určuje myšlenka skladby, může to být i mapa. Mapa výskytu z dossieru je obraz.
-- Popis zvířete nestačí: ukaž, kde žije, co ho ohrožuje, jak se vyvíjí a co o něm zjistila věda.""",
+- Popis zvířete nestačí: ukaž, kde žije, co ho ohrožuje, jak se vyvíjí a co o něm zjistila věda.
+- 3D tvor z VLASTNÍCH OBRAZŮ (průhled dovnitř těla, postava v měřítku) je hlavní obraz stránky o těle, velikosti nebo vnitřku, vyplní ji celou a nemá vedle sebe další panely: fakta té stránky říkají něco o jeho částech.""",
 }
 PANEL_KINDS = {"vec": "rez|pudorys|detail", "osoba": "portret|zivot|dilo|misto|pamatka|rukopis", "zvire": "zvire|mapa|detail|prostredi|vyvoj|forma|ilustrace"}
 ANSWER = """\
@@ -112,7 +113,7 @@ def dossier_text(dossier: dict, own: list[dict] | tuple = ()) -> str:
     entity = dossier["entita"]
     lines = [f"TÉMA: {entity['label']} ({entity.get('popis') or dossier['tema']})",
              *([f"OTÁZKA ZADÁNÍ, na kterou má stránka odpovědět: {dossier['otazka']}"] if dossier.get("otazka") else []),
-             "VLASTNÍ OBRAZY: " + ("; ".join(f"{o['id']}: {o['nazev']}" for o in own) or "žádné"),
+             "VLASTNÍ OBRAZY: " + ("; ".join(f"{o['id']}: {o['nazev']}{' (3D tvor)' if o.get('tvor3d') else ''}" for o in own) or "žádné"),
              "OBRÁZKY K DISPOZICI: " + (", ".join(f"{k} {v}" for k, v in roles.items()) or "žádné"), "FAKTA:"]
     lines += [f"{f['id']} [{f['stav']}, {f['tema']}] {f['tvrzeni'][:MAX_FACT_TEXT]}" for f in dossier["facts"]]
     return "\n".join(lines)

@@ -869,6 +869,8 @@ def create_app(settings: Settings | None = None, backends: dict | None = None,
         return infos.save(doc["id"], {**doc, "na_strance": "", "sources": doc.get("sources") or doc.get("ai_note") or ""})
 
     textura3d.register_page(app, textury, s.library_dir, make_panel_doc, page_without_credit)
+    infochain.pages_3d = lambda tvor, req, extra: textura3d.make_pages(
+        textury, s.library_dir, tvor["model_id"], tvor["version"], tvor["textura"], req, lambda f: page_without_credit(make_panel_doc(f)), extra)
 
     @app.post("/api/v2/infographics/panels", status_code=201)
     def info_panels(body: InfoPanels):

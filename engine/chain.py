@@ -23,8 +23,9 @@ from typing import Literal
 from PIL import Image
 from pydantic import BaseModel
 
-from engine import infographics, proposals, serie, zadani as zd
+from engine import infographics, proposals, serie, textura3d, zadani as zd
 from engine.infographics import InfoError
+from engine.models3d import Model3dError
 from engine.reflib import RefLibError
 from engine.workflows import Workflow
 from ngm_shared import claude, image_checks as ic, research as rs
@@ -75,6 +76,7 @@ class Chain:
         self.check_ask = check_ask
         self.raster = infographics.rasterize
         self.make_doc = None            # engine/app.py: pole stránky → dokument s panely
+        self.pages_3d = None            # engine/app.py: (tvor3d, StrankaIn, extra) → dokumenty z vrstev 3D tvora (textura3d.make_pages)
         self.root = settings.library_dir / "navrhy"
         self._enqueue_lock = threading.Lock()   # worker si stav přečte až po zápisu `step_job`
 
@@ -297,6 +299,10 @@ class Chain:
             if text is None:
                 done.append({"stranka": n, "nazev": pages[n - 1]["nazev"], "doc": None, "hlaseni": [*said, "Model k téhle stránce nevrátil text."]})
                 continue
+            tvor = (images.get((n, 1)) or {}).get("tvor3d")
+            if tvor:
+                done.append(self._page_3d(wf, n, tvor, text, said))
+                continue
             try:
                 fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of, title_share=title_share)
                 doc = self.make_doc({**fields, "urceni": wf.urceni, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}})
@@ -306,6 +312,26 @@ class Chain:
         wf.serie, wf.stage, wf.step_job = done, "hotovo", None
         self.wfs.save(wf)
         return {"files": [], "stranky": len(done), "cost_usd": cost["usd"]}
+
+    def _page_3d(self, wf: Workflow, n: int, tvor: dict, text: dict, said: list[str]) -> dict:
+        """Hlavní obraz je 3D tvor (fáze 3b): stránka z jeho vrstev, vnitřek v obrysu kůže a záře postavy, popisky u bodů modelu.
+        Na výšku (telefon) první, na šířku vedle; položka bez bodu na takové stránce nemá místo a řekne to hlášení."""
+        popisky, out = {}, []
+        for item in text["polozky"]:
+            if item["bod"] and item["bod"] not in popisky:
+                popisky[item["bod"]] = "\n".join(t for t in (item["value"], item["text"]) if t)
+            else:
+                out.append(f"Na 3D obraz se nevešlo: {serie._said(item)}")
+        page = {"stranka": n, "nazev": text["titulek"], "doc": None}
+        if not popisky:
+            return {**page, "hlaseni": [*said, *out, "Žádný popisek nemíří na bod 3D modelu, stránka nevznikla."]}
+        req = textura3d.StrankaIn(hotovo=tvor["hotovo"], titulek=text["titulek"], popisky=popisky, formaty=["9:16", "16:9"])
+        extra = {"urceni": wf.urceni, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}}
+        try:
+            docs = self.pages_3d(tvor, req, extra)
+        except (Model3dError, InfoError) as e:
+            return {**page, "hlaseni": [*said, *out, str(e)]}
+        return {**page, "doc": docs[0]["id"], "dokumenty": [{"id": d["id"], "size": d["size"]} for d in docs], "hlaseni": [*said, *out]}
 
     def picture_of(self, image: dict) -> dict:
         """Obraz pro rozvržení: zdroj dokumentu, rozměr, průhlednost a pojmenované body."""
