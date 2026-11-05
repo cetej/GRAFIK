@@ -34,6 +34,7 @@ export default function Renders3d({ model, onError, onDoc }: {
   const [popisky, setPopisky] = useState<Record<string, string>>({})
   const [points, setPoints] = useState<string[]>([])
   const [docs, setDocs] = useState<{ id: string; size: string }[]>([])
+  const [notes, setNotes] = useState<string[]>([])
   const [hotovo, setHotovo] = useState<string | null>(null)
   const [qid, setQid] = useState('')
   const [nazev, setNazev] = useState('')
@@ -88,6 +89,7 @@ export default function Renders3d({ model, onError, onDoc }: {
       const out = await m3dApi.stranka(model.id, model.version, textura.id, { hotovo: done, titulek, popisky, nazvy_vrstev: {}, formaty })
       setHotovo(formaty.includes('9:16') ? done : null)     // řetězec skládá i stránku na výšku
       setDocs(out.dokumenty)
+      setNotes(out.hlaseni ?? [])
     })
   }
   // do řetězce: názvy částí jsou první řádky popisků, texty k nim napíše řetězec z faktů dossieru
@@ -191,6 +193,7 @@ export default function Renders3d({ model, onError, onDoc }: {
             {docs.map((d) => <button key={d.id} className="btn" onClick={() => onDoc(d.id)}>Otevřít {d.size}</button>)}
           </div>
           {docs.length > 0 && <p className="hint">Hotovo: stránky jsou v záložce Infografiky, ruční úprava přes „Otevřít ve VectorCraftu“ u dokumentu.</p>}
+          {docs.length > 0 && notes.map((n) => <p key={n} className="warn">! {n}</p>)}
 
           <h3>4 · Do řetězce infografiky</h3>
           <p className="hint">Tvor se stane vlastním obrazem tématu. Průvodce → infografika k tomu tématu ho dá do návrhů jako hlavní obraz a stránku složí z těchto vrstev, popisky napíše z faktů k bodům, které tu mají název (první řádek popisku).</p>

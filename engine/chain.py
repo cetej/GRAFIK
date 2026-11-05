@@ -299,9 +299,8 @@ class Chain:
             if text is None:
                 done.append({"stranka": n, "nazev": pages[n - 1]["nazev"], "doc": None, "hlaseni": [*said, "Model k téhle stránce nevrátil text."]})
                 continue
-            tvor = (images.get((n, 1)) or {}).get("tvor3d")
-            if tvor:
-                done.append(self._page_3d(wf, n, tvor, text, said))
+            if (images.get((n, 1)) or {}).get("tvor3d"):
+                done.append(self._page_3d(wf, n, images[(n, 1)], text, said))
                 continue
             try:
                 fields, more = serie.page_fields(n, pages[n - 1], text, images, dossier, self.picture_of, title_share=title_share)
@@ -313,13 +312,17 @@ class Chain:
         self.wfs.save(wf)
         return {"files": [], "stranky": len(done), "cost_usd": cost["usd"]}
 
-    def _page_3d(self, wf: Workflow, n: int, tvor: dict, text: dict, said: list[str]) -> dict:
+    def _page_3d(self, wf: Workflow, n: int, image: dict, text: dict, said: list[str]) -> dict:
         """Hlavní obraz je 3D tvor (fáze 3b): stránka z jeho vrstev, vnitřek v obrysu kůže a záře postavy, popisky u bodů modelu.
-        Na výšku (telefon) první, na šířku vedle; položka bez bodu na takové stránce nemá místo a řekne to hlášení."""
+        Na výšku (telefon) první, na šířku vedle; položka bez bodu na takové stránce nemá místo a řekne to hlášení.
+        Nadpis popisku je název části z obrazy.json, ne to, co model napsal: u tlamy stálo „Krakatice“ (řetězec 5. 11.)."""
+        tvor, names = image["tvor3d"], image.get("popisky") or {}
         popisky, out = {}, []
         for item in text["polozky"]:
-            if item["bod"] and item["bod"] not in popisky:
-                popisky[item["bod"]] = "\n".join(t for t in (item["value"], item["text"]) if t)
+            if item["bod"] in names and item["bod"] not in popisky:
+                value, body = item["value"].strip(), item["text"].strip()
+                more = body if not value or value.casefold() == names[item["bod"]].casefold() else f"{value}: {body[:1].lower()}{body[1:]}" if body else value
+                popisky[item["bod"]] = "\n".join(t for t in (names[item["bod"]], more) if t)
             else:
                 out.append(f"Na 3D obraz se nevešlo: {serie._said(item)}")
         page = {"stranka": n, "nazev": text["titulek"], "doc": None}
@@ -328,10 +331,10 @@ class Chain:
         req = textura3d.StrankaIn(hotovo=tvor["hotovo"], titulek=text["titulek"], popisky=popisky, formaty=["9:16", "16:9"])
         extra = {"urceni": wf.urceni, "serie": {"wf": wf.id, "stranka": n, "celkem": len(wf.stranky)}}
         try:
-            docs = self.pages_3d(tvor, req, extra)
+            docs, dropped = self.pages_3d(tvor, req, extra)
         except (Model3dError, InfoError) as e:
             return {**page, "hlaseni": [*said, *out, str(e)]}
-        return {**page, "doc": docs[0]["id"], "dokumenty": [{"id": d["id"], "size": d["size"]} for d in docs], "hlaseni": [*said, *out]}
+        return {**page, "doc": docs[0]["id"], "dokumenty": [{"id": d["id"], "size": d["size"]} for d in docs], "hlaseni": [*said, *out, *dropped]}
 
     def picture_of(self, image: dict) -> dict:
         """Obraz pro rozvržení: zdroj dokumentu, rozměr, průhlednost a pojmenované body."""
