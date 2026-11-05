@@ -221,6 +221,12 @@ class SdServer:
                 raise SdServerError("sd-server vrátil prázdný výsledek")
             return [base64.b64decode(im["b64_json"]) for im in images]
         except httpx.HTTPError as e:
+            # CUDA out of memory mid-sampling kills the process outright (2026-11-05, plate of the whale
+            # infographic with VectorCraft and ChatGPT on the GPU): only the log tells, the job sees a timeout
+            if "out of memory" in self._log_tail(40):
+                raise SdOutOfMemory(
+                    "sd-server spadl, na grafice došla paměť (CUDA out of memory). Zavřete programy, které GPU "
+                    "používají (VectorCraft, Illustrator, prohlížeč s 3D), nebo zmenšete rozměr.") from e
             raise SdServerError(f"spojení se sd-serverem selhalo: {e}") from e
         finally:
             with self._lock:

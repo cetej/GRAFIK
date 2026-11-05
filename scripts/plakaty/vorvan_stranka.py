@@ -228,7 +228,22 @@ def scene_3d(render: Path, fmt: str, box: tuple[float, float, float, float], ali
     outside = float((inner_a * (1 - np.asarray(body, np.float32) / 255)).sum() / max(inner_a.sum(), 1))
     print(f"VNITŘEK MIMO TĚLO před ořezem: {outside:.1%}" + ("  ← ořezáno podle obrysu" if outside > 0.002 else ""))
     layers["vnitrek"].putalpha(Image.fromarray((inner_a * np.asarray(body, np.float32) / 255).astype("uint8")))
-    graphics = [group("Vnitřnosti 3D", image_tag(layers["vnitrek"], x, y, w, h, "PNG")),
+    # okno v kůži má měkký okraj a render vnitřku k němu nedosahuje: lemem prosvítalo moře (operátor 5. 11.).
+    # Dutina = okno v kůži s okrajem, v tónu dutiny z renderu. Jen okno: kůže je lehce průsvitná všude
+    # a dutina pod celým tělem ztmavila i hlavu a čelist.
+    rgb = np.asarray(layers["vnitrek"].convert("RGB"), np.float32)
+    dark = (inner_a > 250) & (rgb.sum(axis=2) < 200)
+    tone = np.median(rgb[dark], axis=0) if dark.any() else np.array([66, 25, 27])
+    skin_a = layers["kuze"].getchannel("A")
+    solid = skin_a.point(lambda v: 255 if v > 8 else 0).filter(ImageFilter.MinFilter(9))     # tělo bez obrysu
+    window = Image.fromarray(((np.asarray(skin_a) < 235) & (np.asarray(solid) > 0)).astype("uint8") * 255)
+    window = window.filter(ImageFilter.MaxFilter(15)).filter(ImageFilter.GaussianBlur(3))
+    alpha = (np.asarray(window, np.float32) * np.asarray(solid, np.float32) / 255).astype("uint8")
+    print(f"DUTINA: tón {tone.round().astype(int).tolist()} z {int(dark.sum())} px vnitřku, okno {(alpha > 0).mean():.1%} vrstvy")
+    cavity = Image.new("RGBA", layers["kuze"].size, tuple(int(c) for c in tone.round()) + (0,))
+    cavity.putalpha(Image.fromarray(alpha))
+    graphics = [group("Dutina", image_tag(cavity, x, y, w, h, "PNG")),
+                group("Vnitřnosti 3D", image_tag(layers["vnitrek"], x, y, w, h, "PNG")),
                 group("Průsvitná kůže", image_tag(layers["kuze"], x, y, w, h, "PNG")),
                 glow_layer(layers["potapec"], x, y, w),
                 group("Potápěč", image_tag(layers["potapec"], x, y, w, h, "PNG"))]
@@ -326,11 +341,12 @@ def page_169(data: Path, render: Path | None = None) -> tuple[str, int, int]:
 
 
 if __name__ == "__main__":
-    # python scripts/plakaty/vorvan_stranka.py DATA_DIR [--3d RENDER_DIR]
+    # python scripts/plakaty/vorvan_stranka.py DATA_DIR [--3d RENDER_DIR] [--out DIR]
+    # --out: jiná složka než stranky/, kde mohou ležet hotové a ručně upravené stránky
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     data = Path(sys.argv[1])
     render = Path(sys.argv[sys.argv.index("--3d") + 1]) if "--3d" in sys.argv else None
-    out = data.parent / "stranky"
+    out = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else data.parent / "stranky"
     prefix = "vorvan-3d" if render else "vorvan"
     for stem, page in ((f"{prefix}-9x16", page_916), (f"{prefix}-16x9", page_169)):
         svg, w, h = page(data, render)

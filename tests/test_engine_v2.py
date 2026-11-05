@@ -1066,6 +1066,16 @@ def test_out_of_vram_restarts_own_server_and_retries(sd, tmp_path, monkeypatch):
     assert "restart" in (sd.s.log_dir / "engine-events.log").read_text(encoding="utf-8")
 
 
+def test_server_crash_out_of_vram_restarts_and_retries(sd, tmp_path, monkeypatch):
+    """CUDA out of memory mid-sampling kills sd-server; the job saw only a timeout and failed (2026-11-05)."""
+    monkeypatch.setenv("FAKE_SD_CRASH_OOM_ONCE", str(tmp_path / "crash.marker"))
+    sd.ensure_running()
+    first_pid = json.loads(sd.state_path.read_text())["pid"]
+    out = sd.generate({"prompt": "x", "width": 256, "height": 256, "seed": 1})
+    assert out[0][1:4] == b"PNG"
+    assert json.loads(sd.state_path.read_text())["pid"] != first_pid
+
+
 def test_settings_status_never_exposes_key_values(api, monkeypatch):
     monkeypatch.setenv("FAL_KEY", "secret-fal-value")
     st = api.get("/api/v2/settings").json()
