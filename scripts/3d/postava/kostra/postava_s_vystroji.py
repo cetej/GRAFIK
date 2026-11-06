@@ -337,6 +337,7 @@ def drop_islands(o, frac=0.004, minf=40):
     bm.to_mesh(o.data); bm.free(); o.data.update(); return len(kill)
 # drop_islands nepoužívat: původní model je z tisíců samostatných kousků (vyzkoušeno, roztrhá zbroj)
 exec(open(os.path.join(TD, "nahrad_vystroj.py"), encoding="utf-8").read())
+exec(open(os.path.join(TD, "zbrane.py"), encoding="utf-8").read())   # pilum, gladius, scutum do pěsti v pózách s předlohou
 # tělo pod plechem a přilbou skrýt (obličej, paže a nohy ne)
 _PL = [parts[g] for g in ("zbroj", "ramena", "helma", "opasek") if g in parts]
 BVa = BVHTree.FromPolygons(sum([[tuple(o.matrix_world @ v.co) for v in o.data.vertices] for o in _PL], []),
@@ -415,7 +416,7 @@ for m in body.data.materials:
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "postup_b.blend"))
 # --- simulace pro každou pózu: klid (snímek 1) -> póza (30), usadit do 50 ---
 def prep(pn):
-    rig.animation_data_clear(); P = rig.pose.bones; target = {pb.name: pb.matrix_basis.copy() for pb in P}
+    zbr_ruce(pn); rig.animation_data_clear(); P = rig.pose.bones; target = {pb.name: pb.matrix_basis.copy() for pb in P}
     for pb in P:
         pb.matrix_basis = Matrix.Identity(4)
         for k in ("location", "rotation_quaternion", "scale"): pb.keyframe_insert(k, frame=1)
@@ -423,6 +424,7 @@ def prep(pn):
         for k in ("location", "rotation_quaternion", "scale"): pb.keyframe_insert(k, frame=30)
     sc.frame_start, sc.frame_end = 1, 50
     for f in range(1, 51): sc.frame_set(f)
+    zbr_umisti(pn)
 MAP = {"hips": "root", "chest": "spine03", "neck": "neck01"}
 for q in ("L", "R"):
     MAP.update({f"{q}_arm": f"upperarm01.{q}", f"{q}_fore": f"lowerarm01.{q}", f"{q}_hand": f"wrist.{q}", f"{q}_upleg": f"upperleg01.{q}", f"{q}_leg": f"lowerleg01.{q}", f"{q}_foot": f"foot.{q}", f"{q}_toe": f"toe3-1.{q}"})

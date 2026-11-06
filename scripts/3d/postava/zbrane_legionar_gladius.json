@@ -1,0 +1,27 @@
+{
+ "podklad": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/zbrane/podklad_D",
+ "vystup": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/zbrane",
+ "dily": {
+  "gladius": {
+   "popis": "one Roman short sword (gladius Pompeii type) lying alone, no hand: straight double-edged steel blade with parallel edges and short triangular point, rounded wooden guard, ribbed bone grip and round wooden pommel, complete",
+   "popis_pohled": {
+    "right": "one Roman short sword (gladius) seen exactly from its edge: thin straight steel blade edge-on, rounded wooden guard, ribbed grip and round pommel"
+   },
+   "box": {
+    "front": [
+     40,
+     150,
+     445,
+     250
+    ],
+    "right": [
+     40,
+     150,
+     445,
+     250
+    ]
+   },
+   "seed": 21
+  }
+ }
+}
