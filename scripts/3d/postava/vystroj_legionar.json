@@ -1,11 +1,120 @@
-{"podklad": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/v1/podklad",
+{
+ "podklad": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/v1/podklad",
  "vystup": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/vystroj",
  "dily": {
-  "prilba": {"popis": "one Roman imperial Gallic helmet (Weisenau type) with brow ridges, wide neck guard, brass trim and both cheek guards hanging down, complete and undamaged",
-             "box": {"front": [285, 10, 486, 212], "back": [286, 10, 487, 170], "right": [40, 18, 245, 205]}, "seed": 21},
-  "lorica": {"popis": "one Roman lorica segmentata cuirass with its shoulder guards: horizontal steel hoops around the torso, curved overlapping steel shoulder plates, brass buckles, hinges and leather straps, complete, ending at the waist, no belt, no apron",
-             "popis_pohled": {"back": "one Roman lorica segmentata cuirass with its shoulder guards in one piece: the curved shoulder plates rest directly on top of the horizontal back hoops with no gap, upper back plates and collar plates, brass buckles and leather straps, ending at the waist, no belt"},
-             "box": {"front": [186, 182, 584, 462], "back": [185, 172, 580, 455], "right": [34, 172, 252, 458]}, "seed": 21, "seed_pohled": {"back": 23}},
-  "opasek": {"popis": "one Roman military belt (cingulum) with brass decorative plates and the hanging front apron of leather straps covered with round brass studs ending in pendants, complete",
-             "popis_pohled": {"back": "one Roman military belt (cingulum), a band of brass decorative plates on leather; seen from behind only the belt band is visible, the studded apron hangs at the front and is hidden behind it, nothing hangs down at the back"},
-             "box": {"front": [252, 455, 510, 690], "back": [259, 450, 507, 528], "right": [84, 452, 284, 665]}, "seed": 21, "seed_pohled": {"back": 23}}}}
+  "prilba": {
+   "popis": "one Roman imperial Gallic helmet (Weisenau type) with brow ridges, wide neck guard, brass trim and both cheek guards hanging down, complete and undamaged",
+   "box": {
+    "front": [
+     285,
+     10,
+     486,
+     212
+    ],
+    "back": [
+     286,
+     10,
+     487,
+     170
+    ],
+    "right": [
+     40,
+     18,
+     245,
+     205
+    ]
+   },
+   "seed": 21
+  },
+  "lorica": {
+   "popis": "one Roman lorica segmentata cuirass with its shoulder guards: horizontal steel hoops around the torso, curved overlapping steel shoulder plates, brass buckles, hinges and leather straps, complete, ending at the waist, no belt, no apron",
+   "popis_pohled": {
+    "back": "one Roman lorica segmentata cuirass with its shoulder guards in one piece: the curved shoulder plates rest directly on top of the horizontal back hoops with no gap, upper back plates and collar plates, brass buckles and leather straps, ending at the waist, no belt"
+   },
+   "box": {
+    "front": [
+     186,
+     182,
+     584,
+     462
+    ],
+    "back": [
+     185,
+     172,
+     580,
+     455
+    ],
+    "right": [
+     34,
+     172,
+     252,
+     458
+    ]
+   },
+   "seed": 21,
+   "seed_pohled": {
+    "back": 23
+   }
+  },
+  "opasek": {
+   "popis": "one Roman military belt (cingulum) with brass decorative plates and the hanging front apron of leather straps covered with round brass studs ending in pendants, complete",
+   "popis_pohled": {
+    "back": "one Roman military belt (cingulum), a band of brass decorative plates on leather; seen from behind only the belt band is visible, the studded apron hangs at the front and is hidden behind it, nothing hangs down at the back"
+   },
+   "box": {
+    "front": [
+     252,
+     455,
+     510,
+     690
+    ],
+    "back": [
+     259,
+     450,
+     507,
+     528
+    ],
+    "right": [
+     84,
+     452,
+     284,
+     665
+    ]
+   },
+   "seed": 21,
+   "seed_pohled": {
+    "back": 23
+   }
+  },
+  "sandal": {
+   "popis": "one single right Roman military caliga sandal for the right foot: thick leather sole with hobnail edge, open toes, many brown leather straps over the foot and a high laced leather cuff wrapped around the ankle and lower calf, empty with no foot inside",
+   "box": {
+    "front": [
+     195,
+     940,
+     345,
+     1135
+    ],
+    "back": [
+     420,
+     920,
+     600,
+     1135
+    ],
+    "right": [
+     20,
+     955,
+     250,
+     1145
+    ]
+   },
+   "seed": 21,
+   "popis_pohled": {
+    "right": "one single right Roman military caliga sandal for the right foot seen from its right side: flat brown leather sole with iron hobnails, no rubber, no tread, open toes, brown leather straps over the foot and a high laced leather cuff around the ankle and lower calf, empty with no foot inside, completely empty shoe, no toes, no skin, nothing inside"
+   },
+   "seed_pohled": {
+    "right": 25
+   }
+  }
+ }
+}

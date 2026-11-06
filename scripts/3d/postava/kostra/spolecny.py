@@ -57,8 +57,8 @@ POSES = [("klid", lambda p: p.arms_down(25)), ("chuze", lambda p: (p.arms_down(2
          ("vypad", lambda p: (p.arms_down(25), p.legs(70, 70, -25, 10))), ("beh_C", lambda p: p.sam())]
 
 def ev_coords(o):
-    masks = [m for m in o.modifiers if m.type == "MASK" and m.show_viewport]
-    for m in masks: m.show_viewport = False                 # měří se celé tělo (indexy vrcholů), maska jen pro render
+    masks = [m for m in o.modifiers if m.type in ("MASK", "SOLIDIFY", "SUBSURF") and m.show_viewport]
+    for m in masks: m.show_viewport = False                 # měří se celé tělo a samotná látka (indexy vrcholů); maska, tloušťka a vyhlazení jen pro render
     bpy.context.view_layer.update()
     ev = o.evaluated_get(bpy.context.evaluated_depsgraph_get()); m = ev.to_mesh()
     X = np.empty(len(m.vertices) * 3, np.float32); m.vertices.foreach_get("co", X); X = X.reshape(-1, 3)

@@ -86,9 +86,20 @@ if os.environ.get("JEN_PRILBA"):                   # rychlá kontrola usazení: 
     sys.exit(0)
 print("INFO prilba temene venku", nv, "z", len(_H), flush=True)
 o = nacti("opasek"); usad(o, co(parts["opasek"]))
-_C = co(o); _c = Vector(((_C.min(0) + _C.max(0)) / 2).tolist())          # o 5 % širší, ať okraj sukně zůstane pod opaskem
-o.data.transform(Matrix.Translation(_c) @ Matrix.Diagonal((1.05, 1.05, 1, 1)) @ Matrix.Translation(-_c)); rigid(o, "root"); NOVE["opasek"] = o
+# opasek do výšky z předlohy (BELT_C) a na obvod těla v té výšce: pás 1,2 cm od těla + tloušťka
+_C = co(o); _bt = float(_C[:, 2].max()); _band = _C[_C[:, 2] > _bt - 0.05]; _bc = (_bt + float(_band[:, 2].min())) / 2
+o.data.transform(Matrix.Translation(Vector((0, 0, BELT_C - _bc)))); _C = co(o); _band = _C[_C[:, 2] > _C[:, 2].max() - 0.05]
+_T = co(bpy.data.objects["tunika_latka"]); _T = _T[np.abs(_T[:, 2] - BELT_C) < 0.015]     # opasek leží na tunice, ne pod ní
+_S = np.concatenate([BV[(np.abs(BV[:, 2] - BELT_C) < 0.012) & (np.abs(BV[:, 0]) < 0.22)], _T])
+_bx, _by = (_band[:, 0].max() - _band[:, 0].min()), (_band[:, 1].max() - _band[:, 1].min())
+_sx = (_S[:, 0].max() - _S[:, 0].min() + 0.05) / _bx; _sy = (_S[:, 1].max() - _S[:, 1].min() + 0.05) / _by     # přes tunici (tloušťka látky a vyhlazení)
+_c = Vector(((_S[:, 0].max() + _S[:, 0].min()) / 2, (_S[:, 1].max() + _S[:, 1].min()) / 2, BELT_C)); _c0 = Vector(((_band[:, 0].max() + _band[:, 0].min()) / 2, (_band[:, 1].max() + _band[:, 1].min()) / 2, BELT_C))
+o.data.transform(Matrix.Translation(_c) @ Matrix.Diagonal((_sx, _sy, 1, 1)) @ Matrix.Translation(-_c0)); rigid(o, "root"); NOVE["opasek"] = o
+print("INFO opasek: stred pasu z", round(BELT_C, 3), "posun dolu cm", round((_bc - BELT_C) * 100, 1), "sirka x/y", round(_sx, 3), round(_sy, 3), flush=True)
 o = nacti("lorica"); usad(o, np.concatenate([co(parts["zbroj"]), co(parts["ramena"])])); NOVE["zbroj"] = o
+_C = co(o); _lt, _lb = float(_C[:, 2].max()), float(_C[:, 2].min())          # spodek loriky na výšku z předlohy, vršek (ramena) zůstává
+o.data.transform(Matrix.Translation(Vector((0, 0, _lt))) @ Matrix.Diagonal((1, 1, (_lt - LORICA_DOLE) / (_lt - _lb), 1)) @ Matrix.Translation(Vector((0, 0, -_lt))))
+print("INFO lorica protazena dolu z", round(_lb, 3), "na", round(LORICA_DOLE, 3), flush=True)
 # lorica: trup na páteři, ramenní pláty na ramenou (stejné dělení jako dřív u vyříznutých plátů)
 C = co(o); zsh = mp("upperarm01.L").z; o.vertex_groups.clear(); spine(o)
 sh = (C[:, 2] > zsh - 0.07) & (np.abs(C[:, 0]) > 0.11)

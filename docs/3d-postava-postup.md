@@ -86,7 +86,8 @@ Pro postavu, která se má hýbat, se hotový slitý model nepoužívá. Sklád�
 | Vrstva | Odkud | Jak se hýbe |
 |---|---|---|
 | Tělo | MPFB2 (`telo_v1.blend`), kostra se 163 kostmi včetně prstů | váhy MPFB, `Corrective Smooth` v kloubech |
-| Tunika, rukávy, šátek | čistá látka z prstenců podle tvaru původní tuniky, kolem paže a krku | sukně simulace látky se srážkou s nohama, rukávy a šátek váhy z těla |
+| Tunika | jeden oděv: trup od krku po lem + rukávy, sloučené do jedné sítě, tvar z těla a výšky z předlohy | simulace látky: nad opaskem drží tělo, pod ním visí a naráží do nohou |
+| Šátek | prstenec látky kolem krku | váhy z těla |
 | Přilba, lorica, opasek | **každý díl zvlášť z generátoru** (níže) | napevno na kost: přilba `head`, opasek `root`, lorica páteř a ramenní pláty `shoulder01` |
 | Sandály | vyříznuté z původního modelu (zatím) | váhy chodidla a lýtka |
 
@@ -100,7 +101,8 @@ Díl se nevyřezává ze slité postavy: řez vede tam, kde žádná hrana nebyl
 4. **Model dílu, placené:** `vystroj_dily.py generuj <zadání> --confirm-cost`, Hunyuan3D v3 `Normal` se třemi pohledy, **0,525 USD za díl** (0,375 je jen bílý tvar bez barvy). Jen se souhlasem operátora a s cenou předem.
 5. **Prohlídka modelu** ze 4 stran: celé okraje, nic navíc, předek ve směru −Y.
 6. **Postava:** `scripts/3d/postava/kostra/postava_s_vystroji.py` (spouštět pod zámkem těžké práce, `BLENDER_USER_RESOURCES=run/mpfb_profil`), díly dosazuje `nahrad_vystroj.py`: nový díl se srovná na obálku původního místa (percentily 1–99, rovnoměrně, osa smí uhnout nejvýš o 10 %), lesk kovu se dopočítá z barvy textury. **Přilba se usazuje podle hlavy, ne podle místa staré přilby:** na přilbě se najde výřez pro ucho (nejvyšší bod spodního okraje boku) a čelní lem, na hlavě ucho (materiál `ears` MPFB) a obočí (objekt `eyebrow`); hledá se zvětšení (1,00–1,10), náklon, posun dopředu a výška, aby výřez ležel nad uchem a lem 1,2 cm nad obočím, a z nejlépe sedících se vezme první, která zakryje temeno (paprsek od středu lebky přes horních 7 cm hlavy musí narazit na přilbu). Legionář: zvětšení 1,08, 2,5 cm dopředu, 1 cm dolů, odchylka 0,5 cm. Rychlá kontrola bez simulace a póz: `JEN_PRILBA=1` vyrenderuje jen hlavu ze tří stran (asi 3 minuty).
-7. **Test:** 4 pózy (klid, chůze, výpad, běh podle předlohy), měření kůže skrz látku, trhlin hran a objemu kloubů (`kostra/spolecny.py`) a výřezy hlavy, trupu, pasu a nohou ze čtyř stran ve 100 %. Hotovo je až s nulou v měření **a** prohlédnutými výřezy: měření vady na plechu ani na šátku nevidí.
+7. **Srovnání s předlohou:** `kostra/srovnej_predloha.py <výstup> <srovnani.jpg>` položí přesný pohled zepředu a zprava vedle předlohy ve stejném měřítku a obrys přes ni. Výšky (spodek loriky, opasek, lem, rukáv) se nastavují podle tohoto srovnání, ne podle staré postavy.
+8. **Test:** 4 pózy (klid, chůze, výpad, běh podle předlohy), měření kůže skrz látku, trhlin hran a objemu kloubů (`kostra/spolecny.py`) a výřezy hlavy, trupu, pasu a nohou ze čtyř stran ve 100 %. Hotovo je až s nulou v měření **a** prohlédnutými výřezy: měření vady na plechu ani na šátku nevidí.
 
 Data legionáře: `library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/` (tělo, kostra, štítky dílů, póza z SAM) a `…/vystroj/<díl>/` (výřezy, pohledy, `model.glb`, `request.json`). Utraceno za výstroj 1,58 USD.
 
