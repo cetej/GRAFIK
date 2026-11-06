@@ -11,6 +11,7 @@ Cíl: z jednoho realistického statického obrázku legionáře a videa s pohybe
 | Kling 3.0 Standard motion control `fal-ai/kling-video/v3/standard/motion-control` | 0,126 USD/s | 0,756 USD | jako v3 Pro | | ve skriptu není, kvalita pod Pro |
 | Kling 2.6 Standard motion control `fal-ai/kling-video/v2.6/standard/motion-control` | 0,07 USD/s | 0,42 USD | jako 2.6 Pro | | nejlevnější, ve skriptu není |
 | MiniMax H3 Max Recast `minimax/h3-max/recast` | 0,30 USD/s (768P), 0,45 USD/s (1080P) | 1,80 / 2,70 USD | video + 1 fotka na každou nahrazovanou osobu, prompt, `enhance_realism` | video 5–30 s, záběr nejvýš 15 s | nahradí lidi ve videu a **zachová kameru, střih, prostředí i zvuk zdrojového videa**; pozadí tedy přijde z videa, ne z obrázku |
+| Kling 4.0 reference-to-video `kling/v4/reference-to-video` (doplněno 6. 11. večer) | s referenčním videem 0,094 USD/s (720p), 0,141 USD/s (1080p); **účtuje se vstup + výstup, nejméně 2× výstup** | 1,128 USD (720p) / 1,692 USD (1080p) | prompt s `@Video1` (pohyb, kamera, tempo) a `@Element1` (čelní obrázek + 1–3 pohledy, nebo video 3–8 s); až 5 videí, 10 obrázků, 7 elementů | 3–30 s | samostatný motion control pro 4.0 není; pohyb přenáší reference. Bez videa 0,157 / 0,235 USD/s. Skript `--model kling4 --element ref-right.png ref-back.png [--resolution 720p]`, výstup 9:16 |
 | Wan 2.2 Animate Move `fal-ai/wan/v2.2-14b/animate/move` | 0,04–0,08 USD za „video sekundu“ (16 snímků) | | obrázek + video | | fal ho **ruší 4. 1. 2027**, na stránce doporučuje přejít na H3 Max Recast; nestavět na něm |
 
 **Co je H3 Max Recast:** fal přetrénoval otevřený videomodel MiniMax H3 (post-training na kvalitu a poslušnost promptu) a vydává ho jako H3 Max; Recast je jeho video-to-video režim pro výměnu postavy. Je to náhrada Wan Animate **Replace** (výměna osoby ve videu), ne Wan Animate Move (oživení obrázku). Pro náš případ „postava z obrázku na neutrálním pozadí“ je přímou náhradou Kling motion control; Recast se hodí, když chceme zachovat scénu a kameru natočeného videa. Je asi 2,7× dražší než Kling 2.6 Pro.
@@ -65,3 +66,20 @@ Stejný vstup pro oba: `ref-front.png` a pohyb od 1. do 7. sekundy, rámování 
 **Dva neúspěšné pokusy s 3.0** (`legionar-chuze-kling3-01`, `-02`): fal odmítl úzký boční pohled `ref-right.png` (284×1151) nejdřív kvůli šířce pod 300 px, pak kvůli poměru stran pod 0,4. Odmítnutí přišlo až po odeslání, v `costs.jsonl` jsou jako `failed`. Validační chyba (422) by se neměla účtovat, na účtu fal jsem to neověřil. Skript teď obrázky elementu doplní na kratší stranu ≥ 300 px a poměr 0,4–2,5 (`min_side`) před odesláním.
 
 Celkem zaplaceno za úspěšné klipy: 1,68 USD.
+
+### Kling 4.0 (doplněno 6. 11. večer, se souhlasem operátora)
+
+`legionar-chuze-kling4-01`: 1080p, `@Element1` = ref-front + ref-right + ref-back, `@Video1` = stejný úsek chůze, prompt `PROMPT_V4` (helma bez chocholu, obličej bez škrábanců, statická kamera). Cena 1,692 USD (12 s × 0,141), běh 149 s, výstup 1080×1920, 24 fps, 6,04 s.
+
+- **Obličej:** tentýž muž po celý klip. Škrábance na levé tváři jsou slabší, ale pořád vidět; zákaz v promptu je neodstranil.
+- **Výstroj:** helma bez chocholu (zákaz v promptu zabral, ve 3.0 chochol byl), lorika, opasek s řemeny, tunika a sandály drží. Šňůrka u krku zůstává.
+- **Ruce:** 5 prstů, přirozené, sepjaté podle pohybu.
+- **Pohyb:** sleduje video stejně věrně jako motion control (sepnutí rukou i krok sedí).
+- **Zvuk:** klip má zvukovou stopu, kterou model vytvořil sám (průměr −29,5 dB, špička −9,7 dB). Neposlouchal jsem ji; když vadí, `ffmpeg -an`.
+
+![Kling 4.0, 6 snímků](img/2026-11-06-klip-kling4-01-prehled.jpg)
+![Kling 4.0, hlava po 0,5 s](img/2026-11-06-klip-kling4-01-hlavy.jpg)
+
+**Závěr po třech modelech:** Kling 4.0 je kvalitou na úrovni 2.6 Pro a k tomu poslouchá prompt (chochol nepřidal), je nejrychlejší a umí víc postav, videí a klíčových snímků v jednom běhu; stojí ale 2,5× víc (1,692 vs 0,672 USD za 6 s), protože se platí i délka referenčního videa. Pro jednu postavu s jedním pohybem stačí **Kling 2.6 Pro**; Kling 4.0 má smysl, když chceme scénu s víc postavami, klíčovými snímky nebo když 2.6 přidá něco, co prompt musí zakázat. Cena v 720p 1,128 USD, kvalitu 720p jsme nezkoušeli.
+
+Zaplaceno celkem za tři úspěšné klipy: 3,372 USD.
