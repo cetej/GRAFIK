@@ -53,7 +53,10 @@ def generuj(cfg, only=None):
     import fal_client
     import httpx
     from engine.keys import get_key
-    out = Path(cfg["vystup"]); ledger = ROOT / "library" / "costs.jsonl"
+    out = Path(cfg["vystup"]); lib = ROOT / "library"
+    if not lib.exists() and ROOT.parent.name == "worktrees":      # pracovní kopie (.claude/worktrees/<x>) nemá knihovnu: evidence cen v hlavním checkoutu
+        lib = ROOT.parents[2] / "library"
+    ledger = lib / "costs.jsonl"
     client = fal_client.SyncClient(key=get_key("FAL_KEY", "FAL_API_KEY"), default_timeout=900); hs = {}
 
     def log(d, status):
@@ -65,8 +68,9 @@ def generuj(cfg, only=None):
             continue
         o = out / d; u = {v: client.upload((o / f"ref-{v}.png").read_bytes(), "image/png") for v in ("front", "back", "right") if (o / f"ref-{v}.png").exists()}
         args = {"input_image_url": u["front"], "generate_type": "Normal", **{f"{v}_image_url": x for v, x in u.items() if v != "front"}}
-        h = client.submit(EP, arguments=args); hs[d] = h; log(d, "pending")
+        h = client.submit(EP, arguments=args); hs[d] = h          # číslo úlohy uložit hned: výsledek jde vyzvednout bez druhé platby
         (o / "request.json").write_text(json.dumps({"endpoint": EP, "request_id": h.request_id, "args": args}, indent=1), encoding="utf-8")
+        log(d, "pending")
         print(d, "request_id", h.request_id, flush=True)
     t0 = time.monotonic()
     while hs and time.monotonic() - t0 < 1200:

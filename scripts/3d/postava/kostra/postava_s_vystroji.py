@@ -29,8 +29,12 @@ def verts_world(o):
     m = o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh(); v = np.array([o.matrix_world @ x.co for x in m.vertices]); return v
 # --- paže těla do úhlu nadloktí původního modelu (klidová póza kostry), aby rukávy seděly bez otáčení ---
 skinned = [o for o in bpy.data.objects if o.type == "MESH" and any(m.type == "ARMATURE" and m.object == rig for m in o.modifiers)]
+# tělo jako muž z předlohy: širší hrudník a ramena (MPFB hmotnost; svalnatost už je nejvyšší). Klíče se zapečou níž.
+MAKRO = {"$md-universal-$ma-$yn-max$mu-max$wg": 0.45, "$md-universal-$ma-$yn-max$mu-$av$wg": 0.52}
 for o in skinned:
     if not o.data.shape_keys: continue
+    for kn, kv in MAKRO.items():
+        if kn in o.data.shape_keys.key_blocks: o.data.shape_keys.key_blocks[kn].value = kv
     vis = [(m, m.show_viewport) for m in o.modifiers]
     for m, _ in vis: m.show_viewport = False
     bpy.context.view_layer.update(); ev = o.evaluated_get(bpy.context.evaluated_depsgraph_get()); em = ev.to_mesh()
@@ -121,7 +125,7 @@ sel([rig]); bpy.ops.object.mode_set(mode="POSE")
 for sd, sg in (("L", 1), ("R", -1)):
     so_ = [co(parts[g]) for g in ("sandal_L", "sandal_R")]; Cs = next(c for c in so_ if c[:, 0].mean() * sg > 0); sole = Cs[Cs[:, 2] < 0.03]
     F = BV0[(BV0[:, 2] < 0.09) & (BV0[:, 0] * sg > 0.03)]
-    r = float(np.clip(((sole[:, 0].max() - sole[:, 0].min()) * K - 0.016) / (F[:, 0].max() - F[:, 0].min()), 1.0, 1.5))
+    r = 1.0                                       # chodidla nerozšiřovat: sandály jsou nové a usadí se podle chodidla (dřív rozšíření pro staré vyříznuté)
     rig.pose.bones[f"foot.{sd}"].scale = (r, 1, 1); bpy.context.view_layer.update()
     print("INFO chodidlo", sd, "rozsireni", round(r, 2), flush=True)
 bpy.ops.object.mode_set(mode="OBJECT"); bake_rest()
@@ -201,7 +205,7 @@ tun = parts["tunika"]
 # výšky podle předlohy ve stejném měřítku (ref-front vedle renderu, 2026-11-06): spodek loriky 0,99 m, střed opasku 0,98 m,
 # lem tuniky 0,575 m u postavy s kolenem 0,483 m; rukáv 17 cm od ramenního kloubu.
 KOLENO = mp("lowerleg01.L").z; BELT_C = KOLENO + 0.497; HEM = KOLENO + 0.102; LORICA_DOLE = KOLENO + 0.507   # HEM +1 cm na prověšení látky
-RUKAV = 0.17; ZTOP = mp("neck01").z - 0.015
+RUKAV = 0.24; ZTOP = mp("neck01").z - 0.015
 z0 = HEM; z1 = BELT_C + 0.01; hzp = z1; NA = 96
 _em = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh(); _polys = [p_.vertices[:] for p_ in _em.polygons]
 def _sd(P_, a_, b_):
@@ -220,13 +224,14 @@ def _ray_far(bvh, c, d, lim):                     # nejvzdálenější zásah t�
         dd = (h[0] - c).length; o_ = h[0]
         if dd < lim: far = dd
     return far
-rings = np.arange(ZTOP, z0 - 1e-6, -0.01); C0 = []
+rings = np.arange(ZTOP, z0 - 0.03 - 1e-6, -0.01); C0 = []          # 3 cm pod lem: řez rovinou pak nejde přes zaoblený roh po remeshi (lem se stahoval dovnitř)
 for z in rings:
     q = BV[(np.abs(BV[:, 2] - z) < 0.01) & (np.abs(BV[:, 0]) < 0.2)]; C0.append(float((q[:, 1].max() + q[:, 1].min()) / 2) if len(q) else (C0[-1] if C0 else 0.0))
 RB = np.array([[_ray_far(bvb, Vector((0, C0[i], z)), Vector((math.cos(2 * math.pi * j / NA), math.sin(2 * math.pi * j / NA), 0)), 0.22) for j in range(NA)] for i, z in enumerate(rings)])
 sk = rings < BELT_C                                               # pod opaskem sukně: přes boky 1,5 cm, k lemu o 10 % širší
-_hip = np.percentile(RB[sk], 90, axis=0) + 0.015; _t = np.clip((BELT_C - rings) / max(BELT_C - z0, 1e-6), 0, 1)
-Rsk = np.maximum(_hip[None, :] * (1 + 0.10 * _t[:, None]), RB + 0.02); Rup = RB + 0.01   # mimo kolizní zónu těla (0,6 + 0,8 cm), jinak ji simulace hned odhodí a roztrhá
+_hip = np.percentile(RB[sk], 90, axis=0) + 0.025; _hip = np.max([np.roll(_hip, k) for k in range(-6, 7)], axis=0); _t = np.clip((BELT_C - rings) / max(BELT_C - z0, 1e-6), 0, 1)   # max přes ±22°: látka přes hýždě napnutá, ne vtažená do rýhy
+_ib = int(np.argmin(np.abs(rings - BELT_C))); _Rb = RB[_ib] + 0.015                       # sukně do A (předloha): od opasku přímka k lemu,
+_Rh = _hip * 1.12; Rsk = np.maximum(_Rb[None, :] + (_Rh - _Rb)[None, :] * _t[:, None], RB + 0.02); Rup = RB + 0.01   # přes boky a hýždě po těle; mimo kolizní zónu těla (0,6 + 0,8 cm), jinak ji simulace hned odhodí a roztrhá
 _w = np.clip((BELT_C + 0.01 - rings) / 0.05, 0, 1)[:, None]          # nad opaskem těsně na těle, pod ním plynule do sukně
 R = Rup * (1 - _w) + Rsk * _w
 def _tube(name, centers, dirs_u, dirs_v, radii):                  # uzavřená trubice (víčka na koncích) pro sloučení
@@ -243,13 +248,13 @@ SLV = {}
 for sd in ("L", "R"):
     S0 = mp(f"upperarm01.{sd}"); ax = (mp(f"lowerarm01.{sd}") - S0).normalized(); u = ax.cross(Vector((0, 1, 0))).normalized(); v_ = ax.cross(u).normalized()
     ts = np.arange(-0.06, RUKAV + 1e-6, 0.01); cs = [S0 + ax * float(t) for t in ts]
-    rr = np.array([[min(_ray_far(abvh, c, (u * math.cos(2 * math.pi * j / 48) + v_ * math.sin(2 * math.pi * j / 48)).normalized(), 0.07) or 0.05, 0.07) + 0.025 for j in range(48)] for c in cs])
+    rr = np.array([[min(_ray_far(abvh, c, (u * math.cos(2 * math.pi * j / 48) + v_ * math.sin(2 * math.pi * j / 48)).normalized(), 0.07) or 0.05, 0.07) + 0.03 + 0.025 * max(float(t), 0) / RUKAV for j in range(48)] for c, t in zip(cs, ts)])   # volný rukáv, k okraji širší (předloha)
     tubes.append(_tube(f"tunika_rukav_{sd}", cs, [u] * len(ts), [v_] * len(ts), rr)); SLV[sd] = (S0, ax)
 sel(tubes); bpy.ops.object.join(); cl = bpy.context.view_layer.objects.active; cl.name = "tunika_latka"
 rm_ = cl.modifiers.new("slouceni", "REMESH"); rm_.mode = "VOXEL"; rm_.voxel_size = 0.010; sel([cl]); bpy.ops.object.modifier_apply(modifier="slouceni")
 # otvory: krk, lem a konce rukávů odříznout rovinou (mazání ploch podle normály nechalo na zaobleném okraji cáry a díry)
 bm = bmesh.new(); bm.from_mesh(cl.data); kill = []
-cuts = [(Vector((0, 0, ZTOP - 0.008)), Vector((0, 0, 1)), None), (Vector((0, 0, z0 + 0.008)), Vector((0, 0, -1)), None)]
+cuts = [(Vector((0, 0, ZTOP - 0.008)), Vector((0, 0, 1)), None), (Vector((0, 0, z0)), Vector((0, 0, -1)), None)]
 cuts += [(S0 + ax * (RUKAV - 0.008), ax, (S0, ax)) for S0, ax in SLV.values()]
 for co_, no_, arm in cuts:
     if arm is None:
@@ -272,15 +277,18 @@ cl.parent = rig; am = cl.modifiers.new("kostra", "ARMATURE"); am.object = rig
 pin = cl.vertex_groups.new(name="pin")
 for v in cl.data.vertices: pin.add([v.index], float(np.clip((v.co.z - (BELT_C - 0.09)) / 0.07, 0, 1)), "REPLACE")   # nad opaskem drží tělo
 cm = cl.modifiers.new("latka", "CLOTH"); s_ = cm.settings
-s_.quality = 12; s_.mass = 0.25; s_.tension_stiffness = 80; s_.compression_stiffness = 80; s_.shear_stiffness = 20; s_.bending_stiffness = 0.3   # tužší: měkká látka se prověsila o 9 cm
+s_.quality = 12; s_.mass = 0.25; s_.tension_stiffness = 80; s_.compression_stiffness = 80; s_.shear_stiffness = 20; s_.bending_stiffness = 2.0   # tužší: měkká látka se prověsila o 9 cm
 s_.air_damping = 2.0; s_.vertex_group_mass = "pin"; s_.pin_stiffness = 1.0
 cm.collision_settings.distance_min = 0.006; cm.collision_settings.collision_quality = 4; cm.point_cache.frame_start = 1; cm.point_cache.frame_end = 60
 so = cl.modifiers.new("tloustka", "SOLIDIFY"); so.thickness = 0.003; so.offset = 1
 sb = cl.modifiers.new("hladka", "SUBSURF"); sb.levels = 1; sb.render_levels = 2
 mt = bpy.data.materials.new("tunika_vlna"); mt.use_nodes = True; bs = mt.node_tree.nodes["Principled BSDF"]
-bs.inputs["Base Color"].default_value = (0.24, 0.006, 0.018, 1); bs.inputs["Roughness"].default_value = 1.0
-for nm_, v_ in (("Sheen Weight", 0.0), ("Specular IOR Level", 0.15), ("Coat Weight", 0.0)):
+bs.inputs["Base Color"].default_value = (0.20, 0.008, 0.016, 1); bs.inputs["Roughness"].default_value = 1.0
+for nm_, v_ in (("Sheen Weight", 0.12), ("Sheen Roughness", 0.8), ("Specular IOR Level", 0.05), ("Coat Weight", 0.0)):   # matná vlna, ne lesklá guma
     if nm_ in bs.inputs: bs.inputs[nm_].default_value = v_
+_ntm = mt.node_tree; _nz = _ntm.nodes.new("ShaderNodeTexNoise"); _nz.inputs["Scale"].default_value = 35; _nz.inputs["Detail"].default_value = 6
+_bp = _ntm.nodes.new("ShaderNodeBump"); _bp.inputs["Strength"].default_value = 0.25; _bp.inputs["Distance"].default_value = 0.004   # drobné záhyby a vazba látky
+_ntm.links.new(_nz.outputs["Fac"], _bp.inputs["Height"]); _ntm.links.new(_bp.outputs["Normal"], bs.inputs["Normal"])
 cl.data.materials.append(mt)
 for f in cl.data.polygons: f.use_smooth = True
 body.modifiers.new("srazka", "COLLISION"); body.collision.thickness_outer = 0.008
@@ -365,9 +373,18 @@ body.data.update(); print("INFO trup zatlacen pod plech", npush, flush=True)
 ntp = 0; MWt = cl.matrix_world; MWti = MWt.inverted()
 bpy.context.view_layer.update(); _eb2 = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh()   # tělo už zatlačené pod plech, bez pomocné geometrie
 abvh2 = BVHTree.FromPolygons([tuple(MWb @ v.co) for v in _eb2.vertices], [p_.vertices[:] for p_ in _eb2.polygons])
+_op = parts["opasek"]; BVo = BVHTree.FromPolygons([tuple(_op.matrix_world @ v.co) for v in _op.data.vertices], [p_.vertices[:] for p_ in _op.data.polygons])
+ZPAS = ZBELT - 0.02 - 0.05 * 1.35 - 0.005                         # spodní hrana pásu opasku (pás 5 cm × 1,35 v nahrad_vystroj)
 for v in cl.data.vertices:
     p_ = MWt @ v.co
-    if p_.z < ZBELT: continue
+    if p_.z < ZPAS: continue
+    if p_.z < ZBELT:                                    # pod pásem opasku: látka nesmí prolézt přes jeho spodní hranu
+        c = _s0 + _sa * (p_ - _s0).dot(_sa); L_ = (p_ - c).length
+        if L_ < 1e-4: continue
+        d = (p_ - c) / L_; hit = BVo.ray_cast(c, d, L_ + 0.005)[0]
+        if hit is not None:
+            rb_ = _ray_far(abvh2, c, d, L_ + 0.02); v.co = MWti @ (c + d * max((hit - c).length - 0.004, rb_ + 0.006)); ntp += 1
+        continue
     c = mp("upperarm01.L") if p_.x > 0.12 else mp("upperarm01.R") if p_.x < -0.12 else _s0 + _sa * (p_ - _s0).dot(_sa)
     L_ = (p_ - c).length
     if L_ < 1e-4: continue
@@ -412,13 +429,13 @@ def seg_d(P_, a_, b_):
     ab = b_ - a_; t = np.clip(((P_ - a_) @ ab) / (ab @ ab), 0, 1); return np.linalg.norm(P_ - (a_ + t[:, None] * ab), axis=1)
 dl = np.minimum(seg_d(BV, np.array(mp("upperleg01.L")), np.array(mp("lowerleg01.L"))), seg_d(BV, np.array(mp("upperleg01.R")), np.array(mp("lowerleg01.R"))))
 skin = np.nonzero((BV[:, 2] > z0 - 0.06) & (BV[:, 2] < hzp) & (dl < 0.11))[0]
-run_all({"rig": rig, "MAP": MAP, "body": body, "cloth": cl, "skin_idx": skin, "name": "B", "out_dir": OUT, "prep_pose": prep, "ground_objs": [body]})
+run_all({"rig": rig, "MAP": MAP, "body": body, "cloth": cl, "skin_idx": skin, "name": "B", "out_dir": OUT, "prep_pose": prep, "ground_objs": [body] + [parts[g] for g in ("sandal_L", "sandal_R") if g in parts]})
 # --- detailní kontrola: klid a běh z 8 stran a výřezy ---
 P_ = Poser(rig, MAP); DD = os.path.join(OUT, "detail"); os.makedirs(DD, exist_ok=True)
 VIEWS8 = {f"{i:02d}": (math.sin(math.radians(a_)), -math.cos(math.radians(a_)), 0.08) for i, a_ in enumerate(range(0, 360, 45))}
 CROPS = {"hlava": (1.52, 0.42), "trup": (1.18, 0.62), "pas": (0.86, 0.62), "nohy": (0.42, 0.75), "chodidla": (0.1, 0.42)}
 for pn, pf in (("klid", POSES[0][1]), ("beh_C", POSES[3][1])):
-    P_.reset(); pf(P_); P_.ground([body]); prep(pn); rig.animation_data_clear()
+    P_.reset(); pf(P_); P_.ground([body] + [parts[g] for g in ("sandal_L", "sandal_R") if g in parts]); prep(pn); rig.animation_data_clear()
     for vn, d in VIEWS8.items(): shot(sc, os.path.join(DD, f"{pn}-cela-{vn}.png"), d, 2.0, (0, 0, 0.86))
     if pn == "klid":                                    # přesně zepředu a z boku, bez natočení: srovnání s předlohou ve stejném měřítku
         Mi3_ = rig.matrix_world.inverted().to_3x3()        # paže jako na předloze: 55° pod vodorovnou (jen póza pro srovnání)

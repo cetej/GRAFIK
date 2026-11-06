@@ -95,11 +95,23 @@ _bx, _by = (_band[:, 0].max() - _band[:, 0].min()), (_band[:, 1].max() - _band[:
 _sx = (_S[:, 0].max() - _S[:, 0].min() + 0.05) / _bx; _sy = (_S[:, 1].max() - _S[:, 1].min() + 0.05) / _by     # přes tunici (tloušťka látky a vyhlazení)
 _c = Vector(((_S[:, 0].max() + _S[:, 0].min()) / 2, (_S[:, 1].max() + _S[:, 1].min()) / 2, BELT_C)); _c0 = Vector(((_band[:, 0].max() + _band[:, 0].min()) / 2, (_band[:, 1].max() + _band[:, 1].min()) / 2, BELT_C))
 o.data.transform(Matrix.Translation(_c) @ Matrix.Diagonal((_sx, _sy, 1, 1)) @ Matrix.Translation(-_c0)); rigid(o, "root"); NOVE["opasek"] = o
+_C = co(o); _bt = float(_C[:, 2].max()); _bb = _bt - 0.05; _bc2 = (_bt + _bb) / 2
+for v in o.data.vertices:                                   # pás o 35 % vyšší (předloha), zástěra pod ním jen posunutá
+    if v.co.z > _bb - 0.005: v.co.z = _bc2 + (v.co.z - _bc2) * 1.35
+    else: v.co.z -= 0.05 * 0.35 / 2
+o.data.update()
 print("INFO opasek: stred pasu z", round(BELT_C, 3), "posun dolu cm", round((_bc - BELT_C) * 100, 1), "sirka x/y", round(_sx, 3), round(_sy, 3), flush=True)
 o = nacti("lorica"); usad(o, np.concatenate([co(parts["zbroj"]), co(parts["ramena"])])); NOVE["zbroj"] = o
-_C = co(o); _lt, _lb = float(_C[:, 2].max()), float(_C[:, 2].min())          # spodek loriky na výšku z předlohy, vršek (ramena) zůstává
-o.data.transform(Matrix.Translation(Vector((0, 0, _lt))) @ Matrix.Diagonal((1, 1, (_lt - LORICA_DOLE) / (_lt - _lb), 1)) @ Matrix.Translation(Vector((0, 0, -_lt))))
-print("INFO lorica protazena dolu z", round(_lb, 3), "na", round(LORICA_DOLE, 3), flush=True)
+_C = co(o); _lt = float(_C[:, 2].max()); _lb = float(np.percentile(_C[np.abs(_C[:, 0]) < 0.12][:, 2], 2))   # spodní obruč (bez visících řemínků)
+_ld = BELT_C + 0.02                                                              # spodní plát dosedne na horní okraj opasku (předloha)
+o.data.transform(Matrix.Translation(Vector((0, 0, _lt))) @ Matrix.Diagonal((1, 1, (_lt - _ld) / (_lt - _lb), 1)) @ Matrix.Translation(Vector((0, 0, -_lt))))
+_C = co(o); _zb = (_ld + 0.04, _ld + 0.16); _h = _C[(_C[:, 2] > _zb[0]) & (_C[:, 2] < _zb[1])]           # obruče na trupu
+_tb = BV[(BV[:, 2] > _zb[0]) & (BV[:, 2] < _zb[1]) & (np.abs(BV[:, 0]) < 0.2)]
+_kx = float(np.clip((_tb[:, 0].max() - _tb[:, 0].min() + 0.06) / (_h[:, 0].max() - _h[:, 0].min()), 0.9, 1.5))   # obruče obepnou trup: 3 cm na plech a látku
+_ky = float(np.clip((_tb[:, 1].max() - _tb[:, 1].min() + 0.06) / (_h[:, 1].max() - _h[:, 1].min()), 0.9, 1.5))
+_cc = Vector(((_tb[:, 0].max() + _tb[:, 0].min()) / 2, (_tb[:, 1].max() + _tb[:, 1].min()) / 2, 0)); _c0 = Vector(((_h[:, 0].max() + _h[:, 0].min()) / 2, (_h[:, 1].max() + _h[:, 1].min()) / 2, 0))
+o.data.transform(Matrix.Translation(_cc) @ Matrix.Diagonal((_kx, _ky, 1, 1)) @ Matrix.Translation(-_c0))
+print("INFO lorica: spodek z", round(_lb, 3), "na", round(_ld, 3), "sirka x/y", round(_kx, 3), round(_ky, 3), flush=True)
 # lorica: trup na páteři, ramenní pláty na ramenou (stejné dělení jako dřív u vyříznutých plátů)
 C = co(o); zsh = mp("upperarm01.L").z; o.vertex_groups.clear(); spine(o)
 sh = (C[:, 2] > zsh - 0.07) & (np.abs(C[:, 0]) > 0.11)
@@ -137,4 +149,21 @@ for g, o in NOVE.items():
         nt.links.new(hs.outputs[2], mm.inputs["Value"]); nt.links.new(mm.outputs["Result"], b.inputs["Metallic"])
         rr = nt.nodes.new("ShaderNodeMapRange"); rr.inputs["From Min"].default_value = 0.0; rr.inputs["From Max"].default_value = 0.6; rr.inputs["To Min"].default_value = 0.32; rr.inputs["To Max"].default_value = 0.62
         nt.links.new(hs.outputs[1], rr.inputs["Value"]); nt.links.new(rr.outputs["Result"], b.inputs["Roughness"])
+o = nacti("sandal"); oL = o.copy(); oL.data = o.data.copy(); sc.collection.objects.link(oL); oL.name = "sandal_L_novy"   # kopie dřív, než se pravý zmenší
+for g in ("sandal_L", "sandal_R"):
+    if g in parts: bpy.data.objects.remove(parts.pop(g), do_unlink=True)
+for sd, sg in (("R", -1), ("L", 1)):
+    if sd == "R": x = o
+    else:
+        x = oL
+        x.data.transform(Matrix.Diagonal((-1, 1, 1, 1))); x.data.flip_normals()          # levý = zrcadlo pravého
+    F = BV[(BV[:, 2] < 0.10) & (BV[:, 0] * sg > 0.02) & (BV[:, 0] * sg < 0.3)]; C = co(x); sole = C[C[:, 2] < C[:, 2].min() + 0.025]
+    k_ = max((F[:, 1].max() - F[:, 1].min() + 0.03) / (sole[:, 1].max() - sole[:, 1].min()), (F[:, 0].max() - F[:, 0].min() + 0.02) / (sole[:, 0].max() - sole[:, 0].min()))
+    p0 = Vector(((sole[:, 0].max() + sole[:, 0].min()) / 2, sole[:, 1].max(), C[:, 2].min()))                 # pata dole uprostřed
+    p1 = Vector(((F[:, 0].max() + F[:, 0].min()) / 2, F[:, 1].max() + 0.012, F[:, 2].min() - 0.012))
+    x.data.transform(Matrix.Translation(p1) @ Matrix.Scale(k_, 4) @ Matrix.Translation(-p0)); x.data.update()
+    transfer(x, keep=("foot", "lowerleg", "toe")); x.parent = rig; am = x.modifiers.new("kostra", "ARMATURE"); am.object = rig
+    for f in x.data.polygons: f.use_smooth = True
+    parts[f"sandal_{sd}"] = x
+    print("INFO sandal", sd, "meritko", round(k_, 3), "vyska cm", round((co(x)[:, 2].max() - co(x)[:, 2].min()) * 100, 1), flush=True)
 print("INFO nove dily", {g: len(o.data.vertices) for g, o in NOVE.items()}, flush=True)
