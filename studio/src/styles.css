@@ -433,6 +433,8 @@ main.m3d dd select { max-width: 100%; }
 .sheet8 img { width: 100%; display: block; }
 .sheet8 .al { position: absolute; top: 3px; left: 3px; background: #fff; font-size: 11px; padding: 0 4px; border-radius: 3px; pointer-events: none; }
 .sheet8 .zoom-btn { right: 3px; bottom: 3px; width: 24px; height: 24px; }
+/* barevný náhled opotřebení: řádek před, řádek po (2 pohledy) */
+.sheet8.nahled4 { grid-template-columns: repeat(2, 1fr); }
 /* model z dílů: rendery, textura FLUXem s výběrem varianty, stránka do Infografik (Renders3d.tsx) */
 .r3d { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 .r3d h3 { margin: 12px 0 6px; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api, fileToB64, m3dApi, PaymentRequired,
-  type Estimate3d, type Hotovy3d, type Job3d, type Model3dVersion, type RefIn, type RefMeta, type View3d,
+  type Estimate3d, type Hotovy3d, type Job3d, type Model3dVersion, type RefIn, type RefMeta, type Sila3d, type View3d,
 } from './api.ts'
 import RefPicker from './RefPicker.tsx'
 import Renders3d from './Renders3d.tsx'
@@ -33,21 +33,23 @@ const NAROVNAT: { label: string; axis: 'x' | 'y' | 'z'; deg: number; title: stri
   { label: 'Na pravý bok', axis: 'z', deg: -90, title: 'o 90° na druhou stranu' },
   { label: 'Vzhůru nohama', axis: 'x', deg: 180, title: 'o 180°' },
 ]
+// opotřebení v TextureCraftu (DECISIONS 2026-11-06): síla = průhlednost vrstev špíny a odření
+const SILY: { id: Sila3d; label: string }[] = [{ id: 'jemne', label: 'Jemné' }, { id: 'stredni', label: 'Střední' }, { id: 'silne', label: 'Silné' }]
 const ZDROJ_LABEL: Record<string, string> = { sklad: 'Sklad', smithsonian: 'Smithsonian', sketchfab: 'Sketchfab' }
 const METHOD_LABEL: Record<string, string> = {
-  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry', rotate: 'otočený', parts: 'z dílů',
+  'fal-trellis2': 'TRELLIS 2', 'fal-hunyuan3d': 'Hunyuan3D v3', 'fal-hunyuan31pro': 'Hunyuan 3.1 Pro', upload: 'nahraný GLB', 'blender-script': 'Blender ze skriptu', stretch: 'natažený na rozměry', rotate: 'otočený', parts: 'z dílů', texturecraft: 'opotřebený v TextureCraftu',
 }
 const STATUS: Record<Model3dVersion['status'], { label: string; cls: string }> = {
   queued: { label: 've frontě', cls: '' }, generating: { label: 'model se tvoří', cls: 'ai' }, model: { label: 'bez prohlížeče', cls: 'ai' },
   viewer: { label: 'připravuje se prohlížeč', cls: 'ai' },
-  rendering: { label: 'kreslí se pohledy', cls: 'ai' }, stretching: { label: 'natahuje se', cls: 'ai' }, ready: { label: 'čeká na kontrolu', cls: 'ai' },
+  rendering: { label: 'kreslí se pohledy', cls: 'ai' }, stretching: { label: 'natahuje se', cls: 'ai' }, texturing: { label: 'kreslí se opotřebení', cls: 'ai' }, ready: { label: 'čeká na kontrolu', cls: 'ai' },
   failed: { label: 'chyba', cls: 'paid' },
 }
 
 interface Slot { view: View3d; original: string; cutout: string | null; source?: string | null; license?: string | null; busy?: boolean }
 
 const KIND_LABEL: Record<string, string> = {
-  model3d: 'model', viewer3d: 'příprava prohlížeče', views3d: 'sheet pohledů', camera3d: 'pohled z kamery', stretch3d: 'natažení',
+  model3d: 'model', viewer3d: 'příprava prohlížeče', views3d: 'sheet pohledů', camera3d: 'pohled z kamery', stretch3d: 'natažení', opotrebeni3d: 'opotřebení (TextureCraft)',
 }
 const dataUrl = (b64: string) => `data:image/png;base64,${b64}`
 const thumbOf = (m: Model3dVersion) => {
@@ -74,6 +76,10 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
   const [ver, setVer] = useState<string | null>(null)
   const [el, setEl] = useState(20)
   const [zoom, setZoom] = useState<number | null>(null)
+  const [sila, setSila] = useState<Sila3d>('stredni')
+  const [spina, setSpina] = useState(true)
+  const [hrany, setHrany] = useState(true)
+  const [nahledZoom, setNahledZoom] = useState<string | null>(null)
   const viewer = useRef<ViewerHandle>(null)
   const [cam, setCam] = useState<Cam3d | null>(null)
   const [lens, setLens] = useState(50)
@@ -230,6 +236,11 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
   const narovnat = async (axis: 'x' | 'y' | 'z', deg: number) => {
     if (!cur) return
     try { const r = await m3dApi.rotate(cur.id, cur.version, axis, deg); setVer(r.version); load() } catch (e) { onError(String((e as Error).message)) }
+  }
+  // špína ve spárách a odřené hrany v TextureCraftu: nová verze s texturami, 0 USD, původní zůstane
+  const opotrebit = async () => {
+    if (!cur) return
+    try { const r = await m3dApi.opotrebeni(cur.id, cur.version, sila, spina, hrany); setVer(r.version); load() } catch (e) { onError(String((e as Error).message)) }
   }
   const toggleReview = async (on: boolean) => {
     if (!cur) return
@@ -412,7 +423,7 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
       <section className="card m3d-views">
         {!cur ? <p className="empty">Vyberte model vlevo, nebo založte nový.</p> : (
           <>
-            <h3>{cur.title} · {cur.version} · model (jen tvar, barvy dodá generátor)</h3>
+            <h3>{cur.title} · {cur.version} · {cur.opotrebeni ? 'model s texturami (prohlížeč ukazuje tvar, barvy v náhledu níž)' : 'model (jen tvar, barvy dodá generátor)'}</h3>
             {cur.zdroj && (
               <p className="hint">Převzato: {cur.author} · {cur.license}{cur.source_url && <> · <a href={cur.source_url} target="_blank" rel="noreferrer">zdroj</a></>}</p>
             )}
@@ -486,6 +497,35 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
                 <span className="hint">Narovnat (nová verze · 0 USD):</span>
                 <div className="seg">
                   {NAROVNAT.map((n) => <button key={n.label} onClick={() => narovnat(n.axis, n.deg)} title={n.title}>{n.label}</button>)}
+                </div>
+              </div>
+            )}
+            {cur.viewer && (
+              <div className="row narovnat">
+                <span className="hint">Opotřebení v TextureCraftu (nová verze · 0 USD · ~1 min):</span>
+                <label className="row check"><input type="checkbox" checked={spina} onChange={(e) => setSpina(e.target.checked)} /> špína ve spárách</label>
+                <label className="row check"><input type="checkbox" checked={hrany} onChange={(e) => setHrany(e.target.checked)} /> odřené hrany kovu</label>
+                <div className="seg">
+                  {SILY.map((s) => <button key={s.id} className={sila === s.id ? 'on' : ''} onClick={() => setSila(s.id)}>{s.label}</button>)}
+                </div>
+                <button className="btn small" disabled={!spina && !hrany} onClick={opotrebit}
+                  title="Textury s opotřebením přes barvy modelu; prohlížeč dál ukazuje hlínu, výsledek ukáže barevný náhled">Opotřebit</button>
+              </div>
+            )}
+            {cur.opotrebeni?.nahled && (
+              <div className="sheet-wrap">
+                <div className="row">
+                  <h3>Barevný náhled · před a po opotřebení</h3>
+                  <span className="hint">{SILY.find((s) => s.id === cur.opotrebeni!.sila)?.label ?? cur.opotrebeni.sila} · z {cur.parent} · ⤢ = zvětšit</span>
+                </div>
+                <div className="sheet8 nahled4">
+                  {cur.opotrebeni.nahled.map((f) => (
+                    <figure key={f} onClick={() => setNahledZoom(f)} title="Zvětšit">
+                      <img src={m3dApi.file(cur.id, cur.version, f, 384)} alt={f} />
+                      <span className="al">{f.includes('/pred-') ? 'před' : 'po'}</span>
+                      <button className="zoom-btn" onClick={(e) => { e.stopPropagation(); setNahledZoom(f) }} title="Zvětšit">⤢</button>
+                    </figure>
+                  ))}
                 </div>
               </div>
             )}
@@ -577,6 +617,15 @@ export default function Models3d({ onError, onToStudio, onScenes, onInfographicD
             <button className="btn small" onClick={() => setZoom(null)}>Zavřít (Esc)</button>
           </div>
           <div className="lb-img fit m3d-zoom" onClick={(e) => e.stopPropagation()}><img src={zoomSrc} alt="" /></div>
+        </div>
+      )}
+      {nahledZoom && cur && (
+        <div className="lightbox" onClick={() => setNahledZoom(null)}>
+          <div className="lb-bar" onClick={(e) => e.stopPropagation()}>
+            <span className="hint">{nahledZoom.includes('/pred-') ? 'před opotřebením' : 'po opotřebení'}</span>
+            <button className="btn small" onClick={() => setNahledZoom(null)}>Zavřít (Esc)</button>
+          </div>
+          <div className="lb-img fit m3d-zoom" onClick={(e) => e.stopPropagation()}><img src={m3dApi.file(cur.id, cur.version, nahledZoom)} alt="" /></div>
         </div>
       )}
       {refZoom && lastRef && (

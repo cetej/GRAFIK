@@ -2,6 +2,14 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-06 — Opotřebení v TextureCraftu jako volba ve 3D
+
+Operátor 6. 11. v STOPA session po testu TextureCraftu: „Tak to určitě zaveď jako možnost, u toho motoru je výsledek věrohodnější, a oni ty aplikace rychle aktualizují.“
+
+- **Co:** ve Studiu 3D řádek „Opotřebení v TextureCraftu“ (špína ve spárách, odřené hrany kovu, síla Jemné/Střední/Silné): nová verze modelu s texturami, 0 USD, původní verze beze změny. Je to **volba**, ne výchozí krok: na legionáři vyšlo opotřebení z Blenderu v16 lépe (tunika po TextureCraftu světlejší), na motoru dal TextureCraft věrohodnou špínu ve spárách.
+- **Jak:** `engine/texturecraft.py` (TextureCraft 0.3.2, `C:/Users/stock/Tools/Craft/texturecraft/`, `CRAFT_HOME`), úloha `opotrebeni3d` pod zámkem těžké práce (`gpu`, bake na GPU), pak barevný náhled před a po z `engine/blender/render_color.py`, protože prohlížeč i sheet ukazují hlínu. TextureCraft z GLB nepřevezme materiály, proto se vzhled skládá z glTF JSON (faktory, nebo obrázek baseColor a rozdělená mapa metallicRoughness). Síla = průhlednost vrstev 0,35 / 0,6 / 0,9; výchozí plná síla na legionáři zakryla tuniku. Model s texturou nad 2048 px se peče na 4096.
+- **Test:** STOPA `outputs/2026-11-06-craft-apps-nabidka.md`, data `ZZZ_TEST/texturecraft-2026-11-06/VYSLEDEK.md`.
+
 ## 2026-11-05 — 3D postava: podklad operátora, obarvení generátorem, vyráběné díly vymodelovat
 
 Operátor 5. 11. v STOPA session k legionáři: FLUX předlohy „všechny ty obrázky jsou nepřesné, vkládám raději vlastní podklad“; obarvení promítnutím „vypadá to, že ten, kdo to barvil, se ožral“, obarvený model z Hunyuanu „Ano, za 0,525 USD“; detaily „Ano, nahraď je“; v6 „Prima, ulož tuto verzi“; opotřebení „nedělej příliš plošně“; „zkušenosti ulož do dokumentace“.

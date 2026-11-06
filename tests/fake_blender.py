@@ -60,6 +60,11 @@ if script == "render_parts.py":
                                                "viditelne": names, "vrstvy": layers, "zarizeni": "CPU"}), encoding="utf-8")
     print("STATS " + json.dumps({"parts": len(names), "device": "CPU"}))
     sys.exit(0)
+if script == "render_color.py":
+    for i in (0, 1):
+        view(Path(args[1]) / f"{args[2]}-{i}.png")
+    print("COLOR 2")
+    sys.exit(0)
 if script == "render_views.py" and "--scene" in args:
     spec = json.loads(Path(args[args.index("--scene") + 1]).read_text(encoding="utf-8"))
     for o in spec["objects"]:
