@@ -54,6 +54,22 @@ def frames(video: Path, out: Path, n: int = 6):
     return paths
 
 
+def min_side(src: Path, d: Path, side: int = 300) -> Path:
+    # fal odmítne obrázek elementu s kratší stranou pod 300 px nebo poměrem stran mimo 0,4–2,5 (úzký boční pohled):
+    # doplní se barvou rohu. Kontrola proběhne až po odeslání, proto ji děláme tady.
+    from PIL import Image
+    im = Image.open(src).convert("RGB")
+    w = max(im.width, side, math.ceil(0.4 * im.height))
+    h = max(im.height, side, math.ceil(0.4 * w))
+    if (w, h) == im.size:
+        return src
+    out = Image.new("RGB", (w, h), im.getpixel((0, 0)))
+    out.paste(im, ((w - im.width) // 2, (h - im.height) // 2))
+    p = d / f"element-{src.stem}.png"
+    out.save(p)
+    return p
+
+
 def log(entry: dict, status: str):
     with open(LEDGER, "a", encoding="utf-8") as f:
         f.write(json.dumps({"ts": datetime.now().isoformat(timespec="seconds"), **entry, "status": status}, ensure_ascii=False) + "\n")
@@ -123,7 +139,7 @@ def main():
         args = {"image_url": img_url, "video_url": vid_url, "character_orientation": a.orientation,
                 "prompt": a.prompt, "keep_original_sound": False}
         if a.element:
-            args["elements"] = [{"frontal_image_url": img_url, "reference_image_urls": [client.upload_file(p) for p in a.element]}]
+            args["elements"] = [{"frontal_image_url": img_url, "reference_image_urls": [client.upload_file(min_side(p, d)) for p in a.element]}]
             args["prompt"] = a.prompt.replace("A Roman legionary", "@Element1, a Roman legionary,")
 
     t = time.time()

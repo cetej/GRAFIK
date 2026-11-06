@@ -39,6 +39,29 @@ Výchozí složka `library/klipy/<čas>-<model>/` v hlavním checkoutu.
 
 Ověření zdarma (6. 11.): dry-run všech tří modelů vypsal 0,672 / 1,008 / 1,80 USD za 6,00 s, `costs.jsonl` beze změny; export snímků na oříznutém pohybu dal 6 snímků a přehled.
 
-## Výsledek placeného testu
+## Výsledek placeného testu (6. 11., se souhlasem operátora)
 
-Zatím nespuštěno, čeká na souhlas operátora (Kling 2.6 Pro, 6 s, 0,672 USD).
+Stejný vstup pro oba: `ref-front.png` a pohyb od 1. do 7. sekundy, rámování podle videa, prompt z `PROMPT` ve skriptu.
+
+| | Kling 2.6 Pro | Kling 3.0 Pro + vazba obličeje (ref-right, ref-back) |
+|---|---|---|
+| Složka (`library/klipy/`) | `legionar-chuze-kling26-01` | `legionar-chuze-kling3-03` |
+| Cena | 0,672 USD | 1,008 USD |
+| Doba běhu | 244 s | 428 s |
+| Výstup | 1168×1776, 30 fps, 6,00 s | 1168×1776, 30 fps, 6,00 s |
+| Obličej | tentýž muž po celý klip, nemění se | tentýž muž, vazba obličeje nic viditelného nepřidala |
+| Výstroj | helma, lícnice, lorika, opasek s řemeny, tunika, sandály drží tvar i detaily | totéž, ale **přidal červený chochol** za helmu, který na žádné předloze není, a v snímcích 5–6 **cizí červený chochol v levém horním rohu** |
+| Ruce | 5 prstů, přirozené, sepjaté na hrudi podle pohybu | stejné |
+| Vady obou | červené škrábance na levé tváři (na předloze nejsou), tenká šňůrka u krku; ruce sepjaté na hrudi kvůli zdrojovému videu | |
+
+![Kling 2.6 Pro, 6 snímků](img/2026-11-06-klip-kling26-01-prehled.jpg)
+![Kling 2.6 Pro, hlava po 0,5 s](img/2026-11-06-klip-kling26-01-hlavy.jpg)
+![Kling 3.0 Pro, 6 snímků](img/2026-11-06-klip-kling3-03-prehled.jpg)
+![Kling 3.0 Pro, hlava po 0,5 s, chochol za helmou](img/2026-11-06-klip-kling3-03-hlavy.jpg)
+![Kling 3.0 Pro, snímek 5: cizí chochol v rohu](img/2026-11-06-klip-kling3-03-chochol.jpg)
+
+**Závěr:** pro legionáře z jednoho obrázku vychází líp **Kling 2.6 Pro**: drží výstroj věrněji, nic nepřidává, je levnější o třetinu a skoro dvakrát rychlejší. Vazba obličeje v 3.0 nepomohla, obličej drží i 2.6, a s bočním a zadním pohledem si model přimyslel chochol (snad z „Roman legionary“ v promptu, víc pohledů mu nedalo jasnou odpověď). Další krok: jiný záznam chůze s volnými pažemi a do promptu „no crest, no scratches on the face“.
+
+**Dva neúspěšné pokusy s 3.0** (`legionar-chuze-kling3-01`, `-02`): fal odmítl úzký boční pohled `ref-right.png` (284×1151) nejdřív kvůli šířce pod 300 px, pak kvůli poměru stran pod 0,4. Odmítnutí přišlo až po odeslání, v `costs.jsonl` jsou jako `failed`. Validační chyba (422) by se neměla účtovat, na účtu fal jsem to neověřil. Skript teď obrázky elementu doplní na kratší stranu ≥ 300 px a poměr 0,4–2,5 (`min_side`) před odesláním.
+
+Celkem zaplaceno za úspěšné klipy: 1,68 USD.
