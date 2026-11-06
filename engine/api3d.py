@@ -18,8 +18,8 @@ from engine import hotove3d
 from ngm_shared import sklad3d
 from ngm_shared.sklad import SkladError
 from engine import models3d as m3d
-from engine.models3d import (ELEVATIONS, PARTS, CameraIn, CutoutIn, Model3dError, Model3dIn, Models3d, ReviewIn,
-                             RotateIn, StretchIn, ViewsIn)
+from engine.models3d import (ELEVATIONS, PARTS, CameraIn, CutoutIn, Model3dError, Model3dIn, Models3d, OpotrebeniIn,
+                             ReviewIn, RotateIn, StretchIn, ViewsIn)
 
 
 class HotoveIn(BaseModel):
@@ -260,6 +260,25 @@ def register(app: FastAPI, models3d: Models3d, store, reflib) -> None:
                                stretch={"dims": body.dims, "part": body.part, "source": body.source})
         job_id = models3d.enqueue("stretch3d", "studio", "blender", {
             "model_id": model_id, "version": meta["version"], "parent": version, "dims": body.dims, "part": body.part})
+        return {"model_id": model_id, "version": meta["version"], "job_id": job_id}
+
+    @app.post("/api/v2/models3d/{model_id}/{version}/opotrebeni", status_code=202)
+    def models3d_opotrebeni(model_id: str, version: str, body: OpotrebeniIn):
+        """Špína ve spárách a odřené hrany v TextureCraftu: nová verze s texturami, 0 USD, původní zůstane
+        (DECISIONS 2026-11-06, volba vedle dnešního opotřebení v Blenderu)."""
+        from engine import texturecraft as tc
+        if body.sila not in tc.SILY:
+            raise HTTPException(400, f"síla musí být jedna z {sorted(tc.SILY)}")
+        if not (body.spina or body.hrany):
+            raise HTTPException(400, "vyberte špínu, odřené hrany, nebo obojí")
+        if not tc.cli_path().is_file():
+            raise HTTPException(503, f"TextureCraft není nainstalovaný ({tc.cli_path()}); CRAFT_HOME")
+        src = has_glb(model_id, version)
+        keep = {k: src[k] for k in ("license", "author", "source_url", "zdroj", "origin") if src.get(k)}
+        meta = call(lib.new_version, model_id, src["title"], method="texturecraft", parent=version, refs=src["refs"],
+                    opotrebeni=body.model_dump(), **keep)
+        job_id = models3d.enqueue("opotrebeni3d", "studio", "texturecraft", {
+            "model_id": model_id, "version": meta["version"], "parent": version, **body.model_dump()})
         return {"model_id": model_id, "version": meta["version"], "job_id": job_id}
 
     @app.post("/api/v2/models3d/{model_id}/{version}/recover", status_code=202)

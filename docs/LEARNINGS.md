@@ -750,6 +750,14 @@ Oprava z 30. 10. prošla na jedné mapě a STAV ji popsal obecně. Prahy byly z 
 - Na výšku FLUX předlohu nedrží: vnitřnosti kreslil jako lidské z atlasu (IoU 0,14–0,17), na břiše vorvaně dělal rýhy jako u plejtváka. Předlohu otoč na ležato a výsledek zpět; 9:16 vorvaně je nakonec 16:9 překlopená podle úhlopříčky (týž vorvaň z druhé strany).
 - Orgány jako oddělené koule působí jako hračky a potrava se mezi nimi „teleportuje“. Trávicí trubice je jeden tvar podél cesty s proměnným poloměrem (`vorvan_scena.tract`).
 
+## 2026-11-05: „Zkontrolováno“ jen po prohlídce operátorem
+
+Tlačítko „Jsou v pořádku“ u náhledu v chatu jsem vzal jako schválení a čtyři pózy legionáře označil `review`, čímž se zkopírovaly do 3D skladu. Operátor je přitom neviděl. `review` a kopie do skladu patří jen k výslovnému „zkontroloval jsem“ u modelu ve Studiu, ne k odpovědi na náhled. Vrácení: `review` false přes API kopii ve skladu nesmaže a v `model.json` nechá pole `sklad`. Složku `nase/<id>` smaž ručně, pole `sklad` odstraň a spusť `sklad3d.sestav_index()`.
+
+## 2026-11-05: Pohyblivá figura nejde ohnout ze sochy z generátoru
+
+Kostra s automatickými vahami v síti z Hunyuan3D (legionář, jedna slitá kůže se zbrojí, tunikou a štítem) dala pózy, které operátor označil za „vyfouklou gumovou figurinu“. Kolena se lámou, zbroj se ohýbá jako guma, tunika se trhá a povrch je hladký a lesklý. Opravy vah (podle polohy v tunice, doplnění bodů bez váhy) pomohly jen na malé ohyby. **Pohyblivá figura se staví od těla:** MPFB2 (MakeHuman, CC0, kostra 163 kostí s prsty) ohýbá kolena i rameno čistě. Výstroj na něj patří jako tuhé díly na kostech a tunika jako látka. Sochu z generátoru ber jen jako předlohu vzhledu. Když se operátor ptá, „jak náročné“ je něco s modelem z generátoru, řekni tohle hned, ne až po čtyřech pózách. MPFB2 běží v Blenderu 5.2 v odděleném profilu `run/mpfb_profil` (`BLENDER_USER_RESOURCES`), nastavení operátora se nemění. Lesk kůže z `ENHANCED_SSS` se tlumí uvnitř skupiny materiálu (`Roughness` ve skupině), na nejvyšší úrovni materiálu nic nezmění.
+
 ## 2026-11-06 Postava s kostrou z modelu z generátoru: co funguje a co ne (legionář)
 
 - **Kostra do slitého modelu z generátoru (Meshy rigging) tunice nepomůže.** Pod oblečením nejsou celé nohy ani trup. Test 4 póz (klid, chůze, výpad, běh): kůže skrz tuniku 269–3 471 vrcholů, trhliny 2 000–6 000 hran, žádné nastavení vah to nespraví.
@@ -768,4 +776,3 @@ Oprava z 30. 10. prošla na jedné mapě a STAV ji popsal obecně. Prahy byly z 
 - **Kontrola „hlava zakrytá“ přes normály plochy nefunguje u uzavřené skořepiny z generátoru** (vnitřní stěna má normálu dovnitř). Paprsek od středu lebky přes bod hlavy ven, a jen přes temeno: obličej a uši jsou pod otvory. Do bodů hlavy nebrat skrytou pomocnou geometrii MPFB (`HelperGeometry`, `JointCubes`).
 - **Paprsek od osy (krk, paže) do těla v kloubu proletí trupem** a prstenec látky podle něj vyroste v límec nebo cíp přes záda. Poloměr omezit tloušťkou krku nebo paže (7 cm).
 - **Kopie `.blend` do knihovny ztratí relativní cesty k texturám** (fialové oči). Před kopií `file.make_paths_absolute` a `file.pack_all`.
-

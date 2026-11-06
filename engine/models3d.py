@@ -41,6 +41,7 @@ AZIMUTHS = list(range(0, 360, 45))
 PARTS = ("middle", "end-max", "end-min", "all")
 RENDER_SCRIPT = REPO_ROOT / "engine" / "blender" / "render_views.py"
 STRETCH_SCRIPT = REPO_ROOT / "engine" / "blender" / "stretch.py"
+COLOR_SCRIPT = REPO_ROOT / "engine" / "blender" / "render_color.py"
 DECIMATE_SCRIPT = REPO_ROOT / "engine" / "blender" / "decimate.py"
 # viewer.glb: enough for the silhouette and the wheels, ~1.2 MB instead of 42 MB (Tatra 87 v2, 500k faces)
 VIEWER_TRIANGLES = 100_000
@@ -50,10 +51,10 @@ VIEWER_TRIANGLES = 100_000
 # Textures (none in the clay copy today) go to WebP of at most 2048 px.
 OPTIMIZE_ARGS = ["optimize", "--compress", "meshopt", "--simplify", "false", "--join", "false", "--instance", "false",
                  "--texture-compress", "webp", "--texture-size", "2048"]
-KINDS = ("model3d", "viewer3d", "views3d", "camera3d", "stretch3d", "parts3d", "render3d")
+KINDS = ("model3d", "viewer3d", "views3d", "camera3d", "stretch3d", "parts3d", "render3d", "opotrebeni3d")
 VERSION_RE = re.compile(r"^v(\d+)$")
 # A version whose step was running when the Engine stopped.
-RUNNING = ("generating", "rendering", "stretching", "viewer")
+RUNNING = ("generating", "rendering", "stretching", "viewer", "texturing")
 
 
 class Model3dError(RuntimeError):
@@ -147,6 +148,12 @@ class StretchIn(BaseModel):
     dims: list[float]               # length, width, height in metres (from the source)
     part: str = "middle"
     source: str = ""                # where the dimensions come from
+
+
+class OpotrebeniIn(BaseModel):
+    sila: str = "stredni"           # jemne | stredni | silne (engine/texturecraft.py SILY)
+    spina: bool = True              # špína ve spárách
+    hrany: bool = True              # odřené hrany kovových materiálů
 
 
 class RotateIn(BaseModel):
@@ -525,7 +532,7 @@ class Models3d:
 
     def handlers(self) -> dict:
         return {"model3d": self.run_model, "viewer3d": self.run_viewer, "views3d": self.run_views,
-                "camera3d": self.run_camera, "stretch3d": self.run_stretch}
+                "camera3d": self.run_camera, "stretch3d": self.run_stretch, "opotrebeni3d": self.run_opotrebeni}
 
     def enqueue(self, kind: str, caller: str, backend: str, request: dict) -> str:
         job_id = self.store.add_task(kind, caller, backend, request)
@@ -747,6 +754,45 @@ class Models3d:
                         stretch={**self.lib.read(mid, ver).get("stretch", {}), "bbox": bbox})
         viewer_job = self.enqueue("viewer3d", req.get("caller", "studio"), "blender", {"model_id": mid, "version": ver})
         return {"model_id": mid, "version": ver, "viewer_job": viewer_job, "bbox": bbox}
+
+    # opotřebení v TextureCraftu ---------------------------------------------------
+    def run_opotrebeni(self, job_id: str, req: dict) -> dict:
+        """Špína a odření jako textury (engine/texturecraft.py), pak barevný náhled před a po, protože prohlížeč
+        i sheet ukazují hlínu. Původní verze se nemění."""
+        from engine import texturecraft as tc
+        mid, ver, parent = req["model_id"], req["version"], req["parent"]
+        d, src = self.lib.vdir(mid, ver), self.lib.vdir(mid, parent) / "model.glb"
+        work = d / "texturecraft"
+        self.lib.update(mid, ver, status="texturing", error=None)
+        t0 = time.time()
+        try:
+            # TextureCraft peče mapy na GPU; stejný zámek jako Blender, ať nepeče vedle FLUXu
+            self.gpu_lock.acquire(self.s.gpu_lock_wait_s, "gpu", (self.store.get(job_id) or {}).get("caller"))
+            try:
+                self.sd.stop("opotřebení v TextureCraftu (bake na GPU)")
+                info = tc.run(src, work, req["sila"], req["spina"], req["hrany"])
+            finally:
+                self.gpu_lock.release()
+            shutil.copyfile(info["glb"], d / "model.glb")
+            nahled = d / "nahled"
+            nahled.mkdir(exist_ok=True)
+            self.lock_for_blender(job_id)
+            try:
+                for glb, prefix in ((src, "pred"), (d / "model.glb", "po")):
+                    self.blender.run(COLOR_SCRIPT, [str(glb), str(nahled), prefix], nahled / f"{prefix}.log", 600)
+            finally:
+                self.gpu_lock.release()
+            files = [f"nahled/{p}-{i}.png" for p in ("pred", "po") for i in (0, 1)]
+            if not all((d / f).is_file() for f in files):
+                raise Model3dError("Blender nevyrenderoval barevný náhled (log nahled/*.log)")
+        except Exception as e:
+            self._fail(req, e)
+            raise
+        opotrebeni = {**self.lib.read(mid, ver).get("opotrebeni", {}), "nahled": files, "rozliseni": info["resolution"],
+                      "tracer": info["tracer"], "texturecraft": info["version"], "seconds": round(time.time() - t0, 1)}
+        self.lib.update(mid, ver, status="model", glb_bytes=(d / "model.glb").stat().st_size, opotrebeni=opotrebeni)
+        viewer_job = self.enqueue("viewer3d", req.get("caller", "studio"), "blender", {"model_id": mid, "version": ver})
+        return {"model_id": mid, "version": ver, "viewer_job": viewer_job, **opotrebeni}
 
 
 def _line_json(stdout: str, tag: str) -> dict:

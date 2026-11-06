@@ -527,8 +527,8 @@ export interface Model3dVersion {
   version: string
   title: string
   created: string
-  status: 'queued' | 'generating' | 'model' | 'viewer' | 'rendering' | 'stretching' | 'ready' | 'failed'
-  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch' | 'rotate' | 'parts'
+  status: 'queued' | 'generating' | 'model' | 'viewer' | 'rendering' | 'stretching' | 'texturing' | 'ready' | 'failed'
+  method: 'fal-trellis2' | 'fal-hunyuan3d' | 'fal-hunyuan31pro' | 'upload' | 'blender-script' | 'stretch' | 'rotate' | 'parts' | 'texturecraft'
   renders?: Render3d[]       // model z dílů (engine/parts3d.py): barevné rendery a rendery v hlíně
   textury?: Textura3d[]      // povrch vrstev z lokálního FLUXu (engine/textura3d.py)
   backend: string | null
@@ -549,6 +549,8 @@ export interface Model3dVersion {
   parent?: string
   origin?: string | null
   stretch?: { dims: [number, number, number]; part: string; source: string; bbox?: number[] }
+  // opotřebení v TextureCraftu (engine/texturecraft.py): barevný náhled před a po, prohlížeč ukazuje hlínu
+  opotrebeni?: { sila: Sila3d; spina: boolean; hrany: boolean; nahled?: string[]; rozliseni?: number; seconds?: number }
   rozmer_m?: number        // the longest side in metres typed in a 3D scene (DECISIONS 2026-10-27, Q2)
   rozmer_zdroj?: string
   legacy?: { dir: string }
@@ -561,6 +563,7 @@ export interface Model3dVersion {
   sklad?: string            // zkontrolovaný model zkopírovaný do skladu (3d/nase/<id>/<verze>)
   sklad_chyba?: string | null
 }
+export type Sila3d = 'jemne' | 'stredni' | 'silne'
 export interface Render3d {
   id: string; pohled: string; res: [number, number]; samples: number; file: string; body: string
   vrstvy: Record<string, string[]>; job_id: string; seconds: number; rendered: string
@@ -594,6 +597,8 @@ export const m3dApi = {
     post<{ version: string; job_id: string }>(`${m3}/${id}/${v}/stretch`, { dims, part, source }),
   rotate: (id: string, v: string, axis: 'x' | 'y' | 'z', deg: number) =>
     post<{ model_id: string; version: string; job_id: string }>(`${m3}/${id}/${v}/rotate`, { axis, deg }),
+  opotrebeni: (id: string, v: string, sila: Sila3d, spina: boolean, hrany: boolean) =>
+    post<{ model_id: string; version: string; job_id: string }>(`${m3}/${id}/${v}/opotrebeni`, { sila, spina, hrany }),
   recover: (id: string, v: string) => post<{ job_id: string }>(`${m3}/${id}/${v}/recover`, {}),
   viewer: (id: string, v: string, optimizeOnly = false) =>
     post<{ job_id: string }>(`${m3}/${id}/${v}/viewer${optimizeOnly ? '?optimize_only=true' : ''}`, {}),
