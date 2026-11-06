@@ -98,7 +98,7 @@ for nm, m in (("shoulder01.L", sh & (C[:, 0] > 0)), ("shoulder01.R", sh & (C[:, 
 # šátek (focale): vyříznutý kus měl roztřepené okraje a díry, místo něj čistý prstenec látky kolem krku
 bpy.data.objects.remove(parts.pop("satek"), do_unlink=True)
 n0, n1 = mp("neck01"), mp("head"); ax = (n1 - n0).normalized(); u = ax.cross(Vector((0, 1, 0))).normalized(); v_ = ax.cross(u).normalized()
-ts_ = np.arange(-0.015, 0.045, 0.006); vs_ = []
+ts_ = np.arange(-0.045, 0.045, 0.006); vs_ = []        # dolů až pod límec loriky, ať zátylek není vidět
 for t in ts_:
     c = n0 + ax * float(t); bulge = 0.012 * np.clip((0.01 - t) / 0.025, 0, 1)      # dole se šátek vrství na límec zbroje
     for j in range(48):

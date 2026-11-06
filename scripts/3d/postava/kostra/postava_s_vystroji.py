@@ -344,6 +344,10 @@ for sd in ("L", "R"):
     for v in ob.data.vertices:
         p_ = ob.matrix_world @ v.co; q_ = A0 + ax_ * (p_ - A0).dot(ax_); n_ = (p_ - q_).normalized()      # směr od osy paže ven (normály trubice můžou mířit dovnitř)
         if BVa.ray_cast(p_ + n_ * 0.001, n_, 0.08)[0] is not None or BVa.find_nearest(p_)[3] < 0.006: hid.append(v.index)
+    hm_ = np.zeros(len(ob.data.vertices), bool); hm_[hid] = True; hm_ = hm_.reshape(-1, NA2)       # trubice jde po prstencích od ramene
+    r0 = 0
+    while r0 < len(hm_) and hm_[r0].mean() > 0.25: r0 += 1                                   # celé prstence pod plátem pryč: rovný okraj, ne zubatý
+    hid = list(range(r0 * NA2))
     ob.vertex_groups.new(name="pod_plechem").add(hid, 1.0, "REPLACE")
     mk = ob.modifiers.new("skryt", "MASK"); mk.vertex_group = "pod_plechem"; mk.invert_vertex_group = True
     while ob.modifiers.find("skryt") > 0: sel([ob]); bpy.ops.object.modifier_move_up(modifier="skryt")
