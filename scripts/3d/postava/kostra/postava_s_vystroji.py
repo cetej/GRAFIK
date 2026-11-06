@@ -358,7 +358,7 @@ for vb in body.data.vertices:                                   # původní sí�
     bg = [g for g in vb.groups if GI[g.group] in BONES_]                # jen skupiny kostí (MPFB má i skupiny Left/Right přes celou polovinu těla)
     top = GI[max(bg, key=lambda g: g.weight).group] if bg else ""
     z = (MWb @ vb.co).z
-    if top.startswith("upperarm") and z > mp("upperarm01.L").z - 0.08 and BVa.find_nearest(MWb @ vb.co)[3] < 0.03: ids.append(vb.index); continue   # rameno pod plátem
+    if top.startswith("upperarm") and z > mp("upperarm01.L").z - 0.12 and BVa.find_nearest(MWb @ vb.co)[3] < 0.05: ids.append(vb.index); continue   # rameno pod plátem až k začátku rukávu
     if not top or top.startswith(("upperarm", "lowerarm", "wrist", "finger", "metacarpal", "neck", "head", "upperleg", "lowerleg", "foot", "toe")): continue
     if zhip < z < zneck: ids.append(vb.index)                   # trup od boků ke krku je pod tunikou
 ids_s = set(ids); body.data.materials.append(mt); mi = len(body.data.materials) - 1
