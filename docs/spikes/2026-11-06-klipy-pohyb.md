@@ -66,3 +66,20 @@ Stejný vstup pro oba: `ref-front.png` a pohyb od 1. do 7. sekundy, rámování 
 **Dva neúspěšné pokusy s 3.0** (`legionar-chuze-kling3-01`, `-02`): fal odmítl úzký boční pohled `ref-right.png` (284×1151) nejdřív kvůli šířce pod 300 px, pak kvůli poměru stran pod 0,4. Odmítnutí přišlo až po odeslání, v `costs.jsonl` jsou jako `failed`. Validační chyba (422) by se neměla účtovat, na účtu fal jsem to neověřil. Skript teď obrázky elementu doplní na kratší stranu ≥ 300 px a poměr 0,4–2,5 (`min_side`) před odesláním.
 
 Celkem zaplaceno za úspěšné klipy: 1,68 USD.
+
+### Kling 4.0 (doplněno 6. 11. večer, se souhlasem operátora)
+
+`legionar-chuze-kling4-01`: 1080p, `@Element1` = ref-front + ref-right + ref-back, `@Video1` = stejný úsek chůze, prompt `PROMPT_V4` (helma bez chocholu, obličej bez škrábanců, statická kamera). Cena 1,692 USD (12 s × 0,141), běh 149 s, výstup 1080×1920, 24 fps, 6,04 s.
+
+- **Obličej:** tentýž muž po celý klip. Škrábance na levé tváři jsou slabší, ale pořád vidět; zákaz v promptu je neodstranil.
+- **Výstroj:** helma bez chocholu (zákaz v promptu zabral, ve 3.0 chochol byl), lorika, opasek s řemeny, tunika a sandály drží. Šňůrka u krku zůstává.
+- **Ruce:** 5 prstů, přirozené, sepjaté podle pohybu.
+- **Pohyb:** sleduje video stejně věrně jako motion control (sepnutí rukou i krok sedí).
+- **Zvuk:** klip má zvukovou stopu, kterou model vytvořil sám (průměr −29,5 dB, špička −9,7 dB). Neposlouchal jsem ji; když vadí, `ffmpeg -an`.
+
+![Kling 4.0, 6 snímků](img/2026-11-06-klip-kling4-01-prehled.jpg)
+![Kling 4.0, hlava po 0,5 s](img/2026-11-06-klip-kling4-01-hlavy.jpg)
+
+**Závěr po třech modelech:** Kling 4.0 je kvalitou na úrovni 2.6 Pro a k tomu poslouchá prompt (chochol nepřidal), je nejrychlejší a umí víc postav, videí a klíčových snímků v jednom běhu; stojí ale 2,5× víc (1,692 vs 0,672 USD za 6 s), protože se platí i délka referenčního videa. Pro jednu postavu s jedním pohybem stačí **Kling 2.6 Pro**; Kling 4.0 má smysl, když chceme scénu s víc postavami, klíčovými snímky nebo když 2.6 přidá něco, co prompt musí zakázat. Cena v 720p 1,128 USD, kvalitu 720p jsme nezkoušeli.
+
+Zaplaceno celkem za tři úspěšné klipy: 3,372 USD.
