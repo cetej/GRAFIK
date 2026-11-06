@@ -233,6 +233,7 @@ _hip = np.percentile(RB[sk], 90, axis=0) + 0.025; _hip = np.max([np.roll(_hip, k
 _ib = int(np.argmin(np.abs(rings - BELT_C))); _Rb = RB[_ib] + 0.015                       # sukně do A (předloha): od opasku přímka k lemu,
 _Rh = _hip * 1.12; Rsk = np.maximum(_Rb[None, :] + (_Rh - _Rb)[None, :] * _t[:, None], RB + 0.02); Rup = RB + 0.01   # přes boky a hýždě po těle; mimo kolizní zónu těla (0,6 + 0,8 cm), jinak ji simulace hned odhodí a roztrhá
 _w = np.clip((BELT_C + 0.01 - rings) / 0.05, 0, 1)[:, None]          # nad opaskem těsně na těle, pod ním plynule do sukně
+_ang16 = 16 * 2 * np.pi * np.arange(NA) / NA; Rsk = np.maximum(Rsk + (0.006 + 0.008 * _t[:, None]) * np.sin(_ang16)[None, :], RB + 0.02)   # 16 sklad od opasku: o ~30 % víc látky na obvodu, v rozkročení nevyjede k rozkroku
 R = Rup * (1 - _w) + Rsk * _w
 def _tube(name, centers, dirs_u, dirs_v, radii):                  # uzavřená trubice (víčka na koncích) pro sloučení
     n = radii.shape[1]; vs_ = []
