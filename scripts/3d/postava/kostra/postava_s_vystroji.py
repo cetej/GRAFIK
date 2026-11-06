@@ -429,6 +429,7 @@ def seg_d(P_, a_, b_):
     ab = b_ - a_; t = np.clip(((P_ - a_) @ ab) / (ab @ ab), 0, 1); return np.linalg.norm(P_ - (a_ + t[:, None] * ab), axis=1)
 dl = np.minimum(seg_d(BV, np.array(mp("upperleg01.L")), np.array(mp("lowerleg01.L"))), seg_d(BV, np.array(mp("upperleg01.R")), np.array(mp("lowerleg01.R"))))
 skin = np.nonzero((BV[:, 2] > z0 - 0.06) & (BV[:, 2] < hzp) & (dl < 0.11))[0]
+_ss = body.modifiers.new("jemne", "SUBSURF"); _ss.levels = 0; _ss.render_levels = 2   # hladké ruce a obličej jen v renderu (měření ho vypíná)
 run_all({"rig": rig, "MAP": MAP, "body": body, "cloth": cl, "skin_idx": skin, "name": "B", "out_dir": OUT, "prep_pose": prep, "ground_objs": [body] + [parts[g] for g in ("sandal_L", "sandal_R") if g in parts]})
 # --- detailní kontrola: klid a běh z 8 stran a výřezy ---
 P_ = Poser(rig, MAP); DD = os.path.join(OUT, "detail"); os.makedirs(DD, exist_ok=True)
@@ -460,4 +461,13 @@ for pn, pf in (("klid", POSES[0][1]), ("beh_C", POSES[3][1])):
     for cn, (cz, cs_) in CROPS.items():
         for vn, d in (("predek", (0.15, -1, 0.05)), ("bok", (1, 0, 0.05)), ("zada", (-0.15, 1, 0.05)), ("bok2", (-1, 0, 0.05))):
             shot(sc, os.path.join(DD, f"{pn}-{cn}-{vn}.png"), d, cs_, (0, (rig.matrix_world @ rig.pose.bones["root"].head).y, cz + hipz))
+# --- fotky pro krok povrchu (povrch.py): každá póza, kamera s perspektivou 70 mm, Cycles 128 ---
+FD = os.path.join(OUT, "foto"); os.makedirs(FD, exist_ok=True); sc.cycles.samples = 128
+cam_ = sc.camera; cam_.data.type = "PERSP"; cam_.data.lens = 70; sc.render.resolution_x, sc.render.resolution_y = 1088, 1632
+for pn, pf in POSES:
+    P_.reset(); pf(P_); P_.ground([body] + [parts[g] for g in ("sandal_L", "sandal_R") if g in parts]); prep(pn); rig.animation_data_clear()
+    rz = (rig.matrix_world @ rig.pose.bones["root"].head); ctr = Vector((rz.x, rz.y, 0.86))
+    for vn, d in (("zepredu", (0, -1, 0.05)), ("34", (-0.6, -1, 0.05))):
+        dv = Vector(d).normalized(); cam_.location = ctr + dv * 4.6; cam_.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
+        sc.render.filepath = os.path.join(FD, f"{pn}-{vn}.png"); bpy.ops.render.render(write_still=True)
 print("INFO DONE", flush=True)

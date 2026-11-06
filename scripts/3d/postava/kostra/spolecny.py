@@ -4,10 +4,17 @@
 #      prep_pose(callable) volitelně (např. simulace látky), name, out_dir.
 import bpy, math, json, os
 import numpy as np
-from mathutils import Vector, Matrix
+from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
 SAMJ = os.environ.get("NGM_POZA_SAM", "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/C_result.json")  # 3D body SAM pro pózu běhu C
+PRSTY = {1: 20, 2: 30, 3: 20}
 HDRI = "D:/NGM-SKLAD/3d/polyhaven/hdri/art_studio/art_studio_1k.hdr"
+
+def uvolni_prsty(P):                                     # uvolněná ruka: články prstů 20/30/20°, palec poloviční (ohyb kolem lokální X, ověřeno renderem)
+    for pb in P:
+        if pb.name.startswith("finger") and "-" in pb.name:
+            f_, j_ = (int(x) for x in pb.name[6:].split(".")[0].split("-"))
+            pb.rotation_mode = "QUATERNION"; pb.rotation_quaternion = Quaternion(Vector((1, 0, 0)), math.radians(PRSTY[j_] * (0.5 if f_ == 1 else 1.0)))
 
 class Poser:
     def __init__(s, rig, MAP):
@@ -18,7 +25,7 @@ class Poser:
     def W(s, k): return s.RM @ s.b(k).head
     def reset(s):
         for pb in s.P: pb.rotation_mode = "QUATERNION"; pb.matrix_basis = Matrix.Identity(4)
-        s.upd()
+        uvolni_prsty(s.P); s.upd()
     def rot(s, k, Rw):
         pb = s.b(k); h = pb.head.copy()
         pb.matrix = Matrix.Translation(h) @ (s.M3 @ Rw @ s.RM.to_3x3()).to_4x4() @ Matrix.Translation(-h) @ pb.matrix; s.upd()
@@ -32,13 +39,16 @@ class Poser:
         s.turn("L_upleg", (1, 0, 0), -lt); s.turn("L_leg", (1, 0, 0), lk); s.turn("R_upleg", (1, 0, 0), -rt); s.turn("R_leg", (1, 0, 0), rk)
     def arms_down(s, deg=25):
         s.turn("L_arm", (0, 1, 0), deg); s.turn("R_arm", (0, 1, 0), -deg)
-    def sam(s):
-        R_ = json.load(open(SAMJ, encoding="utf-8")); NM = R_["metadata"]["keypoint_names"]; K3 = R_["metadata"]["people"][0]["keypoints_3d"]
+    def sam(s, path=None):
+        R_ = json.load(open(path or SAMJ, encoding="utf-8")); NM = R_["metadata"]["keypoint_names"]; K3 = R_["metadata"]["people"][0]["keypoints_3d"]
         def kp0(n):
             x, y, z = K3[NM.index(n)]; return Vector((x, z, -y))
         low = min(("left", "right"), key=lambda q: kp0(f"{q}-heel").z + kp0(f"{q}-big-toe-tip").z)
         sole = (kp0(f"{low}-big-toe-tip") + kp0(f"{low}-small-toe-tip")) / 2 - kp0(f"{low}-heel")
-        RX = Matrix.Rotation(math.atan2(sole.z, -sole.y), 3, "X")
+        _yz = math.hypot(sole.y, sole.z)                     # nadhled kamery předlohy jen z chodidla mířícího ke kameře nebo od ní;
+        _ang = math.atan2(sole.z, -sole.y) if sole.y < 0 else math.atan2(-sole.z, sole.y)
+        _ang = _ang if _yz > 0.5 * sole.length else 0.0     # chodidlo bokem (předloha z boku) náklon neurčí: dřív otočilo postavu vzhůru nohama
+        RX = Matrix.Rotation(max(-0.5, min(0.5, _ang)), 3, "X")   # nejvýš ±29°
         kp = lambda n: RX @ kp0(n)
         hipm = (kp("left-hip") + kp("right-hip")) / 2; nk = kp("neck")
         s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), nk - hipm, kp("left-hip") - kp("right-hip"))
@@ -55,6 +65,10 @@ class Poser:
 
 POSES = [("klid", lambda p: p.arms_down(25)), ("chuze", lambda p: (p.arms_down(25), p.legs(25, 10, -20, 25))),
          ("vypad", lambda p: (p.arms_down(25), p.legs(70, 70, -25, 10))), ("beh_C", lambda p: p.sam())]
+# pózy z předloh v2/predlohy_poz: klouby SAM 3D Body vedle C_result.json (<písmeno>_result.json); chybějící se vynechá
+for _nm, _f in (("stoj_A", "A_result.json"), ("hod_B", "B_result.json"), ("bod_D", "D_result.json")):
+    _pf = os.path.join(os.path.dirname(SAMJ), _f)
+    if os.path.exists(_pf): POSES.append((_nm, lambda p, _pf=_pf: p.sam(_pf)))
 
 def ev_coords(o):
     masks = [m for m in o.modifiers if m.type in ("MASK", "SOLIDIFY", "SUBSURF") and m.show_viewport]
