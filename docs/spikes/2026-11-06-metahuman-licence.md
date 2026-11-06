@@ -1,21 +1,28 @@
 # MetaHuman a Reallusion: smí být tělo legionáře vstupem do AI generátorů? (2026-11-06)
 
-Analýza bez instalace, bez účtů, bez plateb. **Hlavní omezení: primární texty Epicu (`unrealengine.com/eula/mhc`, `/eula/content`, oznámení o změně, `metahuman.com/license`) vrací HTTP 403 nebo vyžadují přihlášení. Plné znění jsem tedy nečetl.** Vše o Epicu níže je ze sekundárních zdrojů (zpravodajství, fórum Epicu, citace ve vláknech) a je označeno. Citace jsou krátké a z druhé ruky, ne z originálu.
+Analýza bez instalace a plateb. **Aktualizace téhož dne:** operátor je přihlášený v Chromu, takže jsem přečetl primární texty Epicu (`unrealengine.com/eula/unreal`, `/eula/content`, `/eula/mhc`, changelog). Oddíl „Primární texty“ níže má přednost před sekundárními zdroji v oddílu 1.
 
-## Verdikt
+## Verdikt (po přečtení primárních textů)
 
 | Otázka | Verdikt | Opora |
 |---|---|---|
-| MetaHuman smí mimo Unreal (Blender)? | **Spíš ano, neověřeno z originálu** | Od UE 5.6 platí na MetaHuman Unreal Engine EULA; digitalproduction (22. 7. 2026): licence „allows MetaHuman characters and animation in any engine or creative software“; zdarma do 1 M USD ročního příjmu |
-| Render smí být vstupem do generativní AI (FLUX, Nano Banana, GPT Image, Kling)? | **Nejasné** | Zákaz se týkal *trénování a testování* AI, ne vstupu; 27. 10. 2026 Sweeney oznámil rušení omezení, znění a účinnost neznámé |
-| Zákaz trénování AI? | **Ano platil, ruší se** | viz níže |
-| Zákaz redistribuce 3D souborů? | **Ano, předpokládám** (typicky), neověřeno | Reallusion výslovně ano; Epic: „UE-Only Content“ dřív, dnes nepotvrzeno |
-| Komerční publikace renderů (časopis, web)? | **Spíš ano** | Epic: renderované obrázky a video jsou vaše; do 1 M USD zdarma |
-| Reallusion: render jako vstup do generátoru? | **Nejasné, spíš ano** | zakázáno je *trénování*; vstup není výslovně řešen |
+| Zákaz AI u MetaHuman? | **Zrušen** | Changelog UE EULA, update 22 (30. 10. 2026): „Removes the restrictions in Section 6(e) on using the Licensed Technology as training or prompt input for generative AI, and on using MetaHuman digital characters and animation curves to build databases or to train or test AI and machine learning technologies.“ Zbývá jen NoAI tag u obsahu (Content EULA §17). |
+| Render jako vstup do generativní AI (FLUX, Nano Banana, GPT Image, Kling)? | **Ano, podle aktuálního znění** (po 30. 10. 2026) | viz výše; §6(e) aktuální UE EULA už AI klauzuli neobsahuje. Výhrada: ověřit, že stažená postava není označena NoAI. |
+| Smí se MetaHuman použít mimo Unreal (Blender)? | **Nejasné, rozpor v textech** | Content EULA, MetaHuman Addendum §1: „MetaHuman Content that you acquire may only be used and shared as UE-Only Content“ (UE-Only = „only permitted for use in conjunction with Unreal Engine“). Proti tomu UE EULA §4(a)(i): asset files „such as character models and animations … that you developed using Engine Code“ jsou Non-Engine Products i ve „Products that use or rely on other video game engines“, a hned za tím: „certain assets that we make available under separate agreements are available for use only with Unreal Engine“. Digital Production: licence dovoluje „any engine or creative software“. |
+| Zákaz redistribuce 3D souborů? | **Ano** | Content EULA §4: zdrojový formát nesmí k třetím stranám kromě zaměstnanců a dodavatelů na projektu; §5(c)(ii) prodej samostatně zakázán. Vlastní repo a vlastní stroje v pořádku, veřejné repo s modelem ne. |
+| Komerční publikace renderů (časopis, web)? | **Ano** | Content EULA §3(b): „You may freely Distribute Licensed Content incorporated into rendered linear media products“ (obrázky, video). MetaHuman Addendum §2: autorská práva k vyrenderovaným zobrazením vlastníte vy. UE EULA §4(a)(i): renderované obrázky bez licenčního poplatku. |
+| Reallusion: render jako vstup do generátoru? | **Nejasné, spíš ano** | viz oddíl 3 |
 
-**Doporučení:** MetaHuman nepoužívat jako jistotu, dokud Epic neodpoví (návrh dotazu dole). Je to nejlepší kandidát na kvalitu (ruce, pleť), ale u Daz je zákaz doslovný, u MetaHuman je jen nejasný a mění se. Pro AI vstup (img2img/ControlNet z renderu) je riziko nižší než u trénování, ale není vyloučené.
+**Doporučení:** AI vstup je u MetaHuman po 30. 10. 2026 povolen, což Daz nebyl. Jediná skutečná otázka je Blender: Addendum říká „UE-Only“. Bezpečná cesta: renderovat v Unrealu (Movie Render Queue) a Blender použít jen na úpravu rigu a póz s exportem zpět, nebo poslat dotaz Epicu (text níže). Rozhodnutí o Blenderu je operátorovo.
 
-## 1. Epic: co o licenci víme
+## Primární texty (přečteno 2026-11-06 v operátorově Chromu)
+
+- UE EULA §1: „Licensed Technology does not include any items, assets, content … that we may make available to you in other ways (the ‚Content‘)“, tedy stahované postavy spadají pod Content EULA, ne pod UE EULA.
+- MetaHuman Creator EULA (platí jen pro UE ≤ 5.5) §1.3(j) zakazovala použití MetaHuman Technology „for the purpose of building or enhancing any database or training or testing any artificial intelligence …“. Šlo o trénování, ne o vstup.
+- Content EULA §17: NoAI Content nesmí být „as inputs to Generative AI Programs“; Epic se zavazuje, že nebude licencovat obsah třetím stranám pro generativní AI. Jestli jsou MetaHuman postavy označené NoAI, jsem neověřil, ověří se v Launcheru/Bridge u stažené postavy.
+- Content EULA §5(b): zákaz kombinace s GPL/LGPL. **Character DNA je GPLv3** (digitalproduction). Je to doplněk Blenderu, ne obsah, ale míchat jeho kód s obsahem Epicu do jednoho distribuovaného balíku nelze. Pro interní použití bez distribuce zřejmě bez problému; neřešeno právně.
+
+## 1. Epic: co o licenci víme (sekundární zdroje, předcházejí čtení primárních textů)
 
 **Nalezené, s odkazem:**
 - Od UE 5.6 platí pro MetaHuman Unreal Engine EULA; původní MetaHuman Creator EULA zůstává jen pro cloudový Creator na UE ≤ 5.5 ([stránka EULA MHC, čínská verze, přes vyhledávání](https://www.unrealengine.com/eula/mhc?lang=zh-CN)).
