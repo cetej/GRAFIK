@@ -1,0 +1,425 @@
+# Postup B: vrstvená postava. Tělo MPFB (1,66 m, kostra s prsty), kov a výstroj z plného původního modelu jen posunuté a zmenšené,
+# rukávy natočené do úhlu paží těla, tunika jako simulovaná látka se srážkou se skutečnými nohami.
+# BLENDER_USER_RESOURCES=GRAFIK/run/mpfb_profil blender -b <postava>/telo_v1.blend --python postava_s_vystroji.py -- <postava>/kostra.blend <postava>/parts <out_dir> [<vystroj_dir>]
+# Pod zámkem těžké práce (heavy_lock "blender"). Postup: docs/3d-postava-postup.md, oddíl „Postava s kostrou a výstrojí po dílech“.
+import bpy, bmesh, sys, os, glob, math
+import numpy as np
+from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
+TD = os.path.dirname(os.path.abspath(__file__))
+exec(open(os.path.join(TD, "spolecny.py"), encoding="utf-8").read())
+a = sys.argv[sys.argv.index("--") + 1:]; HB, PD, OUT = a[:3]; VYSTROJ = a[3] if len(a) > 3 else os.path.join(os.path.dirname(os.path.dirname(HB)), "vystroj")
+sc = bpy.context.scene
+body = bpy.data.objects["telo"]; rig = bpy.data.objects["kostra"]; rig.name = "kostra_mpfb"; RM = rig.matrix_world
+for o in bpy.data.objects:
+    if o.type == "MESH" and "short02" in o.name.lower(): o.hide_render = o.hide_viewport = True
+with bpy.data.libraries.load(HB) as (src, dst): dst.objects = ["legionar", "kostra"]
+for o in dst.objects: sc.collection.objects.link(o)
+old = bpy.data.objects["legionar"]; orig = bpy.data.objects["kostra"]; old.name = "puvodni"; orig.name = "puvodni_kostra"
+old.modifiers.clear(); old.parent = None
+def sel(objs):
+    for o in bpy.context.selected_objects: o.select_set(False)
+    for o in objs: o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+def co(o):
+    v = np.empty(len(o.data.vertices) * 3, np.float32); o.data.vertices.foreach_get("co", v); return v.reshape(-1, 3)
+def mp(n): return RM @ rig.data.bones[n].head_local
+def oldb(n): return orig.matrix_world @ orig.data.bones[n].head_local
+def verts_world(o):
+    m = o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh(); v = np.array([o.matrix_world @ x.co for x in m.vertices]); return v
+# --- paže těla do úhlu nadloktí původního modelu (klidová póza kostry), aby rukávy seděly bez otáčení ---
+skinned = [o for o in bpy.data.objects if o.type == "MESH" and any(m.type == "ARMATURE" and m.object == rig for m in o.modifiers)]
+for o in skinned:
+    if not o.data.shape_keys: continue
+    vis = [(m, m.show_viewport) for m in o.modifiers]
+    for m, _ in vis: m.show_viewport = False
+    bpy.context.view_layer.update(); ev = o.evaluated_get(bpy.context.evaluated_depsgraph_get()); em = ev.to_mesh()
+    Pk = np.empty(len(em.vertices) * 3, np.float32); em.vertices.foreach_get("co", Pk); ev.to_mesh_clear()
+    for m, v in vis: m.show_viewport = v
+    o.shape_key_clear(); o.data.vertices.foreach_set("co", Pk); o.data.update()
+sel([rig]); bpy.ops.object.mode_set(mode="POSE"); Mi3 = RM.inverted().to_3x3()
+for sd in ("L", "R"):
+    pb = rig.pose.bones[f"upperarm01.{sd}"]; h = pb.head.copy(); t = rig.pose.bones[f"lowerarm01.{sd}"].head.copy()
+    R = (t - h).normalized().rotation_difference((Mi3 @ (oldb(f"forearm.{sd}") - oldb(f"upperarm.{sd}"))).normalized()).to_matrix().to_4x4()
+    pb.matrix = Matrix.Translation(h) @ R @ Matrix.Translation(-h) @ pb.matrix; bpy.context.view_layer.update()
+bpy.ops.object.mode_set(mode="OBJECT")
+def bake_rest():
+    for o in skinned:
+        am_ = next(m for m in o.modifiers if m.type == "ARMATURE" and m.object == rig); nm = am_.name
+        sel([o]); bpy.ops.object.modifier_apply(modifier=nm)
+        m2 = o.modifiers.new(nm, "ARMATURE"); m2.object = rig; m2.use_deform_preserve_volume = True
+        while o.modifiers.find(nm) > 0: bpy.ops.object.modifier_move_up(modifier=nm)
+    sel([rig]); bpy.ops.object.mode_set(mode="POSE"); bpy.ops.pose.armature_apply(selected=False); bpy.ops.object.mode_set(mode="OBJECT")
+bake_rest()
+print("INFO paze tela v uhlu puvodniho modelu", flush=True)
+# --- štítky dílů na plochách plného modelu ---
+OMW = old.matrix_world; OV = np.array([OMW @ v.co for v in old.data.vertices])
+S = 1.5179; pv, pp, pl = [], [], []
+for f in glob.glob(os.path.join(PD, "part_*.glb")):
+    n = int(f.rsplit("_", 1)[1].split(".")[0]); before = set(bpy.data.objects); bpy.ops.import_scene.gltf(filepath=f)
+    for o in [o for o in bpy.data.objects if o not in before]:
+        if o.type == "MESH":
+            M = Matrix.Diagonal((S, S, S, 1)) @ o.matrix_world; off = len(pv)
+            pv += [tuple(M @ v.co) for v in o.data.vertices]
+            for p_ in o.data.polygons: pp.append([off + i for i in p_.vertices]); pl.append(n)
+    for o in [o for o in bpy.data.objects if o not in before]: bpy.data.objects.remove(o, do_unlink=True)
+pbvh = BVHTree.FromPolygons(pv, pp); pl = np.array(pl)
+OC = np.empty(len(old.data.polygons) * 3); old.data.polygons.foreach_get("center", OC); OC = OC.reshape(-1, 3) @ np.array(OMW)[:3, :3].T + np.array(OMW)[:3, 3]
+LAB = np.array([pl[pbvh.find_nearest(Vector(c))[2]] for c in OC])
+# barva každé plochy z textury: kov rukávu patří k ramenním plátům, látka zůstane rukávu
+_im = next(n.image for m in old.data.materials if m and m.node_tree for n in m.node_tree.nodes if n.type == "TEX_IMAGE" and n.image)
+_tw, _th = _im.size; _tx = np.empty(_tw * _th * 4, np.float32); _im.pixels.foreach_get(_tx); _tx = _tx.reshape(_th, _tw, 4)
+_uv = np.empty(len(old.data.loops) * 2); old.data.uv_layers.active.data.foreach_get("uv", _uv); _uv = _uv.reshape(-1, 2)
+_lf = np.repeat(np.arange(len(old.data.polygons)), [p_.loop_total for p_ in old.data.polygons])
+_fu = np.zeros((len(old.data.polygons), 2)); np.add.at(_fu, _lf, _uv); _fu /= np.bincount(_lf, minlength=len(old.data.polygons))[:, None]
+FCOL = _tx[np.clip((_fu[:, 1] * _th).astype(int), 0, _th - 1), np.clip((_fu[:, 0] * _tw).astype(int), 0, _tw - 1), :3]
+RED = FCOL[:, 0] > 1.8 * np.maximum(FCOL[:, 1], FCOL[:, 2])
+SAT = (FCOL.max(1) - FCOL.min(1)) / np.maximum(FCOL.max(1), 1e-6)
+LAB = np.where((LAB == 4) & ~RED, 20, LAB)
+BRI = FCOL.max(1)
+LAB = np.where(np.isin(LAB, [2, 5]) & RED, -1, LAB)                                           # látka tuniky v opasku
+SKIN = (SAT > 0.25) & (BRI > 0.42) & ~RED
+LAB = np.where(np.isin(LAB, [0, 7, 9, 19]) & SKIN, -1, LAB)                                   # kůže původní nohy v sandálu
+print("INFO vyrazeno z opasku a sandalu", int((LAB == -1).sum()), flush=True)
+print("INFO kov z rukavu k ramenum", int(((LAB == 20)).sum()), flush=True)
+GROUPS = {"helma": [14, 17, 21, 11, 12], "zbroj": [6], "ramena": [20], "opasek": [2, 5], "satek": [15], "rukav": [4], "sandal_L": [7, 19], "sandal_R": [0, 9], "tunika": [8]}
+parts = {}
+for g, labs in GROUPS.items():
+    bm = bmesh.new(); bm.from_mesh(old.data); bm.transform(OMW); bm.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[bm.faces[i] for i in np.nonzero(~np.isin(LAB, labs))[0]], context="FACES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    me = bpy.data.meshes.new(g); bm.to_mesh(me); bm.free()
+    for m in old.data.materials: me.materials.append(m)
+    o = bpy.data.objects.new(g, me); sc.collection.objects.link(o); parts[g] = o
+print("INFO dily", {g: len(o.data.vertices) for g, o in parts.items()}, flush=True)
+# sandály: který je který podle polohy
+for g in ("sandal_L", "sandal_R"): pass
+K = 0.95
+# --- nohy zesílit podle obvodu lýtek původního modelu (chodidla obvod nedědí) ---
+def leg_w(Vv, zk, za, sg):
+    zm = (zk + za) / 2; q = Vv[(np.abs(Vv[:, 2] - zm) < 0.01) & (Vv[:, 0] * sg > 0.02) & (np.abs(Vv[:, 0]) < 0.35)]
+    return q[:, 0].max() - q[:, 0].min(), q[:, 1].max() - q[:, 1].min()
+BVl = verts_world(body); rr = []
+for sd, sg in (("L", 1), ("R", -1)):
+    wo = leg_w(OV, oldb(f"shin.{sd}").z, oldb(f"foot.{sd}").z, sg); wn = leg_w(BVl, mp(f"lowerleg01.{sd}").z, mp(f"foot.{sd}").z, sg)
+    rr.append(float(np.clip(np.sqrt(wo[0] * wo[1]) * K / np.sqrt(wn[0] * wn[1]), 1.0, 1.35)))
+gs_ = sum(rr) / 2
+sel([rig]); bpy.ops.object.mode_set(mode="EDIT")
+for sd in ("L", "R"): rig.data.edit_bones[f"foot.{sd}"].inherit_scale = "NONE"
+bpy.ops.object.mode_set(mode="POSE")
+for sd in ("L", "R"):
+    rig.data.bones  # stehno jen trochu, lýtko podle původního
+    rig.pose.bones[f"upperleg01.{sd}"].scale = (1.06, 1, 1.06); rig.pose.bones[f"lowerleg01.{sd}"].scale = (gs_ / 1.06, 1, gs_ / 1.06)
+bpy.context.view_layer.update(); bpy.ops.object.mode_set(mode="OBJECT"); bake_rest()
+sel([rig]); bpy.ops.object.mode_set(mode="EDIT")
+for sd in ("L", "R"): rig.data.edit_bones[f"foot.{sd}"].inherit_scale = "FULL"
+bpy.ops.object.mode_set(mode="OBJECT")
+print("INFO nohy obvod x", round(gs_, 2), "lytka L/R", [round(x, 2) for x in rr], flush=True)
+# --- chodidla těla rozšířit na šířku původních nohou (sandály pak sedí bez deformace) ---
+K = 0.95; BV0 = verts_world(body)
+sel([rig]); bpy.ops.object.mode_set(mode="POSE")
+for sd, sg in (("L", 1), ("R", -1)):
+    so_ = [co(parts[g]) for g in ("sandal_L", "sandal_R")]; Cs = next(c for c in so_ if c[:, 0].mean() * sg > 0); sole = Cs[Cs[:, 2] < 0.03]
+    F = BV0[(BV0[:, 2] < 0.09) & (BV0[:, 0] * sg > 0.03)]
+    r = float(np.clip(((sole[:, 0].max() - sole[:, 0].min()) * K - 0.016) / (F[:, 0].max() - F[:, 0].min()), 1.0, 1.5))
+    rig.pose.bones[f"foot.{sd}"].scale = (r, 1, 1); bpy.context.view_layer.update()
+    print("INFO chodidlo", sd, "rozsireni", round(r, 2), flush=True)
+bpy.ops.object.mode_set(mode="OBJECT"); bake_rest()
+# --- usazení: rovnoměrné zmenšení a posun (tvar plechu se nemění) ---
+BV = verts_world(body)
+def ycen(Vv, z, xm=0.12):
+    q = Vv[(np.abs(Vv[:, 2] - z) < 0.01) & (np.abs(Vv[:, 0]) < xm)]; return (q[:, 1].max() + q[:, 1].min()) / 2
+zo, zn = oldb("upperarm.L").z, mp("upperarm01.L").z
+SRC, DST = Vector((0, ycen(OV, zo - 0.08), zo)), Vector((0, ycen(BV, zn - 0.08), zn))
+def place(o, src, dst, k=K):
+    o.data.transform(Matrix.Translation(dst) @ Matrix.Scale(k, 4) @ Matrix.Translation(-src)); o.data.update()
+for g in ("zbroj", "ramena", "satek", "rukav"): place(parts[g], SRC, DST)
+zo2, zn2 = oldb("thigh.L").z, mp("upperleg01.L").z
+SRC2, DST2 = Vector((0, ycen(OV, zo2 + 0.05), zo2)), Vector((0, ycen(BV, zn2 + 0.05), zn2))
+for g in ("opasek", "tunika"): place(parts[g], SRC2, DST2)
+print("INFO kycle stary", round(zo2, 3), "novy", round(zn2, 3), "ramena stary", round(zo, 3), "novy", round(zn, 3), flush=True)
+hz_ = BV[:, 2].max(); hy = ycen(BV, hz_ - 0.06, 0.09); Ch = co(parts["helma"])
+kh = 0.268 / (Ch[:, 0].max() - Ch[:, 0].min()) * 1.0
+place(parts["helma"], Vector((0, (Ch[:, 1].max() + Ch[:, 1].min()) / 2, Ch[:, 2].max())), Vector((0, hy + 0.032, hz_ + 0.04)), kh)
+for sd, sg in (("L", 1), ("R", -1)):
+    o = parts[f"sandal_{sd}"]; Cs = co(o)
+    if Cs[:, 0].mean() * sg < 0: o = parts[f"sandal_{'R' if sd == 'L' else 'L'}"]; Cs = co(o)
+    F = BV[(BV[:, 2] < 0.09) & (BV[:, 0] * sg > 0.03)]
+    sole = Cs[Cs[:, 2] < 0.03]
+    sx = (F[:, 0].max() - F[:, 0].min() + 0.016) / (sole[:, 0].max() - sole[:, 0].min()); sy = (F[:, 1].max() - F[:, 1].min() + 0.02) / (sole[:, 1].max() - sole[:, 1].min())
+    sz = (sx + sy) / 2
+    fo = oldb(f"foot.{sd}"); fn_ = mp(f"foot.{sd}")                    # sandál sedí kotníkem na kotníku
+    c0 = Vector((fo.x, fo.y, 0)); c1 = Vector((fn_.x, fn_.y, 0))
+    o.data.transform(Matrix.Translation(c1) @ Matrix.Diagonal((sx, sy, sz, 1)) @ Matrix.Translation(-c0)); o.data.update(); o["strana"] = sd
+    Cn = co(o); front_s = Cn[Cn[:, 2] < 0.03][:, 1].min(); front_f = F[F[:, 2] < 0.05][:, 1].min() - 0.012
+    if front_f < front_s:                                                 # prsty by trčely: podrážku prodloužit dopředu od kotníku
+        k2 = (c1.y - front_f) / (c1.y - front_s); Cn[:, 1] = c1.y + (Cn[:, 1] - c1.y) * np.where(Cn[:, 1] < c1.y, k2, 1.0)
+        o.data.vertices.foreach_set("co", Cn.ravel()); o.data.update(); print("INFO sandal", sd, "prodlouzen dopredu", round(k2, 3), flush=True)
+    print("INFO sandal", sd, round(sx, 2), round(sy, 2), round(sz, 2), flush=True)
+for x in (old, orig): bpy.data.objects.remove(x, do_unlink=True)
+# --- připnutí ke kostře ---
+bones = [b.name for b in rig.data.bones]
+def rigid(o, bone):
+    o.vertex_groups.clear(); g = o.vertex_groups.new(name=bone); g.add(list(range(len(o.data.vertices))), 1.0, "REPLACE")
+def transfer(o, keep=None):
+    o.vertex_groups.clear()
+    for g in body.vertex_groups:
+        if g.name in bones: o.vertex_groups.new(name=g.name)
+    dt = o.modifiers.new("v", "DATA_TRANSFER"); dt.object = body; dt.use_vert_data = True; dt.data_types_verts = {"VGROUP_WEIGHTS"}
+    dt.vert_mapping = "POLYINTERP_NEAREST"; dt.layers_vgroup_select_src = "ALL"; dt.layers_vgroup_select_dst = "NAME"
+    sel([o]); bpy.ops.object.modifier_apply(modifier="v")
+    if keep:
+        for g in list(o.vertex_groups):
+            if not g.name.startswith(keep): o.vertex_groups.remove(g)
+SP = [(n, mp(n).z) for n in ("spine05", "spine04", "spine03", "spine02", "spine01")]
+def spine(o, mask=None):
+    C = co(o); idx = np.arange(len(C)) if mask is None else np.nonzero(mask)[0]
+    for g in list(o.vertex_groups):
+        g.remove(idx.tolist())
+    for j, (n, z0) in enumerate(SP):
+        z1 = SP[j + 1][1] if j + 1 < len(SP) else 9
+        lo_ = np.clip((C[idx, 2] - (z0 - 0.02)) / 0.04, 0, 1) if j else np.ones(len(idx)); hi_ = np.clip(((z1 + 0.02) - C[idx, 2]) / 0.04, 0, 1)
+        w = np.minimum(lo_, hi_); g = o.vertex_groups.get(n) or o.vertex_groups.new(name=n)
+        for wv in np.unique(np.round(w, 2)):
+            if wv > 0: g.add(idx[np.round(w, 2) == wv].tolist(), float(wv), "REPLACE")
+rigid(parts["helma"], "head"); rigid(parts["opasek"], "root")
+# tloušťka plechu (Solidify) na rozsypané síti z generátoru dělá zmačkanou fólii: nepoužívat
+o = parts["ramena"]; C = co(o); o.vertex_groups.clear()
+for nm, m in (("shoulder01.L", C[:, 0] > 0.045), ("shoulder01.R", C[:, 0] < -0.045), ("spine01", np.abs(C[:, 0]) <= 0.045)):
+    o.vertex_groups.new(name=nm).add(np.nonzero(m)[0].tolist(), 1.0, "REPLACE")
+transfer(parts["zbroj"]); spine(parts["zbroj"])
+transfer(parts["rukav"]); transfer(parts["satek"])
+for sd in ("L", "R"):
+    o = parts[f"sandal_{sd}"]; transfer(o, keep=("foot", "lowerleg", "toe"))
+for o in parts.values():
+    if o.name == "tunika": continue
+    o.parent = rig; am = o.modifiers.new("kostra", "ARMATURE"); am.object = rig
+    for f in o.data.polygons: f.use_smooth = True
+# --- tunika: čistá sukně z prstenců podle tvaru původní tuniky, látka se srážkou s tělem ---
+tun = parts["tunika"]; TW = co(tun)
+tbm = bmesh.new(); tbm.from_mesh(tun.data); tb = BVHTree.FromBMesh(tbm); tbm.free()
+z0 = np.percentile(TW[:, 2], 1.5); z1 = min(np.percentile(TW[:, 2], 99.5), co(parts['opasek'])[:, 2].max() - 0.01); hzp = z1; NA = 120
+rings = np.arange(z1, z0 - 1e-6, -0.01); R = np.zeros((len(rings), NA)); C0 = []
+for i, z in enumerate(rings):
+    q = TW[np.abs(TW[:, 2] - z) < 0.01]; cy = (q[:, 1].max() + q[:, 1].min()) / 2 if len(q) else 0.0; C0.append(cy)
+    for j in range(NA):
+        t = 2 * math.pi * j / NA; d = Vector((math.cos(t), math.sin(t), 0)); o_ = Vector((0, cy, z)); far = 0.0
+        while True:
+            h = tb.ray_cast(o_ + d * 0.0005, d, 0.45)
+            if h[0] is None: break
+            far = (h[0] - Vector((0, cy, z))).length; o_ = h[0]
+        R[i, j] = far
+ok = np.nonzero((R > 0.05).all(1))[0]
+for i in range(len(rings)):
+    if not (R[i] > 0.05).all():
+        g_ = R[i] > 0.05
+        R[i] = np.interp(np.arange(NA), np.nonzero(g_)[0], R[i, g_], period=NA) if g_.sum() > NA // 2 else R[ok[np.argmin(np.abs(ok - i))]]
+# sukně nesmí být uvnitř těla: poloměr aspoň k povrchu stehen + 1 cm
+_em = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh(); _polys = [p_.vertices[:] for p_ in _em.polygons]
+def _sd(P_, a_, b_):
+    ab = b_ - a_; t = np.clip(((P_ - a_) @ ab) / (ab @ ab), 0, 1); return np.linalg.norm(P_ - (a_ + t[:, None] * ab), axis=1)
+armv = np.zeros(len(BV), bool)
+for sd in ("L", "R"):
+    for b0, b1 in ((f"upperarm01.{sd}", f"lowerarm01.{sd}"), (f"lowerarm01.{sd}", f"wrist.{sd}"), (f"wrist.{sd}", f"finger3-3.{sd}")):
+        armv |= _sd(BV, np.array(mp(b0)), np.array(RM @ rig.data.bones[b1].tail_local if b1.startswith("finger") else mp(b1))) < 0.075
+bvb = BVHTree.FromPolygons([tuple(x) for x in BV], [p_ for p_ in _polys if not armv[list(p_)].any()])   # jen trup a nohy, ne ruce u boků
+for i, z in enumerate(rings):
+    for j in range(NA):
+        t = 2 * math.pi * j / NA; d = Vector((math.cos(t), math.sin(t), 0)); o_ = Vector((0, C0[i], z)); far = 0.0
+        while True:
+            h = bvb.ray_cast(o_ + d * 0.0005, d, 0.45)
+            if h[0] is None: break
+            far = (h[0] - Vector((0, C0[i], z))).length; o_ = h[0]
+        R[i, j] = max(R[i, j], far + 0.012)
+vs = [(R[i, j] * math.cos(2 * math.pi * j / NA), C0[i] + R[i, j] * math.sin(2 * math.pi * j / NA), rings[i]) for i in range(len(rings)) for j in range(NA)]
+fs = [(i * NA + j, i * NA + (j + 1) % NA, (i + 1) * NA + (j + 1) % NA, (i + 1) * NA + j) for i in range(len(rings) - 1) for j in range(NA)]
+sm = bpy.data.meshes.new("tunika_latka"); sm.from_pydata(vs, [], fs); sm.update()
+cl = bpy.data.objects.new("tunika_latka", sm); sc.collection.objects.link(cl)
+bpy.data.objects.remove(tun, do_unlink=True)
+cl.vertex_groups.new(name="root").add(list(range(len(vs))), 1.0, "REPLACE")
+cl.parent = rig; am = cl.modifiers.new("kostra", "ARMATURE"); am.object = rig
+pin = cl.vertex_groups.new(name="pin")
+for v in cl.data.vertices: pin.add([v.index], float(np.clip((v.co.z - (z1 - 0.10)) / 0.07, 0, 1)), "REPLACE")
+cm = cl.modifiers.new("latka", "CLOTH"); s_ = cm.settings
+s_.quality = 10; s_.mass = 0.25; s_.tension_stiffness = 20; s_.compression_stiffness = 20; s_.shear_stiffness = 10; s_.bending_stiffness = 0.3
+s_.air_damping = 2.0; s_.vertex_group_mass = "pin"; s_.pin_stiffness = 1.0
+cm.collision_settings.distance_min = 0.006; cm.collision_settings.collision_quality = 4; cm.point_cache.frame_start = 1; cm.point_cache.frame_end = 60
+so = cl.modifiers.new("tloustka", "SOLIDIFY"); so.thickness = 0.003; so.offset = 1
+sb = cl.modifiers.new("hladka", "SUBSURF"); sb.levels = 1; sb.render_levels = 2
+mt = bpy.data.materials.new("tunika_vlna"); mt.use_nodes = True; bs = mt.node_tree.nodes["Principled BSDF"]
+bs.inputs["Base Color"].default_value = (0.24, 0.006, 0.018, 1); bs.inputs["Roughness"].default_value = 1.0
+for nm_, v_ in (("Sheen Weight", 0.0), ("Specular IOR Level", 0.15), ("Coat Weight", 0.0)):
+    if nm_ in bs.inputs: bs.inputs[nm_].default_value = v_
+cl.data.materials.append(mt)
+for f in cl.data.polygons: f.use_smooth = True
+body.modifiers.new("srazka", "COLLISION"); body.collision.thickness_outer = 0.008
+
+# --- rukávy: čistá trubice kolem nadloktí podle tvaru původních rukávů (původní rukáv i červené kusy na boku loriky pryč) ---
+zb = parts["zbroj"]; IMG = next(n.image for m in zb.data.materials if m and m.node_tree for n in m.node_tree.nodes if n.type == "TEX_IMAGE" and n.image)
+TWD, TH = IMG.size; TEX = np.empty(TWD * TH * 4, np.float32); IMG.pixels.foreach_get(TEX); TEX = TEX.reshape(TH, TWD, 4)
+uvz = zb.data.uv_layers.active.data; UV = np.empty(len(uvz) * 2); uvz.foreach_get("uv", UV); UV = UV.reshape(-1, 2)
+LFz = np.repeat(np.arange(len(zb.data.polygons)), [p_.loop_total for p_ in zb.data.polygons])
+fuv = np.zeros((len(zb.data.polygons), 2)); np.add.at(fuv, LFz, UV); fuv /= np.bincount(LFz, minlength=len(zb.data.polygons))[:, None]
+px = TEX[np.clip((fuv[:, 1] * TH).astype(int), 0, TH - 1), np.clip((fuv[:, 0] * TWD).astype(int), 0, TWD - 1), :3]
+FCz = np.array([p_.center[:] for p_ in zb.data.polygons])
+redall = px[:, 0] > 1.8 * np.maximum(px[:, 1], px[:, 2]); redarm = redall & (np.abs(FCz[:, 0]) > 0.14)
+src = []
+for o, fm in ((parts["rukav"], None), (zb, redarm)):
+    for i, p_ in enumerate(o.data.polygons):
+        if fm is None or fm[i]: src.append([tuple(o.data.vertices[v].co) for v in p_.vertices])
+SV = [v for f in src for v in f]; SF = []; k_ = 0
+for f in src: SF.append(list(range(k_, k_ + len(f)))); k_ += len(f)
+sbvh = BVHTree.FromPolygons(SV, SF); SVa = np.array(SV)
+bm = bmesh.new(); bm.from_mesh(zb.data); bm.faces.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[bm.faces[i] for i in np.nonzero(redall)[0]], context="FACES"); bm.to_mesh(zb.data); bm.free(); zb.data.update()
+bpy.data.objects.remove(parts["rukav"], do_unlink=True)
+hm = parts["helma"]; _eb = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh()
+fbvh = BVHTree.FromPolygons([tuple(body.matrix_world @ v.co) for v in _eb.vertices], [p_.vertices[:] for p_ in _eb.polygons])
+hc = [p_.center for p_ in hm.data.polygons]
+_hu = np.empty(len(hm.data.loops) * 2); hm.data.uv_layers.active.data.foreach_get("uv", _hu); _hu = _hu.reshape(-1, 2)
+_hl = np.repeat(np.arange(len(hm.data.polygons)), [p_.loop_total for p_ in hm.data.polygons]); _hf = np.zeros((len(hm.data.polygons), 2)); np.add.at(_hf, _hl, _hu); _hf /= np.bincount(_hl, minlength=len(hm.data.polygons))[:, None]
+_hc = _tx[np.clip((_hf[:, 1] * _th).astype(int), 0, _th - 1), np.clip((_hf[:, 0] * _tw).astype(int), 0, _tw - 1), :3]
+skinlike = ((_hc.max(1) - _hc.min(1)) / np.maximum(_hc.max(1), 1e-6) > 0.25) & (_hc[:, 0] > 0.35)
+onface = np.array([(fbvh.find_nearest(c)[3] or 1) < 0.008 and c.z < mp("head").z + 0.10 and c.y < mp("head").y for c in hc]) & skinlike
+bm = bmesh.new(); bm.from_mesh(hm.data); bm.faces.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[bm.faces[i] for i in np.nonzero(onface)[0]], context="FACES")
+bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+bm.to_mesh(hm.data); bm.free(); hm.data.update()   # vyhlazení okraje na rozsypané síti trhá přilbu (praskliny): nepoužívat
+print("INFO prilba zbytky obliceje", int(onface.sum()), flush=True)
+# drobné odtržené kousky (třísky plechu po vyříznutí látky a obličeje) pryč
+def drop_islands(o, frac=0.004, minf=40):
+    bm = bmesh.new(); bm.from_mesh(o.data); bm.faces.ensure_lookup_table(); seen = set(); kill = []
+    lim = max(minf, int(len(bm.faces) * frac))
+    for f0 in bm.faces:
+        if f0.index in seen: continue
+        st = [f0]; comp = []
+        while st:
+            f = st.pop()
+            if f.index in seen: continue
+            seen.add(f.index); comp.append(f)
+            for e in f.edges:
+                for g in e.link_faces:
+                    if g.index not in seen: st.append(g)
+        if len(comp) < lim: kill += comp
+    bmesh.ops.delete(bm, geom=kill, context="FACES"); bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(o.data); bm.free(); o.data.update(); return len(kill)
+# drop_islands nepoužívat: původní model je z tisíců samostatných kousků (vyzkoušeno, roztrhá zbroj)
+_em2 = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh(); BVr = np.array([body.matrix_world @ v.co for v in _em2.vertices])
+abvh = BVHTree.FromPolygons([tuple(x) for x in BVr], [p_.vertices[:] for p_ in _em2.polygons])
+NA2 = 48
+for sd, sg in (("L", 1), ("R", -1)):
+    S0 = mp(f"upperarm01.{sd}"); ax = (mp(f"lowerarm01.{sd}") - S0).normalized()
+    u = ax.cross(Vector((0, 1, 0))).normalized(); v_ = ax.cross(u).normalized()
+    Q = SVa[SVa[:, 0] * sg > 0.05]; tq = (Q - np.array(S0)) @ np.array(ax)
+    t_end = float(np.percentile(tq, 97)); ts = np.arange(0.0, t_end + 1e-6, 0.01)       # od ramenního kloubu: dřív začátek nad ramenem dělal cípy přes záda
+    verts = []
+    for t in ts:
+        c = S0 + ax * t
+        for j in range(NA2):
+            ang = 2 * math.pi * j / NA2; d = (u * math.cos(ang) + v_ * math.sin(ang)).normalized()
+            far = 0.0; o_ = c
+            while True:
+                h = sbvh.ray_cast(o_ + d * 0.0005, d, 0.2)
+                if h[0] is None: break
+                far = (h[0] - c).length; o_ = h[0]
+            hb = abvh.ray_cast(c, d, 0.2); rb = min((hb[0] - c).length if hb[0] is not None else 0.05, 0.07)   # v rameni paprsek projde trupem: nejvýš tloušťka paže
+            verts.append(tuple(c + d * max(min(far, rb + 0.03), rb + 0.012)))      # nejvýš 3 cm od paže: cáry starého rukávu dělaly ploché cípy
+    fs2 = [(i * NA2 + j, i * NA2 + (j + 1) % NA2, (i + 1) * NA2 + (j + 1) % NA2, (i + 1) * NA2 + j) for i in range(len(ts) - 1) for j in range(NA2)]
+    me2 = bpy.data.meshes.new(f"rukav_{sd}"); me2.from_pydata(verts, [], fs2); me2.update()
+    ob = bpy.data.objects.new(f"rukav_{sd}", me2); sc.collection.objects.link(ob); me2.materials.append(mt)
+    for f in me2.polygons: f.use_smooth = True
+    transfer(ob)
+    ob.parent = rig; am = ob.modifiers.new("kostra", "ARMATURE"); am.object = rig; am.use_deform_preserve_volume = True
+    so2 = ob.modifiers.new("tloustka", "SOLIDIFY"); so2.thickness = 0.003; so2.offset = 1
+    sb2 = ob.modifiers.new("hladka", "SUBSURF"); sb2.levels = 1; sb2.render_levels = 2
+    print("INFO rukav", sd, "delka", round(t_end, 3), "prstencu", len(ts), flush=True)
+exec(open(os.path.join(TD, "nahrad_vystroj.py"), encoding="utf-8").read())
+# tělo pod plechem a přilbou skrýt (obličej, paže a nohy ne)
+_PL = [parts[g] for g in ("zbroj", "ramena", "helma", "opasek") if g in parts]
+BVa = BVHTree.FromPolygons(sum([[tuple(o.matrix_world @ v.co) for v in o.data.vertices] for o in _PL], []),
+                           [[i + off for i in p_.vertices] for off, o in zip(np.cumsum([0] + [len(o.data.vertices) for o in _PL[:-1]]), _PL) for p_ in o.data.polygons])
+# rukáv pod ramenními pláty skrýt (prochází plechem, na plátech byly červené skvrny); pod ním je trup s látkou tuniky
+for sd in ("L", "R"):
+    ob = bpy.data.objects[f"rukav_{sd}"]; hid = []; A0 = mp(f"upperarm01.{sd}"); A1 = mp(f"lowerarm01.{sd}"); ax_ = (A1 - A0).normalized()
+    for v in ob.data.vertices:
+        p_ = ob.matrix_world @ v.co; q_ = A0 + ax_ * (p_ - A0).dot(ax_); n_ = (p_ - q_).normalized()      # směr od osy paže ven (normály trubice můžou mířit dovnitř)
+        if BVa.ray_cast(p_ + n_ * 0.001, n_, 0.08)[0] is not None or BVa.find_nearest(p_)[3] < 0.006: hid.append(v.index)
+    ob.vertex_groups.new(name="pod_plechem").add(hid, 1.0, "REPLACE")
+    mk = ob.modifiers.new("skryt", "MASK"); mk.vertex_group = "pod_plechem"; mk.invert_vertex_group = True
+    while ob.modifiers.find("skryt") > 0: sel([ob]); bpy.ops.object.modifier_move_up(modifier="skryt")
+    print("INFO rukav", sd, "pod plechem skryto", len(hid), "z", len(ob.data.vertices), flush=True)
+GI = {g.index: g.name for g in body.vertex_groups}; ids = []; BONES_ = set(b.name for b in rig.data.bones)
+zneck = mp("neck01").z; zhip = mp("upperleg01.L").z; MWb = body.matrix_world
+for vb in body.data.vertices:                                   # původní síť, ne vyhodnocená (jiné pořadí vrcholů)
+    bg = [g for g in vb.groups if GI[g.group] in BONES_]                # jen skupiny kostí (MPFB má i skupiny Left/Right přes celou polovinu těla)
+    top = GI[max(bg, key=lambda g: g.weight).group] if bg else ""
+    z = (MWb @ vb.co).z
+    if top.startswith("upperarm") and z > mp("upperarm01.L").z - 0.08 and BVa.find_nearest(MWb @ vb.co)[3] < 0.03: ids.append(vb.index); continue   # rameno pod plátem
+    if not top or top.startswith(("upperarm", "lowerarm", "wrist", "finger", "metacarpal", "neck", "head", "upperleg", "lowerleg", "foot", "toe")): continue
+    if zhip < z < zneck: ids.append(vb.index)                   # trup od boků ke krku je pod tunikou
+ids_s = set(ids); body.data.materials.append(mt); mi = len(body.data.materials) - 1
+for f in body.data.polygons:
+    if all(i in ids_s for i in f.vertices): f.material_index = mi
+# trup a ramena u plechu zatlačit 8 mm pod jeho vnitřní stranu. Směr bere paprsek od osy těla (páteř, u ramene ramenní kloub) přes vrchol:
+# první zásah do plechu blíž než vrchol + 8 mm = vrchol je vně nebo těsně pod plechem. Normály z generátoru nejsou spolehlivé.
+MWi = MWb.inverted(); npush = 0; ZBELT = float(co(parts["opasek"])[:, 2].max()) + 0.02
+_s0, _s1 = mp("root"), mp("neck01"); _sa = (_s1 - _s0).normalized()
+for i in ids:
+    v = body.data.vertices[i]; p_ = MWb @ v.co
+    if p_.z < ZBELT: continue                                   # u boků ne: rozhodí látku sukně
+    c = mp("upperarm01.L") if p_.x > 0.12 else mp("upperarm01.R") if p_.x < -0.12 else _s0 + _sa * (p_ - _s0).dot(_sa)
+    L_ = (p_ - c).length
+    if L_ < 1e-4: continue
+    d = (p_ - c) / L_; hit = BVa.ray_cast(c, d, L_ + 0.008)[0]
+    if hit is not None:
+        v.co = MWi @ (hit - d * 0.008); npush += 1
+body.data.update(); print("INFO trup zatlacen pod plech", npush, flush=True)
+print("INFO trup jako tunika vrcholu", len(ids), flush=True)
+# kůže: póry a méně vosku (MPFB textura je jen barva)
+for m in body.data.materials:
+    if not (m and m.use_nodes): continue
+    def walk(nt, seen):
+        for n in nt.nodes:
+            if n.type == "BSDF_PRINCIPLED":
+                for nm_, v_ in (("Subsurface Weight", 0.12), ("Roughness", 0.5)):
+                    if nm_ in n.inputs and not n.inputs[nm_].is_linked: n.inputs[nm_].default_value = v_
+                if not n.inputs["Normal"].is_linked:
+                    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 900; nz.inputs["Detail"].default_value = 6
+                    vz = nt.nodes.new("ShaderNodeTexVoronoi"); vz.inputs["Scale"].default_value = 450
+                    mx_ = nt.nodes.new("ShaderNodeMath"); mx_.operation = "ADD"
+                    bp = nt.nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = 0.25; bp.inputs["Distance"].default_value = 0.0006
+                    nt.links.new(nz.outputs["Fac"], mx_.inputs[0]); nt.links.new(vz.outputs["Distance"], mx_.inputs[1]); nt.links.new(mx_.outputs[0], bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], n.inputs["Normal"])
+            if n.type == "GROUP" and n.node_tree and n.node_tree.name not in seen:
+                seen.add(n.node_tree.name); walk(n.node_tree, seen)
+    walk(m.node_tree, set())
+bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, "postup_b.blend"))
+# --- simulace pro každou pózu: klid (snímek 1) -> póza (30), usadit do 50 ---
+def prep(pn):
+    rig.animation_data_clear(); P = rig.pose.bones; target = {pb.name: pb.matrix_basis.copy() for pb in P}
+    for pb in P:
+        pb.matrix_basis = Matrix.Identity(4)
+        for k in ("location", "rotation_quaternion", "scale"): pb.keyframe_insert(k, frame=1)
+        pb.matrix_basis = target[pb.name]
+        for k in ("location", "rotation_quaternion", "scale"): pb.keyframe_insert(k, frame=30)
+    sc.frame_start, sc.frame_end = 1, 50
+    for f in range(1, 51): sc.frame_set(f)
+MAP = {"hips": "root", "chest": "spine03", "neck": "neck01"}
+for q in ("L", "R"):
+    MAP.update({f"{q}_arm": f"upperarm01.{q}", f"{q}_fore": f"lowerarm01.{q}", f"{q}_hand": f"wrist.{q}", f"{q}_upleg": f"upperleg01.{q}", f"{q}_leg": f"lowerleg01.{q}", f"{q}_foot": f"foot.{q}", f"{q}_toe": f"toe3-1.{q}"})
+def seg_d(P_, a_, b_):
+    ab = b_ - a_; t = np.clip(((P_ - a_) @ ab) / (ab @ ab), 0, 1); return np.linalg.norm(P_ - (a_ + t[:, None] * ab), axis=1)
+dl = np.minimum(seg_d(BV, np.array(mp("upperleg01.L")), np.array(mp("lowerleg01.L"))), seg_d(BV, np.array(mp("upperleg01.R")), np.array(mp("lowerleg01.R"))))
+skin = np.nonzero((BV[:, 2] > z0 - 0.06) & (BV[:, 2] < hzp) & (dl < 0.11))[0]
+run_all({"rig": rig, "MAP": MAP, "body": body, "cloth": cl, "skin_idx": skin, "name": "B", "out_dir": OUT, "prep_pose": prep, "ground_objs": [body]})
+# --- detailní kontrola: klid a běh z 8 stran a výřezy ---
+P_ = Poser(rig, MAP); DD = os.path.join(OUT, "detail"); os.makedirs(DD, exist_ok=True)
+VIEWS8 = {f"{i:02d}": (math.sin(math.radians(a_)), -math.cos(math.radians(a_)), 0.08) for i, a_ in enumerate(range(0, 360, 45))}
+CROPS = {"hlava": (1.52, 0.42), "trup": (1.18, 0.62), "pas": (0.86, 0.62), "nohy": (0.42, 0.75), "chodidla": (0.1, 0.42)}
+for pn, pf in (("klid", POSES[0][1]), ("beh_C", POSES[3][1])):
+    P_.reset(); pf(P_); P_.ground([body]); prep(pn); rig.animation_data_clear()
+    for vn, d in VIEWS8.items(): shot(sc, os.path.join(DD, f"{pn}-cela-{vn}.png"), d, 2.0, (0, 0, 0.86))
+    hipz = (rig.matrix_world @ rig.pose.bones["root"].head).z - mp("root").z
+    for cn, (cz, cs_) in CROPS.items():
+        for vn, d in (("predek", (0.15, -1, 0.05)), ("bok", (1, 0, 0.05)), ("zada", (-0.15, 1, 0.05)), ("bok2", (-1, 0, 0.05))):
+            shot(sc, os.path.join(DD, f"{pn}-{cn}-{vn}.png"), d, cs_, (0, (rig.matrix_world @ rig.pose.bones["root"].head).y, cz + hipz))
+print("INFO DONE", flush=True)

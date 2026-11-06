@@ -1,0 +1,126 @@
+# Společný test postupů legionáře: stejné 4 pózy, stejná měřítka, stejné rendery.
+# Volá se z Blenderu: exec(open(".../spolecny.py").read()) a pak run_all(ctx).
+# ctx: rig, mapa kostí (MAP), body (objekt s kůží), skin_idx (vrcholy kůže stehen pro měření), cloth (objekt látky), cloth_faces (plochy látky nebo None = všechny),
+#      prep_pose(callable) volitelně (např. simulace látky), name, out_dir.
+import bpy, math, json, os
+import numpy as np
+from mathutils import Vector, Matrix
+from mathutils.bvhtree import BVHTree
+SAMJ = os.environ.get("NGM_POZA_SAM", "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/C_result.json")  # 3D body SAM pro pózu běhu C
+HDRI = "D:/NGM-SKLAD/3d/polyhaven/hdri/art_studio/art_studio_1k.hdr"
+
+class Poser:
+    def __init__(s, rig, MAP):
+        s.rig, s.M, s.P = rig, MAP, rig.pose.bones
+        s.RM = rig.matrix_world; s.Mi = s.RM.inverted(); s.M3 = s.Mi.to_3x3()
+    def upd(s): bpy.context.view_layer.update()
+    def b(s, k): return s.P[s.M[k]]
+    def W(s, k): return s.RM @ s.b(k).head
+    def reset(s):
+        for pb in s.P: pb.rotation_mode = "QUATERNION"; pb.matrix_basis = Matrix.Identity(4)
+        s.upd()
+    def rot(s, k, Rw):
+        pb = s.b(k); h = pb.head.copy()
+        pb.matrix = Matrix.Translation(h) @ (s.M3 @ Rw @ s.RM.to_3x3()).to_4x4() @ Matrix.Translation(-h) @ pb.matrix; s.upd()
+    def turn(s, k, ax, deg): s.rot(k, Matrix.Rotation(math.radians(deg), 3, Vector(ax)))
+    @staticmethod
+    def frame(y, x):
+        y = y.normalized(); x = (x - y * x.dot(y)).normalized(); return Matrix((x, y, x.cross(y))).transposed()
+    def align(s, k, cy, cx, ty, tx): s.rot(k, s.frame(ty, tx) @ s.frame(cy, cx).inverted())
+    def aim(s, k, cur, tgt): s.rot(k, cur.normalized().rotation_difference(tgt.normalized()).to_matrix())
+    def legs(s, lt, lk, rt, rk):
+        s.turn("L_upleg", (1, 0, 0), -lt); s.turn("L_leg", (1, 0, 0), lk); s.turn("R_upleg", (1, 0, 0), -rt); s.turn("R_leg", (1, 0, 0), rk)
+    def arms_down(s, deg=25):
+        s.turn("L_arm", (0, 1, 0), deg); s.turn("R_arm", (0, 1, 0), -deg)
+    def sam(s):
+        R_ = json.load(open(SAMJ, encoding="utf-8")); NM = R_["metadata"]["keypoint_names"]; K3 = R_["metadata"]["people"][0]["keypoints_3d"]
+        def kp0(n):
+            x, y, z = K3[NM.index(n)]; return Vector((x, z, -y))
+        low = min(("left", "right"), key=lambda q: kp0(f"{q}-heel").z + kp0(f"{q}-big-toe-tip").z)
+        sole = (kp0(f"{low}-big-toe-tip") + kp0(f"{low}-small-toe-tip")) / 2 - kp0(f"{low}-heel")
+        RX = Matrix.Rotation(math.atan2(sole.z, -sole.y), 3, "X")
+        kp = lambda n: RX @ kp0(n)
+        hipm = (kp("left-hip") + kp("right-hip")) / 2; nk = kp("neck")
+        s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), nk - hipm, kp("left-hip") - kp("right-hip"))
+        s.align("chest", s.W("neck") - s.W("chest"), s.W("L_arm") - s.W("R_arm"), nk - hipm, kp("left-shoulder") - kp("right-shoulder"))
+        for q, Q in (("L", "left"), ("R", "right")):
+            s.align(f"{q}_arm", s.W(f"{q}_fore") - s.W(f"{q}_arm"), s.W(f"{q}_hand") - s.W(f"{q}_fore"), kp(f"{Q}-elbow") - kp(f"{Q}-shoulder"), kp(f"{Q}-wrist") - kp(f"{Q}-elbow"))
+            s.aim(f"{q}_fore", s.W(f"{q}_hand") - s.W(f"{q}_fore"), kp(f"{Q}-wrist") - kp(f"{Q}-elbow"))
+            s.align(f"{q}_upleg", s.W(f"{q}_leg") - s.W(f"{q}_upleg"), s.W(f"{q}_foot") - s.W(f"{q}_leg"), kp(f"{Q}-knee") - kp(f"{Q}-hip"), kp(f"{Q}-ankle") - kp(f"{Q}-knee"))
+            s.aim(f"{q}_leg", s.W(f"{q}_foot") - s.W(f"{q}_leg"), kp(f"{Q}-ankle") - kp(f"{Q}-knee"))
+            s.aim(f"{q}_foot", s.W(f"{q}_toe") - s.W(f"{q}_foot"), (kp(f"{Q}-big-toe-tip") + kp(f"{Q}-small-toe-tip")) / 2 - kp(f"{Q}-ankle"))
+    def ground(s, objs):
+        z = min(min((o.matrix_world @ v.co).z for v in o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh().vertices) for o in objs)
+        hp = s.b("hips"); hp.matrix = Matrix.Translation(s.M3 @ Vector((0, 0, -z))) @ hp.matrix; s.upd()
+
+POSES = [("klid", lambda p: p.arms_down(25)), ("chuze", lambda p: (p.arms_down(25), p.legs(25, 10, -20, 25))),
+         ("vypad", lambda p: (p.arms_down(25), p.legs(70, 70, -25, 10))), ("beh_C", lambda p: p.sam())]
+
+def ev_coords(o):
+    masks = [m for m in o.modifiers if m.type == "MASK" and m.show_viewport]
+    for m in masks: m.show_viewport = False                 # měří se celé tělo (indexy vrcholů), maska jen pro render
+    bpy.context.view_layer.update()
+    ev = o.evaluated_get(bpy.context.evaluated_depsgraph_get()); m = ev.to_mesh()
+    X = np.empty(len(m.vertices) * 3, np.float32); m.vertices.foreach_get("co", X); X = X.reshape(-1, 3)
+    N = np.empty(len(m.vertices) * 3, np.float32); m.vertices.foreach_get("normal", N); N = N.reshape(-1, 3)
+    polys = [p.vertices[:] for p in m.polygons]; edges = np.array([e.vertices[:] for e in m.edges])
+    Mw = np.array(o.matrix_world); X = X @ Mw[:3, :3].T + Mw[:3, 3]; N = N @ Mw[:3, :3].T
+    ev.to_mesh_clear()
+    for mm in masks: mm.show_viewport = True
+    return X, N, polys, edges
+
+def joint_radius(X, j0, j1, j2, r=0.07):
+    """Průměrná vzdálenost kůže od osy kostí v okolí kloubu (loket/koleno)."""
+    out = []
+    for a_, b_ in ((j0, j1), (j1, j2)):
+        ab = b_ - a_; t = np.clip(((X - a_) @ ab) / (ab @ ab), 0, 1); d = np.linalg.norm(X - (a_ + t[:, None] * ab), axis=1); out.append(d)
+    d = np.minimum(*out); near = np.linalg.norm(X - j1, axis=1) < r
+    return float(np.mean(d[near])) if near.any() else float("nan")
+
+def run_all(ctx):
+    rig, MAP, body, cloth = ctx["rig"], ctx["MAP"], ctx["body"], ctx["cloth"]
+    p = Poser(rig, MAP); sc = bpy.context.scene; res = {}
+    p.reset(); bpy.context.view_layer.update()
+    Xr, _, _, Er = ev_coords(cloth); cf = ctx.get("cloth_faces")
+    Brest, _, _, _ = ev_coords(body)
+    def joints():
+        return {q: [np.array(p.W(f"{q}_{a}")) for a in t] for q, t in (("L", ("arm", "fore", "hand")), ("R", ("arm", "fore", "hand")))} | \
+               {"K" + q: [np.array(p.W(f"{q}_{a}")) for a in ("upleg", "leg", "foot")] for q in ("L", "R")}
+    J0 = joints(); R0 = {k: joint_radius(Brest, *v) for k, v in J0.items()}
+    ce = ctx.get("cloth_edges"); Er = Er if ce is None else ce
+    rest_len = np.linalg.norm(Xr[Er[:, 0]] - Xr[Er[:, 1]], axis=1)
+    skin = ctx["skin_idx"]
+    os.makedirs(ctx["out_dir"], exist_ok=True)
+    setup_render(sc)
+    for pn, pf in POSES:
+        p.reset(); pf(p); p.ground(ctx.get("ground_objs", [body]))
+        if ctx.get("prep_pose"): ctx["prep_pose"](pn)
+        X, N, polys, _ = ev_coords(body); C, _, cpolys, _ = ev_coords(cloth)
+        tb = BVHTree.FromPolygons([tuple(x) for x in C], cpolys if cf is None else [cpolys[i] for i in cf])
+        poke = sum(1 for v in skin if tb.ray_cast(Vector(X[v]) - Vector(N[v]) * 0.001, -Vector(N[v]), 0.04)[0] is not None)
+        L = np.linalg.norm(C[Er[:, 0]] - C[Er[:, 1]], axis=1) / np.maximum(rest_len, 1e-6)
+        J = joints(); vol = {k: round(joint_radius(X, *J[k]) / R0[k], 2) for k in J}
+        res[pn] = {"kuze_skrz_latku": poke, "trhliny_hran": int((L > 1.6).sum()), "natazeni_p999": round(float(np.percentile(L, 99.9)), 2), "objem_kloubu": vol}
+        print("INFO", ctx["name"], pn, res[pn], flush=True)
+        for vv, d in {"zepredu": (0.25, -1, 0.08), "zboku": (1, 0, 0.05)}.items():
+            shot(sc, os.path.join(ctx["out_dir"], f"{pn}-{vv}.png"), d)
+    json.dump(res, open(os.path.join(ctx["out_dir"], "mereni.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    return res
+
+def setup_render(sc):
+    sc.render.engine = "CYCLES"; sc.cycles.device = "CPU"; sc.cycles.samples = 32; sc.cycles.use_denoising = True; sc.view_settings.view_transform = "Standard"
+    wd = bpy.data.worlds.new("svet_test"); sc.world = wd; wd.use_nodes = True
+    env = wd.node_tree.nodes.new("ShaderNodeTexEnvironment"); env.image = bpy.data.images.load(HDRI)
+    bg = wd.node_tree.nodes["Background"]; wd.node_tree.links.new(env.outputs["Color"], bg.inputs["Color"])
+    # světlo z HDRI, ale za postavou jednolitá šedá
+    lp = wd.node_tree.nodes.new("ShaderNodeLightPath"); mx = wd.node_tree.nodes.new("ShaderNodeMixShader"); gray = wd.node_tree.nodes.new("ShaderNodeBackground")
+    gray.inputs[0].default_value = (0.36, 0.38, 0.37, 1); out = wd.node_tree.nodes["World Output"]
+    wd.node_tree.links.new(lp.outputs["Is Camera Ray"], mx.inputs[0]); wd.node_tree.links.new(bg.outputs[0], mx.inputs[1]); wd.node_tree.links.new(gray.outputs[0], mx.inputs[2])
+    wd.node_tree.links.new(mx.outputs[0], out.inputs[0])
+    cam = bpy.data.objects.new("cam_test", bpy.data.cameras.new("cam_test")); cam.data.type = "ORTHO"; sc.collection.objects.link(cam); sc.camera = cam
+
+def shot(sc, path, d, scale=2.0, ctr=(0, 0, 0.86)):
+    cam = sc.camera; sc.render.resolution_x, sc.render.resolution_y = 700, 900
+    dv = Vector(d).normalized(); cam.data.ortho_scale = scale
+    cam.location = Vector(ctr) + dv * 6; cam.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
+    sc.render.filepath = path; bpy.ops.render.render(write_still=True)

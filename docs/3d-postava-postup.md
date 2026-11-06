@@ -75,3 +75,31 @@ Pugio v10 vypadalo zepředu dobře, zezadu odstávalo od boku a rukojeť vedla d
 ## Nechtěný díl z generátoru vyřízni a díru zacel vějířem
 
 Vtlačení dílu do těla nechá zmuchlaný zbytek. Díl, který leží těsně u povrchu, podle vzdálenosti od osy nenajdeš. Pomůže mapa hloubky paprsků z kamery: zbytek, opasek, zbroj a paže mají každý jinou hloubku. Po smazání `holes_fill` a `triangle_fill` u zubatých okrajů selhávají (díra, nebo plochy přes celé tělo). Spolehlivý je vějíř: pro každou souvislou skupinu okrajových hran jeden nový vrchol ve středu (zasunutý pod povrch), trojúhelník na hranu, jedna UV pro celý vějíř a krátké vyhlazení okolí. Ověř 0 otevřených hran a prohlédni i `viewer.glb` (hlína ve Studiu).
+
+
+## Postava s kostrou a výstrojí po dílech (legionář do póz, 2026-11-06)
+
+Pro postavu, která se má hýbat, se hotový slitý model nepoužívá. Skládá se z vrstev a každá vrstva je samostatný objekt:
+
+| Vrstva | Odkud | Jak se hýbe |
+|---|---|---|
+| Tělo | MPFB2 (`telo_v1.blend`), kostra se 163 kostmi včetně prstů | váhy MPFB, `Corrective Smooth` v kloubech |
+| Tunika, rukávy, šátek | čistá látka z prstenců podle tvaru původní tuniky, kolem paže a krku | sukně simulace látky se srážkou s nohama, rukávy a šátek váhy z těla |
+| Přilba, lorica, opasek | **každý díl zvlášť z generátoru** (níže) | napevno na kost: přilba `head`, opasek `root`, lorica páteř a ramenní pláty `shoulder01` |
+| Sandály | vyříznuté z původního modelu (zatím) | váhy chodidla a lýtka |
+
+### Výstroj po dílech
+
+Díl se nevyřezává ze slité postavy: řez vede tam, kde žádná hrana nebyla, a zůstanou zubaté okraje a třísky (LEARNINGS 2026-11-06).
+
+1. **Zadání** `scripts/3d/postava/vystroj_<postava>.json`: složka podkladu (`ref-front.png`, `ref-back.png`, `ref-right.png` celé postavy), pro každý díl popis anglicky a obdélník výřezu v každém pohledu. Díly dělit, jak se oblékají: lorica i s ramenními pláty je jeden díl. Vzor `vystroj_legionar.json`.
+2. **Čisté pohledy, 0 USD:** `python scripts/3d/postava/vystroj_dily.py vyrez <zadání>`. Lokální FLUX udělá z výřezu samotný předmět na bílém (role `subject`, ne `geometry`, jinak zkopíruje i hlavu a tělo).
+3. **Prohlídka pohledů.** FLUX u pohledu zezadu vymýšlí: přidá díl, který z té strany není vidět (zástěru opasku), nebo mezeru mezi kusy. Takový pohled dostane v zadání `popis_pohled` (co z té strany vidět je a není) a jiný `seed_pohled`, `vyrez --dil <díl>` ho udělá znovu.
+4. **Model dílu, placené:** `vystroj_dily.py generuj <zadání> --confirm-cost`, Hunyuan3D v3 `Normal` se třemi pohledy, **0,525 USD za díl** (0,375 je jen bílý tvar bez barvy). Jen se souhlasem operátora a s cenou předem.
+5. **Prohlídka modelu** ze 4 stran: celé okraje, nic navíc, předek ve směru −Y.
+6. **Postava:** `scripts/3d/postava/kostra/postava_s_vystroji.py` (spouštět pod zámkem těžké práce, `BLENDER_USER_RESOURCES=run/mpfb_profil`), díly dosazuje `nahrad_vystroj.py`: nový díl se srovná na obálku původního místa (percentily 1–99, rovnoměrně, osa smí uhnout nejvýš o 10 %), lesk kovu se dopočítá z barvy textury. **Přilba se usazuje podle hlavy, ne podle místa staré přilby:** na přilbě se najde výřez pro ucho (nejvyšší bod spodního okraje boku) a čelní lem, na hlavě ucho (materiál `ears` MPFB) a obočí (objekt `eyebrow`); hledá se zvětšení (1,00–1,10), náklon, posun dopředu a výška, aby výřez ležel nad uchem a lem 1,2 cm nad obočím, a z nejlépe sedících se vezme první, která zakryje temeno (paprsek od středu lebky přes horních 7 cm hlavy musí narazit na přilbu). Legionář: zvětšení 1,08, 2,5 cm dopředu, 1 cm dolů, odchylka 0,5 cm. Rychlá kontrola bez simulace a póz: `JEN_PRILBA=1` vyrenderuje jen hlavu ze tří stran (asi 3 minuty).
+7. **Test:** 4 pózy (klid, chůze, výpad, běh podle předlohy), měření kůže skrz látku, trhlin hran a objemu kloubů (`kostra/spolecny.py`) a výřezy hlavy, trupu, pasu a nohou ze čtyř stran ve 100 %. Hotovo je až s nulou v měření **a** prohlédnutými výřezy: měření vady na plechu ani na šátku nevidí.
+
+Data legionáře: `library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/` (tělo, kostra, štítky dílů, póza z SAM) a `…/vystroj/<díl>/` (výřezy, pohledy, `model.glb`, `request.json`). Utraceno za výstroj 1,58 USD.
+
+Pod zbrojí se tělo neskrývá (díry ukážou vnitřek těla). Trup dostane látku tuniky a u plechu se zatlačí pod něj, jen nad opaskem.
