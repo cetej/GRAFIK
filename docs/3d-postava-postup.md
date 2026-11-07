@@ -122,3 +122,10 @@ Pózu se štítem staví kód podle toho, jak štít drží dnešní rekonstrukt
 Zdroje: [Roman Army Talk, vlákno 5436](https://www.romanarmytalk.com/rat/printthread.php?tid=5436), [vlákno 3868](https://www.romanarmytalk.com/rat/printthread.php?tid=3868), [romanobritain.org](https://romanobritain.org/8-military/mil_roman_soldier_shield.php). Fórum píšou rekonstruktéři, nejde o odbornou literaturu. Podrobnější zdroj je Junkelmann, *Die Legionen des Augustus*, kterého nemám v ruce.
 
 **Póza ze SAM není póza z boje.** SAM přečte z malby i podřep, který na postavě vypadá jako pád (operátor u hodu B: „spíš padá, než že je v nápřahu“). Hod proto skládá kód (`Poser.naprah` v `kostra/spolecny.py`). Směr hodu vede od zadního chodidla k přednímu. Zadní noha je natažená na 97 % délky a nese váhu, přední vykročí o 0,8 m. Pravá ruka s pilem jde dozadu nad rameno, ramena stojí bokem. Boky a ramena se smí vůči sobě natočit nejvýš asi o 10°: při 29° se tuhá lorica vzadu rozestoupila a spodní pláty sjely.
+
+**Nápřah podle fotky, ne z hlavy (2026-11-07).** Vzor je rekonstruktér z Caerleonu ([caerleon.net](https://www.caerleon.net/history/army/pilum.htm), foto Roy Edwards), technika z trenérských podkladů pro oštěp ([Athletics Weekly](https://athleticsweekly.com/performance/training-cat/coaching/goldie-sayers-coaching-javelin-technique-68793/), [Athletics SA](https://www.athleticssa.org.za/SportsInfo/Coaching-Javelin-Throw.pdf)).
+- Pilum leží těsně u hlavy, pěst je u lícní kosti, loket vzadu a dole. Ruka není vztyčená nad hlavou.
+- Štít je u těla a kryje levý bok, líc je natočený napůl k cíli. Štít netrčí půl metru do strany.
+- Obě kolena jsou pokrčená a váha je vzadu, trup se jen lehce sklání za štít.
+- Pilum míří k cíli (od zadního chodidla k přednímu), ne podle líce štítu. Sklon je asi 27°.
+- **Úchop:** dřík leží v dlani podél kloubů. Zápěstí se natočí tak, aby osa sevřené pěsti šla podél dříku, ještě než se prsty sevřou. Když pěst stojí napříč dříku, ruka zbraň nedrží (operátor: „spíš neúchop“).

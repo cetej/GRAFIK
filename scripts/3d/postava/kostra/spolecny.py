@@ -80,7 +80,7 @@ class Poser:
         # Nohy podle fáze (NGM_FAZE): „naprah“ = váha vzadu, zadní koleno pokrčené, přední noha natažená a zapřená, trup lehce v záklonu;
         # „vypad“ = jako předloha B: zadní noha natažená po odrazu, přední vykročená a pokrčená.
         naprah = os.environ.get("NGM_FAZE", "naprah") == "naprah"
-        lean, krok, vaha, zadni = (0.15, 0.30, 0.20, 0.88) if naprah else (0.08, 0.40, 0.12, 0.97)
+        lean, krok, vaha, zadni = (-0.04, 0.36, 0.18, 0.86) if naprah else (0.08, 0.40, 0.12, 0.97)
         Z = Vector((0, 0, 1)); D = s.W("L_foot") - s.W("R_foot"); D.z = 0; D.normalize(); Fc = D.cross(Z)   # Fc = kam míří hrudník (levý bok k D)
         M = (s.W("L_foot") + s.W("R_foot")) / 2; M.z = 0
         s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), Z - D * lean, D * math.cos(0.30) - Fc * math.sin(0.30))   # kroucení boky–ramena jen ~10°: tuhá lorica víc nesnese (rozestoupí se)
@@ -98,9 +98,9 @@ class Poser:
         for q, h_ in (("L", D), ("R", Tr)):
             r0 = s.RM.to_3x3() @ (B[s.M[f"{q}_toe"]].head_local - B[s.M[f"{q}_foot"]].head_local)
             s.aim(f"{q}_foot", s.W(f"{q}_toe") - s.W(f"{q}_foot"), h_ * Vector((r0.x, r0.y, 0)).length + Vector((0, 0, r0.z)))
-        Ra = s.W("R_arm")                                 # nadloktí zhruba vodorovně dozadu, loket pokrčený, pěst nad ramenem vedle hlavy
-        s.ik("R_arm", "R_fore", "R_hand", Ra - D * 0.12 + Z * 0.26 + Fc * 0.10, -D - Z * 0.25)
-        La = s.W("L_arm"); s.ik("L_arm", "L_fore", "L_hand", La + D * 0.35 - Z * 0.25, Vector((0, 0, -1)) + Fc * 0.3)
+        hl = s.W("neck") + Z * 0.12                          # vzor: rekonstruktér v Caerleonu (foto Roy Edwards) — pěst u lícní kosti vedle hlavy,
+        s.ik("R_arm", "R_fore", "R_hand", hl - D * 0.14 + Fc * 0.12, -D - Z * 0.6)   # loket vzadu a dole, pilum leží těsně u hlavy
+        La = s.W("L_arm"); s.ik("L_arm", "L_fore", "L_hand", La + (D * 0.8 + Fc * 0.6) * 0.28 - Z * 0.25, Vector((0, 0, -1)) + D * 0.3)   # štít u těla, napůl k cíli (vzor)
     def ground(s, objs):
         z = min(min((o.matrix_world @ v.co).z for v in o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh().vertices) for o in objs)
         hp = s.b("hips"); hp.matrix = Matrix.Translation(s.M3 @ Vector((0, 0, -z))) @ hp.matrix; s.upd()

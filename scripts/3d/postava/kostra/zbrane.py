@@ -4,7 +4,7 @@ ZBR = os.path.join(os.path.dirname(VYSTROJ), "zbrane")
 DELKA = {"pilum": 2.0, "gladius": 0.65, "scutum": 1.05}          # celková délka, štít výška (formát 1,05 × 0,58 m, prohnutí 18 cm vybral operátor 2026-11-07 na postavě)
 # póza -> ruka -> (zbraň, kam míří hrot); štít vždy levou rukou, lícem od těla
 # hrot: "nahoru" = svisle, číslo = míří tam, kam líc štítu (k nepříteli), zvednutý o tolik (B hod nahoru, C běh s hrotem dolů)
-ZBR_POZY = {"stoj_A": {"R": ("pilum", "nahoru"), "L": ("scutum", None)}, "hod_B": {"R": ("pilum", 0.4), "L": ("scutum", None)},
+ZBR_POZY = {"stoj_A": {"R": ("pilum", "nahoru"), "L": ("scutum", None)}, "hod_B": {"R": ("pilum", 0.5), "L": ("scutum", None)},
             "beh_C": {"R": ("pilum", -0.3), "L": ("scutum", None)}, "bod_D": {"R": ("gladius", 0.0), "L": ("scutum", None)}}
 PEST = {1: 75, 2: 95, 3: 60}                                     # sevřená pěst kolem násady, palec poloviční
 ZB = {}; ZB_STITY = []
@@ -169,9 +169,16 @@ def zbr_ruce(pn):
     elif ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum":       # boj (rekonstruktéři): horní hrana štítu pod očima, pěst ve stejném směru od hrudi
         p_ = Poser(rig, MAP); M = rig.matrix_world
         oci = (M @ rig.pose.bones["head"].head).z + 0.09; hrud = p_.W("chest"); w = p_.W("L_hand") - hrud; w.z = 0
-        T = hrud + w.normalized() * max(0.30, min(0.45, w.length)); T.z = oci - 0.03 - DELKA["scutum"] / 2
+        T = hrud + w.normalized() * max(0.25, min(0.45, w.length)); T.z = oci - 0.03 - DELKA["scutum"] / 2
         _ik(p_, "L", T)
         print("INFO", pn, "pest z", round(T.z, 2), "horni hrana stitu", round(T.z + DELKA["scutum"] / 2, 2), "oci", round(oci, 2), flush=True)
+    R_ = ZBR_POZY.get(pn, {}).get("R")
+    if R_ and R_[0] == "pilum" and pn == "hod_B":   # úchop: dřík leží v dlani podél kloubů, zápěstí se natočí k pilu
+        M = rig.matrix_world; Fh = M @ rig.pose.bones["foot.L"].head - M @ rig.pose.bones["foot.R"].head; Fh.z = 0   # (operátor: pěst napříč dříku = „neúchop“)
+        X = (Fh.normalized() + Vector((0, 0, R_[1]))).normalized()
+        p_ = Poser(rig, MAP); _, osa, _ = _ruka("R"); osa = osa if osa.dot(X) >= 0 else -osa
+        p_.rot("R_hand", osa.rotation_difference(X).to_matrix())
+        print("INFO", pn, "zapesti k pilu, odchylka osy pesti deg", round(math.degrees(_ruka("R")[1].angle(X) if _ruka("R")[1].dot(X) >= 0 else (-_ruka("R")[1]).angle(X)), 1), flush=True)
     for sd, (d, _) in ZBR_POZY.get(pn, {}).items():
         if d not in ZB: continue
         for pb in rig.pose.bones:
@@ -196,7 +203,10 @@ def zbr_umisti(pn):
             if d == "gladius":                                            # bodnutí: čepel prodlužuje předloktí
                 X = (G - rig.matrix_world @ rig.pose.bones[f"lowerarm01.{sd}"].head).normalized()
             else:                                                         # hod a běh: hrot tam, kam líc štítu (k nepříteli); osa pěsti je napříč a o směru nerozhodne
-                X = (F + Vector((0, 0, hrot))).normalized()
+                Fh = F
+                if pn == "hod_B":                                         # hod: k cíli = od zadního chodidla k přednímu, ne podle líce štítu (ten je napůl dopředu)
+                    Fh = rig.matrix_world @ rig.pose.bones["foot.L"].head - rig.matrix_world @ rig.pose.bones["foot.R"].head; Fh.z = 0; Fh.normalize()
+                X = (Fh + Vector((0, 0, hrot))).normalized()
             Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
         R = Matrix((X, Y, Z)).transposed().to_4x4()
         o.matrix_world = Matrix.Translation(G) @ R @ Matrix.Translation(-ZB[d]["uchop"])
