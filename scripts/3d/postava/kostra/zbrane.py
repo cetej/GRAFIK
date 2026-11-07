@@ -157,13 +157,9 @@ def _vpred():
     v = lev.cross(Vector((0, 0, 1))); v.z = 0                         # vpřed = kolmo na spojnici kyčlí (osy kořenové kosti MPFB míří podél páteře)
     return v.normalized() if v.length > 1e-6 else Vector((0, -1, 0))
 
-def _ik(p_, sd, T):                                                 # dvoukloubová paže: zápěstí do T, loket dolů a ven
-    S = p_.W(f"{sd}_arm"); a = (p_.W(f"{sd}_fore") - S).length; b = (p_.W(f"{sd}_hand") - p_.W(f"{sd}_fore")).length
-    u = T - S; d = min(u.length, (a + b) * 0.995); u.normalize()
-    ven = (S - p_.W("chest")); ven.z = 0; pole = (Vector((0, 0, -1)) + ven.normalized() * 0.5); v = (pole - u * pole.dot(u)).normalized()
-    ca = (a * a + d * d - b * b) / (2 * a * d); E = S + u * a * ca + v * a * math.sqrt(max(0.0, 1 - ca * ca))
-    p_.aim(f"{sd}_arm", p_.W(f"{sd}_fore") - S, E - S); p_.upd()
-    p_.aim(f"{sd}_fore", p_.W(f"{sd}_hand") - p_.W(f"{sd}_fore"), (S + u * d) - p_.W(f"{sd}_fore")); p_.upd()
+def _ik(p_, sd, T):                                                 # paže: zápěstí do T, loket dolů a ven
+    ven = p_.W(f"{sd}_arm") - p_.W("chest"); ven.z = 0
+    p_.ik(f"{sd}_arm", f"{sd}_fore", f"{sd}_hand", T, Vector((0, 0, -1)) + ven.normalized() * 0.5)
 
 def zbr_ruce(pn):
     if pn == "stoj_A":                                                # stoj (předloha A, rekonstruktéři): vodorovné držadlo jako kufr, paže volně dolů, štít před levým stehnem
