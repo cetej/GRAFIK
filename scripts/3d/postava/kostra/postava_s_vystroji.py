@@ -205,7 +205,7 @@ tun = parts["tunika"]
 # výšky podle předlohy ve stejném měřítku (ref-front vedle renderu, 2026-11-06): spodek loriky 0,99 m, střed opasku 0,98 m,
 # lem tuniky 0,575 m u postavy s kolenem 0,483 m; rukáv 17 cm od ramenního kloubu.
 KOLENO = mp("lowerleg01.L").z; BELT_C = KOLENO + 0.497; HEM = KOLENO + 0.102; LORICA_DOLE = KOLENO + 0.507   # HEM +1 cm na prověšení látky
-RUKAV = 0.24; ZTOP = mp("neck01").z - 0.015
+RUKAV = 0.17; ZTOP = mp("neck01").z - 0.015
 z0 = HEM; z1 = BELT_C + 0.01; hzp = z1; NA = 96
 _em = body.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh(); _polys = [p_.vertices[:] for p_ in _em.polygons]
 def _sd(P_, a_, b_):
@@ -249,7 +249,7 @@ SLV = {}
 for sd in ("L", "R"):
     S0 = mp(f"upperarm01.{sd}"); ax = (mp(f"lowerarm01.{sd}") - S0).normalized(); u = ax.cross(Vector((0, 1, 0))).normalized(); v_ = ax.cross(u).normalized()
     ts = np.arange(-0.06, RUKAV + 1e-6, 0.01); cs = [S0 + ax * float(t) for t in ts]
-    rr = np.array([[min(_ray_far(abvh, c, (u * math.cos(2 * math.pi * j / 48) + v_ * math.sin(2 * math.pi * j / 48)).normalized(), 0.07) or 0.05, 0.07) + 0.03 + 0.025 * max(float(t), 0) / RUKAV for j in range(48)] for c, t in zip(cs, ts)])   # volný rukáv, k okraji širší (předloha)
+    rr = np.array([[min(_ray_far(abvh, c, (u * math.cos(2 * math.pi * j / 48) + v_ * math.sin(2 * math.pi * j / 48)).normalized(), 0.07) or 0.05, 0.07) + 0.012 + 0.008 * max(float(t), 0) / RUKAV for j in range(48)] for c, t in zip(cs, ts)])   # rukáv 1,2–2 cm od paže (3–5,5 cm trčel jako zvon, operátor)
     tubes.append(_tube(f"tunika_rukav_{sd}", cs, [u] * len(ts), [v_] * len(ts), rr)); SLV[sd] = (S0, ax)
 sel(tubes); bpy.ops.object.join(); cl = bpy.context.view_layer.objects.active; cl.name = "tunika_latka"
 rm_ = cl.modifiers.new("slouceni", "REMESH"); rm_.mode = "VOXEL"; rm_.voxel_size = 0.010; sel([cl]); bpy.ops.object.modifier_apply(modifier="slouceni")
@@ -277,6 +277,7 @@ for g in list(cl.vertex_groups): g.remove(below)
 cl.parent = rig; am = cl.modifiers.new("kostra", "ARMATURE"); am.object = rig
 pin = cl.vertex_groups.new(name="pin")
 for v in cl.data.vertices: pin.add([v.index], float(np.clip((v.co.z - (BELT_C - 0.09)) / 0.07, 0, 1)), "REPLACE")   # nad opaskem drží tělo
+# rukáv zůstává připnutý: volný rukáv se v simulaci roztrhal (natažení hran 25×); proti trčení pomohl úzký a krátký rukáv
 cm = cl.modifiers.new("latka", "CLOTH"); s_ = cm.settings
 s_.quality = 12; s_.mass = 0.25; s_.tension_stiffness = 80; s_.compression_stiffness = 80; s_.shear_stiffness = 20; s_.bending_stiffness = 2.0   # tužší: měkká látka se prověsila o 9 cm
 s_.air_damping = 2.0; s_.vertex_group_mass = "pin"; s_.pin_stiffness = 1.0
@@ -395,6 +396,21 @@ for v in cl.data.vertices:
         rb_ = _ray_far(abvh2, c, d, L_ + 0.02); tgt_ = max((hit - c).length - 0.005, rb_ + 0.008)
         v.co = MWti @ (c + d * tgt_); ntp += 1
 cl.data.update(); print("INFO tunika zatlacena pod plech", ntp, flush=True)
+# látka trupu pod plechem pryč: zatlačená prolézala mezerami mezi pláty jako cáry (operátor: „tunika je děsná“).
+# Trup těla pod lorikou má materiál tuniky, takže mezery mezi pláty zůstanou červené. Rukávy a lem u krku zůstávají.
+_kill = set()
+for v in cl.data.vertices:
+    p_ = MWt @ v.co
+    if p_.z < ZBELT + 0.01: continue
+    if any((p_ - S0).dot(ax) > -0.01 and (p_ - (S0 + ax * (p_ - S0).dot(ax))).length < 0.13 for S0, ax in SLV.values()): continue
+    c = _s0 + _sa * (p_ - _s0).dot(_sa); L_ = (p_ - c).length
+    if L_ < 1e-4: continue
+    d = (p_ - c) / L_; hit = BVa.ray_cast(c, d, L_ + 0.04)[0]
+    if hit is not None: _kill.add(v.index)
+bm = bmesh.new(); bm.from_mesh(cl.data); bm.verts.ensure_lookup_table()
+bmesh.ops.delete(bm, geom=[f for f in bm.faces if all(v_.index in _kill for v_ in f.verts)], context="FACES")
+bmesh.ops.delete(bm, geom=[v_ for v_ in bm.verts if not v_.link_faces], context="VERTS")
+bm.to_mesh(cl.data); bm.free(); cl.data.update(); print("INFO tunika pod plechem smazana vrcholu", len(_kill), flush=True)
 print("INFO trup jako tunika vrcholu", len(ids), flush=True)
 # kůže: póry a méně vosku (MPFB textura je jen barva)
 for m in body.data.materials:

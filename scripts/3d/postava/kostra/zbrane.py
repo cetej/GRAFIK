@@ -169,9 +169,11 @@ def _uchop(sd, R):
 
 def _od_osy(p, G, a): v = p - G; return (v - a * v.dot(a)).length
 
+OSA_ZBRANE = {}                                                     # konečný směr zbraně v ruce (po dorovnání), podle něj se svírají prsty
+
 def _sevri(sd, R):
     # každý prst (i palec) se pokrčí jen tak, aby se dotkl dříku: kost prstu PRST nad povrchem
-    G, a, _ = _uchop(sd, R); P = rig.pose.bones; M = rig.matrix_world; mez = {}
+    G, a, _ = _uchop(sd, R); a = OSA_ZBRANE.get(sd, a); P = rig.pose.bones; M = rig.matrix_world; mez = {}
     for i in range(1, 6):
         kosti = [P[f"finger{i}-{j}.{sd}"] for j in (1, 2, 3)]; zakl = 0.6 if i == 1 else 1.0; nejlepsi = 0.15
         for c in [x / 20 for x in range(3, 29)]:                     # 0,15–1,40 × PEST
@@ -200,25 +202,51 @@ def _ik(p_, sd, T):                                                 # paže: zá
 def _smer_hodu(pn):                                                 # směr hodu z Poser.naprah (od zadního chodidla k přednímu)
     return Vector(rig["smer_hodu"]) if "smer_hodu" in rig else _vpred()
 
-def _stit_F(pn):                                                    # líc štítu: u A dopředu, v boji vodorovně od hrudníku přes levou pěst
+NATOCENI_STITU = {"beh_C": 35}                                       # ° k levému boku: předloha C drží štít šikmo, kryje i levý bok
+
+def _stit_F(pn, syrovy=False):                                       # líc štítu: u A dopředu, v boji vodorovně od hrudníku přes levou pěst
     if pn == "stoj_A": return _vpred()
     F = _ruka("L")[0] - rig.matrix_world @ rig.pose.bones["spine03"].head; F.z = 0
-    return F.normalized() if F.length > 1e-6 else _vpred()
+    F = F.normalized() if F.length > 1e-6 else _vpred()
+    if syrovy or pn not in NATOCENI_STITU: return F
+    return Matrix.Rotation(math.radians(NATOCENI_STITU[pn]), 3, "Z") @ _vpred()   # od směru pohybu; ke směru pěsti se úhel načítal (štít bokem)
 
 def _stit_mw(pn):
     F = _stit_F(pn); Z = Vector((0, 0, 1)); Y = -F; X = Y.cross(Z)
     return Matrix.Translation(_uchop("L", POLOMER["scutum"])[0]) @ Matrix((X, Y, Z)).transposed().to_4x4() @ Matrix.Translation(-ZB["scutum"]["uchop"]), F
 
+def _loket_k_zbrani(sd, X):
+    # Těžkou zbraň nese ruka s rovným zápěstím: dřík leží napříč předloktí. Pěst zůstane, kde je, a loket se na kružnici IK
+    # postaví tak, aby předloktí bylo kolmé na zbraň, pod ramenem, mimo trup a co nejblíž původní póze (operátor: „lámeš zápěstí“).
+    pb = rig.pose.bones[f"wrist.{sd}"]; pb.rotation_mode = "QUATERNION"; pb.rotation_quaternion = Quaternion()   # zápěstí rovně (SAM nechal dlaň ohnutou o ~40°)
+    bpy.context.view_layer.update()
+    p_ = Poser(rig, MAP); Z = Vector((0, 0, 1)); S = p_.W(f"{sd}_arm"); T = p_.W(f"{sd}_hand"); E0 = p_.W(f"{sd}_fore")
+    f0 = (T - E0).normalized(); c0 = abs(f0.dot(_uchop(sd, 0.015)[1]))   # osa úchopu jde přes dlaň šikmo: při rovném zápěstí svírá s předloktím tento úhel
+    u = (T - S).normalized(); e1 = (Z - u * u.dot(Z)).normalized(); e2 = u.cross(e1); hr = p_.W("chest"); best = None
+    for k in range(72):
+        pole = e1 * math.cos(k * math.pi / 36) + e2 * math.sin(k * math.pi / 36)
+        E, T_ = p_.loket(f"{sd}_arm", f"{sd}_fore", f"{sd}_hand", T, pole); f = (T_ - E).normalized(); dh = E - hr; dh.z = 0
+        pen = max(0.0, abs(abs(f.dot(X)) - c0) - math.sin(math.radians(10))) + 2 * max(0.0, E.z - (S.z - 0.05)) + (1.0 if dh.length < 0.17 else 0.0) + 0.8 * (E - E0).length
+        if best is None or pen < best[0]: best = (pen, pole)
+    p_.ik(f"{sd}_arm", f"{sd}_fore", f"{sd}_hand", T, best[1])
+
+def _ohnuti(sd):                                                     # úhel ruky (zápěstí → kloub prostředníčku) k předloktí
+    M = rig.matrix_world; P = rig.pose.bones
+    f = M @ P[f"wrist.{sd}"].head - M @ P[f"lowerarm01.{sd}"].head; r = M @ P[f"finger3-1.{sd}"].head - M @ P[f"wrist.{sd}"].head
+    return round(math.degrees(f.angle(r)), 1)
+
 def _ruka_k_drzadlu(pn):                                             # klouby pěsti podél vodorovného držadla, ruka jen otočená kolem předloktí
     M = rig.matrix_world; P = rig.pose.bones; Xb = _stit_F(pn).cross(Vector((0, 0, 1)))
+    if pn != "stoj_A": _loket_k_zbrani("L", Xb)                       # u stoje visí paže volně dolů (rekonstruktéři), loket se nehledá
     f = (M @ P["wrist.L"].head - M @ P["lowerarm01.L"].head).normalized(); Xp = (Xb - f * Xb.dot(f)).normalized()
-    p_ = Poser(rig, MAP); osa = _uchop("L", POLOMER["scutum"])[1]; osa = osa if osa.dot(Xp) >= 0 else -osa
-    p_.rot("L_hand", osa.rotation_difference(Xp).to_matrix())
+    p_ = Poser(rig, MAP); osa = _uchop("L", POLOMER["scutum"])[1]; osa = (osa - f * osa.dot(f)).normalized(); osa = osa if osa.dot(Xp) >= 0 else -osa
+    p_.rot("L_hand", osa.rotation_difference(Xp).to_matrix())   # jen otočení kolem předloktí (šikmá osa úchopu jinak ohnula zápěstí o 39°)
     osa = _uchop("L", POLOMER["scutum"])[1]; osa = osa if osa.dot(Xb) >= 0 else -osa; q_ = osa.rotation_difference(Xb)   # zbytek: úklon zápěstí, nejvýš 20°
-    if q_.angle > 1e-4: p_.rot("L_hand", Quaternion(q_.axis, min(q_.angle, math.radians(20))).to_matrix())
+    if q_.angle > 1e-4: p_.rot("L_hand", Quaternion(q_.axis, min(q_.angle, math.radians(25))).to_matrix())   # úklon zápěstí do 25° (palcem ~20°, malíčkem ~30°)
     o2 = _uchop("L", POLOMER["scutum"])[1]; return round(math.degrees(min(o2.angle(Xb), (-o2).angle(Xb))), 1)
 
 def zbr_ruce(pn):
+    OSA_ZBRANE.clear()
     if pn == "stoj_A":                                                # stoj (předloha A, rekonstruktéři): vodorovné držadlo jako kufr, paže volně dolů, štít před levým stehnem
         p_ = Poser(rig, MAP); f_ = _vpred(); lev = Vector((0, 0, 1)).cross(f_)
         p_.aim("L_arm", p_.W("L_fore") - p_.W("L_arm"), (Vector((0, 0, -1)) + lev * 0.12 + f_ * 0.15).normalized())
@@ -232,17 +260,20 @@ def zbr_ruce(pn):
     if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum": _ruka_k_drzadlu(pn)
     R_ = ZBR_POZY.get(pn, {}).get("R")
     if R_ and R_[0] == "pilum":                                       # úchop: dřík leží v dlani, ruka se natočí k pilu (každá póza s pilem)
-        X = Vector((0, 0, 1)) if R_[1] == "nahoru" else ((_smer_hodu(pn) if pn == "hod_B" else _stit_F(pn)) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
+        X = Vector((0, 0, 1)) if R_[1] == "nahoru" else ((_smer_hodu(pn) if pn == "hod_B" else _stit_F(pn, True)) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
+        _loket_k_zbrani("R", X)                                       # i u stoje: loket kousek posunout je přirozenější než lámat zápěstí
         M = rig.matrix_world; P = rig.pose.bones; f = (M @ P["wrist.R"].head - M @ P["lowerarm01.R"].head).normalized()
         Xp = (X - f * X.dot(f)).normalized()                        # jen otočení kolem předloktí: loket postavil Poser.naprah kolmo na pilum
-        p_ = Poser(rig, MAP); osa = _uchop("R", POLOMER["pilum"])[1]; osa = osa if osa.dot(Xp) >= 0 else -osa
+        p_ = Poser(rig, MAP); osa = _uchop("R", POLOMER["pilum"])[1]; osa = (osa - f * osa.dot(f)).normalized(); osa = osa if osa.dot(Xp) >= 0 else -osa
         p_.rot("R_hand", osa.rotation_difference(Xp).to_matrix())
-        osa = _uchop("R", POLOMER["pilum"])[1]; osa = osa if osa.dot(X) >= 0 else -osa; p_.rot("R_hand", osa.rotation_difference(X).to_matrix())   # zbytek = úklon zápěstí
+        osa = _uchop("R", POLOMER["pilum"])[1]; osa = osa if osa.dot(X) >= 0 else -osa; q_ = osa.rotation_difference(X)   # zbytek = úklon zápěstí, nejvýš 15°
+        if q_.angle > 1e-4: p_.rot("R_hand", Quaternion(q_.axis, min(q_.angle, math.radians(25))).to_matrix())
         ruka = (M @ P["finger3-1.R"].head - M @ P["wrist.R"].head).normalized(); o2 = _uchop("R", POLOMER["pilum"])[1]
         print("INFO", pn, "ohnuti zapesti deg", round(math.degrees(ruka.angle(f)), 1), "osa pesti k pilu deg", round(math.degrees(min(o2.angle(X), (-o2).angle(X))), 1), flush=True)
+        OSA_ZBRANE["R"] = _k_ose(X, o2, 10 if R_[1] == "nahoru" else 20)   # zbytek dorovná pilum; prsty se pak sevřou kolem tohoto směru
     for sd, (d, _) in ZBR_POZY.get(pn, {}).items():
         if d not in ZB: continue
-        print("INFO", pn, d, "sevreni prstu (x PEST, palec..malicek)", _sevri(sd, POLOMER[d]), flush=True)
+        print("INFO", pn, d, "sevreni prstu (x PEST, palec..malicek)", _sevri(sd, POLOMER[d]), "ohnuti zapesti deg", _ohnuti(sd), flush=True)
     bpy.context.view_layer.update()
     if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum" and "scutum" in ZB:
         # Prohnutý štít obepíná tělo; když jeho okraje narazí do boků, ustoupí po směru líce celá ruka (IK), štít zůstane v pěsti.
@@ -254,6 +285,12 @@ def zbr_ruce(pn):
             p_ = Poser(rig, MAP); _ik(p_, "L", p_.W("L_hand") + F * 0.01); _ruka_k_drzadlu(pn); bpy.context.view_layer.update(); k += 1
         print("INFO", pn, "stit: pest posunuta od tela o cm", k, "osa pesti k drzadlu deg", _ruka_k_drzadlu(pn), flush=True)
 
+def _k_ose(X, a, lim):
+    # zbytek, který ruka nedorovnala (úklon zápěstí nejvýš 25°), dorovná zbraň: natočí se k ose úchopu nejvýš o lim stupňů.
+    # Jinak by dřík vedl pěstí šikmo a palec nebo malíček by do něj zajely.
+    a = a if a.dot(X) >= 0 else -a; q = X.rotation_difference(a)
+    return X if q.angle < 1e-4 else (Quaternion(q.axis, min(q.angle, math.radians(lim))) @ X).normalized()
+
 def zbr_umisti(pn):
     for z in ZB.values(): z["o"].hide_render = z["o"].hide_viewport = True
     F = _stit_F(pn) if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum" else _vpred()   # líc štítu = k nepříteli
@@ -263,12 +300,13 @@ def zbr_umisti(pn):
         if d == "scutum":                                                 # štít svisle, stejně jako při zkoušce v zbr_ruce
             o.matrix_world = _stit_mw(pn)[0]; o.hide_render = o.hide_viewport = False; continue
         elif hrot == "nahoru":                                            # pilum u nohy svisle hrotem nahoru (předloha A)
-            X = Vector((0, 0, 1)); Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
+            X = OSA_ZBRANE.get(sd, Vector((0, 0, 1))); Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
         else:
             if d == "gladius":                                            # bodnutí: čepel prodlužuje předloktí
                 X = (G - rig.matrix_world @ rig.pose.bones[f"lowerarm01.{sd}"].head).normalized()
             else:                                                         # hod a běh: hrot tam, kam líc štítu (k nepříteli); osa pěsti je napříč a o směru nerozhodne
-                X = ((_smer_hodu(pn) if pn == "hod_B" else F) + Vector((0, 0, hrot))).normalized()   # hod: k cíli, ne podle líce štítu
+                X = ((_smer_hodu(pn) if pn == "hod_B" else _stit_F(pn, True)) + Vector((0, 0, hrot))).normalized()   # pilum míří směrem pohybu, ne podle natočeného štítu
+                X = OSA_ZBRANE.get(sd, X)
             Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
         R = Matrix((X, Y, Z)).transposed().to_4x4()
         o.matrix_world = Matrix.Translation(G) @ R @ Matrix.Translation(-ZB[d]["uchop"])

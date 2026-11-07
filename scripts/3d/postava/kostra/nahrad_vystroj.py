@@ -114,11 +114,11 @@ o.data.transform(Matrix.Translation(_cc) @ Matrix.Diagonal((_kx, _ky, 1, 1)) @ M
 print("INFO lorica: spodek z", round(_lb, 3), "na", round(_ld, 3), "sirka x/y", round(_kx, 3), round(_ky, 3), flush=True)
 # lorica: trup na páteři, ramenní pláty na ramenou (stejné dělení jako dřív u vyříznutých plátů)
 C = co(o); zsh = mp("upperarm01.L").z; o.vertex_groups.clear(); spine(o)
-# Ramenní pláty jsou kloubové: u krku drží na klíční kosti, k vnějšímu okraji jdou čím dál víc s paží (nejvýš 60 %).
+# Ramenní pláty jsou kloubové: u krku drží na klíční kosti, k vnějšímu okraji jdou čím dál víc s paží (nejvýš 90 %).
 # Napevno na klíční kosti je zvednutá paže (nápřah B) vytlačila ven a odkryla podpaží; ostrá hranice trup/rameno
 # pak plát roztrhla do cípu. Proto plynulý přechod v šířce i výšce (ws) a podíl paže (wa).
 _ax = np.abs(C[:, 0]); ws = np.clip((_ax - 0.11) / 0.04, 0, 1) * np.clip((C[:, 2] - (zsh - 0.13)) / 0.07, 0, 1)
-wa = np.clip((_ax - 0.14) / 0.10, 0, 1) * 0.6
+wa = np.clip((_ax - 0.12) / 0.08, 0, 1) * 0.9   # pásy loriky se zvedají s paží (operátor), dřív 60 % nestačilo
 for i in np.nonzero(ws > 0)[0]:
     for ge in o.data.vertices[int(i)].groups: ge.weight *= float(1 - ws[i])
 for q, m in (("L", C[:, 0] > 0), ("R", C[:, 0] < 0)):
