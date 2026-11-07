@@ -167,17 +167,34 @@ def _ik(p_, sd, T):                                                 # paže: zá
 def _smer_hodu(pn):                                                 # směr hodu z Poser.naprah (od zadního chodidla k přednímu)
     return Vector(rig["smer_hodu"]) if "smer_hodu" in rig else _vpred()
 
+def _stit_F(pn):                                                    # líc štítu: u A dopředu, v boji vodorovně od hrudníku přes levou pěst
+    if pn == "stoj_A": return _vpred()
+    F = _ruka("L")[0] - rig.matrix_world @ rig.pose.bones["spine03"].head; F.z = 0
+    return F.normalized() if F.length > 1e-6 else _vpred()
+
+def _stit_mw(pn):
+    F = _stit_F(pn); Z = Vector((0, 0, 1)); Y = -F; X = Y.cross(Z)
+    return Matrix.Translation(_ruka("L")[0]) @ Matrix((X, Y, Z)).transposed().to_4x4() @ Matrix.Translation(-ZB["scutum"]["uchop"]), F
+
+def _ruka_k_drzadlu(pn):                                             # klouby pěsti podél vodorovného držadla, ruka jen otočená kolem předloktí
+    M = rig.matrix_world; P = rig.pose.bones; Xb = _stit_F(pn).cross(Vector((0, 0, 1)))
+    f = (M @ P["wrist.L"].head - M @ P["lowerarm01.L"].head).normalized(); Xp = (Xb - f * Xb.dot(f)).normalized()
+    p_ = Poser(rig, MAP); _, osa, _ = _ruka("L"); osa = osa if osa.dot(Xp) >= 0 else -osa
+    p_.rot("L_hand", osa.rotation_difference(Xp).to_matrix())
+    o2 = _ruka("L")[1]; return round(math.degrees(min(o2.angle(Xb), (-o2).angle(Xb))), 1)
+
 def zbr_ruce(pn):
     if pn == "stoj_A":                                                # stoj (předloha A, rekonstruktéři): vodorovné držadlo jako kufr, paže volně dolů, štít před levým stehnem
         p_ = Poser(rig, MAP); f_ = _vpred(); lev = Vector((0, 0, 1)).cross(f_)
         p_.aim("L_arm", p_.W("L_fore") - p_.W("L_arm"), (Vector((0, 0, -1)) + lev * 0.12 + f_ * 0.15).normalized())
-        p_.aim("L_fore", p_.W("L_hand") - p_.W("L_fore"), (Vector((0, 0, -1)) + f_ * 0.55).normalized())   # pěst před stehnem mimo sukni: ruka v látce ji simulace zvedne
+        p_.aim("L_fore", p_.W("L_hand") - p_.W("L_fore"), (Vector((0, 0, -1)) + f_ * 0.80).normalized())   # pěst před stehnem mimo sukni: ruka v látce ji simulace zvedne
     elif ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum":       # boj (rekonstruktéři): horní hrana štítu pod očima, pěst ve stejném směru od hrudi
         p_ = Poser(rig, MAP); M = rig.matrix_world
         oci = (M @ rig.pose.bones["head"].head).z + 0.09; hrud = p_.W("chest"); w = p_.W("L_hand") - hrud; w.z = 0
         T = hrud + w.normalized() * max(0.25, min(0.45, w.length)); T.z = oci - 0.03 - DELKA["scutum"] / 2
         _ik(p_, "L", T)
         print("INFO", pn, "pest z", round(T.z, 2), "horni hrana stitu", round(T.z + DELKA["scutum"] / 2, 2), "oci", round(oci, 2), flush=True)
+    if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum": _ruka_k_drzadlu(pn)
     R_ = ZBR_POZY.get(pn, {}).get("R")
     if R_ and R_[0] == "pilum" and (pn == "hod_B" or R_[1] == "nahoru"):   # úchop: dřík leží v dlani podél kloubů, zápěstí se natočí k pilu
         X = Vector((0, 0, 1)) if R_[1] == "nahoru" else (_smer_hodu(pn) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
@@ -195,17 +212,24 @@ def zbr_ruce(pn):
                 f_, j_ = (int(x) for x in pb.name[6:].split(".")[0].split("-"))
                 pb.rotation_mode = "QUATERNION"; pb.rotation_quaternion = Quaternion(Vector((1, 0, 0)), math.radians(PEST[j_] * (0.6 if f_ == 1 else 1.0)))
     bpy.context.view_layer.update()
+    if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum" and "scutum" in ZB:
+        # Prohnutý štít obepíná tělo; když jeho okraje narazí do boků, ustoupí po směru líce celá ruka (IK), štít zůstane v pěsti.
+        # Dřív ustupoval štít sám a ve stoji A odjel 7–10 cm od pěsti (kontrola úchopu).
+        k = 0
+        while k < 25:
+            Mw, F = _stit_mw(pn)
+            if not _telo_bvh(("L",)).overlap(_bvh("scutum", Mw)): break
+            p_ = Poser(rig, MAP); _ik(p_, "L", p_.W("L_hand") + F * 0.01); _ruka_k_drzadlu(pn); bpy.context.view_layer.update(); k += 1
+        print("INFO", pn, "stit: pest posunuta od tela o cm", k, "osa pesti k drzadlu deg", _ruka_k_drzadlu(pn), flush=True)
 
 def zbr_umisti(pn):
     for z in ZB.values(): z["o"].hide_render = z["o"].hide_viewport = True
-    vpred = _vpred(); F = vpred                                          # líc štítu: vodorovně od hrudníku přes levou pěst ven = k nepříteli
-    if pn != "stoj_A" and ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum":   # u A stojí štít u boku lícem dopředu
-        F = _ruka("L")[0] - rig.matrix_world @ rig.pose.bones["spine03"].head; F.z = 0; F = F.normalized() if F.length > 1e-6 else vpred
+    F = _stit_F(pn) if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum" else _vpred()   # líc štítu = k nepříteli
     for sd, (d, hrot) in ZBR_POZY.get(pn, {}).items():
         if d not in ZB: continue
         G, osa, n = _ruka(sd); o = ZB[d]["o"]
-        if d == "scutum":                                                 # štít svisle
-            Z = Vector((0, 0, 1)); Y = -F; X = Y.cross(Z)
+        if d == "scutum":                                                 # štít svisle, stejně jako při zkoušce v zbr_ruce
+            o.matrix_world = _stit_mw(pn)[0]; o.hide_render = o.hide_viewport = False; continue
         elif hrot == "nahoru":                                            # pilum u nohy svisle hrotem nahoru (předloha A)
             X = Vector((0, 0, 1)); Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
         else:
@@ -231,24 +255,27 @@ def _bvh(d, Mw):
     V, Pf = ZB[d]["kol"]; Mn = np.array(Mw); W = V @ Mn[:3, :3].T + Mn[:3, 3]
     return BVHTree.FromPolygons([tuple(x) for x in W], Pf)
 
+def _telo_bvh(strany):                                              # tělo bez předloktí a pěstí, které drží zbraň
+    ev = body.evaluated_get(bpy.context.evaluated_depsgraph_get()); me = ev.to_mesh(); Mb = np.array(body.matrix_world)
+    X = np.empty(len(me.vertices) * 3, np.float32); me.vertices.foreach_get("co", X); X = X.reshape(-1, 3) @ Mb[:3, :3].T + Mb[:3, 3]
+    M = rig.matrix_world; skryj = np.zeros(len(X), bool)
+    for sd in strany:
+        e_ = np.array(M @ rig.pose.bones[f"lowerarm01.{sd}"].head); g_ = np.array(_ruka(sd)[0])
+        ab = g_ - e_; t = np.clip(((X - e_) @ ab) / (ab @ ab), 0, 1); skryj |= np.linalg.norm(X - (e_ + t[:, None] * ab), axis=1) < 0.09
+    tb = BVHTree.FromPolygons([tuple(x) for x in X], [p_.vertices[:] for p_ in me.polygons if not skryj[list(p_.vertices)].any()])
+    ev.to_mesh_clear(); return tb
+
 def _bez_pruniku(pn, F):
     # zbraně jsou samostatné objekty, ale stojí jen podle pěsti: tady se nesmí protnout s tělem ani navzájem.
     # Z těla se vynechá pěst a předloktí, které zbraň drží. Štít ustoupí po směru líce, kopí a meč se pootočí kolem pěsti.
     poza = {sd: d for sd, (d, _) in ZBR_POZY.get(pn, {}).items() if d in ZB}
     if not poza: return
-    ev = body.evaluated_get(bpy.context.evaluated_depsgraph_get()); me = ev.to_mesh(); Mb = np.array(body.matrix_world)
-    X = np.empty(len(me.vertices) * 3, np.float32); me.vertices.foreach_get("co", X); X = X.reshape(-1, 3) @ Mb[:3, :3].T + Mb[:3, 3]
-    M = rig.matrix_world; skryj = np.zeros(len(X), bool)
-    for sd in poza:
-        e_ = np.array(M @ rig.pose.bones[f"lowerarm01.{sd}"].head); g_ = np.array(_ruka(sd)[0])
-        ab = g_ - e_; t = np.clip(((X - e_) @ ab) / (ab @ ab), 0, 1); skryj |= np.linalg.norm(X - (e_ + t[:, None] * ab), axis=1) < 0.09
-    tb = BVHTree.FromPolygons([tuple(x) for x in X], [p_.vertices[:] for p_ in me.polygons if not skryj[list(p_.vertices)].any()])
-    ev.to_mesh_clear()
+    tb = _telo_bvh(poza)
     if "L" in poza and poza["L"] == "scutum":
         o = ZB["scutum"]["o"]; n_ = 0
         while tb.overlap(_bvh("scutum", o.matrix_world)) and n_ < 25:
             o.matrix_world = Matrix.Translation(F * 0.01) @ o.matrix_world; n_ += 1
-        print("INFO", pn, "stit odsunut od tela o cm", n_, flush=True)
+        print("INFO", pn, "stit odsunut od tela o cm", n_, *(["VAROVANI: drzadlo uz neni v pesti"] if n_ > 2 else []), flush=True)
     for sd, d in poza.items():
         if d == "scutum": continue
         o = ZB[d]["o"]; M0 = o.matrix_world.copy(); G, osa, n = _ruka(sd)

@@ -787,3 +787,10 @@ Kostra s automatickými vahami v síti z Hunyuan3D (legionář, jedna slitá ků
 - **Natažení látky měřit bez Solidify a Subsurf**: 3mm hrany tloušťky na okrajích otvorů hlásily stovky falešných trhlin.
 - **Látku pod plech zatlačit, ale nikdy pod kůži**: tělo nejdřív 12 mm pod plech, pak tunika 5 mm pod plech a aspoň 8 mm nad tělem už zatlačeným (bez pomocné geometrie MPFB); jinak tunika vylezla přes pláty nebo pod ní prosvítala kůže.
 
+
+## 2026-11-07 — Zbraň v ruce: kontrola úchopu číslem, ne ze zmenšeniny
+
+- **Pěst má na celé postavě ~40 px.** Že ruka zbraň nedrží, jsem ze zmenšeniny neviděl třikrát po sobě (operátor: „ruka oštěp nedrží“). V režimu jedné pózy dělá hlavní skript detaily každé ruky se zbraní (`foto/<póza>-ruka<L|R>-a/b/c.png`, ruka na štítu zezadu) a `zbrane.py` vypíše `uchop:`. Osa zbraně má vést středem pěsti a prostřední články prstů mají být 1,5–2,6 cm od osy.
+- **Střed pěsti se počítá z prstů** (těžiště kruhu z článků prstů 2–5). Odhad ze zápěstí a kloubů ležel 3–4 cm vedle a dřík pěstí neprocházel.
+- **Zápěstí se nedohání k zbrani.** Dřík leží v pěsti napříč předloktím. Zápěstí se ohýbá jen kolem osy kloubů a do strany snese nejvýš ~20°. Nejdřív se postaví loket (předloktí kolmo na zbraň), pak se ruka jen otočí kolem předloktí. Výpis hlídá `ohnuti zapesti`.
+- **Kontrola průniků nesmí utrhnout zbraň z ruky.** Štít ustupoval od těla sám a ve stoji odjel 7–10 cm od pěsti, přitom výpis hlásil nula průniků. Teď ustoupí celá ruka (IK) ještě před simulací látky. Když štít přesto odjede víc než 2 cm, vypíše se `VAROVANI`.
