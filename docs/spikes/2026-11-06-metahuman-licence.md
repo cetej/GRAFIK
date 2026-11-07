@@ -72,6 +72,8 @@ Operátor zvolil render v Unrealu (ne v Blenderu), tím se obchází rozpor „U
 
 ## 5. Fab: vybavení legionáře (hledáno 2026-11-07, jen čtení, nic nestaženo)
 
+**Jen záložní seznam.** GRAFIK má vlastního legionáře se zbrojí a vlastně vymodelovanou výzbrojí (`docs/3d-postava-postup.md`, `scripts/3d/postava/legionar_*.py`). MetaHuman se zkoumá jako tělo; vybavení z Fabu je potřeba, jen kdyby se vlastní zbroj nedala přenést na jiné tělo (síť z generátoru je s tělem a tunikou jeden kus).
+
 Fab nabízí u každé nabídky pole „Allows usage with AI“ (v rozhraní `isAiForbidden`). Z 163 římských 3D nabídek (dotazy roman legionary / soldier / armor / lorica / galea / gladius / scutum / centurion / caligae / tunic, jen modely) jich **127 AI zakazuje**, **36 povoluje**. Zakázané nejsou použitelné jako vstup do generátorů (Content EULA §17). Pozor: výběr je výřez z dotazů, ne úplný seznam Fabu. Ceny jsou ve Fabu v USD.
 
 | Co | Nabídka | Licence | AI | Cena | Poznámka |
