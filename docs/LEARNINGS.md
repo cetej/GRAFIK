@@ -1,5 +1,12 @@
 # LEARNINGS — GRAFIK
 
+## 2026-11-07 — Srovnání s MetaHumanem: stejná kamera v Unrealu a Blenderu, snímek z cizí session ověřit
+
+- FOV v Unrealu je vodorovný. V Blenderu proto nastav `cam.data.sensor_fit = "HORIZONTAL"` a `angle` na stejný úhel, jinak je postava v jiném měřítku.
+- Výšku postavy počítej jako `zmax - zmin`. Chodidla MPFB `telo_v1` jsou na z = −0,025, takže samotné zmax výšku zkreslí. Tělo má 1,604 m, ne 1,70 m.
+- Automatický obrys postavy na screenshotu z Unrealu selže, protože pozadí má přechod a šum. Rámeček postavy jsem proto odečetl ručně (`MH_BOX` v `mh_list.py`).
+- Snímek pózy z jiné session nejdřív porovnej po pixelech s výchozím stavem. První „pokrčené“ prsty se od rovných lišily v 11 a 86 px z 810 000, protože póza se na vykreslovanou síť nedostala. Pózu ověř změřením polohy kosti před a po (`GetSocketLocation`): u prostředníku se špička musí posunout o několik cm, opravené snímky se posunuly o 3,6 cm.
+
 ## 2026-11-05 — Legionář: vymodelovaný meč přes původní byl zepředu dobrý, z boku dvojitý
 
 - Operátor při zvětšení v7 našel zdvojený meč a dýku zaraženou v boku. Kontroloval jsem jen zepředu; původní pochva byla o 2 cm silnější a z boku a shora přes ruku vyčnívala. Síť z generátoru je jeden kus, původní díl nejde vyříznout a vyhlazení či zatlačení velkého dílu nechává skvrny. Řešení: meč nechat z generátoru, malou dýku zatlačit jen u těla (poloměr < 0,16, jinak se roztrhl štít) a překrýt vymodelovaným pugiem. Postup: [`3d-postava-postup.md`](3d-postava-postup.md) § Vymodelované díly.
