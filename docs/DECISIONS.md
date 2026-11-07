@@ -2,6 +2,17 @@
 
 Nejnovější nahoře. Každé rozhodnutí: datum, co, proč, odkud.
 
+## 2026-11-07 — Tělo postavy: výchozí zdroj MetaHuman, MPFB a Anny záložní
+
+Operátor 7. 11. po srovnání ve stejné kameře: „Ok metahuman vypadá, jako nás defaultni zdroj, ostatní jsou záložní“.
+
+- **Co:** výchozí tělo pro 3D postavy je MetaHuman z Unrealu (5.8). Záložní jsou naše MPFB `telo_v1` (s vyhlazením nebo bez) a Anny. Záloha se použije, když MetaHuman pro danou úlohu nejde: licence, export nebo kostra.
+- **Proč:** při stejné kameře (300 cm, FOV 30°, hlína) má MetaHuman svaly, ramena, kolena s čéškou a ruku v klidu s objemem prstů. MPFB a Anny jsou ze stejné sítě MakeHuman, jsou ploché a ruku mají jako pádlo. MPFB `telo_v1` má navíc jen 160 cm. Listy jsou v `library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/anny-srovnani/metahuman/`, spike v `docs/spikes/2026-11-06-anny-telo.md`.
+- **Otevřené:**
+  - Lámání kloubů pokrčených prstů na MetaHumanovi jsme zatím neověřili (chybí detail ruky).
+  - Licence: render jako vstup do AI je povolený. Soubory modelu nesmí do veřejného repa ani k třetím stranám. Použití mimo Unreal (Blender) je nejasné (`docs/spikes/2026-11-06-metahuman-licence.md`). Do repa jdou jen rendery.
+  - Dnešní výstroj (`postava_s_vystroji.py`, `nahrad_vystroj.py`) visí na jménech kostí MPFB. Pro MetaHumana je potřeba mapa kostí.
+
 ## 2026-11-06 — Opotřebení v TextureCraftu jako volba ve 3D
 
 Operátor 6. 11. v STOPA session po testu TextureCraftu: „Tak to určitě zaveď jako možnost, u toho motoru je výsledek věrohodnější, a oni ty aplikace rychle aktualizují.“
