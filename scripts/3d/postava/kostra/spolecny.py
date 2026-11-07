@@ -76,18 +76,22 @@ class Poser:
     def ik(s, a, b, c, T, pole):                         # dvoukloubová končetina a→b→c: konec c do T, prostřední kloub k pólu
         E, T_ = s.loket(a, b, c, T, pole); S = s.W(a)
         s.aim(a, s.W(b) - S, E - S); s.aim(b, s.W(c) - s.W(b), T_ - s.W(b))
-    def naprah(s):
+    def naprah(s, druh=None):
         # nápřah k hodu oštěpem: SAM z malby dal hluboký podřep s koleny ven (operátor: „spíš padá“).
         # Směr hodu D = od pravého chodidla k levému; boky pootevřené, ramena bokem levým k cíli, hlava k cíli, pravá ruka s pilem vzadu nad ramenem.
         # Nohy podle fáze (NGM_FAZE): „naprah“ = váha vzadu, zadní koleno pokrčené, přední noha natažená a zapřená, trup lehce v záklonu;
         # „vypad“ = jako předloha B: zadní noha natažená po odrazu, přední vykročená a pokrčená.
-        naprah = os.environ.get("NGM_FAZE", "naprah") == "naprah"
-        lean, krok, vaha, zadni = (-0.04, 0.36, 0.18, 0.86) if naprah else (0.08, 0.40, 0.12, 0.97)
+        # „bod“ (póza D, bodnutí mečem): výpad, přední koleno pokrčené, zadní noha natažená, váha vpředu, trup nakloněný dopředu
+        # a víc čelem k cíli (pravé rameno vpřed); SAM z malby dal stočený trup a propnutá chodidla, která vylezla ze sandálů.
+        druh = druh or os.environ.get("NGM_FAZE", "naprah"); naprah = druh == "naprah"; bod = druh == "bod"
+        lean, krok, vaha, zadni = {"naprah": (-0.04, 0.36, 0.18, 0.86), "bod": (-0.22, 0.50, -0.10, 0.97)}.get(druh, (0.08, 0.40, 0.12, 0.97))
+        uh_boky, uh_hrud = (0.60, 0.75) if bod else (0.30, 0.12)          # kroucení boky–ramena nejvýš ~10° (lorica)
         Z = Vector((0, 0, 1)); D = s.W("L_foot") - s.W("R_foot"); D.z = 0; D.normalize(); Fc = D.cross(Z)   # Fc = kam míří hrudník (levý bok k D)
         M = (s.W("L_foot") + s.W("R_foot")) / 2; M.z = 0
-        s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), Z - D * lean, D * math.cos(0.30) - Fc * math.sin(0.30))   # kroucení boky–ramena jen ~10°: tuhá lorica víc nesnese (rozestoupí se)
-        s.align("chest", s.W("neck") - s.W("chest"), s.W("L_arm") - s.W("R_arm"), Z - D * 0.06, D * math.cos(0.12) - Fc * math.sin(0.12))
-        s.rot("neck", Fc.rotation_difference(D * 0.8 + Fc * 0.6).to_matrix())
+        s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), Z - D * lean, D * math.cos(uh_boky) - Fc * math.sin(uh_boky))   # kroucení boky–ramena jen ~10°: tuhá lorica víc nesnese (rozestoupí se)
+        s.align("chest", s.W("neck") - s.W("chest"), s.W("L_arm") - s.W("R_arm"), Z - D * (lean if bod else 0.06), D * math.cos(uh_hrud) - Fc * math.sin(uh_hrud))
+        oblicej = Fc * math.cos(uh_hrud) + D * math.sin(uh_hrud)          # kam hledí hrudník
+        s.rot("neck", oblicej.rotation_difference((D * 0.85 + oblicej * 0.15).normalized() if bod else D * 0.8 + Fc * 0.6).to_matrix())   # hlava k cíli
         Lg = (s.W("R_leg") - s.W("R_upleg")).length + (s.W("R_foot") - s.W("R_leg")).length
         FA = M + D * krok; RA = M - D * 0.40 + Fc * 0.10
         Hc = (s.W("L_upleg") + s.W("R_upleg")) / 2; off = s.W("R_upleg") - Hc
@@ -100,6 +104,8 @@ class Poser:
         for q, h_ in (("L", D), ("R", Tr)):
             r0 = s.RM.to_3x3() @ (B[s.M[f"{q}_toe"]].head_local - B[s.M[f"{q}_foot"]].head_local)
             s.aim(f"{q}_foot", s.W(f"{q}_toe") - s.W(f"{q}_foot"), h_ * Vector((r0.x, r0.y, 0)).length + Vector((0, 0, r0.z)))
+        s.rig["smer_hodu"] = tuple(D)
+        if bod: return                                                      # paže s mečem a štítem staví zbrane.py
         # vzor: rekonstruktér v Caerleonu (foto Roy Edwards) — pěst u brady až lícní kosti, pilum těsně u hlavy.
         # Pěst u lícní kosti zvedla loket do výšky ramene a ramenní pláty se rozevřely; u brady jde loket pod rameno.
         # Dřík leží v sevřené pěsti napříč předloktí a zápěstí se kolem jiné osy neohne (operátor: „zlomil jsi mu zápěstí“):
@@ -127,7 +133,8 @@ POSES = [("klid", lambda p: p.arms_down(25)), ("chuze", lambda p: (p.arms_down(2
 for _nm, _f in (("stoj_A", "A_result.json"), ("hod_B", "B_result.json"), ("bod_D", "D_result.json")):
     _pf = os.path.join(os.path.dirname(SAMJ), _f)
     if os.path.exists(_pf): POSES.append((_nm, (lambda p, _pf=_pf: (p.sam(_pf), p.vzprim())) if _nm == "stoj_A" else
-                                          (lambda p, _pf=_pf: (p.sam(_pf), p.naprah())) if _nm == "hod_B" else (lambda p, _pf=_pf: p.sam(_pf))))
+                                          (lambda p, _pf=_pf: (p.sam(_pf), p.naprah())) if _nm == "hod_B" else
+                                          (lambda p, _pf=_pf: (p.sam(_pf), p.naprah("bod"))) if _nm == "bod_D" else (lambda p, _pf=_pf: p.sam(_pf))))
 
 def ev_coords(o):
     masks = [m for m in o.modifiers if m.type in ("MASK", "SOLIDIFY", "SUBSURF") and m.show_viewport]
