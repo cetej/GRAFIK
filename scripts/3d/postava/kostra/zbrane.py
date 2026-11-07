@@ -149,7 +149,10 @@ def _ruka(sd):
     T = M @ P[f"finger3-3.{sd}"].tail
     osa = (I - Pk).normalized(); delka = (K - W); n = osa.cross(delka).normalized()
     if (T - W).dot(n) < 0: n = -n                                   # dlaň = strana, ke které se prsty ohýbají
-    G = W + delka * 0.85 + n * 0.022                                 # střed sevřené pěsti
+    # střed sevřené pěsti = těžiště kruhu z ohnutých článků prstů 2–5 (kloub, dva klouby, špička).
+    # Odhad ze zápěstí a kloubů (W + 0,85·délka + 2,2 cm do dlaně) ležel 3–4 cm vedle pěsti a dřík pěstí neprocházel (operátor: „ruka oštěp nedrží“).
+    G = sum(((M @ P[f"finger{i}-1.{sd}"].head + M @ P[f"finger{i}-2.{sd}"].head + M @ P[f"finger{i}-3.{sd}"].head + M @ P[f"finger{i}-3.{sd}"].tail) / 4
+            for i in range(2, 6)), Vector()) / 4
     return G, osa, n
 
 def _vpred():
@@ -176,8 +179,8 @@ def zbr_ruce(pn):
         _ik(p_, "L", T)
         print("INFO", pn, "pest z", round(T.z, 2), "horni hrana stitu", round(T.z + DELKA["scutum"] / 2, 2), "oci", round(oci, 2), flush=True)
     R_ = ZBR_POZY.get(pn, {}).get("R")
-    if R_ and R_[0] == "pilum" and pn == "hod_B":   # úchop: dřík leží v dlani podél kloubů, zápěstí se natočí k pilu
-        X = (_smer_hodu(pn) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
+    if R_ and R_[0] == "pilum" and (pn == "hod_B" or R_[1] == "nahoru"):   # úchop: dřík leží v dlani podél kloubů, zápěstí se natočí k pilu
+        X = Vector((0, 0, 1)) if R_[1] == "nahoru" else (_smer_hodu(pn) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
         M = rig.matrix_world; P = rig.pose.bones; f = (M @ P["wrist.R"].head - M @ P["lowerarm01.R"].head).normalized()
         Xp = (X - f * X.dot(f)).normalized()                        # jen otočení kolem předloktí: loket postavil Poser.naprah kolmo na pilum
         p_ = Poser(rig, MAP); _, osa, _ = _ruka("R"); osa = osa if osa.dot(Xp) >= 0 else -osa
@@ -216,6 +219,13 @@ def zbr_umisti(pn):
         o.hide_render = o.hide_viewport = False
     bpy.context.view_layer.update()
     _bez_pruniku(pn, F)
+    for sd, (d, _) in ZBR_POZY.get(pn, {}).items():                    # kontrola úchopu: osa zbraně má vést pěstí, prsty kolem ní
+        if d not in ZB: continue
+        Mw = ZB[d]["o"].matrix_world; A = Mw @ ZB[d]["uchop"]; u_ = (Mw.to_3x3() @ Vector((1, 0, 0))).normalized(); M = rig.matrix_world
+        def od_osy(p): v = p - A; return (v - u_ * v.dot(u_)).length
+        prsty = [od_osy(M @ rig.pose.bones[f"finger{i}-2.{sd}"].head) for i in range(2, 6)]
+        print("INFO", pn, d, "uchop: stred pesti od osy cm", round(100 * od_osy(_ruka(sd)[0]), 1),
+              "prostredni clanky od osy cm", [round(100 * x, 1) for x in prsty], flush=True)
 
 def _bvh(d, Mw):
     V, Pf = ZB[d]["kol"]; Mn = np.array(Mw); W = V @ Mn[:3, :3].T + Mn[:3, 3]

@@ -481,4 +481,13 @@ for pn, pf in POSES:
         for vn, d in pohl:
             dv = Vector(d).normalized(); cam_.location = ctr + dv * 4.6; cam_.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
             sc.render.filepath = os.path.join(FD, f"{pn}-{vn}" + (f"-stit{st['nazev']}" if st else "") + ".png"); bpy.ops.render.render(write_still=True)
+    if JEN_POZA and pn in ZBR_POZY:                               # úchop zblízka: pěst má na celé postavě ~40 px, sevření prstů tam nejde posoudit
+        sc.render.resolution_x = sc.render.resolution_y = 800
+        for sd in ZBR_POZY[pn]:
+            G_ = _ruka(sd)[0]
+            ps_ = (("a", (0, 1, 0.2)), ("b", (-0.7, 0.6, 0.4)), ("c", (0.7, 0.6, 0.3))) if ZBR_POZY[pn][sd][0] == "scutum" else                   (("a", (0, -1, 0.15)), ("b", (0.8, -0.4, 0.5)), ("c", (-0.8, 0.3, 0.3)))   # ruku na štítu je vidět jen zezadu
+            for vn, d in ps_:
+                dv = Vector(d).normalized(); cam_.location = G_ + dv * 0.7; cam_.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
+                sc.render.filepath = os.path.join(FD, f"{pn}-ruka{sd}-{vn}.png"); bpy.ops.render.render(write_still=True)
+        sc.render.resolution_x, sc.render.resolution_y = 1088, 1632
 print("INFO DONE", flush=True)
