@@ -62,3 +62,30 @@ Zdroj: [EULA](https://www.reallusion.com/Content/EULA/EULA.htm) (shrnutí z nač
 
 ## Zdroje, které nešly číst
 `unrealengine.com/eula/mhc`, `/eula/content`, `/ue-devs-can-now-choose-to-train-ai-models-on-their-projects`, `metahuman.com/en-US/license` (přihlášení), `dev.epicgames.com/.../metahuman-licensing` (prázdné). Doporučení: operátor si text otevře v prohlížeči po přihlášení k Epic účtu a ověří odstavce o AI a použití mimo Unreal, nebo pošle dotaz výše.
+
+## 4. Rozhodnutí: render v Unrealu, ověřeno 2026-11-07
+
+Operátor zvolil render v Unrealu (ne v Blenderu), tím se obchází rozpor „UE-Only“ (oddíl Verdikt). Unreal 5.8.4 běží v `D:\EPIC\UE_5.8`, projekt `D:\EPIC\Projekty\Legionar\MyProject`.
+- Tělo `Legionary_V1`: 170 cm, svalnatost 0,65, tuk 0,2, mužské. Nastaveno přes MCP server Unrealu (plugin `ModelContextProtocol` + `MetaHumanGenerator`, `127.0.0.1:8000/mcp`, automatický start v `Config/DefaultEditorPerProjectUserSettings.ini`). Server umí jen tvorbu a úpravu postavy (výška, svalnatost, tuk, mužské/ženské, odstín kůže, barva očí); render, kameru ani oblečení nemá.
+- Render: Python v editoru (`unreal.MetaHumanCharacterEditorSubsystem.spawn_meta_human_actor`, `AutomationLibrary.take_high_res_screenshot`), Movie Render Queue není v projektu zapnutá a pro nehybné snímky není potřeba. Povrch jde přepsat na jednolitou hlínu (`set_material` na komponentách `Body` a `Face`, vlasy skrýt). Snímky v `Saved/Screenshots/WindowsEditor/`.
+- Pasti: přechodné postavy z `spawn_meta_human_actor(…, True)` nevidí `EditorActorSubsystem`, úklid přes `GameplayStatics.get_all_actors_of_class`. Otevřený editor postavy (`Legionary_V1`) se dostane do snímku a spouští druhou postavu, před renderem ho zavřít (`AssetEditorSubsystem.close_all_editors_for_asset`). Slunce musí jít s kamerou, jinak bok a záda přesvítí nebo zčernají. Snímek se zapíše až po kompilaci shaderů (desítky sekund). Na snímcích zůstává černá silueta v rohu, původ neznámý.
+
+## 5. Fab: vybavení legionáře (hledáno 2026-11-07, jen čtení, nic nestaženo)
+
+Fab nabízí u každé nabídky pole „Allows usage with AI“ (v rozhraní `isAiForbidden`). Z 163 římských 3D nabídek (dotazy roman legionary / soldier / armor / lorica / galea / gladius / scutum / centurion / caligae / tunic, jen modely) jich **127 AI zakazuje**, **36 povoluje**. Zakázané nejsou použitelné jako vstup do generátorů (Content EULA §17). Pozor: výběr je výřez z dotazů, ne úplný seznam Fabu. Ceny jsou ve Fabu v USD.
+
+| Co | Nabídka | Licence | AI | Cena | Poznámka |
+|---|---|---|---|---|---|
+| Lorica segmentata + přilba | GenForge3D, „Roman Legionary Armor with Helmet Lorica Segmentata“ | CC-BY | povoleno | USD 0 | FBX, Blender, GLB; ramena samostatné objekty. Nejlepší začátek. |
+| Scutum | RogiForge „Roman Weapons – Scutum“; Davicolt „Dura Europos Scutum“; Albert Gregl „Roman Republican shield“ | CC-BY | povoleno | USD 0 | Dura Europos je dobový, Republican 58–49 př. n. l. |
+| Gladius | RogiForge „Roman Weapons – Gladius“; Samize „Ancient Roman Sword Gladius“ | CC-BY | povoleno | USD 0 | |
+| Přilba | MOHAMED BENDJAMA „Warrior Roman Helmet“ | viz Fab | povoleno | USD 0 | nezkoumáno do detailu |
+| Celá výbava | Yevhen Huk „Roman Legionnaire Armor & Weapons“ (lorica, gladius, pugio, scutum) | Personal/Professional | povoleno | USD 49,99 | placené, jen se souhlasem |
+| Lorica hamata | Yevhen Huk „Roman Legionary Armor“ (zveřejněno 2026-11-05) | Personal/Professional | povoleno | USD 49,99 | placené |
+
+Zamítnuté: Samize „Lorica Segmentata Ancient roman legionary armor“ (CZK 924,31 podle stránky Fabu, AI zakázáno), a 127 dalších s tagem NoAI.
+
+Otevřené:
+- **CC-BY** vyžaduje uvedení autora. Neověřeno, jestli se to týká renderu použitého jako vstup do generátoru a výsledného obrázku. Před publikací vyřešit (např. zdroj v popisku na webu).
+- Žádná z nabídek není pro MetaHuman skinovaná. Pro nehybné snímky jako předloha tvaru stačí statické umístění na tělo v A-póze; pro pohybové pózy je třeba skinning, ten nemáme.
+- Stažení z Fabu chce přihlášení a u CC-BY/Standard licence souhlas s podmínkami; to udělá operátor.
