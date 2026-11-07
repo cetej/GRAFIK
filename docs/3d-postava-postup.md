@@ -77,3 +77,55 @@ Pugio v10 vypadalo zepředu dobře, zezadu odstávalo od boku a rukojeť vedla d
 ## Nechtěný díl z generátoru vyřízni a díru zacel vějířem
 
 Vtlačení dílu do těla nechá zmuchlaný zbytek. Díl, který leží těsně u povrchu, podle vzdálenosti od osy nenajdeš. Pomůže mapa hloubky paprsků z kamery: zbytek, opasek, zbroj a paže mají každý jinou hloubku. Po smazání `holes_fill` a `triangle_fill` u zubatých okrajů selhávají (díra, nebo plochy přes celé tělo). Spolehlivý je vějíř: pro každou souvislou skupinu okrajových hran jeden nový vrchol ve středu (zasunutý pod povrch), trojúhelník na hranu, jedna UV pro celý vějíř a krátké vyhlazení okolí. Ověř 0 otevřených hran a prohlédni i `viewer.glb` (hlína ve Studiu).
+
+
+## Postava s kostrou a výstrojí po dílech (legionář do póz, 2026-11-06)
+
+Pro postavu, která se má hýbat, se hotový slitý model nepoužívá. Skládá se z vrstev a každá vrstva je samostatný objekt:
+
+| Vrstva | Odkud | Jak se hýbe |
+|---|---|---|
+| Tělo | MPFB2 (`telo_v1.blend`), kostra se 163 kostmi včetně prstů | váhy MPFB, `Corrective Smooth` v kloubech |
+| Tunika | jeden oděv: trup od krku po lem + rukávy, sloučené do jedné sítě, tvar z těla a výšky z předlohy | simulace látky: nad opaskem drží tělo, pod ním visí a naráží do nohou |
+| Šátek | prstenec látky kolem krku | váhy z těla |
+| Přilba, lorica, opasek | **každý díl zvlášť z generátoru** (níže) | napevno na kost: přilba `head`, opasek `root`, lorica páteř a ramenní pláty `shoulder01` |
+| Sandály | vyříznuté z původního modelu (zatím) | váhy chodidla a lýtka |
+
+### Výstroj po dílech
+
+Díl se nevyřezává ze slité postavy: řez vede tam, kde žádná hrana nebyla, a zůstanou zubaté okraje a třísky (LEARNINGS 2026-11-06).
+
+1. **Zadání** `scripts/3d/postava/vystroj_<postava>.json`: složka podkladu (`ref-front.png`, `ref-back.png`, `ref-right.png` celé postavy), pro každý díl popis anglicky a obdélník výřezu v každém pohledu. Díly dělit, jak se oblékají: lorica i s ramenními pláty je jeden díl. Vzor `vystroj_legionar.json`.
+2. **Čisté pohledy, 0 USD:** `python scripts/3d/postava/vystroj_dily.py vyrez <zadání>`. Lokální FLUX udělá z výřezu samotný předmět na bílém (role `subject`, ne `geometry`, jinak zkopíruje i hlavu a tělo).
+3. **Prohlídka pohledů.** FLUX u pohledu zezadu vymýšlí: přidá díl, který z té strany není vidět (zástěru opasku), nebo mezeru mezi kusy. Takový pohled dostane v zadání `popis_pohled` (co z té strany vidět je a není) a jiný `seed_pohled`, `vyrez --dil <díl>` ho udělá znovu.
+4. **Model dílu, placené:** `vystroj_dily.py generuj <zadání> --confirm-cost`, Hunyuan3D v3 `Normal` se třemi pohledy, **0,525 USD za díl** (0,375 je jen bílý tvar bez barvy). Jen se souhlasem operátora a s cenou předem.
+5. **Prohlídka modelu** ze 4 stran: celé okraje, nic navíc, předek ve směru −Y.
+6. **Postava:** `scripts/3d/postava/kostra/postava_s_vystroji.py` (spouštět pod zámkem těžké práce, `BLENDER_USER_RESOURCES=run/mpfb_profil`), díly dosazuje `nahrad_vystroj.py`: nový díl se srovná na obálku původního místa (percentily 1–99, rovnoměrně, osa smí uhnout nejvýš o 10 %), lesk kovu se dopočítá z barvy textury. **Přilba se usazuje podle hlavy, ne podle místa staré přilby:** na přilbě se najde výřez pro ucho (nejvyšší bod spodního okraje boku) a čelní lem, na hlavě ucho (materiál `ears` MPFB) a obočí (objekt `eyebrow`); hledá se zvětšení (1,00–1,10), náklon, posun dopředu a výška, aby výřez ležel nad uchem a lem 1,2 cm nad obočím, a z nejlépe sedících se vezme první, která zakryje temeno (paprsek od středu lebky přes horních 7 cm hlavy musí narazit na přilbu). Legionář: zvětšení 1,08, 2,5 cm dopředu, 1 cm dolů, odchylka 0,5 cm. Rychlá kontrola bez simulace a póz: `JEN_PRILBA=1` vyrenderuje jen hlavu ze tří stran (asi 3 minuty).
+7. **Srovnání s předlohou:** `kostra/srovnej_predloha.py <výstup> <srovnani.jpg>` položí přesný pohled zepředu a zprava vedle předlohy ve stejném měřítku a obrys přes ni. Výšky (spodek loriky, opasek, lem, rukáv) se nastavují podle tohoto srovnání, ne podle staré postavy.
+8. **Test:** 4 pózy (klid, chůze, výpad, běh podle předlohy), měření kůže skrz látku, trhlin hran a objemu kloubů (`kostra/spolecny.py`) a výřezy hlavy, trupu, pasu a nohou ze čtyř stran ve 100 %. Hotovo je až s nulou v měření **a** prohlédnutými výřezy: měření vady na plechu ani na šátku nevidí.
+9. **Pózy z předloh:** obrázek pózy → SAM 3D Body na fal (0,02 USD, jen se souhlasem; `fal-ai/sam-3/3d-body`), výsledek jako `<písmeno>_result.json` vedle `C_result.json` ve složce `postava/`. `spolecny.py` ho sám přidá do pózy (`stoj_A`, `hod_B`, `bod_D`), převod kloubů na kostru je stejný jako u běhu C. Prsty jsou ve všech pózách uvolněně pokrčené (`uvolni_prsty`, články 20/30/20°, palec poloviční).
+10. **Fotky pro povrch:** hlavní skript na konci vyrenderuje každou pózu zepředu a ze tří čtvrtin kamerou 70 mm se Subsurf na těle (`<výstup>/foto/<póza>-zepredu.png`, `-34.png`).
+11. **Povrch (pleť, ruce, látka, kov):** `scripts/3d/postava/povrch.py <flux|gpt|nb> <foto.png> <výstup>`. Tvar, póza a výstroj zůstávají z 3D, model obrazu je jen převleče do fotky. `flux` = lokální, 0 USD, náčrt a výběr; `gpt` = GPT Image 2, drží výřez i každý plát (infografika s popisky), ~0,33 USD za kus; `nb` = Nano Banana Pro, nejvěrnější fotka (ilustrace), 0,15 USD, občas změní výřez a takový obrázek se vyřadí. Placené jen s `--confirm-cost` a souhlasem operátora. Srovnání: `docs/spikes/2026-11-06-legionar-vzhled.md`.
+
+Data legionáře: `library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/` (tělo, kostra, štítky dílů, póza z SAM) a `…/vystroj/<díl>/` (výřezy, pohledy, `model.glb`, `request.json`). Utraceno za výstroj 1,58 USD.
+
+Pod zbrojí se tělo neskrývá (díry ukážou vnitřek těla). Trup dostane látku tuniky a u plechu se zatlačí pod něj, jen nad opaskem.
+
+### Jak se drží scutum (rekonstruktéři, 2026-11-07)
+
+Pózu se štítem staví kód podle toho, jak štít drží dnešní rekonstruktéři (fórum Roman Army Talk, skupiny jako Legio XV). Malovaná předloha to nerozhodne, malíř často kreslí štít, který visí ve vzduchu.
+
+- **Držadlo je vodorovné** (nález z Dura-Europos, 3. stol.). Drží se pěstí, ne předloktím ani bicepsem.
+- **Klid a pochod:** paže volně dolů, štít nese pěst „jako kufr“ nebo nákupní tašku. Vnitřní strana štítu je u stehna, štít nevisí 30 cm před tělem. Na pochodu visí štít na řemeni přes levé rameno.
+- **Boj:** levý bok a levá noha vpřed, tělo bokem. Loket je pokrčený a přitažený k boku, horní hrana štítu se opírá o rameno a je pod úrovní očí. Štít kopíruje linii přední nohy, koleno ho může podepřít. Paže se natáhne jen při úderu puklicí.
+
+Zdroje: [Roman Army Talk, vlákno 5436](https://www.romanarmytalk.com/rat/printthread.php?tid=5436), [vlákno 3868](https://www.romanarmytalk.com/rat/printthread.php?tid=3868), [romanobritain.org](https://romanobritain.org/8-military/mil_roman_soldier_shield.php). Fórum píšou rekonstruktéři, nejde o odbornou literaturu. Podrobnější zdroj je Junkelmann, *Die Legionen des Augustus*, kterého nemám v ruce.
+
+**Póza ze SAM není póza z boje.** SAM přečte z malby i podřep, který na postavě vypadá jako pád (operátor u hodu B: „spíš padá, než že je v nápřahu“). Hod proto skládá kód (`Poser.naprah` v `kostra/spolecny.py`). Směr hodu vede od zadního chodidla k přednímu. Zadní noha je natažená na 97 % délky a nese váhu, přední vykročí o 0,8 m. Pravá ruka s pilem jde dozadu nad rameno, ramena stojí bokem. Boky a ramena se smí vůči sobě natočit nejvýš asi o 10°: při 29° se tuhá lorica vzadu rozestoupila a spodní pláty sjely.
+
+**Nápřah podle fotky, ne z hlavy (2026-11-07).** Vzor je rekonstruktér z Caerleonu ([caerleon.net](https://www.caerleon.net/history/army/pilum.htm), foto Roy Edwards), technika z trenérských podkladů pro oštěp ([Athletics Weekly](https://athleticsweekly.com/performance/training-cat/coaching/goldie-sayers-coaching-javelin-technique-68793/), [Athletics SA](https://www.athleticssa.org.za/SportsInfo/Coaching-Javelin-Throw.pdf)).
+- Pilum leží těsně u hlavy, pěst je u lícní kosti, loket vzadu a dole. Ruka není vztyčená nad hlavou.
+- Štít je u těla a kryje levý bok, líc je natočený napůl k cíli. Štít netrčí půl metru do strany.
+- Obě kolena jsou pokrčená a váha je vzadu, trup se jen lehce sklání za štít.
+- Pilum míří k cíli (od zadního chodidla k přednímu), ne podle líce štítu. Sklon je asi 27°.
+- **Úchop:** dřík leží v dlani podél kloubů, tedy zhruba napříč předloktí. Zápěstí se ohýbá jen kolem osy kloubů a do strany snese nejvýš asi 20°. Když se ruka ke zbrani dožene ohnutím zápěstí, vypadá zlomená (operátor). Proto se nejdřív postaví loket: kód hledá na kružnici IK takovou polohu, aby předloktí bylo kolmé na pilum a loket byl pod ramenem. Ruka se pak jen otočí kolem předloktí. Výpis hlásí úhel předloktí k pilu, ohnutí zápěstí a výšku lokte (B: 77°, 27°, 9 cm pod ramenem). Pěst u lícní kosti zvedla loket nad rameno a ramenní pláty se rozevřely, proto je pěst u brady.

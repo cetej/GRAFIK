@@ -1,0 +1,52 @@
+{
+ "podklad": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/zbrane/podklad",
+ "vystup": "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/zbrane",
+ "dily": {
+  "scutum": {
+   "popis": "one Roman legionary curved rectangular shield (scutum): red painted wooden body curved like a half cylinder, yellow painted wings and lightning bolts, brass edging all around, iron square boss plate with a round iron dome in the centre, complete",
+   "popis_pohled": {
+    "back": "one Roman legionary curved rectangular shield (scutum) seen from behind, the concave inside: bare plain wooden planks, a horizontal wooden hand grip behind the central boss, brass edging around the rim, no paint and no decoration on the inside",
+    "right": "one Roman legionary curved rectangular shield (scutum) seen exactly from its side edge: a tall narrow curved profile like a bent board with the iron dome boss sticking out in the middle, brass edging"
+   },
+   "box": {
+    "front": [
+     280,
+     215,
+     495,
+     770
+    ],
+    "back": [
+     280,
+     215,
+     495,
+     770
+    ],
+    "right": [
+     280,
+     215,
+     495,
+     770
+    ]
+   },
+   "seed": 21
+  },
+  "pilum": {
+   "popis": "one Roman heavy javelin (pilum) lying alone: long wooden shaft, square wooden block and a round lead weight ball at the joint, long thin iron shank ending in a small pyramidal iron point, iron butt spike at the other end, complete, whole length visible",
+   "box": {
+    "front": [
+     20,
+     0,
+     170,
+     870
+    ],
+    "right": [
+     20,
+     0,
+     170,
+     870
+    ]
+   },
+   "seed": 21
+  }
+ }
+}
