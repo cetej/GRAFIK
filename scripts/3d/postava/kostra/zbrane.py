@@ -231,8 +231,8 @@ def zbr_ruce(pn):
         print("INFO", pn, "pest z", round(T.z, 2), "horni hrana stitu", round(T.z + DELKA["scutum"] / 2, 2), "oci", round(oci, 2), flush=True)
     if ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum": _ruka_k_drzadlu(pn)
     R_ = ZBR_POZY.get(pn, {}).get("R")
-    if R_ and R_[0] == "pilum" and (pn == "hod_B" or R_[1] == "nahoru"):   # úchop: dřík leží v dlani podél kloubů, zápěstí se natočí k pilu
-        X = Vector((0, 0, 1)) if R_[1] == "nahoru" else (_smer_hodu(pn) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
+    if R_ and R_[0] == "pilum":                                       # úchop: dřík leží v dlani, ruka se natočí k pilu (každá póza s pilem)
+        X = Vector((0, 0, 1)) if R_[1] == "nahoru" else ((_smer_hodu(pn) if pn == "hod_B" else _stit_F(pn)) + Vector((0, 0, R_[1]))).normalized()      # (operátor: pěst napříč dříku = „neúchop“, ohnuté zápěstí = „zlomené“)
         M = rig.matrix_world; P = rig.pose.bones; f = (M @ P["wrist.R"].head - M @ P["lowerarm01.R"].head).normalized()
         Xp = (X - f * X.dot(f)).normalized()                        # jen otočení kolem předloktí: loket postavil Poser.naprah kolmo na pilum
         p_ = Poser(rig, MAP); osa = _uchop("R", POLOMER["pilum"])[1]; osa = osa if osa.dot(Xp) >= 0 else -osa
