@@ -60,6 +60,15 @@ class Poser:
             s.align(f"{q}_upleg", s.W(f"{q}_leg") - s.W(f"{q}_upleg"), s.W(f"{q}_foot") - s.W(f"{q}_leg"), kp(f"{Q}-knee") - kp(f"{Q}-hip"), kp(f"{Q}-ankle") - kp(f"{Q}-knee"))
             s.aim(f"{q}_leg", s.W(f"{q}_foot") - s.W(f"{q}_leg"), kp(f"{Q}-ankle") - kp(f"{Q}-knee"))
             s.aim(f"{q}_foot", s.W(f"{q}_toe") - s.W(f"{q}_foot"), (kp(f"{Q}-big-toe-tip") + kp(f"{Q}-small-toe-tip")) / 2 - kp(f"{Q}-ankle"))
+    def vzprim(s):
+        # stoj: krk svisle nad středem kotníků (náklon kamery z chodidla předlohy postavu zaklonil), chodidla pak naplocho jako v klidu
+        a = (s.W("L_foot") + s.W("R_foot")) / 2; v = s.W("neck") - a
+        s.rot("hips", v.normalized().rotation_difference(Vector((0, 0, 1))).to_matrix())
+        B = s.rig.data.bones
+        for q in ("L", "R"):
+            r0 = s.RM.to_3x3() @ (B[s.M[f"{q}_toe"]].head_local - B[s.M[f"{q}_foot"]].head_local)    # chodidlo v klidové póze
+            cur = s.W(f"{q}_toe") - s.W(f"{q}_foot"); h = Vector((cur.x, cur.y, 0)).normalized() * Vector((r0.x, r0.y, 0)).length
+            s.aim(f"{q}_foot", cur, h + Vector((0, 0, r0.z)))
     def ground(s, objs):
         z = min(min((o.matrix_world @ v.co).z for v in o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh().vertices) for o in objs)
         hp = s.b("hips"); hp.matrix = Matrix.Translation(s.M3 @ Vector((0, 0, -z))) @ hp.matrix; s.upd()
@@ -69,7 +78,7 @@ POSES = [("klid", lambda p: p.arms_down(25)), ("chuze", lambda p: (p.arms_down(2
 # pózy z předloh v2/predlohy_poz: klouby SAM 3D Body vedle C_result.json (<písmeno>_result.json); chybějící se vynechá
 for _nm, _f in (("stoj_A", "A_result.json"), ("hod_B", "B_result.json"), ("bod_D", "D_result.json")):
     _pf = os.path.join(os.path.dirname(SAMJ), _f)
-    if os.path.exists(_pf): POSES.append((_nm, lambda p, _pf=_pf: p.sam(_pf)))
+    if os.path.exists(_pf): POSES.append((_nm, (lambda p, _pf=_pf: (p.sam(_pf), p.vzprim())) if _nm == "stoj_A" else (lambda p, _pf=_pf: p.sam(_pf))))
 
 def ev_coords(o):
     masks = [m for m in o.modifiers if m.type in ("MASK", "SOLIDIFY", "SUBSURF") and m.show_viewport]

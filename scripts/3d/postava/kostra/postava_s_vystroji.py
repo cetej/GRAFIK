@@ -473,7 +473,12 @@ for pn, pf in POSES:
     rz = (rig.matrix_world @ rig.pose.bones["root"].head); ctr = Vector((rz.x, rz.y, 0.86))
     pohl = (("zepredu", (0, -1, 0.05)), ("34", (-0.6, -1, 0.05)))
     if pn in ZBR_POZY: pohl += (("34vlevo", (0.6, -1, 0.05)), ("bok", (1, 0, 0.05)), ("bok2", (-1, 0, 0.05)), ("zezadu", (0, 1, 0.05)))   # zbraně kontrolovat ze všech stran
-    for vn, d in pohl:
-        dv = Vector(d).normalized(); cam_.location = ctr + dv * 4.6; cam_.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
-        sc.render.filepath = os.path.join(FD, f"{pn}-{vn}.png"); bpy.ops.render.render(write_still=True)
+    _sv = ZB_STITY if len(ZB_STITY) > 1 and pn in ZBR_POZY else [None]
+    for st in _sv:                                                # zkouška formátů štítu: stejná póza, jen jiný štít
+        if st:
+            for x_ in ZB_STITY: x_["o"].hide_render = x_["o"].hide_viewport = True
+            ZB["scutum"] = st; zbr_umisti(pn); pohl = (("zepredu", (0, -1, 0.05)), ("34", (-0.6, -1, 0.05)), ("bok", (1, 0, 0.05)))
+        for vn, d in pohl:
+            dv = Vector(d).normalized(); cam_.location = ctr + dv * 4.6; cam_.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
+            sc.render.filepath = os.path.join(FD, f"{pn}-{vn}" + (f"-stit{st['nazev']}" if st else "") + ".png"); bpy.ops.render.render(write_still=True)
 print("INFO DONE", flush=True)

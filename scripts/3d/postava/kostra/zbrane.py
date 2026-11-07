@@ -1,13 +1,13 @@
 # Vkládá se do postava_s_vystroji.py (exec) po nahrad_vystroj.py: zbraně z generátoru (vystroj_dily.py, zadání zbrane_legionar*.json)
 # srovnané na skutečnou délku a v pózách s předlohou sevřené v pěsti. Bez model.glb se zbraň vynechá.
 ZBR = os.path.join(os.path.dirname(VYSTROJ), "zbrane")
-DELKA = {"pilum": 2.0, "gladius": 0.65, "scutum": 0.95}          # celková délka, štít výška: od brady ke kolenu postavy 1,70 m (muzejní 1,0–1,2 m byl na ni velký)
+DELKA = {"pilum": 2.0, "gladius": 0.65, "scutum": 1.05}          # celková délka, štít výška (formát 1,05 × 0,58 m, prohnutí 18 cm vybral operátor 2026-11-07 na postavě)
 # póza -> ruka -> (zbraň, kam míří hrot); štít vždy levou rukou, lícem od těla
 # hrot: "nahoru" = svisle, číslo = míří tam, kam líc štítu (k nepříteli), zvednutý o tolik (B hod nahoru, C běh s hrotem dolů)
 ZBR_POZY = {"stoj_A": {"R": ("pilum", "nahoru"), "L": ("scutum", None)}, "hod_B": {"R": ("pilum", 0.4), "L": ("scutum", None)},
             "beh_C": {"R": ("pilum", -0.3), "L": ("scutum", None)}, "bod_D": {"R": ("gladius", 0.0), "L": ("scutum", None)}}
 PEST = {1: 75, 2: 95, 3: 60}                                     # sevřená pěst kolem násady, palec poloviční
-ZB = {}
+ZB = {}; ZB_STITY = []
 
 def _hlavni_osy(o):
     # síť do vlastních hlavních os (X nejdelší, Z nejkratší), střed do počátku, měřítko na skutečnou délku
@@ -42,11 +42,11 @@ def pilum_z_tvaru():
     sel(kusy); bpy.ops.object.join(); o = bpy.context.view_layer.objects.active; o.name = "pilum_novy"
     return o
 
-def stit_z_tvaru(slozka):
+def stit_z_tvaru(slozka, H=None, W=0.58, S=0.18):
     # scutum z tvarů (model z generátoru měl rozmazanou malbu, držadlo skrz desku a nestejnou tloušťku): deska jako výseč válce
-    # 0,95 × 0,66 m, prohnutí 15 cm, tloušťka 1,2 cm, mosazný lem, železná deska s puklicí, dřevěné vodorovné držadlo vzadu.
+    # 1,05 × 0,58 m, prohnutí 18 cm, tloušťka 1,2 cm, mosazný lem, železná deska s puklicí, dřevěné vodorovné držadlo vzadu.
     # Malba = čistý pohled z lokálního FLUXu, zrcadlený podle osy puklice (textura-lic.png, textura-rub.png). Výška Z, šířka X, líc na −Y.
-    H, W, S, T = DELKA["scutum"], 0.66, 0.15, 0.012
+    H = H or DELKA["scutum"]; T = 0.012
     R = (W * W / 4 + S * S) / (2 * S); Yc = R - S / 2                        # střed křivosti za štítem, líc uprostřed na y = −S/2
     def img_mat(nm, f):
         m = bpy.data.materials.new(nm); m.use_nodes = True; nt = m.node_tree; b = nt.nodes["Principled BSDF"]
@@ -58,6 +58,7 @@ def stit_z_tvaru(slozka):
     def slab(Rf, w, h, t, mf, mb, ms, uv, z0=0.0):
         th = math.asin(min(0.999, w / 2 / Rf)); nu = max(4, int(w / 0.01)); nv = max(4, int(h / 0.01))
         P = lambda r, i, j: Vector((r * math.sin(-th + 2 * th * i / nu), Yc - r * math.cos(-th + 2 * th * i / nu), z0 - h / 2 + h * j / nv))
+        U = lambda i: (math.sin(-th + 2 * th * i / nu) / math.sin(th) + 1) / 2
         F = [[bm.verts.new(P(Rf, i, j)) for j in range(nv + 1)] for i in range(nu + 1)]
         B = [[bm.verts.new(P(Rf - t, i, j)) for j in range(nv + 1)] for i in range(nu + 1)]
         def face(vs, m, uvs=None):
@@ -66,7 +67,7 @@ def stit_z_tvaru(slozka):
                 for l, u in zip(f.loops, uvs): l[uvl].uv = u
         for i in range(nu):
             for j in range(nv):
-                u0, u1, v0, v1 = i / nu, (i + 1) / nu, j / nv, (j + 1) / nv
+                u0, u1, v0, v1 = U(i), U(i + 1), j / nv, (j + 1) / nv   # malba je pohled zepředu: u podle průmětu x, ne podle oblouku
                 face((F[i][j], F[i + 1][j], F[i + 1][j + 1], F[i][j + 1]), mf, [(u0, v0), (u1, v0), (u1, v1), (u0, v1)] if uv else None)
                 face((B[i][j], B[i][j + 1], B[i + 1][j + 1], B[i + 1][j]), mb, [(1 - u0, v0), (1 - u0, v1), (1 - u1, v1), (1 - u1, v0)] if uv else None)
         for i in range(nu):
@@ -110,7 +111,11 @@ for d in DELKA:
         for f in o.data.polygons: f.use_smooth = True
         print("INFO zbran pilum z tvaru, delka m 2.0", flush=True); continue
     if d == "scutum" and os.path.exists(os.path.join(ZBR, d, "textura-lic.png")):
-        o, g_ = stit_z_tvaru(os.path.join(ZBR, d)); ZB[d] = {"o": o, "uchop": g_}; o.hide_render = o.hide_viewport = True
+        # NGM_STITY="výška,šířka,prohnutí;…" = víc formátů štítu na zkoušku (fotky každé pózy se vyfotí s každým), jinak jeden výchozí
+        _fm = [tuple(float(x) for x in f_.split(",")) for f_ in os.environ.get("NGM_STITY", "").split(";") if f_] or [(DELKA[d], 0.58, 0.18)]
+        for H_, W_, S_ in _fm:
+            o, g_ = stit_z_tvaru(os.path.join(ZBR, d), H_, W_, S_); o.hide_render = o.hide_viewport = True; ZB_STITY.append({"o": o, "uchop": g_, "nazev": f"{H_:.2f}x{W_:.2f}x{S_:.2f}"})
+        ZB[d] = dict(ZB_STITY[0]); o = ZB[d]["o"]; g_ = ZB[d]["uchop"]
         print("INFO zbran scutum z tvaru, vyska m", DELKA[d], "uchop", tuple(round(x, 3) for x in g_), flush=True); continue
     if not os.path.exists(os.path.join(ZBR, d, "model.glb")): continue
     o = nacti(d); C = _hlavni_osy(o)
@@ -127,7 +132,7 @@ for d in DELKA:
     for f in o.data.polygons: f.use_smooth = True
     print("INFO zbran", d, "delka m", round(L, 3), "uchop", tuple(round(x, 3) for x in ZB[d]["uchop"]), flush=True)
 DIL = _DIL0
-for d, z in ZB.items():                                            # zjednodušená kopie pro kontrolu průniků (štít z generátoru má 500 tisíc ploch)
+def _kolize_pripravit(z):                                          # zjednodušená kopie pro kontrolu průniků (štít z generátoru má 500 tisíc ploch)
     m_ = z["o"].data.copy(); bm_ = bmesh.new(); bm_.from_mesh(m_); bmesh.ops.triangulate(bm_, faces=bm_.faces[:])
     if len(bm_.faces) > 4000:
         bm_.to_mesh(m_); bm_.free(); tmp = bpy.data.objects.new("tmp_kol", m_); sc.collection.objects.link(tmp)
@@ -136,6 +141,7 @@ for d, z in ZB.items():                                            # zjednoduše
     else:
         bm_.to_mesh(m_); bm_.free()
     z["kol"] = (np.array([v.co[:] for v in m_.vertices]), [p_.vertices[:] for p_ in m_.polygons])
+for z in list(ZB.values()) + ZB_STITY: _kolize_pripravit(z)
 
 def _ruka(sd):
     P = rig.pose.bones; M = rig.matrix_world
