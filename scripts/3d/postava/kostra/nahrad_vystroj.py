@@ -114,10 +114,18 @@ o.data.transform(Matrix.Translation(_cc) @ Matrix.Diagonal((_kx, _ky, 1, 1)) @ M
 print("INFO lorica: spodek z", round(_lb, 3), "na", round(_ld, 3), "sirka x/y", round(_kx, 3), round(_ky, 3), flush=True)
 # lorica: trup na páteři, ramenní pláty na ramenou (stejné dělení jako dřív u vyříznutých plátů)
 C = co(o); zsh = mp("upperarm01.L").z; o.vertex_groups.clear(); spine(o)
-sh = (C[:, 2] > zsh - 0.07) & (np.abs(C[:, 0]) > 0.11)
-for g in o.vertex_groups: g.remove(np.nonzero(sh)[0].tolist())
-for nm, m in (("shoulder01.L", sh & (C[:, 0] > 0)), ("shoulder01.R", sh & (C[:, 0] < 0))):
-    o.vertex_groups.new(name=nm).add(np.nonzero(m)[0].tolist(), 1.0, "REPLACE")
+# Ramenní pláty jsou kloubové: u krku drží na klíční kosti, k vnějšímu okraji jdou čím dál víc s paží (nejvýš 60 %).
+# Napevno na klíční kosti je zvednutá paže (nápřah B) vytlačila ven a odkryla podpaží; ostrá hranice trup/rameno
+# pak plát roztrhla do cípu. Proto plynulý přechod v šířce i výšce (ws) a podíl paže (wa).
+_ax = np.abs(C[:, 0]); ws = np.clip((_ax - 0.11) / 0.04, 0, 1) * np.clip((C[:, 2] - (zsh - 0.13)) / 0.07, 0, 1)
+wa = np.clip((_ax - 0.14) / 0.10, 0, 1) * 0.6
+for i in np.nonzero(ws > 0)[0]:
+    for ge in o.data.vertices[int(i)].groups: ge.weight *= float(1 - ws[i])
+for q, m in (("L", C[:, 0] > 0), ("R", C[:, 0] < 0)):
+    gs, ga = o.vertex_groups.new(name=f"shoulder01.{q}"), o.vertex_groups.new(name=f"upperarm01.{q}")
+    for i in np.nonzero(m & (ws > 0))[0]:
+        gs.add([int(i)], float(ws[i] * (1 - wa[i])), "REPLACE")
+        if wa[i] > 0: ga.add([int(i)], float(ws[i] * wa[i]), "REPLACE")
 # šátek (focale): vyříznutý kus měl roztřepené okraje a díry, místo něj čistý prstenec látky kolem krku
 bpy.data.objects.remove(parts.pop("satek"), do_unlink=True)
 n0, n1 = mp("neck01"), mp("head"); ax = (n1 - n0).normalized(); u = ax.cross(Vector((0, 1, 0))).normalized(); v_ = ax.cross(u).normalized()
