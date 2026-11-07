@@ -157,11 +157,25 @@ def _vpred():
     v = lev.cross(Vector((0, 0, 1))); v.z = 0                         # vpřed = kolmo na spojnici kyčlí (osy kořenové kosti MPFB míří podél páteře)
     return v.normalized() if v.length > 1e-6 else Vector((0, -1, 0))
 
+def _ik(p_, sd, T):                                                 # dvoukloubová paže: zápěstí do T, loket dolů a ven
+    S = p_.W(f"{sd}_arm"); a = (p_.W(f"{sd}_fore") - S).length; b = (p_.W(f"{sd}_hand") - p_.W(f"{sd}_fore")).length
+    u = T - S; d = min(u.length, (a + b) * 0.995); u.normalize()
+    ven = (S - p_.W("chest")); ven.z = 0; pole = (Vector((0, 0, -1)) + ven.normalized() * 0.5); v = (pole - u * pole.dot(u)).normalized()
+    ca = (a * a + d * d - b * b) / (2 * a * d); E = S + u * a * ca + v * a * math.sqrt(max(0.0, 1 - ca * ca))
+    p_.aim(f"{sd}_arm", p_.W(f"{sd}_fore") - S, E - S); p_.upd()
+    p_.aim(f"{sd}_fore", p_.W(f"{sd}_hand") - p_.W(f"{sd}_fore"), (S + u * d) - p_.W(f"{sd}_fore")); p_.upd()
+
 def zbr_ruce(pn):
     if pn == "stoj_A":                                                # stoj (předloha A, rekonstruktéři): vodorovné držadlo jako kufr, paže volně dolů, štít před levým stehnem
         p_ = Poser(rig, MAP); f_ = _vpred(); lev = Vector((0, 0, 1)).cross(f_)
         p_.aim("L_arm", p_.W("L_fore") - p_.W("L_arm"), (Vector((0, 0, -1)) + lev * 0.12 + f_ * 0.15).normalized())
         p_.aim("L_fore", p_.W("L_hand") - p_.W("L_fore"), (Vector((0, 0, -1)) + f_ * 0.55).normalized())   # pěst před stehnem mimo sukni: ruka v látce ji simulace zvedne
+    elif ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum":       # boj (rekonstruktéři): horní hrana štítu pod očima, pěst ve stejném směru od hrudi
+        p_ = Poser(rig, MAP); M = rig.matrix_world
+        oci = (M @ rig.pose.bones["head"].head).z + 0.09; hrud = p_.W("chest"); w = p_.W("L_hand") - hrud; w.z = 0
+        T = hrud + w.normalized() * max(0.30, min(0.45, w.length)); T.z = oci - 0.03 - DELKA["scutum"] / 2
+        _ik(p_, "L", T)
+        print("INFO", pn, "pest z", round(T.z, 2), "horni hrana stitu", round(T.z + DELKA["scutum"] / 2, 2), "oci", round(oci, 2), flush=True)
     for sd, (d, _) in ZBR_POZY.get(pn, {}).items():
         if d not in ZB: continue
         for pb in rig.pose.bones:
