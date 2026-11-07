@@ -158,10 +158,10 @@ def _vpred():
     return v.normalized() if v.length > 1e-6 else Vector((0, -1, 0))
 
 def zbr_ruce(pn):
-    if pn == "stoj_A":                                                # štít po levém boku (předloha A): paže podél těla, předloktí vpřed
+    if pn == "stoj_A":                                                # stoj (předloha A, rekonstruktéři): vodorovné držadlo jako kufr, paže volně dolů, štít před levým stehnem
         p_ = Poser(rig, MAP); f_ = _vpred(); lev = Vector((0, 0, 1)).cross(f_)
-        p_.aim("L_arm", p_.W("L_fore") - p_.W("L_arm"), (Vector((0, 0, -1)) + lev * 0.25 + f_ * 0.1).normalized())
-        p_.aim("L_fore", p_.W("L_hand") - p_.W("L_fore"), (f_ + lev * 0.15 - Vector((0, 0, 0.5))).normalized())   # pěst níž: horní hrana štítu u ramene
+        p_.aim("L_arm", p_.W("L_fore") - p_.W("L_arm"), (Vector((0, 0, -1)) + lev * 0.12 + f_ * 0.15).normalized())
+        p_.aim("L_fore", p_.W("L_hand") - p_.W("L_fore"), (Vector((0, 0, -1)) + f_ * 0.55).normalized())   # pěst před stehnem mimo sukni: ruka v látce ji simulace zvedne
     for sd, (d, _) in ZBR_POZY.get(pn, {}).items():
         if d not in ZB: continue
         for pb in rig.pose.bones:

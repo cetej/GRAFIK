@@ -110,3 +110,13 @@ Díl se nevyřezává ze slité postavy: řez vede tam, kde žádná hrana nebyl
 Data legionáře: `library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/` (tělo, kostra, štítky dílů, póza z SAM) a `…/vystroj/<díl>/` (výřezy, pohledy, `model.glb`, `request.json`). Utraceno za výstroj 1,58 USD.
 
 Pod zbrojí se tělo neskrývá (díry ukážou vnitřek těla). Trup dostane látku tuniky a u plechu se zatlačí pod něj, jen nad opaskem.
+
+### Jak se drží scutum (rekonstruktéři, 2026-11-07)
+
+Pózu se štítem staví kód podle toho, jak štít drží dnešní rekonstruktéři (fórum Roman Army Talk, skupiny jako Legio XV). Malovaná předloha to nerozhodne, malíř často kreslí štít, který visí ve vzduchu.
+
+- **Držadlo je vodorovné** (nález z Dura-Europos, 3. stol.). Drží se pěstí, ne předloktím ani bicepsem.
+- **Klid a pochod:** paže volně dolů, štít nese pěst „jako kufr“ nebo nákupní tašku. Vnitřní strana štítu je u stehna, štít nevisí 30 cm před tělem. Na pochodu visí štít na řemeni přes levé rameno.
+- **Boj:** levý bok a levá noha vpřed, tělo bokem. Loket je pokrčený a přitažený k boku, horní hrana štítu se opírá o rameno a je pod úrovní očí. Štít kopíruje linii přední nohy, koleno ho může podepřít. Paže se natáhne jen při úderu puklicí.
+
+Zdroje: [Roman Army Talk, vlákno 5436](https://www.romanarmytalk.com/rat/printthread.php?tid=5436), [vlákno 3868](https://www.romanarmytalk.com/rat/printthread.php?tid=3868), [romanobritain.org](https://romanobritain.org/8-military/mil_roman_soldier_shield.php). Fórum píšou rekonstruktéři, nejde o odbornou literaturu. Podrobnější zdroj je Junkelmann, *Die Legionen des Augustus*, kterého nemám v ruce.
