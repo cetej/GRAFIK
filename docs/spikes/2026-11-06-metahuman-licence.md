@@ -65,6 +65,8 @@ Zdroj: [EULA](https://www.reallusion.com/Content/EULA/EULA.htm) (shrnutí z nač
 
 ## 4. Rozhodnutí: render v Unrealu, ověřeno 2026-11-07
 
+**Aktualizace téhož dne:** operátor rozhodl, že MetaHuman se používá jen uvnitř našich projektů, komerční výstup zatím není, takže licence ho neblokuje, ani v Blenderu (cetej/GRAFIK#248, `docs/DECISIONS.md`). Rozpor „UE-Only“ v oddíle Verdikt tím není vyřešen, jen odložen: před komerčním výstupem licenci otevřít znovu a vyřešit i uvedení autora (CC-BY) u vybavení z oddílu 5. Do veřejného repa dál nepatří soubory modelu, jen rendery.
+
 Operátor zvolil render v Unrealu (ne v Blenderu), tím se obchází rozpor „UE-Only“ (oddíl Verdikt). Unreal 5.8.4 běží v `D:\EPIC\UE_5.8`, projekt `D:\EPIC\Projekty\Legionar\MyProject`.
 - Tělo `Legionary_V1`: 170 cm, svalnatost 0,65, tuk 0,2, mužské. Nastaveno přes MCP server Unrealu (plugin `ModelContextProtocol` + `MetaHumanGenerator`, `127.0.0.1:8000/mcp`, automatický start v `Config/DefaultEditorPerProjectUserSettings.ini`). Server umí jen tvorbu a úpravu postavy (výška, svalnatost, tuk, mužské/ženské, odstín kůže, barva očí); render, kameru ani oblečení nemá.
 - Render: Python v editoru (`unreal.MetaHumanCharacterEditorSubsystem.spawn_meta_human_actor`, `AutomationLibrary.take_high_res_screenshot`), Movie Render Queue není v projektu zapnutá a pro nehybné snímky není potřeba. Povrch jde přepsat na jednolitou hlínu (`set_material` na komponentách `Body` a `Face`, vlasy skrýt). Snímky v `Saved/Screenshots/WindowsEditor/`.
