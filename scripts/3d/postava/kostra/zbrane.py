@@ -1,10 +1,11 @@
 # Vkládá se do postava_s_vystroji.py (exec) po nahrad_vystroj.py: zbraně z generátoru (vystroj_dily.py, zadání zbrane_legionar*.json)
 # srovnané na skutečnou délku a v pózách s předlohou sevřené v pěsti. Bez model.glb se zbraň vynechá.
 ZBR = os.path.join(os.path.dirname(VYSTROJ), "zbrane")
-DELKA = {"pilum": 2.0, "gladius": 0.65, "scutum": 1.05}          # celková délka (štít výška), m
+DELKA = {"pilum": 2.0, "gladius": 0.65, "scutum": 0.95}          # celková délka, štít výška: od brady ke kolenu postavy 1,70 m (muzejní 1,0–1,2 m byl na ni velký)
 # póza -> ruka -> (zbraň, kam míří hrot); štít vždy levou rukou, lícem od těla
-ZBR_POZY = {"stoj_A": {"R": ("pilum", "nahoru"), "L": ("scutum", None)}, "hod_B": {"R": ("pilum", "vpred"), "L": ("scutum", None)},
-            "beh_C": {"R": ("pilum", "vpred"), "L": ("scutum", None)}, "bod_D": {"R": ("gladius", "vpred"), "L": ("scutum", None)}}
+# hrot: "nahoru" = svisle, číslo = míří tam, kam líc štítu (k nepříteli), zvednutý o tolik (B hod nahoru, C běh s hrotem dolů)
+ZBR_POZY = {"stoj_A": {"R": ("pilum", "nahoru"), "L": ("scutum", None)}, "hod_B": {"R": ("pilum", 0.4), "L": ("scutum", None)},
+            "beh_C": {"R": ("pilum", -0.3), "L": ("scutum", None)}, "bod_D": {"R": ("gladius", 0.0), "L": ("scutum", None)}}
 PEST = {1: 75, 2: 95, 3: 60}                                     # sevřená pěst kolem násady, palec poloviční
 ZB = {}
 
@@ -41,19 +42,77 @@ def pilum_z_tvaru():
     sel(kusy); bpy.ops.object.join(); o = bpy.context.view_layer.objects.active; o.name = "pilum_novy"
     return o
 
+def stit_z_tvaru(slozka):
+    # scutum z tvarů (model z generátoru měl rozmazanou malbu, držadlo skrz desku a nestejnou tloušťku): deska jako výseč válce
+    # 0,95 × 0,66 m, prohnutí 15 cm, tloušťka 1,2 cm, mosazný lem, železná deska s puklicí, dřevěné vodorovné držadlo vzadu.
+    # Malba = čistý pohled z lokálního FLUXu, zrcadlený podle osy puklice (textura-lic.png, textura-rub.png). Výška Z, šířka X, líc na −Y.
+    H, W, S, T = DELKA["scutum"], 0.66, 0.15, 0.012
+    R = (W * W / 4 + S * S) / (2 * S); Yc = R - S / 2                        # střed křivosti za štítem, líc uprostřed na y = −S/2
+    def img_mat(nm, f):
+        m = bpy.data.materials.new(nm); m.use_nodes = True; nt = m.node_tree; b = nt.nodes["Principled BSDF"]
+        tx = nt.nodes.new("ShaderNodeTexImage"); tx.image = bpy.data.images.load(os.path.join(slozka, f)); nt.links.new(tx.outputs["Color"], b.inputs["Base Color"])
+        b.inputs["Roughness"].default_value = 0.6; return m
+    mats = [img_mat("stit_lic", "textura-lic.png"), img_mat("stit_rub", "textura-rub.png"), _mat("stit_mosaz", (0.72, 0.52, 0.2), 1.0, 0.35),
+            _mat("stit_zelezo", (0.45, 0.45, 0.47), 1.0, 0.4), _mat("stit_drevo", (0.3, 0.17, 0.08), 0.0, 0.6)]
+    bm = bmesh.new(); uvl = bm.loops.layers.uv.new()
+    def slab(Rf, w, h, t, mf, mb, ms, uv, z0=0.0):
+        th = math.asin(min(0.999, w / 2 / Rf)); nu = max(4, int(w / 0.01)); nv = max(4, int(h / 0.01))
+        P = lambda r, i, j: Vector((r * math.sin(-th + 2 * th * i / nu), Yc - r * math.cos(-th + 2 * th * i / nu), z0 - h / 2 + h * j / nv))
+        F = [[bm.verts.new(P(Rf, i, j)) for j in range(nv + 1)] for i in range(nu + 1)]
+        B = [[bm.verts.new(P(Rf - t, i, j)) for j in range(nv + 1)] for i in range(nu + 1)]
+        def face(vs, m, uvs=None):
+            f = bm.faces.new(vs); f.material_index = m
+            if uvs:
+                for l, u in zip(f.loops, uvs): l[uvl].uv = u
+        for i in range(nu):
+            for j in range(nv):
+                u0, u1, v0, v1 = i / nu, (i + 1) / nu, j / nv, (j + 1) / nv
+                face((F[i][j], F[i + 1][j], F[i + 1][j + 1], F[i][j + 1]), mf, [(u0, v0), (u1, v0), (u1, v1), (u0, v1)] if uv else None)
+                face((B[i][j], B[i][j + 1], B[i + 1][j + 1], B[i + 1][j]), mb, [(1 - u0, v0), (1 - u0, v1), (1 - u1, v1), (1 - u1, v0)] if uv else None)
+        for i in range(nu):
+            face((F[i][0], B[i][0], B[i + 1][0], F[i + 1][0]), ms); face((F[i][nv], F[i + 1][nv], B[i + 1][nv], B[i][nv]), ms)
+        for j in range(nv):
+            face((F[0][j], F[0][j + 1], B[0][j + 1], B[0][j]), ms); face((F[nu][j], B[nu][j], B[nu][j + 1], F[nu][j + 1]), ms)
+    slab(R, W, H, T, 0, 1, 2, True)                                       # deska
+    ZP = 0.018                                                            # puklice je na malbě o 1,8 cm nad středem
+    slab(R + 0.007, 0.225, 0.245, 0.007, 3, 3, 3, False, ZP)             # železná deska puklice před lícem, kryje namalovanou
+    bm.normal_update()
+    o = bpy.data.objects.new("scutum_novy", bpy.data.meshes.new("scutum_novy")); bm.to_mesh(o.data); bm.free(); sc.collection.objects.link(o)
+    for m in mats: o.data.materials.append(m)
+    kusy = [o]
+    th = math.asin(W / 2 / R); rl = R - T / 2                              # mosazný lem po obvodu: spodní hrana zleva doprava, horní zpět
+    pts = [(rl * math.sin(a), Yc - rl * math.cos(a), z) for z, sm in ((-H / 2, 1), (H / 2, -1)) for a in (sm * (-th + 2 * th * k / 24) for k in range(25))]
+    cu = bpy.data.curves.new("lem", "CURVE"); cu.dimensions = "3D"; cu.bevel_depth = 0.009; cu.bevel_resolution = 3
+    sp = cu.splines.new("POLY"); sp.points.add(len(pts) - 1)
+    for p_, q_ in zip(sp.points, pts): p_.co = (*q_, 1)
+    sp.use_cyclic_u = True
+    lo_ = bpy.data.objects.new("lem", cu); sc.collection.objects.link(lo_); sel([lo_]); bpy.ops.object.convert(target="MESH"); lo_ = bpy.context.view_layer.objects.active
+    lo_.data.materials.clear(); lo_.data.materials.append(mats[2]); kusy.append(lo_)
+    y0 = -S / 2
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.065, segments=32, ring_count=16, location=(0, y0 - 0.007, ZP)); d_ = bpy.context.active_object
+    d_.scale = (1, 0.75, 1); d_.data.materials.append(mats[3]); kusy.append(d_)                     # polokoule puklice (zadní půlka je v desce)
+    rub = lambda x: Yc - math.sqrt((R - T) ** 2 - x * x)                    # rub desky v místě x (deska je prohnutá, držadlo ji nesmí protnout)
+    yg = rub(0.12) + 0.022                                                # držadlo 2,2 cm za rubem i na koncích
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.016, depth=0.24, vertices=16, location=(0, yg, 0), rotation=(0, math.pi / 2, 0))
+    g_ = bpy.context.active_object; g_.data.materials.append(mats[4]); kusy.append(g_)              # držadlo vodorovně za puklicí
+    for sx in (-0.12, 0.12):                                              # úchyty od rubu k držadlu
+        y1 = rub(abs(sx)) + 0.002; bpy.ops.mesh.primitive_cube_add(size=1, location=(sx, (y1 + yg) / 2, 0)); b_ = bpy.context.active_object
+        b_.scale = (0.03, yg - y1 + 0.016, 0.04); b_.data.materials.append(mats[4]); kusy.append(b_)
+    for k_ in kusy: sel([k_]); bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    sel(kusy); bpy.ops.object.join(); o = bpy.context.view_layer.objects.active; o.name = "scutum_novy"
+    for f in o.data.polygons: f.use_smooth = f.material_index != 1
+    return o, Vector((0, yg, 0))                                            # pěst svírá držadlo
+
 _DIL0 = DIL; DIL = ZBR
 for d in DELKA:
     if d == "pilum" and not os.path.exists(os.path.join(ZBR, d, "model.glb")):
         o = pilum_z_tvaru(); ZB[d] = {"o": o, "uchop": Vector((0.0, 0, 0))}; o.hide_render = o.hide_viewport = True
         for f in o.data.polygons: f.use_smooth = True
         print("INFO zbran pilum z tvaru, delka m 2.0", flush=True); continue
+    if d == "scutum" and os.path.exists(os.path.join(ZBR, d, "textura-lic.png")):
+        o, g_ = stit_z_tvaru(os.path.join(ZBR, d)); ZB[d] = {"o": o, "uchop": g_}; o.hide_render = o.hide_viewport = True
+        print("INFO zbran scutum z tvaru, vyska m", DELKA[d], "uchop", tuple(round(x, 3) for x in g_), flush=True); continue
     if not os.path.exists(os.path.join(ZBR, d, "model.glb")): continue
-    if d == "scutum":                                             # osy z generátoru: výška Z, šířka X, puklice na −Y (hlavní osy sítě štít natočily)
-        o = nacti(d); C = co(o); lo, hi = C.min(0), C.max(0)
-        o.data.transform(Matrix.Scale(DELKA[d] / float(hi[2] - lo[2]), 4) @ Matrix.Translation(-Vector((lo + hi) / 2))); C = co(o)
-        ZB[d] = {"o": o, "uchop": Vector((0, float(C[:, 1].min()) + 0.09, 0))}   # pěst 9 cm za čelem puklice: za deskou, v dutině puklice
-        o.hide_render = o.hide_viewport = True
-        print("INFO zbran scutum vyska m", DELKA[d], "uchop", tuple(round(x, 3) for x in ZB[d]["uchop"]), flush=True); continue
     o = nacti(d); C = _hlavni_osy(o)
     k = DELKA[d] / float(C[:, 0].max() - C[:, 0].min()); o.data.transform(Matrix.Scale(k, 4)); C = co(o); L = float(C[:, 0].max() - C[:, 0].min())
     x0, x1 = float(C[:, 0].min()), float(C[:, 0].max())
@@ -68,6 +127,15 @@ for d in DELKA:
     for f in o.data.polygons: f.use_smooth = True
     print("INFO zbran", d, "delka m", round(L, 3), "uchop", tuple(round(x, 3) for x in ZB[d]["uchop"]), flush=True)
 DIL = _DIL0
+for d, z in ZB.items():                                            # zjednodušená kopie pro kontrolu průniků (štít z generátoru má 500 tisíc ploch)
+    m_ = z["o"].data.copy(); bm_ = bmesh.new(); bm_.from_mesh(m_); bmesh.ops.triangulate(bm_, faces=bm_.faces[:])
+    if len(bm_.faces) > 4000:
+        bm_.to_mesh(m_); bm_.free(); tmp = bpy.data.objects.new("tmp_kol", m_); sc.collection.objects.link(tmp)
+        dm = tmp.modifiers.new("d", "DECIMATE"); dm.ratio = 4000 / len(m_.polygons); sel([tmp]); bpy.ops.object.modifier_apply(modifier="d")
+        m_ = tmp.data; bpy.data.objects.remove(tmp, do_unlink=True)
+    else:
+        bm_.to_mesh(m_); bm_.free()
+    z["kol"] = (np.array([v.co[:] for v in m_.vertices]), [p_.vertices[:] for p_ in m_.polygons])
 
 def _ruka(sd):
     P = rig.pose.bones; M = rig.matrix_world
@@ -98,21 +166,63 @@ def zbr_ruce(pn):
 
 def zbr_umisti(pn):
     for z in ZB.values(): z["o"].hide_render = z["o"].hide_viewport = True
-    vpred = _vpred()
+    vpred = _vpred(); F = vpred                                          # líc štítu: vodorovně od hrudníku přes levou pěst ven = k nepříteli
+    if pn != "stoj_A" and ZBR_POZY.get(pn, {}).get("L", ("",))[0] == "scutum":   # u A stojí štít u boku lícem dopředu
+        F = _ruka("L")[0] - rig.matrix_world @ rig.pose.bones["spine03"].head; F.z = 0; F = F.normalized() if F.length > 1e-6 else vpred
     for sd, (d, hrot) in ZBR_POZY.get(pn, {}).items():
         if d not in ZB: continue
         G, osa, n = _ruka(sd); o = ZB[d]["o"]
-        if d == "scutum":                                                 # štít svisle, lícem vodorovně od hrudníku přes pěst ven
-            F = G - rig.matrix_world @ rig.pose.bones["spine03"].head; F.z = 0; F = F.normalized() if F.length > 1e-6 else vpred
-            if pn == "stoj_A": F = vpred                                  # u boku lícem dopředu, ne do strany
+        if d == "scutum":                                                 # štít svisle
             Z = Vector((0, 0, 1)); Y = -F; X = Y.cross(Z)
         elif hrot == "nahoru":                                            # pilum u nohy svisle hrotem nahoru (předloha A)
             X = Vector((0, 0, 1)); Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
         else:
-            hint = Vector((0, 0, 1)) if hrot == "nahoru" else (vpred + Vector((0, 0, 0.2))).normalized()
-            X = osa if (d == "gladius" or osa.dot(hint) >= 0) else -osa   # gladius čepelí na straně palce
+            if d == "gladius":                                            # bodnutí: čepel prodlužuje předloktí
+                X = (G - rig.matrix_world @ rig.pose.bones[f"lowerarm01.{sd}"].head).normalized()
+            else:                                                         # hod a běh: hrot tam, kam líc štítu (k nepříteli); osa pěsti je napříč a o směru nerozhodne
+                X = (F + Vector((0, 0, hrot))).normalized()
             Z = (n - X * n.dot(X)).normalized(); Y = Z.cross(X)
         R = Matrix((X, Y, Z)).transposed().to_4x4()
         o.matrix_world = Matrix.Translation(G) @ R @ Matrix.Translation(-ZB[d]["uchop"])
         o.hide_render = o.hide_viewport = False
+    bpy.context.view_layer.update()
+    _bez_pruniku(pn, F)
+
+def _bvh(d, Mw):
+    V, Pf = ZB[d]["kol"]; Mn = np.array(Mw); W = V @ Mn[:3, :3].T + Mn[:3, 3]
+    return BVHTree.FromPolygons([tuple(x) for x in W], Pf)
+
+def _bez_pruniku(pn, F):
+    # zbraně jsou samostatné objekty, ale stojí jen podle pěsti: tady se nesmí protnout s tělem ani navzájem.
+    # Z těla se vynechá pěst a předloktí, které zbraň drží. Štít ustoupí po směru líce, kopí a meč se pootočí kolem pěsti.
+    poza = {sd: d for sd, (d, _) in ZBR_POZY.get(pn, {}).items() if d in ZB}
+    if not poza: return
+    ev = body.evaluated_get(bpy.context.evaluated_depsgraph_get()); me = ev.to_mesh(); Mb = np.array(body.matrix_world)
+    X = np.empty(len(me.vertices) * 3, np.float32); me.vertices.foreach_get("co", X); X = X.reshape(-1, 3) @ Mb[:3, :3].T + Mb[:3, 3]
+    M = rig.matrix_world; skryj = np.zeros(len(X), bool)
+    for sd in poza:
+        e_ = np.array(M @ rig.pose.bones[f"lowerarm01.{sd}"].head); g_ = np.array(_ruka(sd)[0])
+        ab = g_ - e_; t = np.clip(((X - e_) @ ab) / (ab @ ab), 0, 1); skryj |= np.linalg.norm(X - (e_ + t[:, None] * ab), axis=1) < 0.09
+    tb = BVHTree.FromPolygons([tuple(x) for x in X], [p_.vertices[:] for p_ in me.polygons if not skryj[list(p_.vertices)].any()])
+    ev.to_mesh_clear()
+    if "L" in poza and poza["L"] == "scutum":
+        o = ZB["scutum"]["o"]; n_ = 0
+        while tb.overlap(_bvh("scutum", o.matrix_world)) and n_ < 25:
+            o.matrix_world = Matrix.Translation(F * 0.01) @ o.matrix_world; n_ += 1
+        print("INFO", pn, "stit odsunut od tela o cm", n_, flush=True)
+    for sd, d in poza.items():
+        if d == "scutum": continue
+        o = ZB[d]["o"]; M0 = o.matrix_world.copy(); G, osa, n = _ruka(sd)
+        prekazky = [tb] + ([_bvh("scutum", ZB["scutum"]["o"].matrix_world)] if "scutum" in poza.values() else [])
+        def koliz(Mw):
+            b_ = _bvh(d, Mw); return sum(len(x.overlap(b_)) for x in prekazky)
+        best = (koliz(M0), 0, None)
+        if best[0]:
+            for uhel in (5, -5, 10, -10, 15, -15, 20, -20, 25, -25, 30, -30, 40, -40):
+                for ax in (n, osa.cross(n)):
+                    Mw = Matrix.Translation(G) @ Matrix.Rotation(math.radians(uhel), 4, ax) @ Matrix.Translation(-G) @ M0; k_ = koliz(Mw)
+                    if k_ < best[0]: best = (k_, uhel, Mw)
+                if best[0] == 0: break
+            if best[2] is not None: o.matrix_world = best[2]
+        print("INFO", pn, d, "pruniku", best[0], "pootoceno o", best[1], flush=True)
     bpy.context.view_layer.update()

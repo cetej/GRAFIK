@@ -438,7 +438,7 @@ run_all({"rig": rig, "MAP": MAP, "body": body, "cloth": cl, "skin_idx": skin, "n
 P_ = Poser(rig, MAP); DD = os.path.join(OUT, "detail"); os.makedirs(DD, exist_ok=True)
 VIEWS8 = {f"{i:02d}": (math.sin(math.radians(a_)), -math.cos(math.radians(a_)), 0.08) for i, a_ in enumerate(range(0, 360, 45))}
 CROPS = {"hlava": (1.52, 0.42), "trup": (1.18, 0.62), "pas": (0.86, 0.62), "nohy": (0.42, 0.75), "chodidla": (0.1, 0.42)}
-for pn, pf in (("klid", POSES[0][1]), ("beh_C", POSES[3][1])):
+for pn, pf in (() if JEN_POZA else (("klid", POSES[0][1]), ("beh_C", POSES[3][1]))):
     P_.reset(); pf(P_); P_.ground([body] + [parts[g] for g in ("sandal_L", "sandal_R") if g in parts]); prep(pn); rig.animation_data_clear()
     for vn, d in VIEWS8.items(): shot(sc, os.path.join(DD, f"{pn}-cela-{vn}.png"), d, 2.0, (0, 0, 0.86))
     if pn == "klid":                                    # přesně zepředu a z boku, bez natočení: srovnání s předlohou ve stejném měřítku
@@ -468,9 +468,12 @@ for pn, pf in (("klid", POSES[0][1]), ("beh_C", POSES[3][1])):
 FD = os.path.join(OUT, "foto"); os.makedirs(FD, exist_ok=True); sc.cycles.samples = 128
 cam_ = sc.camera; cam_.data.type = "PERSP"; cam_.data.lens = 70; sc.render.resolution_x, sc.render.resolution_y = 1088, 1632
 for pn, pf in POSES:
+    if JEN_POZA and pn != JEN_POZA: continue
     P_.reset(); pf(P_); P_.ground([body] + [parts[g] for g in ("sandal_L", "sandal_R") if g in parts]); prep(pn); rig.animation_data_clear()
     rz = (rig.matrix_world @ rig.pose.bones["root"].head); ctr = Vector((rz.x, rz.y, 0.86))
-    for vn, d in (("zepredu", (0, -1, 0.05)), ("34", (-0.6, -1, 0.05))):
+    pohl = (("zepredu", (0, -1, 0.05)), ("34", (-0.6, -1, 0.05)))
+    if pn in ZBR_POZY: pohl += (("34vlevo", (0.6, -1, 0.05)), ("bok", (1, 0, 0.05)), ("bok2", (-1, 0, 0.05)), ("zezadu", (0, 1, 0.05)))   # zbraně kontrolovat ze všech stran
+    for vn, d in pohl:
         dv = Vector(d).normalized(); cam_.location = ctr + dv * 4.6; cam_.rotation_euler = (-dv).to_track_quat("-Z", "Y").to_euler()
         sc.render.filepath = os.path.join(FD, f"{pn}-{vn}.png"); bpy.ops.render.render(write_still=True)
 print("INFO DONE", flush=True)

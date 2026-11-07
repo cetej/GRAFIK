@@ -7,6 +7,7 @@ import numpy as np
 from mathutils import Vector, Matrix, Quaternion
 from mathutils.bvhtree import BVHTree
 SAMJ = os.environ.get("NGM_POZA_SAM", "C:/Users/stock/Documents/000_NGM/GRAFIK/library/3d/rimsky-legionar-v-a-poze-zaklad-pro-kostru/postava/C_result.json")  # 3D body SAM pro pózu běhu C
+JEN_POZA = os.environ.get("NGM_POZA")       # jedna póza (úpravy po jedné): přeskočí ostatní pózy i detailní výřezy
 PRSTY = {1: 20, 2: 30, 3: 20}
 HDRI = "D:/NGM-SKLAD/3d/polyhaven/hdri/art_studio/art_studio_1k.hdr"
 
@@ -107,6 +108,7 @@ def run_all(ctx):
     os.makedirs(ctx["out_dir"], exist_ok=True)
     setup_render(sc)
     for pn, pf in POSES:
+        if JEN_POZA and pn != JEN_POZA: continue
         p.reset(); pf(p); p.ground(ctx.get("ground_objs", [body]))
         if ctx.get("prep_pose"): ctx["prep_pose"](pn)
         X, N, polys, _ = ev_coords(body); C, _, cpolys, _ = ev_coords(cloth)
