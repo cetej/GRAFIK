@@ -128,4 +128,4 @@ Zdroje: [Roman Army Talk, vlákno 5436](https://www.romanarmytalk.com/rat/printt
 - Štít je u těla a kryje levý bok, líc je natočený napůl k cíli. Štít netrčí půl metru do strany.
 - Obě kolena jsou pokrčená a váha je vzadu, trup se jen lehce sklání za štít.
 - Pilum míří k cíli (od zadního chodidla k přednímu), ne podle líce štítu. Sklon je asi 27°.
-- **Úchop:** dřík leží v dlani podél kloubů. Zápěstí se natočí tak, aby osa sevřené pěsti šla podél dříku, ještě než se prsty sevřou. Když pěst stojí napříč dříku, ruka zbraň nedrží (operátor: „spíš neúchop“).
+- **Úchop:** dřík leží v dlani podél kloubů, tedy zhruba napříč předloktí. Zápěstí se ohýbá jen kolem osy kloubů a do strany snese nejvýš asi 20°. Když se ruka ke zbrani dožene ohnutím zápěstí, vypadá zlomená (operátor). Proto se nejdřív postaví loket: kód hledá na kružnici IK takovou polohu, aby předloktí bylo kolmé na pilum a loket byl pod ramenem. Ruka se pak jen otočí kolem předloktí. Výpis hlásí úhel předloktí k pilu, ohnutí zápěstí a výšku lokte (B: 77°, 27°, 9 cm pod ramenem). Pěst u lícní kosti zvedla loket nad rameno a ramenní pláty se rozevřely, proto je pěst u brady.

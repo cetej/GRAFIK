@@ -69,11 +69,13 @@ class Poser:
             r0 = s.RM.to_3x3() @ (B[s.M[f"{q}_toe"]].head_local - B[s.M[f"{q}_foot"]].head_local)    # chodidlo v klidové póze
             cur = s.W(f"{q}_toe") - s.W(f"{q}_foot"); h = Vector((cur.x, cur.y, 0)).normalized() * Vector((r0.x, r0.y, 0)).length
             s.aim(f"{q}_foot", cur, h + Vector((0, 0, r0.z)))
-    def ik(s, a, b, c, T, pole):                         # dvoukloubová končetina a→b→c: konec c do T, prostřední kloub k pólu
+    def loket(s, a, b, c, T, pole):                      # prostřední kloub dvoukloubové končetiny a→b→c pro konec v T a pól
         S = s.W(a); la = (s.W(b) - S).length; lb = (s.W(c) - s.W(b)).length
         u = T - S; d = min(u.length, (la + lb) * 0.995); u.normalize(); v = (pole - u * pole.dot(u)).normalized()
-        ca = (la * la + d * d - lb * lb) / (2 * la * d); E = S + u * la * ca + v * la * math.sqrt(max(0.0, 1 - ca * ca))
-        s.aim(a, s.W(b) - S, E - S); s.aim(b, s.W(c) - s.W(b), S + u * d - s.W(b))
+        ca = (la * la + d * d - lb * lb) / (2 * la * d); return S + u * la * ca + v * la * math.sqrt(max(0.0, 1 - ca * ca)), S + u * d
+    def ik(s, a, b, c, T, pole):                         # dvoukloubová končetina a→b→c: konec c do T, prostřední kloub k pólu
+        E, T_ = s.loket(a, b, c, T, pole); S = s.W(a)
+        s.aim(a, s.W(b) - S, E - S); s.aim(b, s.W(c) - s.W(b), T_ - s.W(b))
     def naprah(s):
         # nápřah k hodu oštěpem: SAM z malby dal hluboký podřep s koleny ven (operátor: „spíš padá“).
         # Směr hodu D = od pravého chodidla k levému; boky pootevřené, ramena bokem levým k cíli, hlava k cíli, pravá ruka s pilem vzadu nad ramenem.
@@ -98,8 +100,22 @@ class Poser:
         for q, h_ in (("L", D), ("R", Tr)):
             r0 = s.RM.to_3x3() @ (B[s.M[f"{q}_toe"]].head_local - B[s.M[f"{q}_foot"]].head_local)
             s.aim(f"{q}_foot", s.W(f"{q}_toe") - s.W(f"{q}_foot"), h_ * Vector((r0.x, r0.y, 0)).length + Vector((0, 0, r0.z)))
-        hl = s.W("neck") + Z * 0.12                          # vzor: rekonstruktér v Caerleonu (foto Roy Edwards) — pěst u lícní kosti vedle hlavy,
-        s.ik("R_arm", "R_fore", "R_hand", hl - D * 0.14 + Fc * 0.12, -D - Z * 0.6)   # loket vzadu a dole, pilum leží těsně u hlavy
+        # vzor: rekonstruktér v Caerleonu (foto Roy Edwards) — pěst u brady až lícní kosti, pilum těsně u hlavy.
+        # Pěst u lícní kosti zvedla loket do výšky ramene a ramenní pláty se rozevřely; u brady jde loket pod rameno.
+        # Dřík leží v sevřené pěsti napříč předloktí a zápěstí se kolem jiné osy neohne (operátor: „zlomil jsi mu zápěstí“):
+        # loket se proto hledá na kružnici IK tak, aby předloktí bylo kolmé na pilum (úklon zápěstí do strany do 20° snese); ruka se pak pootočí kolem předloktí.
+        X = (D + Z * 0.5).normalized(); s.rig["smer_hodu"] = tuple(D)   # sklon jako hrot pila v zbrane.py (0,5)
+        T = s.W("neck") + Z * 0.03 - D * 0.10 + Fc * 0.14; S = s.W("R_arm"); u = (T - S).normalized()
+        e1 = (Z - u * u.dot(Z)).normalized(); e2 = u.cross(e1); hr = s.W("chest"); best = None
+        for k in range(72):
+            pole = e1 * math.cos(k * math.pi / 36) + e2 * math.sin(k * math.pi / 36)
+            E, T_ = s.loket("R_arm", "R_fore", "R_hand", T, pole); f = (T_ - E).normalized()
+            dh = E - hr; dh.z = 0
+            pen = max(0.0, abs(f.dot(X)) - math.sin(math.radians(20))) + 3 * max(0.0, E.z - (S.z - 0.10)) + (1.0 if dh.length < 0.17 else 0.0)   # loket dole u boku (vzor), mimo trup;
+            # loket ve výšce ramene rozevřel ramenní pláty loriky
+            if best is None or pen < best[0]: best = (pen, pole, f)
+        s.ik("R_arm", "R_fore", "R_hand", T, best[1])
+        print("INFO naprah predlokti k pilu deg", round(math.degrees(best[2].angle(X)), 1), "loket pod ramenem cm", round(100 * (S.z - s.W("R_fore").z), 1), flush=True)
         La = s.W("L_arm"); s.ik("L_arm", "L_fore", "L_hand", La + (D * 0.8 + Fc * 0.6) * 0.28 - Z * 0.25, Vector((0, 0, -1)) + D * 0.3)   # štít u těla, napůl k cíli (vzor)
     def ground(s, objs):
         z = min(min((o.matrix_world @ v.co).z for v in o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh().vertices) for o in objs)
