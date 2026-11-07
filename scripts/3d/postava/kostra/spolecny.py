@@ -76,18 +76,21 @@ class Poser:
         s.aim(a, s.W(b) - S, E - S); s.aim(b, s.W(c) - s.W(b), S + u * d - s.W(b))
     def naprah(s):
         # nápřah k hodu oštěpem: SAM z malby dal hluboký podřep s koleny ven (operátor: „spíš padá“).
-        # Směr hodu D = od pravého chodidla k levému; zadní noha skoro natažená nese váhu, přední vykročená a mírně pokrčená,
-        # boky pootevřené, ramena bokem levým k cíli, hlava k cíli, pravá ruka s pilem vzadu nad ramenem.
+        # Směr hodu D = od pravého chodidla k levému; boky pootevřené, ramena bokem levým k cíli, hlava k cíli, pravá ruka s pilem vzadu nad ramenem.
+        # Nohy podle fáze (NGM_FAZE): „naprah“ = váha vzadu, zadní koleno pokrčené, přední noha natažená a zapřená, trup lehce v záklonu;
+        # „vypad“ = jako předloha B: zadní noha natažená po odrazu, přední vykročená a pokrčená.
+        naprah = os.environ.get("NGM_FAZE", "naprah") == "naprah"
+        lean, krok, vaha, zadni = (0.15, 0.30, 0.20, 0.88) if naprah else (0.08, 0.40, 0.12, 0.97)
         Z = Vector((0, 0, 1)); D = s.W("L_foot") - s.W("R_foot"); D.z = 0; D.normalize(); Fc = D.cross(Z)   # Fc = kam míří hrudník (levý bok k D)
         M = (s.W("L_foot") + s.W("R_foot")) / 2; M.z = 0
-        s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), Z - D * 0.08, D * math.cos(0.30) - Fc * math.sin(0.30))   # kroucení boky–ramena jen ~10°: tuhá lorica víc nesnese (rozestoupí se)
+        s.align("hips", s.W("chest") - s.W("hips"), s.W("L_upleg") - s.W("R_upleg"), Z - D * lean, D * math.cos(0.30) - Fc * math.sin(0.30))   # kroucení boky–ramena jen ~10°: tuhá lorica víc nesnese (rozestoupí se)
         s.align("chest", s.W("neck") - s.W("chest"), s.W("L_arm") - s.W("R_arm"), Z - D * 0.06, D * math.cos(0.12) - Fc * math.sin(0.12))
         s.rot("neck", Fc.rotation_difference(D * 0.8 + Fc * 0.6).to_matrix())
         Lg = (s.W("R_leg") - s.W("R_upleg")).length + (s.W("R_foot") - s.W("R_leg")).length
-        FA = M + D * 0.40; RA = M - D * 0.40 + Fc * 0.10
+        FA = M + D * krok; RA = M - D * 0.40 + Fc * 0.10
         Hc = (s.W("L_upleg") + s.W("R_upleg")) / 2; off = s.W("R_upleg") - Hc
-        tgt = M - D * 0.12; hd = ((tgt + off) - RA); hd.z = 0
-        tgt.z = RA.z + math.sqrt(max(0.01, (0.97 * Lg) ** 2 - hd.length ** 2)) - off.z
+        tgt = M - D * vaha; hd = ((tgt + off) - RA); hd.z = 0
+        tgt.z = RA.z + math.sqrt(max(0.01, (zadni * Lg) ** 2 - hd.length ** 2)) - off.z
         hp = s.b("hips"); hp.matrix = Matrix.Translation(s.M3 @ (tgt - Hc)) @ hp.matrix; s.upd()
         Tr = (D * 0.5 + Fc * 0.87).normalized()
         s.ik("L_upleg", "L_leg", "L_foot", FA, D + Z * 0.1); s.ik("R_upleg", "R_leg", "R_foot", RA, Tr)
@@ -95,7 +98,8 @@ class Poser:
         for q, h_ in (("L", D), ("R", Tr)):
             r0 = s.RM.to_3x3() @ (B[s.M[f"{q}_toe"]].head_local - B[s.M[f"{q}_foot"]].head_local)
             s.aim(f"{q}_foot", s.W(f"{q}_toe") - s.W(f"{q}_foot"), h_ * Vector((r0.x, r0.y, 0)).length + Vector((0, 0, r0.z)))
-        Ra = s.W("R_arm"); s.ik("R_arm", "R_fore", "R_hand", Ra - D * 0.40 + Z * 0.22 + Fc * 0.10, Vector((0, 0, -1)) - D * 0.3)
+        Ra = s.W("R_arm")                                 # nadloktí zhruba vodorovně dozadu, loket pokrčený, pěst nad ramenem vedle hlavy
+        s.ik("R_arm", "R_fore", "R_hand", Ra - D * 0.12 + Z * 0.26 + Fc * 0.10, -D - Z * 0.25)
         La = s.W("L_arm"); s.ik("L_arm", "L_fore", "L_hand", La + D * 0.35 - Z * 0.25, Vector((0, 0, -1)) + Fc * 0.3)
     def ground(s, objs):
         z = min(min((o.matrix_world @ v.co).z for v in o.evaluated_get(bpy.context.evaluated_depsgraph_get()).to_mesh().vertices) for o in objs)
